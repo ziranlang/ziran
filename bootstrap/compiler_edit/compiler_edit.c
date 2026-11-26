@@ -34,7 +34,7 @@ compiler_edit_Fail(uint8_t* message)
         String s = value_3;
         value_4 = ((StaticText*)(&(s)))->data;
     }
-    zir_f_2786a48467b70b55_Diagnostic(span, value_1, value_4, message);
+    zir_foreign_compiler_edit__Diagnostic(span, value_1, value_4, message);
     return 0;
 }
 
@@ -58,7 +58,7 @@ compiler_edit_Copy(String value)
                     String s = value;
                     value_6 = ((StaticText*)(&(s)))->data;
                 }
-                void* value_8 = zir_f_2786a48467b70b55_memchr((void*)(value_6), 0, (size_t)((int64_t)(value).length));
+                void* value_8 = zir_foreign_compiler_edit__memchr((void*)(value_6), 0, (size_t)((int64_t)(value).length));
                 value_5 = (value_8 != ((void *)0));
             }
             value_1 = value_5;
@@ -68,7 +68,7 @@ compiler_edit_Copy(String value)
     if (value_0) {
         return (void *)0;
     }
-    void* value_9 = zir_f_2786a48467b70b55_malloc((size_t)((int64_t)(value).length) + 1);
+    void* value_9 = zir_foreign_compiler_edit__malloc((size_t)((int64_t)(value).length) + 1);
     uint8_t* text = (uint8_t*)(value_9);
     if (text == ((void *)0)) {
         return (void *)0;
@@ -79,7 +79,7 @@ compiler_edit_Copy(String value)
             String s = value;
             value_10 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_2786a48467b70b55_memcpy((void*)(text), (void*)(value_10), (size_t)((int64_t)(value).length));
+        zir_foreign_compiler_edit__memcpy((void*)(text), (void*)(value_10), (size_t)((int64_t)(value).length));
     }
     uint8_t* value_12 = &(text[(int64_t)(value).length]);
     (*value_12) = 0;
@@ -129,11 +129,11 @@ compiler_edit_ReadFd(int32_t descriptor, size_t* count)
     int32_t regular = 0;
     uint64_t device = 0ULL;
     uint64_t inode = 0ULL;
-    bool value_0 = zir_f_2786a48467b70b55_EditHostFdInfo(descriptor, &(size), &(mode), &(regular), &(device), &(inode)) != 0;
+    bool value_0 = zir_foreign_compiler_edit__EditHostFdInfo(descriptor, &(size), &(mode), &(regular), &(device), &(inode)) != 0;
     if (value_0 || regular == 0 || size < 0LL || size > 33554464LL) {
         return (void *)0;
     }
-    void* value_1 = zir_f_2786a48467b70b55_malloc((size_t)(size) + 1);
+    void* value_1 = zir_foreign_compiler_edit__malloc((size_t)(size) + 1);
     uint8_t* text = (uint8_t*)(value_1);
     if (text == ((void *)0)) {
         return (void *)0;
@@ -141,9 +141,9 @@ compiler_edit_ReadFd(int32_t descriptor, size_t* count)
     size_t at = 0;
     size_t total = (size_t)(size);
     while (at < total) {
-        ptrdiff_t n = zir_f_2786a48467b70b55_pread(descriptor, (void*)(((size_t)(text) + at)), total - at, (ptrdiff_t)(at));
+        ptrdiff_t n = zir_foreign_compiler_edit__pread(descriptor, (void*)(((size_t)(text) + at)), total - at, (ptrdiff_t)(at));
         if (n <= 0) {
-            zir_f_2786a48467b70b55_free((void*)(text));
+            zir_foreign_compiler_edit__free((void*)(text));
             return (void *)0;
         }
         at = at + (size_t)(n);
@@ -158,7 +158,7 @@ compiler_edit_ReadFd(int32_t descriptor, size_t* count)
 int32_t
 ZiranEditJsonEnabled(void)
 {
-    return zir_f_2786a48467b70b55_DiagnosticJsonEnabled();
+    return zir_foreign_compiler_edit__DiagnosticJsonEnabled();
 }
 
 int32_t
@@ -177,7 +177,7 @@ ZiranEditDiagnosticFormat(String value)
             String s = value_3;
             value_4 = ((StaticText*)(&(s)))->data;
         }
-        bool value_6 = zir_f_2786a48467b70b55_memcmp((void*)(value_1), (void*)(value_4), 4) == 0;
+        bool value_6 = zir_foreign_compiler_edit__memcmp((void*)(value_1), (void*)(value_4), 4) == 0;
         value_0 = value_6;
     }
     if (value_0) {
@@ -187,7 +187,7 @@ ZiranEditDiagnosticFormat(String value)
             String s = value_7;
             value_8 = ((StaticText*)(&(s)))->data;
         }
-        return zir_f_2786a48467b70b55_SetDiagnosticFormat(value_8);
+        return zir_foreign_compiler_edit__SetDiagnosticFormat(value_8);
     }
     bool value_10 = (int64_t)(value).length == 4LL;
     if (value_10) {
@@ -202,7 +202,7 @@ ZiranEditDiagnosticFormat(String value)
             String s = value_13;
             value_14 = ((StaticText*)(&(s)))->data;
         }
-        bool value_16 = zir_f_2786a48467b70b55_memcmp((void*)(value_11), (void*)(value_14), 4) == 0;
+        bool value_16 = zir_foreign_compiler_edit__memcmp((void*)(value_11), (void*)(value_14), 4) == 0;
         value_10 = value_16;
     }
     if (value_10) {
@@ -212,7 +212,7 @@ ZiranEditDiagnosticFormat(String value)
             String s = value_17;
             value_18 = ((StaticText*)(&(s)))->data;
         }
-        return zir_f_2786a48467b70b55_SetDiagnosticFormat(value_18);
+        return zir_foreign_compiler_edit__SetDiagnosticFormat(value_18);
     }
     return 0;
 }
@@ -241,8 +241,8 @@ ZiranToolReadText(String path, int64_t limit)
         compiler_edit_Fail(value_4);
         return (void *)0;
     }
-    int32_t descriptor = zir_f_2786a48467b70b55_EditHostOpenSource(name);
-    zir_f_2786a48467b70b55_free((void*)(name));
+    int32_t descriptor = zir_foreign_compiler_edit__EditHostOpenSource(name);
+    zir_foreign_compiler_edit__free((void*)(name));
     int64_t size = 0LL;
     uint32_t mode = 0;
     int32_t regular = 0;
@@ -258,9 +258,9 @@ ZiranToolReadText(String path, int64_t limit)
         compiler_edit_Fail(value_7);
         return (void *)0;
     }
-    bool value_9 = zir_f_2786a48467b70b55_EditHostFdInfo(descriptor, &(size), &(mode), &(regular), &(device), &(inode)) != 0;
+    bool value_9 = zir_foreign_compiler_edit__EditHostFdInfo(descriptor, &(size), &(mode), &(regular), &(device), &(inode)) != 0;
     if (value_9 || regular == 0 || size < 0LL || size > limit) {
-        zir_f_2786a48467b70b55_close(descriptor);
+        zir_foreign_compiler_edit__close(descriptor);
         String value_10 = StringLiteral("input must be a regular file within the byte limit");
         uint8_t* value_11 = (void *)0;
         {
@@ -272,9 +272,9 @@ ZiranToolReadText(String path, int64_t limit)
     }
     size_t count = 0;
     uint8_t* text = compiler_edit_ReadFd(descriptor, &(count));
-    zir_f_2786a48467b70b55_close(descriptor);
+    zir_foreign_compiler_edit__close(descriptor);
     if (count > (size_t)(limit)) {
-        zir_f_2786a48467b70b55_free((void*)(text));
+        zir_foreign_compiler_edit__free((void*)(text));
         String value_13 = StringLiteral("input must be a regular file within the byte limit");
         uint8_t* value_14 = (void *)0;
         {
@@ -287,12 +287,12 @@ ZiranToolReadText(String path, int64_t limit)
     bool value_16 = text == ((void *)0);
     bool value_17 = value_16;
     if (!value_17) {
-        void* value_18 = zir_f_2786a48467b70b55_memchr((void*)(text), 0, count);
+        void* value_18 = zir_foreign_compiler_edit__memchr((void*)(text), 0, count);
         value_17 = (value_18 != ((void *)0));
     }
     bool value_19 = value_17;
     if (value_19 || compiler_edit_Utf8(text, count) == 0) {
-        zir_f_2786a48467b70b55_free((void*)(text));
+        zir_foreign_compiler_edit__free((void*)(text));
         String value_20 = StringLiteral("request must be UTF-8 without null bytes");
         uint8_t* value_21 = (void *)0;
         {
@@ -313,7 +313,7 @@ ZiranToolDigest(String text)
         String s = text;
         value_0 = ((StaticText*)(&(s)))->data;
     }
-    zir_f_2786a48467b70b55_DocumentDigest(value_0, (size_t)((int64_t)(text).length), &(digest_buffer[0]));
+    zir_foreign_compiler_edit__DocumentDigest(value_0, (size_t)((int64_t)(text).length), &(digest_buffer[0]));
     return &(digest_buffer[0]);
 }
 
@@ -330,7 +330,7 @@ ZiranToolWriteMap(String path, String text)
         }
         return compiler_edit_Fail(value_1);
     }
-    uint8_t* slash = zir_f_2786a48467b70b55_strrchr(name, 47);
+    uint8_t* slash = zir_foreign_compiler_edit__strrchr(name, 47);
     uint8_t* leaf = name;
     if (slash != ((void *)0)) {
         leaf = (uint8_t*)(((size_t)(slash) + 1));
@@ -344,7 +344,7 @@ ZiranToolWriteMap(String path, String text)
             String s = value_5;
             value_6 = ((StaticText*)(&(s)))->data;
         }
-        bool value_8 = zir_f_2786a48467b70b55_strcmp(leaf, value_6) == 0;
+        bool value_8 = zir_foreign_compiler_edit__strcmp(leaf, value_6) == 0;
         value_4 = value_8;
     }
     bool value_9 = value_4;
@@ -356,11 +356,11 @@ ZiranToolWriteMap(String path, String text)
             String s = value_11;
             value_12 = ((StaticText*)(&(s)))->data;
         }
-        bool value_14 = zir_f_2786a48467b70b55_strcmp(leaf, value_12) == 0;
+        bool value_14 = zir_foreign_compiler_edit__strcmp(leaf, value_12) == 0;
         value_10 = value_14;
     }
     if (value_10) {
-        zir_f_2786a48467b70b55_free((void*)(name));
+        zir_foreign_compiler_edit__free((void*)(name));
         String value_15 = StringLiteral("invalid map filename");
         uint8_t* value_16 = (void *)0;
         {
@@ -385,7 +385,7 @@ ZiranToolWriteMap(String path, String text)
             }
             value_19 = value_21;
         }
-        directory = zir_f_2786a48467b70b55_realpath(value_19, (void *)0);
+        directory = zir_foreign_compiler_edit__realpath(value_19, (void *)0);
     } else {
         String value_23 = StringLiteral(".");
         uint8_t* value_24 = (void *)0;
@@ -393,19 +393,19 @@ ZiranToolWriteMap(String path, String text)
             String s = value_23;
             value_24 = ((StaticText*)(&(s)))->data;
         }
-        directory = zir_f_2786a48467b70b55_realpath(value_24, (void *)0);
+        directory = zir_foreign_compiler_edit__realpath(value_24, (void *)0);
     }
     int32_t value_26 = 0;
     if (directory != ((void *)0)) {
-        int32_t value_27 = zir_f_2786a48467b70b55_EditHostOpenDirectory(directory);
+        int32_t value_27 = zir_foreign_compiler_edit__EditHostOpenDirectory(directory);
         value_26 = value_27;
     } else {
         value_26 = -1;
     }
     int32_t parent = value_26;
-    zir_f_2786a48467b70b55_free((void*)(directory));
+    zir_foreign_compiler_edit__free((void*)(directory));
     if (parent < 0) {
-        zir_f_2786a48467b70b55_free((void*)(name));
+        zir_foreign_compiler_edit__free((void*)(name));
         String value_28 = StringLiteral("cannot open map directory");
         uint8_t* value_29 = (void *)0;
         {
@@ -420,10 +420,10 @@ ZiranToolWriteMap(String path, String text)
     int32_t regular = 0;
     uint64_t links = 0ULL;
     int64_t size = 0LL;
-    bool exists = zir_f_2786a48467b70b55_EditHostAtInfo(parent, leaf, &(device), &(inode), &(mode), &(regular), &(links), &(size)) == 0;
+    bool exists = zir_foreign_compiler_edit__EditHostAtInfo(parent, leaf, &(device), &(inode), &(mode), &(regular), &(links), &(size)) == 0;
     if (exists && (regular == 0 || links != 1ULL)) {
-        zir_f_2786a48467b70b55_close(parent);
-        zir_f_2786a48467b70b55_free((void*)(name));
+        zir_foreign_compiler_edit__close(parent);
+        zir_foreign_compiler_edit__free((void*)(name));
         String value_31 = StringLiteral("map destination is linked or nonregular");
         uint8_t* value_32 = (void *)0;
         {
@@ -442,14 +442,14 @@ ZiranToolWriteMap(String path, String text)
             String s = value_34;
             value_35 = ((StaticText*)(&(s)))->data;
         }
-        int32_t value_37 = zir_f_2786a48467b70b55_getpid();
-        zir_f_2786a48467b70b55_snprintf(&(temporary[0]), 64, value_35, (ptrdiff_t)(value_37), index);
-        descriptor = zir_f_2786a48467b70b55_EditHostCreatePrivate(parent, &(temporary[0]));
+        int32_t value_37 = zir_foreign_compiler_edit__getpid();
+        zir_foreign_compiler_edit__snprintf(&(temporary[0]), 64, value_35, (ptrdiff_t)(value_37), index);
+        descriptor = zir_foreign_compiler_edit__EditHostCreatePrivate(parent, &(temporary[0]));
         index = (uint32_t)((uint32_t)index + 1u);
     }
     if (descriptor < 0) {
-        zir_f_2786a48467b70b55_close(parent);
-        zir_f_2786a48467b70b55_free((void*)(name));
+        zir_foreign_compiler_edit__close(parent);
+        zir_foreign_compiler_edit__free((void*)(name));
         String value_38 = StringLiteral("cannot create map");
         uint8_t* value_39 = (void *)0;
         {
@@ -466,7 +466,7 @@ ZiranToolWriteMap(String path, String text)
             String s = text;
             value_41 = ((StaticText*)(&(s)))->data;
         }
-        ptrdiff_t written = zir_f_2786a48467b70b55_write(descriptor, (void*)(((size_t)(value_41) + at)), length - at);
+        ptrdiff_t written = zir_foreign_compiler_edit__write(descriptor, (void*)(((size_t)(value_41) + at)), length - at);
         if (written <= 0) {
             break;
         }
@@ -476,19 +476,19 @@ ZiranToolWriteMap(String path, String text)
     if (exists) {
         replacement_mode = (uint32_t)((uint32_t)mode & 511u);
     }
-    bool value_43 = at == length && zir_f_2786a48467b70b55_fchmod(descriptor, replacement_mode) == 0;
-    bool valid = value_43 && zir_f_2786a48467b70b55_fsync(descriptor) == 0;
-    if (zir_f_2786a48467b70b55_close(descriptor) != 0) {
+    bool value_43 = at == length && zir_foreign_compiler_edit__fchmod(descriptor, replacement_mode) == 0;
+    bool valid = value_43 && zir_foreign_compiler_edit__fsync(descriptor) == 0;
+    if (zir_foreign_compiler_edit__close(descriptor) != 0) {
         valid = false;
     }
     if (valid) {
-        valid = zir_f_2786a48467b70b55_renameat(parent, &(temporary[0]), parent, leaf) == 0;
+        valid = zir_foreign_compiler_edit__renameat(parent, &(temporary[0]), parent, leaf) == 0;
     }
     if (!valid) {
-        zir_f_2786a48467b70b55_unlinkat(parent, &(temporary[0]), 0);
+        zir_foreign_compiler_edit__unlinkat(parent, &(temporary[0]), 0);
     }
-    zir_f_2786a48467b70b55_close(parent);
-    zir_f_2786a48467b70b55_free((void*)(name));
+    zir_foreign_compiler_edit__close(parent);
+    zir_foreign_compiler_edit__free((void*)(name));
     if (!valid) {
         String value_44 = StringLiteral("cannot finish map");
         uint8_t* value_45 = (void *)0;
@@ -513,7 +513,7 @@ ZiranEditClose(void* handle)
         int32_t range_last_4 = (int32_t)((uint32_t)(e->count) - 1u);
         int32_t i = range_first_4;
         if (i <= range_last_4) for (;;) {
-            zir_f_2786a48467b70b55_free((void*)((e->parts[i]).replacement));
+            zir_foreign_compiler_edit__free((void*)((e->parts[i]).replacement));
             if (i == range_last_4) {
                 break;
             }
@@ -525,22 +525,22 @@ ZiranEditClose(void* handle)
         int32_t range_last_7 = (int32_t)((uint32_t)(e->module_count) - 1u);
         int32_t i = range_first_7;
         if (i <= range_last_7) for (;;) {
-            zir_f_2786a48467b70b55_free((void*)(e->module_paths[i]));
-            zir_f_2786a48467b70b55_free((void*)(e->module_roots[i]));
+            zir_foreign_compiler_edit__free((void*)(e->module_paths[i]));
+            zir_foreign_compiler_edit__free((void*)(e->module_roots[i]));
             if (i == range_last_7) {
                 break;
             }
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    zir_f_2786a48467b70b55_free((void*)(e->module_paths));
-    zir_f_2786a48467b70b55_free((void*)(e->module_roots));
+    zir_foreign_compiler_edit__free((void*)(e->module_paths));
+    zir_foreign_compiler_edit__free((void*)(e->module_roots));
     {
         int32_t range_first_13 = 0;
         int32_t range_last_13 = (int32_t)((uint32_t)(e->define_count) - 1u);
         int32_t i = range_first_13;
         if (i <= range_last_13) for (;;) {
-            zir_f_2786a48467b70b55_free((void*)((e->defines)[i]));
+            zir_foreign_compiler_edit__free((void*)((e->defines)[i]));
             if (i == range_last_13) {
                 break;
             }
@@ -548,23 +548,23 @@ ZiranEditClose(void* handle)
         }
     }
     if (e->fd >= 0) {
-        zir_f_2786a48467b70b55_close(e->fd);
+        zir_foreign_compiler_edit__close(e->fd);
     }
     if (e->parent >= 0) {
-        zir_f_2786a48467b70b55_close(e->parent);
+        zir_foreign_compiler_edit__close(e->parent);
     }
-    zir_f_2786a48467b70b55_free((void*)(e->root));
-    zir_f_2786a48467b70b55_free((void*)(e->path));
-    zir_f_2786a48467b70b55_free((void*)(e->source));
-    zir_f_2786a48467b70b55_free((void*)(e->candidate));
-    zir_f_2786a48467b70b55_free((void*)(e->leaf));
-    zir_f_2786a48467b70b55_free((void*)(e));
+    zir_foreign_compiler_edit__free((void*)(e->root));
+    zir_foreign_compiler_edit__free((void*)(e->path));
+    zir_foreign_compiler_edit__free((void*)(e->source));
+    zir_foreign_compiler_edit__free((void*)(e->candidate));
+    zir_foreign_compiler_edit__free((void*)(e->leaf));
+    zir_foreign_compiler_edit__free((void*)(e));
 }
 
 void*
 ZiranEditOpen(String root, String path, String hash)
 {
-    void* value_0 = zir_f_2786a48467b70b55_calloc(1, sizeof(Edit));
+    void* value_0 = zir_foreign_compiler_edit__calloc(1, sizeof(Edit));
     Edit* e = (Edit*)(value_0);
     if (e == ((void *)0)) {
         String value_1 = StringLiteral("out of memory");
@@ -587,12 +587,12 @@ ZiranEditOpen(String root, String path, String hash)
     (*value_6) = (void *)0;
     if (raw != ((void *)0)) {
         uint8_t** value_7 = &(e->root);
-        uint8_t* value_8 = zir_f_2786a48467b70b55_realpath(raw, (void *)0);
+        uint8_t* value_8 = zir_foreign_compiler_edit__realpath(raw, (void *)0);
         (*value_7) = value_8;
     }
-    zir_f_2786a48467b70b55_free((void*)(raw));
+    zir_foreign_compiler_edit__free((void*)(raw));
     bool value_9 = e->root != ((void *)0) && relative != ((void *)0) && expected != ((void *)0);
-    bool value_10 = value_9 && zir_f_2786a48467b70b55_strlen(expected) == 64;
+    bool value_10 = value_9 && zir_foreign_compiler_edit__strlen(expected) == 64;
     bool valid = value_10 && relative[0] != 0 && relative[0] != 47;
     size_t i = 0;
     while (valid && i < 64) {
@@ -601,7 +601,7 @@ ZiranEditOpen(String root, String path, String hash)
         i = i + 1;
     }
     if (valid) {
-        size_t n = zir_f_2786a48467b70b55_strlen(relative);
+        size_t n = zir_foreign_compiler_edit__strlen(relative);
         bool value_11 = n > 3;
         bool value_12 = value_11;
         if (value_12) {
@@ -612,13 +612,13 @@ ZiranEditOpen(String root, String path, String hash)
                 String s = value_14;
                 value_15 = ((StaticText*)(&(s)))->data;
             }
-            bool value_17 = zir_f_2786a48467b70b55_strcmp(value_13, value_15) == 0;
+            bool value_17 = zir_foreign_compiler_edit__strcmp(value_13, value_15) == 0;
             value_12 = value_17;
         }
         valid = value_12;
         uint8_t** value_18 = &(e->path);
-        size_t value_19 = zir_f_2786a48467b70b55_strlen(e->root);
-        void* value_20 = zir_f_2786a48467b70b55_malloc((value_19 + n) + 2);
+        size_t value_19 = zir_foreign_compiler_edit__strlen(e->root);
+        void* value_20 = zir_foreign_compiler_edit__malloc((value_19 + n) + 2);
         (*value_18) = (uint8_t*)(value_20);
         if (e->path != ((void *)0)) {
             uint8_t* value_21 = e->path;
@@ -628,19 +628,19 @@ ZiranEditOpen(String root, String path, String hash)
                 String s = value_22;
                 value_23 = ((StaticText*)(&(s)))->data;
             }
-            zir_f_2786a48467b70b55_sprintf(value_21, value_23, e->root, relative);
+            zir_foreign_compiler_edit__sprintf(value_21, value_23, e->root, relative);
         } else {
             valid = false;
         }
         int32_t* value_25 = &(e->parent);
-        int32_t value_26 = zir_f_2786a48467b70b55_EditHostOpenDirectory(e->root);
+        int32_t value_26 = zir_foreign_compiler_edit__EditHostOpenDirectory(e->root);
         (*value_25) = value_26;
         if (e->parent < 0) {
             valid = false;
         }
         uint8_t* component = relative;
         while (valid) {
-            uint8_t* slash = zir_f_2786a48467b70b55_strchr(component, 47);
+            uint8_t* slash = zir_foreign_compiler_edit__strchr(component, 47);
             if (slash != ((void *)0)) {
                 uint8_t* value_27 = &(slash[0]);
                 (*value_27) = 0;
@@ -655,7 +655,7 @@ ZiranEditOpen(String root, String path, String hash)
                     String s = value_31;
                     value_32 = ((StaticText*)(&(s)))->data;
                 }
-                bool value_34 = zir_f_2786a48467b70b55_strcmp(value_30, value_32) == 0;
+                bool value_34 = zir_foreign_compiler_edit__strcmp(value_30, value_32) == 0;
                 value_29 = value_34;
             }
             bool value_35 = value_29;
@@ -668,7 +668,7 @@ ZiranEditOpen(String root, String path, String hash)
                     String s = value_38;
                     value_39 = ((StaticText*)(&(s)))->data;
                 }
-                bool value_41 = zir_f_2786a48467b70b55_strcmp(value_37, value_39) == 0;
+                bool value_41 = zir_foreign_compiler_edit__strcmp(value_37, value_39) == 0;
                 value_36 = value_41;
             }
             if (value_36) {
@@ -677,16 +677,16 @@ ZiranEditOpen(String root, String path, String hash)
             }
             if (slash == ((void *)0)) {
                 uint8_t** value_42 = &(e->leaf);
-                uint8_t* value_43 = zir_f_2786a48467b70b55_strdup(component);
+                uint8_t* value_43 = zir_foreign_compiler_edit__strdup(component);
                 (*value_42) = value_43;
                 break;
             }
-            int32_t next = zir_f_2786a48467b70b55_EditHostOpenSubdirectory(e->parent, component);
+            int32_t next = zir_foreign_compiler_edit__EditHostOpenSubdirectory(e->parent, component);
             if (next < 0) {
                 valid = false;
                 break;
             }
-            zir_f_2786a48467b70b55_close(e->parent);
+            zir_foreign_compiler_edit__close(e->parent);
             int32_t* value_44 = &(e->parent);
             (*value_44) = next;
             component = (uint8_t*)(((size_t)(slash) + 1));
@@ -694,7 +694,7 @@ ZiranEditOpen(String root, String path, String hash)
     }
     if (valid && e->leaf != ((void *)0)) {
         int32_t* value_45 = &(e->fd);
-        int32_t value_46 = zir_f_2786a48467b70b55_EditHostOpenLeaf(e->parent, e->leaf);
+        int32_t value_46 = zir_foreign_compiler_edit__EditHostOpenLeaf(e->parent, e->leaf);
         (*value_45) = value_46;
     }
     int64_t source_size = 0LL;
@@ -703,7 +703,7 @@ ZiranEditOpen(String root, String path, String hash)
     uint64_t source_device = 0ULL;
     uint64_t source_inode = 0ULL;
     bool value_47 = e->fd < 0;
-    bool value_48 = value_47 || zir_f_2786a48467b70b55_EditHostFdInfo(e->fd, &(source_size), &(source_mode), &(source_regular), &(source_device), &(source_inode)) != 0;
+    bool value_48 = value_47 || zir_foreign_compiler_edit__EditHostFdInfo(e->fd, &(source_size), &(source_mode), &(source_regular), &(source_device), &(source_inode)) != 0;
     if (value_48 || source_size > 16777216LL) {
         valid = false;
     }
@@ -724,21 +724,21 @@ ZiranEditOpen(String root, String path, String hash)
     }
     if (valid) {
         uint8_t actual[65] = {0};
-        zir_f_2786a48467b70b55_DocumentDigest(e->source, e->size, &(actual[0]));
-        valid = zir_f_2786a48467b70b55_strcmp(&(actual[0]), expected) == 0;
+        zir_foreign_compiler_edit__DocumentDigest(e->source, e->size, &(actual[0]));
+        valid = zir_foreign_compiler_edit__strcmp(&(actual[0]), expected) == 0;
     }
     if (valid) {
-        uint8_t* canonical = zir_f_2786a48467b70b55_realpath(e->path, (void *)0);
+        uint8_t* canonical = zir_foreign_compiler_edit__realpath(e->path, (void *)0);
         if (canonical == ((void *)0)) {
             valid = false;
         } else {
-            zir_f_2786a48467b70b55_free((void*)(e->path));
+            zir_foreign_compiler_edit__free((void*)(e->path));
             uint8_t** value_56 = &(e->path);
             (*value_56) = canonical;
         }
     }
-    zir_f_2786a48467b70b55_free((void*)(relative));
-    zir_f_2786a48467b70b55_free((void*)(expected));
+    zir_foreign_compiler_edit__free((void*)(relative));
+    zir_foreign_compiler_edit__free((void*)(expected));
     if (!valid) {
         ZiranEditClose((void*)(e));
         String value_57 = StringLiteral("invalid path, non-UTF-8 source, or stale document hash");
@@ -776,16 +776,16 @@ ZiranEditModulePath(void* handle, String value)
         }
         return compiler_edit_Fail(value_4);
     }
-    uint8_t* equals = zir_f_2786a48467b70b55_strchr(path, 61);
+    uint8_t* equals = zir_foreign_compiler_edit__strchr(path, 61);
     uint8_t* directory = path;
     if (equals != ((void *)0)) {
         directory = (uint8_t*)(((size_t)(equals) + 1));
     }
-    uint8_t* canonical = zir_f_2786a48467b70b55_realpath(directory, (void *)0);
-    int32_t is_directory = zir_f_2786a48467b70b55_EditHostPathIsDirectory(canonical);
+    uint8_t* canonical = zir_foreign_compiler_edit__realpath(directory, (void *)0);
+    int32_t is_directory = zir_foreign_compiler_edit__EditHostPathIsDirectory(canonical);
     if (canonical == ((void *)0) || is_directory == 0) {
-        zir_f_2786a48467b70b55_free((void*)(path));
-        zir_f_2786a48467b70b55_free((void*)(canonical));
+        zir_foreign_compiler_edit__free((void*)(path));
+        zir_foreign_compiler_edit__free((void*)(canonical));
         String value_6 = StringLiteral("module path is not a directory");
         uint8_t* value_7 = (void *)0;
         {
@@ -798,11 +798,11 @@ ZiranEditModulePath(void* handle, String value)
     if (equals != ((void *)0)) {
         prefix = (size_t)(((size_t)(equals) - (size_t)(path))) + 1;
     }
-    void* value_9 = zir_f_2786a48467b70b55_malloc((prefix + zir_f_2786a48467b70b55_strlen(canonical)) + 1);
+    void* value_9 = zir_foreign_compiler_edit__malloc((prefix + zir_foreign_compiler_edit__strlen(canonical)) + 1);
     uint8_t* argument = (uint8_t*)(value_9);
     if (argument == ((void *)0)) {
-        zir_f_2786a48467b70b55_free((void*)(path));
-        zir_f_2786a48467b70b55_free((void*)(canonical));
+        zir_foreign_compiler_edit__free((void*)(path));
+        zir_foreign_compiler_edit__free((void*)(canonical));
         String value_10 = StringLiteral("out of memory");
         uint8_t* value_11 = (void *)0;
         {
@@ -812,13 +812,13 @@ ZiranEditModulePath(void* handle, String value)
         return compiler_edit_Fail(value_11);
     }
     if (prefix != 0) {
-        zir_f_2786a48467b70b55_memcpy((void*)(argument), (void*)(path), prefix);
+        zir_foreign_compiler_edit__memcpy((void*)(argument), (void*)(path), prefix);
     }
-    zir_f_2786a48467b70b55_strcpy((uint8_t*)(((size_t)(argument) + prefix)), canonical);
-    zir_f_2786a48467b70b55_free((void*)(path));
+    zir_foreign_compiler_edit__strcpy((uint8_t*)(((size_t)(argument) + prefix)), canonical);
+    zir_foreign_compiler_edit__free((void*)(path));
     if (e->module_count == 2147483647) {
-        zir_f_2786a48467b70b55_free((void*)(argument));
-        zir_f_2786a48467b70b55_free((void*)(canonical));
+        zir_foreign_compiler_edit__free((void*)(argument));
+        zir_foreign_compiler_edit__free((void*)(canonical));
         String value_13 = StringLiteral("module path storage overflow");
         uint8_t* value_14 = (void *)0;
         {
@@ -827,11 +827,11 @@ ZiranEditModulePath(void* handle, String value)
         }
         return compiler_edit_Fail(value_14);
     }
-    void* value_16 = zir_f_2786a48467b70b55_realloc((void*)(e->module_paths), ((size_t)(e->module_count) + 1) * sizeof(void *));
+    void* value_16 = zir_foreign_compiler_edit__realloc((void*)(e->module_paths), ((size_t)(e->module_count) + 1) * sizeof(void *));
     uint8_t** paths = (uint8_t**)(value_16);
     if (paths == ((void *)0)) {
-        zir_f_2786a48467b70b55_free((void*)(argument));
-        zir_f_2786a48467b70b55_free((void*)(canonical));
+        zir_foreign_compiler_edit__free((void*)(argument));
+        zir_foreign_compiler_edit__free((void*)(canonical));
         String value_17 = StringLiteral("out of memory");
         uint8_t* value_18 = (void *)0;
         {
@@ -842,11 +842,11 @@ ZiranEditModulePath(void* handle, String value)
     }
     uint8_t*** value_20 = &(e->module_paths);
     (*value_20) = paths;
-    void* value_21 = zir_f_2786a48467b70b55_realloc((void*)(e->module_roots), ((size_t)(e->module_count) + 1) * sizeof(void *));
+    void* value_21 = zir_foreign_compiler_edit__realloc((void*)(e->module_roots), ((size_t)(e->module_count) + 1) * sizeof(void *));
     uint8_t** roots = (uint8_t**)(value_21);
     if (roots == ((void *)0)) {
-        zir_f_2786a48467b70b55_free((void*)(argument));
-        zir_f_2786a48467b70b55_free((void*)(canonical));
+        zir_foreign_compiler_edit__free((void*)(argument));
+        zir_foreign_compiler_edit__free((void*)(canonical));
         String value_22 = StringLiteral("out of memory");
         uint8_t* value_23 = (void *)0;
         {
@@ -920,27 +920,27 @@ ZiranEditDefine(void* handle, String name)
 int32_t
 compiler_edit_DeclarationRange(Edit* e, ZirModule* module, ZirSourceSpan span, size_t* start, size_t* end)
 {
-    ZirDocument* document = zir_f_2786a48467b70b55_DocumentForSpan(module, span);
+    ZirDocument* document = zir_foreign_compiler_edit__DocumentForSpan(module, span);
     bool value_0 = document == ((void *)0) || document->rewritten != 0;
-    bool value_1 = value_0 || zir_f_2786a48467b70b55_strcmp(zir_f_2786a48467b70b55_SpanPath(span), (uint8_t*)(&(module->source_path))) != 0;
+    bool value_1 = value_0 || zir_foreign_compiler_edit__strcmp(zir_foreign_compiler_edit__SpanPath(span), (uint8_t*)(&(module->source_path))) != 0;
     bool value_2 = value_1;
-    if (value_2 || zir_f_2786a48467b70b55_DocumentOffset(document, span.line, span.column, start) == 0) {
+    if (value_2 || zir_foreign_compiler_edit__DocumentOffset(document, span.line, span.column, start) == 0) {
         return 0;
     }
     ZirLexer lexer = {0};
-    zir_f_2786a48467b70b55_LexerInit(&(lexer), (void*)(e->source), (void*)(e->path));
+    zir_foreign_compiler_edit__LexerInit(&(lexer), (void*)(e->source), (void*)(e->path));
     int32_t active = 0;
     int32_t braces = 0;
     int32_t parens = 0;
     int32_t brackets = 0;
     int32_t saw_brace = 0;
     while (true) {
-        ZirToken token = zir_f_2786a48467b70b55_LexerNextCode(&(lexer));
+        ZirToken token = zir_foreign_compiler_edit__LexerNextCode(&(lexer));
         if (token.kind == 0 || token.truncated != 0) {
             return 0;
         }
         size_t at = 0;
-        if (zir_f_2786a48467b70b55_DocumentOffset(document, token.span.line, token.span.column, &(at)) == 0) {
+        if (zir_foreign_compiler_edit__DocumentOffset(document, token.span.line, token.span.column, &(at)) == 0) {
             return 0;
         }
         if (active == 0) {
@@ -963,7 +963,7 @@ compiler_edit_DeclarationRange(Edit* e, ZirModule* module, ZirSourceSpan span, s
             String s = value_4;
             value_5 = ((StaticText*)(&(s)))->data;
         }
-        if (zir_f_2786a48467b70b55_strcmp(value_3, value_5) == 0) {
+        if (zir_foreign_compiler_edit__strcmp(value_3, value_5) == 0) {
             parens = (int32_t)((uint32_t)parens + 1u);
         } else {
             uint8_t* value_7 = text;
@@ -973,7 +973,7 @@ compiler_edit_DeclarationRange(Edit* e, ZirModule* module, ZirSourceSpan span, s
                 String s = value_8;
                 value_9 = ((StaticText*)(&(s)))->data;
             }
-            if (zir_f_2786a48467b70b55_strcmp(value_7, value_9) == 0) {
+            if (zir_foreign_compiler_edit__strcmp(value_7, value_9) == 0) {
                 parens = (int32_t)((uint32_t)parens - 1u);
             } else {
                 uint8_t* value_11 = text;
@@ -983,7 +983,7 @@ compiler_edit_DeclarationRange(Edit* e, ZirModule* module, ZirSourceSpan span, s
                     String s = value_12;
                     value_13 = ((StaticText*)(&(s)))->data;
                 }
-                if (zir_f_2786a48467b70b55_strcmp(value_11, value_13) == 0) {
+                if (zir_foreign_compiler_edit__strcmp(value_11, value_13) == 0) {
                     brackets = (int32_t)((uint32_t)brackets + 1u);
                 } else {
                     uint8_t* value_15 = text;
@@ -993,7 +993,7 @@ compiler_edit_DeclarationRange(Edit* e, ZirModule* module, ZirSourceSpan span, s
                         String s = value_16;
                         value_17 = ((StaticText*)(&(s)))->data;
                     }
-                    if (zir_f_2786a48467b70b55_strcmp(value_15, value_17) == 0) {
+                    if (zir_foreign_compiler_edit__strcmp(value_15, value_17) == 0) {
                         brackets = (int32_t)((uint32_t)brackets - 1u);
                     } else {
                         uint8_t* value_19 = text;
@@ -1003,7 +1003,7 @@ compiler_edit_DeclarationRange(Edit* e, ZirModule* module, ZirSourceSpan span, s
                             String s = value_20;
                             value_21 = ((StaticText*)(&(s)))->data;
                         }
-                        if (zir_f_2786a48467b70b55_strcmp(value_19, value_21) == 0) {
+                        if (zir_foreign_compiler_edit__strcmp(value_19, value_21) == 0) {
                             braces = (int32_t)((uint32_t)braces + 1u);
                             saw_brace = 1;
                         } else {
@@ -1014,7 +1014,7 @@ compiler_edit_DeclarationRange(Edit* e, ZirModule* module, ZirSourceSpan span, s
                                 String s = value_24;
                                 value_25 = ((StaticText*)(&(s)))->data;
                             }
-                            if (zir_f_2786a48467b70b55_strcmp(value_23, value_25) == 0) {
+                            if (zir_foreign_compiler_edit__strcmp(value_23, value_25) == 0) {
                                 braces = (int32_t)((uint32_t)braces - 1u);
                                 if (braces == 0 && parens == 0 && brackets == 0 && saw_brace != 0) {
                                     size_t* value_27 = &((*(end)));
@@ -1029,7 +1029,7 @@ compiler_edit_DeclarationRange(Edit* e, ZirModule* module, ZirSourceSpan span, s
                                     String s = value_29;
                                     value_30 = ((StaticText*)(&(s)))->data;
                                 }
-                                bool value_32 = zir_f_2786a48467b70b55_strcmp(value_28, value_30) == 0;
+                                bool value_32 = zir_foreign_compiler_edit__strcmp(value_28, value_30) == 0;
                                 if (value_32 && braces == 0 && parens == 0 && brackets == 0) {
                                     size_t* value_33 = &((*(end)));
                                     (*value_33) = lexer.pos;
@@ -1052,13 +1052,13 @@ int32_t
 compiler_edit_SemanticIdMatches(Edit* e, ZirModule* module, String wanted, uint8_t* kind, uint8_t* name, uint8_t* signature, uint8_t* result, ZirSourceSpan span, size_t* start, size_t* end)
 {
     uint8_t id[68] = {0};
-    zir_f_2786a48467b70b55_SemanticId(module, kind, name, signature, result, &(id[0]));
+    zir_foreign_compiler_edit__SemanticId(module, kind, name, signature, result, &(id[0]));
     uint8_t* value_0 = (void *)0;
     {
         String s = wanted;
         value_0 = ((StaticText*)(&(s)))->data;
     }
-    if (zir_f_2786a48467b70b55_memcmp((void*)(value_0), (void*)(&(id[0])), 67) != 0) {
+    if (zir_foreign_compiler_edit__memcmp((void*)(value_0), (void*)(&(id[0])), 67) != 0) {
         return 0;
     }
     return compiler_edit_DeclarationRange(e, module, span, start, end);
@@ -1073,7 +1073,7 @@ compiler_edit_SemanticRange(Edit* e, String wanted, size_t* start, size_t* end)
     ProgramSet set = {0};
     int32_t found = 0;
     if (compiler_edit_CheckCandidate(e, e->source, e->size, &(set)) == 0) {
-        zir_f_2786a48467b70b55_ProgramsFree(&(set));
+        zir_foreign_compiler_edit__ProgramsFree(&(set));
         return 0;
     }
     int32_t p = 0;
@@ -1081,13 +1081,13 @@ compiler_edit_SemanticRange(Edit* e, String wanted, size_t* start, size_t* end)
         int32_t m = 0;
         while (m < (set.programs[(size_t)(p)])->module_count) {
             ZirModule* module = &(((set.programs[(size_t)(p)])->modules)[(size_t)(m)]);
-            if (zir_f_2786a48467b70b55_strcmp(set.paths[(size_t)(p)], e->path) == 0) {
+            if (zir_foreign_compiler_edit__strcmp(set.paths[(size_t)(p)], e->path) == 0) {
                 bool documented = false;
                 ZirDocument* document = (ZirDocument*)(((uint8_t*)module->document));
                 if (document != ((void *)0) && document->bytes == e->size) {
                     uint8_t hash[65] = {0};
-                    zir_f_2786a48467b70b55_DocumentDigest(e->source, e->size, &(hash[0]));
-                    documented = zir_f_2786a48467b70b55_strcmp(&(hash[0]), (uint8_t*)(&(document->sha256.items))) == 0;
+                    zir_foreign_compiler_edit__DocumentDigest(e->source, e->size, &(hash[0]));
+                    documented = zir_foreign_compiler_edit__strcmp(&(hash[0]), (uint8_t*)(&(document->sha256.items))) == 0;
                 }
                 if (documented) {
                     int32_t f = 0;
@@ -1095,13 +1095,13 @@ compiler_edit_SemanticRange(Edit* e, String wanted, size_t* start, size_t* end)
                         ZirFunction* function = &(module->functions[(size_t)(f)]);
                         if (function->is_public != 0 && function->is_file_private == 0 && function->is_specialization == 0 && function->is_global_initializer == 0) {
                             uint8_t id[68] = {0};
-                            zir_f_2786a48467b70b55_FunctionSemanticId(module, function, &(id[0]));
+                            zir_foreign_compiler_edit__FunctionSemanticId(module, function, &(id[0]));
                             uint8_t* value_0 = (void *)0;
                             {
                                 String s = wanted;
                                 value_0 = ((StaticText*)(&(s)))->data;
                             }
-                            bool value_2 = zir_f_2786a48467b70b55_memcmp((void*)(value_0), (void*)(&(id[0])), 67) == 0;
+                            bool value_2 = zir_foreign_compiler_edit__memcmp((void*)(value_0), (void*)(&(id[0])), 67) == 0;
                             if (value_2 && compiler_edit_DeclarationRange(e, module, function->span, start, end) != 0) {
                                 found = (int32_t)((uint32_t)found + 1u);
                             }
@@ -1196,7 +1196,7 @@ compiler_edit_SemanticRange(Edit* e, String wanted, size_t* start, size_t* end)
         }
         p = (int32_t)((uint32_t)p + 1u);
     }
-    zir_f_2786a48467b70b55_ProgramsFree(&(set));
+    zir_foreign_compiler_edit__ProgramsFree(&(set));
     int32_t value_40 = 0;
     if (found == 1) {
         value_40 = 1;
@@ -1270,7 +1270,7 @@ ZiranEditAdd(void* handle, int64_t low, int64_t high, String original, String re
                     String s = original;
                     value_21 = ((StaticText*)(&(s)))->data;
                 }
-                bool value_23 = zir_f_2786a48467b70b55_memcmp(value_20, (void*)(value_21), (size_t)((int64_t)(original).length)) != 0;
+                bool value_23 = zir_foreign_compiler_edit__memcmp(value_20, (void*)(value_21), (size_t)((int64_t)(original).length)) != 0;
                 value_19 = value_23;
             }
             value_15 = value_19;
@@ -1312,7 +1312,7 @@ ZiranEditAdd(void* handle, int64_t low, int64_t high, String original, String re
                 String s = replacement;
                 value_37 = ((StaticText*)(&(s)))->data;
             }
-            bool value_39 = zir_f_2786a48467b70b55_memcmp((void*)(value_35), (void*)(value_37), (size_t)((int64_t)(original).length)) == 0;
+            bool value_39 = zir_foreign_compiler_edit__memcmp((void*)(value_35), (void*)(value_37), (size_t)((int64_t)(original).length)) == 0;
             value_34 = value_39;
         }
         value_33 = value_34;
@@ -1408,7 +1408,7 @@ ZiranEditBuild(void* handle)
         i = (int32_t)((uint32_t)i + 1u);
     }
     uint8_t** value_8 = &(e->candidate);
-    void* value_9 = zir_f_2786a48467b70b55_malloc(size + 1);
+    void* value_9 = zir_foreign_compiler_edit__malloc(size + 1);
     (*value_8) = (uint8_t*)(value_9);
     if (e->candidate == ((void *)0)) {
         String value_10 = StringLiteral("out of memory");
@@ -1426,14 +1426,14 @@ ZiranEditBuild(void* handle)
     while (i < e->count) {
         EditPart part = (e->parts)[(size_t)(i)];
         size_t n = part.start - at;
-        zir_f_2786a48467b70b55_memcpy((void*)(((size_t)(e->candidate) + out)), (void*)(((size_t)(e->source) + at)), n);
+        zir_foreign_compiler_edit__memcpy((void*)(((size_t)(e->candidate) + out)), (void*)(((size_t)(e->source) + at)), n);
         out = out + n;
-        zir_f_2786a48467b70b55_memcpy((void*)(((size_t)(e->candidate) + out)), (void*)(part.replacement), part.count);
+        zir_foreign_compiler_edit__memcpy((void*)(((size_t)(e->candidate) + out)), (void*)(part.replacement), part.count);
         out = out + part.count;
         at = part.end;
         i = (int32_t)((uint32_t)i + 1u);
     }
-    zir_f_2786a48467b70b55_memcpy((void*)(((size_t)(e->candidate) + out)), (void*)(((size_t)(e->source) + at)), e->size - at);
+    zir_foreign_compiler_edit__memcpy((void*)(((size_t)(e->candidate) + out)), (void*)(((size_t)(e->source) + at)), e->size - at);
     uint8_t* value_13 = &(e->candidate[size]);
     (*value_13) = 0;
     size_t* value_14 = &(e->candidate_size);
@@ -1490,10 +1490,10 @@ compiler_edit_SafeImports(uint8_t* text)
         String s = value_0;
         value_1 = ((StaticText*)(&(s)))->data;
     }
-    zir_f_2786a48467b70b55_LexerInit(&(lexer), (void*)(text), (void*)(value_1));
+    zir_foreign_compiler_edit__LexerInit(&(lexer), (void*)(text), (void*)(value_1));
     int32_t importing = 0;
     while (true) {
-        ZirToken token = zir_f_2786a48467b70b55_LexerNextCode(&(lexer));
+        ZirToken token = zir_foreign_compiler_edit__LexerNextCode(&(lexer));
         if (token.kind == 0) {
             return 1;
         }
@@ -1507,7 +1507,7 @@ compiler_edit_SafeImports(uint8_t* text)
                 String s = value_5;
                 value_6 = ((StaticText*)(&(s)))->data;
             }
-            bool value_8 = zir_f_2786a48467b70b55_strcmp(token_text, value_6) == 0;
+            bool value_8 = zir_foreign_compiler_edit__strcmp(token_text, value_6) == 0;
             value_4 = value_8;
         }
         if (value_4) {
@@ -1522,13 +1522,13 @@ compiler_edit_SafeImports(uint8_t* text)
                     String s = value_11;
                     value_12 = ((StaticText*)(&(s)))->data;
                 }
-                uint8_t* value_14 = zir_f_2786a48467b70b55_strstr(token_text, value_12);
+                uint8_t* value_14 = zir_foreign_compiler_edit__strstr(token_text, value_12);
                 value_10 = (value_14 != ((void *)0));
             }
             bool value_15 = value_10;
             bool value_16 = value_15;
             if (!value_16) {
-                uint8_t* value_17 = zir_f_2786a48467b70b55_strchr(token_text, 92);
+                uint8_t* value_17 = zir_foreign_compiler_edit__strchr(token_text, 92);
                 value_16 = (value_17 != ((void *)0));
             }
             if (value_16) {
@@ -1544,7 +1544,7 @@ compiler_edit_SafeImports(uint8_t* text)
                     String s = value_19;
                     value_20 = ((StaticText*)(&(s)))->data;
                 }
-                bool value_22 = zir_f_2786a48467b70b55_strcmp(token_text, value_20) == 0;
+                bool value_22 = zir_foreign_compiler_edit__strcmp(token_text, value_20) == 0;
                 bool value_23 = value_22;
                 if (!value_23) {
                     String value_24 = StringLiteral("{");
@@ -1553,7 +1553,7 @@ compiler_edit_SafeImports(uint8_t* text)
                         String s = value_24;
                         value_25 = ((StaticText*)(&(s)))->data;
                     }
-                    bool value_27 = zir_f_2786a48467b70b55_strcmp(token_text, value_25) == 0;
+                    bool value_27 = zir_foreign_compiler_edit__strcmp(token_text, value_25) == 0;
                     value_23 = value_27;
                 }
                 value_18 = value_23;
@@ -1569,7 +1569,7 @@ compiler_edit_SafeImports(uint8_t* text)
 int32_t
 compiler_edit_CheckCandidate(Edit* e, uint8_t* text, size_t count, ProgramSet* set)
 {
-    if (zir_f_2786a48467b70b55_SourceOverlayBegin(e->path, text, count) == 0) {
+    if (zir_foreign_compiler_edit__SourceOverlayBegin(e->path, text, count) == 0) {
         String value_0 = StringLiteral("cannot establish source overlay");
         uint8_t* value_1 = (void *)0;
         {
@@ -1578,17 +1578,17 @@ compiler_edit_CheckCandidate(Edit* e, uint8_t* text, size_t count, ProgramSet* s
         }
         return compiler_edit_Fail(value_1);
     }
-    uint8_t* standard = zir_f_2786a48467b70b55_ToolchainStandardDirectory();
+    uint8_t* standard = zir_foreign_compiler_edit__ToolchainStandardDirectory();
     uint8_t* canonical_standard = (void *)0;
     if (standard != ((void *)0)) {
-        canonical_standard = zir_f_2786a48467b70b55_realpath(standard, (void *)0);
+        canonical_standard = zir_foreign_compiler_edit__realpath(standard, (void *)0);
     }
-    zir_f_2786a48467b70b55_SourceOverlayRestrict(e->root, canonical_standard);
+    zir_foreign_compiler_edit__SourceOverlayRestrict(e->root, canonical_standard);
     int32_t i = 0;
     while (i < e->module_count) {
-        if (zir_f_2786a48467b70b55_SourceOverlayPermitRoot(e->module_roots[(size_t)(i)]) == 0) {
-            zir_f_2786a48467b70b55_SourceOverlayEnd();
-            zir_f_2786a48467b70b55_free((void*)(canonical_standard));
+        if (zir_foreign_compiler_edit__SourceOverlayPermitRoot(e->module_roots[(size_t)(i)]) == 0) {
+            zir_foreign_compiler_edit__SourceOverlayEnd();
+            zir_foreign_compiler_edit__free((void*)(canonical_standard));
             String value_3 = StringLiteral("too many permitted module roots");
             uint8_t* value_4 = (void *)0;
             {
@@ -1600,21 +1600,21 @@ compiler_edit_CheckCandidate(Edit* e, uint8_t* text, size_t count, ProgramSet* s
         i = (int32_t)((uint32_t)i + 1u);
     }
     uint8_t* input = e->path;
-    int32_t result = zir_f_2786a48467b70b55_ProgramsLoadWithDefines(set, e->root, e->module_paths, e->module_count, (uint8_t**)(&(e->defines)), e->define_count, &(input), 1);
-    zir_f_2786a48467b70b55_SourceOverlayEnd();
-    zir_f_2786a48467b70b55_free((void*)(canonical_standard));
+    int32_t result = zir_foreign_compiler_edit__ProgramsLoadWithDefines(set, e->root, e->module_paths, e->module_count, (uint8_t**)(&(e->defines)), e->define_count, &(input), 1);
+    zir_foreign_compiler_edit__SourceOverlayEnd();
+    zir_foreign_compiler_edit__free((void*)(canonical_standard));
     if (result != 0) {
         uint8_t expected[65] = {0};
-        zir_f_2786a48467b70b55_DocumentDigest(text, count, &(expected[0]));
+        zir_foreign_compiler_edit__DocumentDigest(text, count, &(expected[0]));
         int32_t captured = 0;
         int32_t p = 0;
         while (p < set->count) {
-            if (zir_f_2786a48467b70b55_strcmp(set->paths[(size_t)(p)], e->path) == 0) {
+            if (zir_foreign_compiler_edit__strcmp(set->paths[(size_t)(p)], e->path) == 0) {
                 int32_t m = 0;
                 while (m < (set->programs[(size_t)(p)])->module_count) {
                     ZirDocument* document = (ZirDocument*)(((uint8_t*)(((set->programs[(size_t)(p)])->modules)[(size_t)(m)]).document));
                     bool value_6 = document != ((void *)0) && document->bytes == count;
-                    if (value_6 && zir_f_2786a48467b70b55_strcmp((uint8_t*)(&(document->sha256.items)), &(expected[0])) == 0) {
+                    if (value_6 && zir_foreign_compiler_edit__strcmp((uint8_t*)(&(document->sha256.items)), &(expected[0])) == 0) {
                         captured = 1;
                     }
                     m = (int32_t)((uint32_t)m + 1u);
@@ -1633,7 +1633,7 @@ compiler_edit_CheckCandidate(Edit* e, uint8_t* text, size_t count, ProgramSet* s
         }
     }
     if (result != 0) {
-        result = zir_f_2786a48467b70b55_CheckCanonicalPrograms(set->programs, set->count, (uint8_t**)set->paths);
+        result = zir_foreign_compiler_edit__CheckCanonicalPrograms(set->programs, set->count, (uint8_t**)set->paths);
     }
     return result;
 }
@@ -1647,7 +1647,7 @@ compiler_edit_StillCurrent(Edit* e)
     int32_t regular = 0;
     uint64_t links = 0ULL;
     int64_t size = 0LL;
-    if (zir_f_2786a48467b70b55_EditHostAtInfo(e->parent, e->leaf, &(device), &(inode), &(mode), &(regular), &(links), &(size)) != 0) {
+    if (zir_foreign_compiler_edit__EditHostAtInfo(e->parent, e->leaf, &(device), &(inode), &(mode), &(regular), &(links), &(size)) != 0) {
         return 0;
     }
     bool value_0 = regular == 0;
@@ -1666,8 +1666,8 @@ compiler_edit_StillCurrent(Edit* e)
     size_t count = 0;
     uint8_t* text = compiler_edit_ReadFd(e->fd, &(count));
     bool value_4 = text != ((void *)0) && count == e->size;
-    bool same = value_4 && zir_f_2786a48467b70b55_memcmp((void*)(text), (void*)(e->source), e->size) == 0;
-    zir_f_2786a48467b70b55_free((void*)(text));
+    bool same = value_4 && zir_foreign_compiler_edit__memcmp((void*)(text), (void*)(e->source), e->size) == 0;
+    zir_foreign_compiler_edit__free((void*)(text));
     int32_t value_5 = 0;
     if (same) {
         value_5 = 1;
@@ -1687,7 +1687,7 @@ compiler_edit_SameTokens(uint8_t* a, uint8_t* b)
         String s = value_1;
         value_2 = ((StaticText*)(&(s)))->data;
     }
-    zir_f_2786a48467b70b55_LexerInit(&(left), value_0, (void*)(value_2));
+    zir_foreign_compiler_edit__LexerInit(&(left), value_0, (void*)(value_2));
     void* value_4 = (void*)(b);
     String value_5 = StringLiteral("<after>");
     uint8_t* value_6 = (void *)0;
@@ -1695,8 +1695,8 @@ compiler_edit_SameTokens(uint8_t* a, uint8_t* b)
         String s = value_5;
         value_6 = ((StaticText*)(&(s)))->data;
     }
-    zir_f_2786a48467b70b55_LexerInit(&(right), value_4, (void*)(value_6));
-    void* value_8 = zir_f_2786a48467b70b55_malloc(sizeof(TokenPair));
+    zir_foreign_compiler_edit__LexerInit(&(right), value_4, (void*)(value_6));
+    void* value_8 = zir_foreign_compiler_edit__malloc(sizeof(TokenPair));
     TokenPair* pair = (TokenPair*)(value_8);
     if (pair == ((void *)0)) {
         return 0;
@@ -1704,10 +1704,10 @@ compiler_edit_SameTokens(uint8_t* a, uint8_t* b)
     int32_t same = 0;
     while (true) {
         ZirToken* value_9 = &(pair->a);
-        ZirToken value_10 = zir_f_2786a48467b70b55_LexerNext(&(left));
+        ZirToken value_10 = zir_foreign_compiler_edit__LexerNext(&(left));
         (*value_9) = value_10;
         ZirToken* value_11 = &(pair->b);
-        ZirToken value_12 = zir_f_2786a48467b70b55_LexerNext(&(right));
+        ZirToken value_12 = zir_foreign_compiler_edit__LexerNext(&(right));
         (*value_11) = value_12;
         uint8_t* a_text = (uint8_t*)(&(pair->a.text));
         uint8_t* b_text = (uint8_t*)(&(pair->b.text));
@@ -1721,7 +1721,7 @@ compiler_edit_SameTokens(uint8_t* a, uint8_t* b)
                 String s = value_16;
                 value_17 = ((StaticText*)(&(s)))->data;
             }
-            bool value_19 = zir_f_2786a48467b70b55_strcmp(value_15, value_17) == 0;
+            bool value_19 = zir_foreign_compiler_edit__strcmp(value_15, value_17) == 0;
             value_14 = value_19;
         }
         bool value_20 = value_14;
@@ -1734,11 +1734,11 @@ compiler_edit_SameTokens(uint8_t* a, uint8_t* b)
                 String s = value_23;
                 value_24 = ((StaticText*)(&(s)))->data;
             }
-            bool value_26 = zir_f_2786a48467b70b55_strcmp(value_22, value_24) == 0;
+            bool value_26 = zir_foreign_compiler_edit__strcmp(value_22, value_24) == 0;
             value_21 = value_26;
         }
         bool value_27 = value_21 || pair->a.kind != pair->b.kind;
-        if (value_27 || zir_f_2786a48467b70b55_strcmp(a_text, b_text) != 0) {
+        if (value_27 || zir_foreign_compiler_edit__strcmp(a_text, b_text) != 0) {
             break;
         }
         if (pair->a.kind == 0) {
@@ -1746,7 +1746,7 @@ compiler_edit_SameTokens(uint8_t* a, uint8_t* b)
             break;
         }
     }
-    zir_f_2786a48467b70b55_free((void*)(pair));
+    zir_foreign_compiler_edit__free((void*)(pair));
     return same;
 }
 
@@ -1775,7 +1775,7 @@ ZiranEditValidate(void* handle)
     }
     ProgramSet set = {0};
     int32_t valid = compiler_edit_CheckCandidate(e, e->candidate, e->candidate_size, &(set));
-    zir_f_2786a48467b70b55_ProgramsFree(&(set));
+    zir_foreign_compiler_edit__ProgramsFree(&(set));
     return valid;
 }
 
@@ -1814,7 +1814,7 @@ ZiranEditFinish(void* handle, String formatted, int32_t apply)
         return compiler_edit_Fail(value_9);
     }
     if (compiler_edit_SafeImports(text) == 0) {
-        zir_f_2786a48467b70b55_free((void*)(text));
+        zir_foreign_compiler_edit__free((void*)(text));
         String value_11 = StringLiteral("import escapes the permitted source tree");
         uint8_t* value_12 = (void *)0;
         {
@@ -1825,9 +1825,9 @@ ZiranEditFinish(void* handle, String formatted, int32_t apply)
     }
     ProgramSet set = {0};
     int32_t valid = compiler_edit_CheckCandidate(e, text, (size_t)((int64_t)(formatted).length), &(set));
-    zir_f_2786a48467b70b55_ProgramsFree(&(set));
+    zir_foreign_compiler_edit__ProgramsFree(&(set));
     if (valid == 0 || compiler_edit_StillCurrent(e) == 0) {
-        zir_f_2786a48467b70b55_free((void*)(text));
+        zir_foreign_compiler_edit__free((void*)(text));
         if (valid != 0) {
             String value_14 = StringLiteral("document changed during validation");
             uint8_t* value_15 = (void *)0;
@@ -1840,7 +1840,7 @@ ZiranEditFinish(void* handle, String formatted, int32_t apply)
         return 0;
     }
     if (apply == 0) {
-        zir_f_2786a48467b70b55_free((void*)(text));
+        zir_foreign_compiler_edit__free((void*)(text));
         return 1;
     }
     uint8_t temporary[64] = {0};
@@ -1853,13 +1853,13 @@ ZiranEditFinish(void* handle, String formatted, int32_t apply)
             String s = value_17;
             value_18 = ((StaticText*)(&(s)))->data;
         }
-        int32_t value_20 = zir_f_2786a48467b70b55_getpid();
-        zir_f_2786a48467b70b55_snprintf(&(temporary[0]), 64, value_18, (ptrdiff_t)(value_20), index);
-        descriptor = zir_f_2786a48467b70b55_EditHostCreatePrivate(e->parent, &(temporary[0]));
+        int32_t value_20 = zir_foreign_compiler_edit__getpid();
+        zir_foreign_compiler_edit__snprintf(&(temporary[0]), 64, value_18, (ptrdiff_t)(value_20), index);
+        descriptor = zir_foreign_compiler_edit__EditHostCreatePrivate(e->parent, &(temporary[0]));
         index = (uint32_t)((uint32_t)index + 1u);
     }
     if (descriptor < 0) {
-        zir_f_2786a48467b70b55_free((void*)(text));
+        zir_foreign_compiler_edit__free((void*)(text));
         String value_21 = StringLiteral("cannot create replacement");
         uint8_t* value_22 = (void *)0;
         {
@@ -1871,27 +1871,27 @@ ZiranEditFinish(void* handle, String formatted, int32_t apply)
     size_t length = (size_t)((int64_t)(formatted).length);
     size_t at = 0;
     while (at < length) {
-        ptrdiff_t written = zir_f_2786a48467b70b55_write(descriptor, (void*)(((size_t)(text) + at)), length - at);
+        ptrdiff_t written = zir_foreign_compiler_edit__write(descriptor, (void*)(((size_t)(text) + at)), length - at);
         if (written <= 0) {
             break;
         }
         at = at + (size_t)(written);
     }
-    bool value_24 = at == length && zir_f_2786a48467b70b55_fchmod(descriptor, (uint32_t)((uint32_t)(e->source_mode) & 4095u)) == 0;
-    bool wrote = value_24 && zir_f_2786a48467b70b55_fsync(descriptor) == 0;
-    if (zir_f_2786a48467b70b55_close(descriptor) != 0) {
+    bool value_24 = at == length && zir_foreign_compiler_edit__fchmod(descriptor, (uint32_t)((uint32_t)(e->source_mode) & 4095u)) == 0;
+    bool wrote = value_24 && zir_foreign_compiler_edit__fsync(descriptor) == 0;
+    if (zir_foreign_compiler_edit__close(descriptor) != 0) {
         wrote = false;
     }
     if (wrote) {
         wrote = compiler_edit_StillCurrent(e) != 0;
     }
     if (wrote) {
-        wrote = zir_f_2786a48467b70b55_renameat(e->parent, &(temporary[0]), e->parent, e->leaf) == 0;
+        wrote = zir_foreign_compiler_edit__renameat(e->parent, &(temporary[0]), e->parent, e->leaf) == 0;
     }
     if (!wrote) {
-        zir_f_2786a48467b70b55_unlinkat(e->parent, &(temporary[0]), 0);
+        zir_foreign_compiler_edit__unlinkat(e->parent, &(temporary[0]), 0);
     }
-    zir_f_2786a48467b70b55_free((void*)(text));
+    zir_foreign_compiler_edit__free((void*)(text));
     if (!wrote) {
         String value_25 = StringLiteral("cannot replace current document");
         uint8_t* value_26 = (void *)0;

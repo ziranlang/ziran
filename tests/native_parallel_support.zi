@@ -201,7 +201,7 @@ ParallelProgram :: (test: *NativeTest, source: string, extra: s64) -> bool {
     for index: cast(s64)0..15 {
         number := CheckNumber(index); padded := ifx index < 10 then CheckConcat("0", number) else number
         BuilderAppend(text, CheckConcat("M", CheckConcat(number, CheckConcat(" :: #import \"group/m", CheckConcat(padded, "\";\n")))))
-        VecPush(calls, CheckConcat("M", CheckConcat(number, ".Read()")))
+        VecPush(calls, CheckConcat("M", CheckConcat(number, ".Read(1)")))
     }
     BuilderAppend(text, "host :: #system_library \"host\";\nHelper :: () -> s32 #foreign host \"helper\";\n#program_export\nAnswer :: () -> s32 {\nreturn Helper() + ")
     BuilderAppend(text, TextJoin(calls[:], " + ")); BuilderAppend(text, CheckConcat(" + ", CheckConcat(CheckNumber(extra), "\n}\n")))

@@ -115,122 +115,50 @@ struct __type_838711075b90279a {
 };
 #endif
 extern __type_c53c2d7c4913dc02 ProfileNames;
-#ifndef ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_ClockRaw_b5740b84
-#define ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_ClockRaw_b5740b84
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_36a3c20ab8e249b6_ClockRaw(int32_t clock, ClockValue* value) __asm__("_clock_gettime");
+int32_t zir_foreign_compiler_backend_cache__ClockRaw(int32_t clock, ClockValue* value) __asm__("_clock_gettime");
 #else
-int32_t zir_foreign_zir_f_36a3c20ab8e249b6_ClockRaw(int32_t clock, ClockValue* value) __asm__("clock_gettime");
+int32_t zir_foreign_compiler_backend_cache__ClockRaw(int32_t clock, ClockValue* value) __asm__("clock_gettime");
 #endif
-static int32_t
-zir_f_36a3c20ab8e249b6_ClockRaw(int32_t clock, ClockValue* value)
-{
-    return zir_foreign_zir_f_36a3c20ab8e249b6_ClockRaw(clock, value);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_ShaBegin_6c69662e
-#define ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_ShaBegin_6c69662e
 #ifdef __APPLE__
-void zir_foreign_zir_f_36a3c20ab8e249b6_ShaBegin(void* hash) __asm__("_Sha256Begin");
+void zir_foreign_compiler_backend_cache__ShaBegin(void* hash) __asm__("_Sha256Begin");
 #else
-void zir_foreign_zir_f_36a3c20ab8e249b6_ShaBegin(void* hash) __asm__("Sha256Begin");
+void zir_foreign_compiler_backend_cache__ShaBegin(void* hash) __asm__("Sha256Begin");
 #endif
-static void
-zir_f_36a3c20ab8e249b6_ShaBegin(void* hash)
-{
-    zir_foreign_zir_f_36a3c20ab8e249b6_ShaBegin(hash);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_ShaAdd_a910f077
-#define ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_ShaAdd_a910f077
 #ifdef __APPLE__
-void zir_foreign_zir_f_36a3c20ab8e249b6_ShaAdd(void* hash, uint8_t* bytes, size_t count) __asm__("_Sha256Add");
+void zir_foreign_compiler_backend_cache__ShaAdd(void* hash, uint8_t* bytes, size_t count) __asm__("_Sha256Add");
 #else
-void zir_foreign_zir_f_36a3c20ab8e249b6_ShaAdd(void* hash, uint8_t* bytes, size_t count) __asm__("Sha256Add");
+void zir_foreign_compiler_backend_cache__ShaAdd(void* hash, uint8_t* bytes, size_t count) __asm__("Sha256Add");
 #endif
-static void
-zir_f_36a3c20ab8e249b6_ShaAdd(void* hash, uint8_t* bytes, size_t count)
-{
-    zir_foreign_zir_f_36a3c20ab8e249b6_ShaAdd(hash, bytes, count);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_ShaEnd_1d78bba0
-#define ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_ShaEnd_1d78bba0
 #ifdef __APPLE__
-void zir_foreign_zir_f_36a3c20ab8e249b6_ShaEnd(void* hash, uint8_t* output) __asm__("_Sha256End");
+void zir_foreign_compiler_backend_cache__ShaEnd(void* hash, uint8_t* output) __asm__("_Sha256End");
 #else
-void zir_foreign_zir_f_36a3c20ab8e249b6_ShaEnd(void* hash, uint8_t* output) __asm__("Sha256End");
+void zir_foreign_compiler_backend_cache__ShaEnd(void* hash, uint8_t* output) __asm__("Sha256End");
 #endif
-static void
-zir_f_36a3c20ab8e249b6_ShaEnd(void* hash, uint8_t* output)
-{
-    zir_foreign_zir_f_36a3c20ab8e249b6_ShaEnd(hash, output);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_AllocateRaw_0c09ffff
-#define ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_AllocateRaw_0c09ffff
 #ifdef __APPLE__
-void* zir_foreign_zir_f_36a3c20ab8e249b6_AllocateRaw(size_t count, size_t size) __asm__("_calloc");
+void* zir_foreign_compiler_backend_cache__AllocateRaw(size_t count, size_t size) __asm__("_calloc");
 #else
-void* zir_foreign_zir_f_36a3c20ab8e249b6_AllocateRaw(size_t count, size_t size) __asm__("calloc");
+void* zir_foreign_compiler_backend_cache__AllocateRaw(size_t count, size_t size) __asm__("calloc");
 #endif
-static void*
-zir_f_36a3c20ab8e249b6_AllocateRaw(size_t count, size_t size)
-{
-    return zir_foreign_zir_f_36a3c20ab8e249b6_AllocateRaw(count, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_FreeOwned_c75930da
-#define ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_FreeOwned_c75930da
 #ifdef __APPLE__
-void zir_foreign_zir_f_36a3c20ab8e249b6_FreeOwned(void* memory) __asm__("_free");
+void zir_foreign_compiler_backend_cache__FreeOwned(void* memory) __asm__("_free");
 #else
-void zir_foreign_zir_f_36a3c20ab8e249b6_FreeOwned(void* memory) __asm__("free");
+void zir_foreign_compiler_backend_cache__FreeOwned(void* memory) __asm__("free");
 #endif
-static void
-zir_f_36a3c20ab8e249b6_FreeOwned(void* memory)
-{
-    zir_foreign_zir_f_36a3c20ab8e249b6_FreeOwned(memory);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_ProfileCountForeign_c5a6224b
-#define ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_ProfileCountForeign_c5a6224b
 #ifdef __APPLE__
-void zir_foreign_zir_f_36a3c20ab8e249b6_ProfileCountForeign(uint8_t* name) __asm__("_ProfileCount");
+void zir_foreign_compiler_backend_cache__ProfileCountForeign(uint8_t* name) __asm__("_ProfileCount");
 #else
-void zir_foreign_zir_f_36a3c20ab8e249b6_ProfileCountForeign(uint8_t* name) __asm__("ProfileCount");
+void zir_foreign_compiler_backend_cache__ProfileCountForeign(uint8_t* name) __asm__("ProfileCount");
 #endif
-static void
-zir_f_36a3c20ab8e249b6_ProfileCountForeign(uint8_t* name)
-{
-    zir_foreign_zir_f_36a3c20ab8e249b6_ProfileCountForeign(name);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_OwnProcessId_bd88b581
-#define ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_OwnProcessId_bd88b581
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_36a3c20ab8e249b6_OwnProcessId(void) __asm__("_getpid");
+int32_t zir_foreign_compiler_backend_cache__OwnProcessId(void) __asm__("_getpid");
 #else
-int32_t zir_foreign_zir_f_36a3c20ab8e249b6_OwnProcessId(void) __asm__("getpid");
+int32_t zir_foreign_compiler_backend_cache__OwnProcessId(void) __asm__("getpid");
 #endif
-static int32_t
-zir_f_36a3c20ab8e249b6_OwnProcessId(void)
-{
-    return zir_foreign_zir_f_36a3c20ab8e249b6_OwnProcessId();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_CurrentDirectory_a9b77685
-#define ZIR_FOREIGN_zir_f_36a3c20ab8e249b6_CurrentDirectory_a9b77685
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_36a3c20ab8e249b6_CurrentDirectory(uint8_t* output, size_t size) __asm__("_getcwd");
+uint8_t* zir_foreign_compiler_backend_cache__CurrentDirectory(uint8_t* output, size_t size) __asm__("_getcwd");
 #else
-uint8_t* zir_foreign_zir_f_36a3c20ab8e249b6_CurrentDirectory(uint8_t* output, size_t size) __asm__("getcwd");
-#endif
-static uint8_t*
-zir_f_36a3c20ab8e249b6_CurrentDirectory(uint8_t* output, size_t size)
-{
-    return zir_foreign_zir_f_36a3c20ab8e249b6_CurrentDirectory(output, size);
-}
+uint8_t* zir_foreign_compiler_backend_cache__CurrentDirectory(uint8_t* output, size_t size) __asm__("getcwd");
 #endif
 HashState compiler_backend_cache_HashNew(void);
 void compiler_backend_cache_HashByte(HashState* hash, uint8_t value);

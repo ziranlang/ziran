@@ -16,18 +16,10 @@ static inline int64_t ZiDivS64(int64_t a, int64_t b, int64_t min) {
 }
 #endif
 #endif
-#ifndef ZIR_FOREIGN_zir_f_bce1f6d31ad21c4a_S15Copy_d3838e83
-#define ZIR_FOREIGN_zir_f_bce1f6d31ad21c4a_S15Copy_d3838e83
 #ifdef __APPLE__
-void* zir_foreign_zir_f_bce1f6d31ad21c4a_S15Copy(void* dst, void* src, size_t count) __asm__("_memcpy");
+void* zir_foreign_compiler_context_types__S15Copy(void* dst, void* src, size_t count) __asm__("_memcpy");
 #else
-void* zir_foreign_zir_f_bce1f6d31ad21c4a_S15Copy(void* dst, void* src, size_t count) __asm__("memcpy");
-#endif
-static void*
-zir_f_bce1f6d31ad21c4a_S15Copy(void* dst, void* src, size_t count)
-{
-    return zir_foreign_zir_f_bce1f6d31ad21c4a_S15Copy(dst, src, count);
-}
+void* zir_foreign_compiler_context_types__S15Copy(void* dst, void* src, size_t count) __asm__("memcpy");
 #endif
 
 size_t
@@ -153,6 +145,6 @@ Slice
 compiler_context_types_S15Bytes(ParserSlice descriptor)
 {
     Slice result = {0};
-    zir_f_bce1f6d31ad21c4a_S15Copy((void*)(&(result)), (void*)(&(descriptor)), sizeof(Slice));
+    zir_foreign_compiler_context_types__S15Copy((void*)(&(result)), (void*)(&(descriptor)), sizeof(Slice));
     return result;
 }

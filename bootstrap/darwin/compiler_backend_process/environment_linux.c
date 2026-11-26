@@ -52,7 +52,7 @@ EnvironmentRead(String name, Slice output)
         (*value_3) = EnvironmentFailure_InvalidName;
         return result;
     }
-    result = environment_linux_BoundedHostText(zir_f_65e9ad6d46228d2f_EnvironmentValueRaw(&(buffer[0])), output);
+    result = environment_linux_BoundedHostText(zir_foreign_environment_linux__EnvironmentValueRaw(&(buffer[0])), output);
     if (result.is_ok && (int64_t)(result.value).length == 0LL) {
         bool* value_4 = &(result.is_ok);
         (*value_4) = false;
@@ -171,7 +171,7 @@ environment_linux_EnvironmentText(String name)
     if (!value_1) {
         return StringLiteral("");
     }
-    return TextFromCString(zir_f_65e9ad6d46228d2f_EnvironmentValueRaw(&(buffer[0])));
+    return TextFromCString(zir_foreign_environment_linux__EnvironmentValueRaw(&(buffer[0])));
 }
 
 int64_t

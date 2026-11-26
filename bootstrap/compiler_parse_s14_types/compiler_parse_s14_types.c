@@ -15,18 +15,10 @@ static inline uint64_t ZiDivU64(uint64_t a, uint64_t b) {
 }
 #endif
 #endif
-#ifndef ZIR_FOREIGN_zir_f_d2311f7420436279_S14Copy_d3838e83
-#define ZIR_FOREIGN_zir_f_d2311f7420436279_S14Copy_d3838e83
 #ifdef __APPLE__
-void* zir_foreign_zir_f_d2311f7420436279_S14Copy(void* dst, void* src, size_t size) __asm__("_memcpy");
+void* zir_foreign_compiler_parse_s14_types__S14Copy(void* dst, void* src, size_t size) __asm__("_memcpy");
 #else
-void* zir_foreign_zir_f_d2311f7420436279_S14Copy(void* dst, void* src, size_t size) __asm__("memcpy");
-#endif
-static void*
-zir_f_d2311f7420436279_S14Copy(void* dst, void* src, size_t size)
-{
-    return zir_foreign_zir_f_d2311f7420436279_S14Copy(dst, src, size);
-}
+void* zir_foreign_compiler_parse_s14_types__S14Copy(void* dst, void* src, size_t size) __asm__("memcpy");
 #endif
 
 size_t
@@ -296,7 +288,7 @@ compiler_parse_s14_types_S14String(uint8_t* data, size_t count)
 {
     String result = StringView(NULL, 0);
     ParserText descriptor = {.data = data, .length = count};
-    zir_f_d2311f7420436279_S14Copy((void*)(&(result)), (void*)(&(descriptor)), sizeof(String));
+    zir_foreign_compiler_parse_s14_types__S14Copy((void*)(&(result)), (void*)(&(descriptor)), sizeof(String));
     return result;
 }
 
@@ -304,7 +296,7 @@ uint8_t*
 compiler_parse_s14_types_S14StringData(String text)
 {
     ParserText descriptor = {0};
-    zir_f_d2311f7420436279_S14Copy((void*)(&(descriptor)), (void*)(&(text)), sizeof(String));
+    zir_foreign_compiler_parse_s14_types__S14Copy((void*)(&(descriptor)), (void*)(&(text)), sizeof(String));
     return descriptor.data;
 }
 
@@ -312,7 +304,7 @@ uint64_t
 compiler_parse_s14_types_S14Bits(double value)
 {
     uint64_t bits = 0;
-    zir_f_d2311f7420436279_S14Copy((void*)(&(bits)), (void*)(&(value)), sizeof(uint64_t));
+    zir_foreign_compiler_parse_s14_types__S14Copy((void*)(&(bits)), (void*)(&(value)), sizeof(uint64_t));
     return bits;
 }
 

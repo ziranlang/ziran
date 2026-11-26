@@ -15,734 +15,290 @@ static inline uint32_t ZiShrU32(uint32_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_AllocateOrExit_5810995e
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_AllocateOrExit_5810995e
 #ifdef __APPLE__
-void* zir_foreign_zir_f_c9f352eed87788d1_AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
+void* zir_foreign_compiler_frontend_ir__AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
 #else
-void* zir_foreign_zir_f_c9f352eed87788d1_AllocateOrExit(size_t size) __asm__("AllocateOrExit");
+void* zir_foreign_compiler_frontend_ir__AllocateOrExit(size_t size) __asm__("AllocateOrExit");
 #endif
-static void*
-zir_f_c9f352eed87788d1_AllocateOrExit(size_t size)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_AllocateOrExit(size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerCalloc_c43c6e6e
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerCalloc_c43c6e6e
 #ifdef __APPLE__
-void* zir_foreign_zir_f_c9f352eed87788d1_CompilerCalloc(size_t count, size_t size) __asm__("_CompilerCalloc");
+void* zir_foreign_compiler_frontend_ir__CompilerCalloc(size_t count, size_t size) __asm__("_CompilerCalloc");
 #else
-void* zir_foreign_zir_f_c9f352eed87788d1_CompilerCalloc(size_t count, size_t size) __asm__("CompilerCalloc");
+void* zir_foreign_compiler_frontend_ir__CompilerCalloc(size_t count, size_t size) __asm__("CompilerCalloc");
 #endif
-static void*
-zir_f_c9f352eed87788d1_CompilerCalloc(size_t count, size_t size)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_CompilerCalloc(count, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerContextCurrent_dd532a75
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerContextCurrent_dd532a75
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_CompilerContextCurrent(void) __asm__("_CompilerContextCurrent");
+uint8_t* zir_foreign_compiler_frontend_ir__CompilerContextCurrent(void) __asm__("_CompilerContextCurrent");
 #else
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_CompilerContextCurrent(void) __asm__("CompilerContextCurrent");
+uint8_t* zir_foreign_compiler_frontend_ir__CompilerContextCurrent(void) __asm__("CompilerContextCurrent");
 #endif
-static uint8_t*
-zir_f_c9f352eed87788d1_CompilerContextCurrent(void)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_CompilerContextCurrent();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerContextDispose_f52e7ee4
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerContextDispose_f52e7ee4
 #ifdef __APPLE__
-void zir_foreign_zir_f_c9f352eed87788d1_CompilerContextDispose(uint8_t* context_local) __asm__("_CompilerContextDispose");
+void zir_foreign_compiler_frontend_ir__CompilerContextDispose(uint8_t* context_local) __asm__("_CompilerContextDispose");
 #else
-void zir_foreign_zir_f_c9f352eed87788d1_CompilerContextDispose(uint8_t* context_local) __asm__("CompilerContextDispose");
+void zir_foreign_compiler_frontend_ir__CompilerContextDispose(uint8_t* context_local) __asm__("CompilerContextDispose");
 #endif
-static void
-zir_f_c9f352eed87788d1_CompilerContextDispose(uint8_t* context_local)
-{
-    zir_foreign_zir_f_c9f352eed87788d1_CompilerContextDispose(context_local);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerContextRelease_81bb6340
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerContextRelease_81bb6340
 #ifdef __APPLE__
-void zir_foreign_zir_f_c9f352eed87788d1_CompilerContextRelease(uint8_t* context_local) __asm__("_CompilerContextRelease");
+void zir_foreign_compiler_frontend_ir__CompilerContextRelease(uint8_t* context_local) __asm__("_CompilerContextRelease");
 #else
-void zir_foreign_zir_f_c9f352eed87788d1_CompilerContextRelease(uint8_t* context_local) __asm__("CompilerContextRelease");
+void zir_foreign_compiler_frontend_ir__CompilerContextRelease(uint8_t* context_local) __asm__("CompilerContextRelease");
 #endif
-static void
-zir_f_c9f352eed87788d1_CompilerContextRelease(uint8_t* context_local)
-{
-    zir_foreign_zir_f_c9f352eed87788d1_CompilerContextRelease(context_local);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerContextRetain_a21661e6
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerContextRetain_a21661e6
 #ifdef __APPLE__
-void zir_foreign_zir_f_c9f352eed87788d1_CompilerContextRetain(uint8_t* context_local) __asm__("_CompilerContextRetain");
+void zir_foreign_compiler_frontend_ir__CompilerContextRetain(uint8_t* context_local) __asm__("_CompilerContextRetain");
 #else
-void zir_foreign_zir_f_c9f352eed87788d1_CompilerContextRetain(uint8_t* context_local) __asm__("CompilerContextRetain");
+void zir_foreign_compiler_frontend_ir__CompilerContextRetain(uint8_t* context_local) __asm__("CompilerContextRetain");
 #endif
-static void
-zir_f_c9f352eed87788d1_CompilerContextRetain(uint8_t* context_local)
-{
-    zir_foreign_zir_f_c9f352eed87788d1_CompilerContextRetain(context_local);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerContextSelect_ae9d38e0
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerContextSelect_ae9d38e0
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_CompilerContextSelect(uint8_t* context_local) __asm__("_CompilerContextSelect");
+uint8_t* zir_foreign_compiler_frontend_ir__CompilerContextSelect(uint8_t* context_local) __asm__("_CompilerContextSelect");
 #else
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_CompilerContextSelect(uint8_t* context_local) __asm__("CompilerContextSelect");
+uint8_t* zir_foreign_compiler_frontend_ir__CompilerContextSelect(uint8_t* context_local) __asm__("CompilerContextSelect");
 #endif
-static uint8_t*
-zir_f_c9f352eed87788d1_CompilerContextSelect(uint8_t* context_local)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_CompilerContextSelect(context_local);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerCurrentStorage_c793e840
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerCurrentStorage_c793e840
 #ifdef __APPLE__
-void* zir_foreign_zir_f_c9f352eed87788d1_CompilerCurrentStorage(int32_t key, size_t size, CoreCallback0 destroy) __asm__("_CompilerCurrentStorage");
+void* zir_foreign_compiler_frontend_ir__CompilerCurrentStorage(int32_t key, size_t size, CoreCallback0 destroy) __asm__("_CompilerCurrentStorage");
 #else
-void* zir_foreign_zir_f_c9f352eed87788d1_CompilerCurrentStorage(int32_t key, size_t size, CoreCallback0 destroy) __asm__("CompilerCurrentStorage");
+void* zir_foreign_compiler_frontend_ir__CompilerCurrentStorage(int32_t key, size_t size, CoreCallback0 destroy) __asm__("CompilerCurrentStorage");
 #endif
-static void*
-zir_f_c9f352eed87788d1_CompilerCurrentStorage(int32_t key, size_t size, CoreCallback0 destroy)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_CompilerCurrentStorage(key, size, destroy);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerFclose_aa9f8094
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerFclose_aa9f8094
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_c9f352eed87788d1_CompilerFclose(void* file) __asm__("_CompilerFclose");
+int32_t zir_foreign_compiler_frontend_ir__CompilerFclose(void* file) __asm__("_CompilerFclose");
 #else
-int32_t zir_foreign_zir_f_c9f352eed87788d1_CompilerFclose(void* file) __asm__("CompilerFclose");
+int32_t zir_foreign_compiler_frontend_ir__CompilerFclose(void* file) __asm__("CompilerFclose");
 #endif
-static int32_t
-zir_f_c9f352eed87788d1_CompilerFclose(void* file)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_CompilerFclose(file);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerFopen_170a7b6e
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerFopen_170a7b6e
 #ifdef __APPLE__
-void* zir_foreign_zir_f_c9f352eed87788d1_CompilerFopen(uint8_t* path, uint8_t* mode) __asm__("_CompilerFopen");
+void* zir_foreign_compiler_frontend_ir__CompilerFopen(uint8_t* path, uint8_t* mode) __asm__("_CompilerFopen");
 #else
-void* zir_foreign_zir_f_c9f352eed87788d1_CompilerFopen(uint8_t* path, uint8_t* mode) __asm__("CompilerFopen");
+void* zir_foreign_compiler_frontend_ir__CompilerFopen(uint8_t* path, uint8_t* mode) __asm__("CompilerFopen");
 #endif
-static void*
-zir_f_c9f352eed87788d1_CompilerFopen(uint8_t* path, uint8_t* mode)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_CompilerFopen(path, mode);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerFree_544d5753
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerFree_544d5753
 #ifdef __APPLE__
-void zir_foreign_zir_f_c9f352eed87788d1_CompilerFree(void* pointer) __asm__("_CompilerFree");
+void zir_foreign_compiler_frontend_ir__CompilerFree(void* pointer) __asm__("_CompilerFree");
 #else
-void zir_foreign_zir_f_c9f352eed87788d1_CompilerFree(void* pointer) __asm__("CompilerFree");
+void zir_foreign_compiler_frontend_ir__CompilerFree(void* pointer) __asm__("CompilerFree");
 #endif
-static void
-zir_f_c9f352eed87788d1_CompilerFree(void* pointer)
-{
-    zir_foreign_zir_f_c9f352eed87788d1_CompilerFree(pointer);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerMalloc_1d57e165
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerMalloc_1d57e165
 #ifdef __APPLE__
-void* zir_foreign_zir_f_c9f352eed87788d1_CompilerMalloc(size_t size) __asm__("_CompilerMalloc");
+void* zir_foreign_compiler_frontend_ir__CompilerMalloc(size_t size) __asm__("_CompilerMalloc");
 #else
-void* zir_foreign_zir_f_c9f352eed87788d1_CompilerMalloc(size_t size) __asm__("CompilerMalloc");
+void* zir_foreign_compiler_frontend_ir__CompilerMalloc(size_t size) __asm__("CompilerMalloc");
 #endif
-static void*
-zir_f_c9f352eed87788d1_CompilerMalloc(size_t size)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_CompilerMalloc(size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerMemoryCleanup_13e597b3
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerMemoryCleanup_13e597b3
 #ifdef __APPLE__
-void zir_foreign_zir_f_c9f352eed87788d1_CompilerMemoryCleanup(void* pointer, CoreCallback0 destroy) __asm__("_CompilerMemoryCleanup");
+void zir_foreign_compiler_frontend_ir__CompilerMemoryCleanup(void* pointer, CoreCallback0 destroy) __asm__("_CompilerMemoryCleanup");
 #else
-void zir_foreign_zir_f_c9f352eed87788d1_CompilerMemoryCleanup(void* pointer, CoreCallback0 destroy) __asm__("CompilerMemoryCleanup");
+void zir_foreign_compiler_frontend_ir__CompilerMemoryCleanup(void* pointer, CoreCallback0 destroy) __asm__("CompilerMemoryCleanup");
 #endif
-static void
-zir_f_c9f352eed87788d1_CompilerMemoryCleanup(void* pointer, CoreCallback0 destroy)
-{
-    zir_foreign_zir_f_c9f352eed87788d1_CompilerMemoryCleanup(pointer, destroy);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerMemoryPause_4428bea9
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerMemoryPause_4428bea9
 #ifdef __APPLE__
-void* zir_foreign_zir_f_c9f352eed87788d1_CompilerMemoryPause(void) __asm__("_CompilerMemoryPause");
+void* zir_foreign_compiler_frontend_ir__CompilerMemoryPause(void) __asm__("_CompilerMemoryPause");
 #else
-void* zir_foreign_zir_f_c9f352eed87788d1_CompilerMemoryPause(void) __asm__("CompilerMemoryPause");
+void* zir_foreign_compiler_frontend_ir__CompilerMemoryPause(void) __asm__("CompilerMemoryPause");
 #endif
-static void*
-zir_f_c9f352eed87788d1_CompilerMemoryPause(void)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_CompilerMemoryPause();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerMemoryRecovering_b88389da
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerMemoryRecovering_b88389da
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_c9f352eed87788d1_CompilerMemoryRecovering(void) __asm__("_CompilerMemoryRecovering");
+int32_t zir_foreign_compiler_frontend_ir__CompilerMemoryRecovering(void) __asm__("_CompilerMemoryRecovering");
 #else
-int32_t zir_foreign_zir_f_c9f352eed87788d1_CompilerMemoryRecovering(void) __asm__("CompilerMemoryRecovering");
+int32_t zir_foreign_compiler_frontend_ir__CompilerMemoryRecovering(void) __asm__("CompilerMemoryRecovering");
 #endif
-static int32_t
-zir_f_c9f352eed87788d1_CompilerMemoryRecovering(void)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_CompilerMemoryRecovering();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerMemoryResume_53a18e45
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerMemoryResume_53a18e45
 #ifdef __APPLE__
-void zir_foreign_zir_f_c9f352eed87788d1_CompilerMemoryResume(void* memory) __asm__("_CompilerMemoryResume");
+void zir_foreign_compiler_frontend_ir__CompilerMemoryResume(void* memory) __asm__("_CompilerMemoryResume");
 #else
-void zir_foreign_zir_f_c9f352eed87788d1_CompilerMemoryResume(void* memory) __asm__("CompilerMemoryResume");
+void zir_foreign_compiler_frontend_ir__CompilerMemoryResume(void* memory) __asm__("CompilerMemoryResume");
 #endif
-static void
-zir_f_c9f352eed87788d1_CompilerMemoryResume(void* memory)
-{
-    zir_foreign_zir_f_c9f352eed87788d1_CompilerMemoryResume(memory);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerRealloc_860ad750
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerRealloc_860ad750
 #ifdef __APPLE__
-void* zir_foreign_zir_f_c9f352eed87788d1_CompilerRealloc(void* pointer, size_t size) __asm__("_CompilerRealloc");
+void* zir_foreign_compiler_frontend_ir__CompilerRealloc(void* pointer, size_t size) __asm__("_CompilerRealloc");
 #else
-void* zir_foreign_zir_f_c9f352eed87788d1_CompilerRealloc(void* pointer, size_t size) __asm__("CompilerRealloc");
+void* zir_foreign_compiler_frontend_ir__CompilerRealloc(void* pointer, size_t size) __asm__("CompilerRealloc");
 #endif
-static void*
-zir_f_c9f352eed87788d1_CompilerRealloc(void* pointer, size_t size)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_CompilerRealloc(pointer, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerThreadStorage_fa65f631
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerThreadStorage_fa65f631
 #ifdef __APPLE__
-void* zir_foreign_zir_f_c9f352eed87788d1_CompilerThreadStorage(CompilerThread* thread, int32_t key, size_t size, CoreCallback0 destroy) __asm__("_CompilerThreadStorage");
+void* zir_foreign_compiler_frontend_ir__CompilerThreadStorage(CompilerThread* thread, int32_t key, size_t size, CoreCallback0 destroy) __asm__("_CompilerThreadStorage");
 #else
-void* zir_foreign_zir_f_c9f352eed87788d1_CompilerThreadStorage(CompilerThread* thread, int32_t key, size_t size, CoreCallback0 destroy) __asm__("CompilerThreadStorage");
+void* zir_foreign_compiler_frontend_ir__CompilerThreadStorage(CompilerThread* thread, int32_t key, size_t size, CoreCallback0 destroy) __asm__("CompilerThreadStorage");
 #endif
-static void*
-zir_f_c9f352eed87788d1_CompilerThreadStorage(CompilerThread* thread, int32_t key, size_t size, CoreCallback0 destroy)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_CompilerThreadStorage(thread, key, size, destroy);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_Diagnostic_78ef33bb
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_Diagnostic_78ef33bb
 #ifdef __APPLE__
-void zir_foreign_zir_f_c9f352eed87788d1_Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("_Diagnostic");
+void zir_foreign_compiler_frontend_ir__Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("_Diagnostic");
 #else
-void zir_foreign_zir_f_c9f352eed87788d1_Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("Diagnostic");
+void zir_foreign_compiler_frontend_ir__Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("Diagnostic");
 #endif
-#define zir_f_c9f352eed87788d1_Diagnostic zir_foreign_zir_f_c9f352eed87788d1_Diagnostic
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_DiagnosticOutOfMemory_4a6ba8c0
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_DiagnosticOutOfMemory_4a6ba8c0
 #ifdef __APPLE__
-void zir_foreign_zir_f_c9f352eed87788d1_DiagnosticOutOfMemory(void) __asm__("_DiagnosticOutOfMemory");
+void zir_foreign_compiler_frontend_ir__DiagnosticOutOfMemory(void) __asm__("_DiagnosticOutOfMemory");
 #else
-void zir_foreign_zir_f_c9f352eed87788d1_DiagnosticOutOfMemory(void) __asm__("DiagnosticOutOfMemory");
+void zir_foreign_compiler_frontend_ir__DiagnosticOutOfMemory(void) __asm__("DiagnosticOutOfMemory");
 #endif
-static void
-zir_f_c9f352eed87788d1_DiagnosticOutOfMemory(void)
-{
-    zir_foreign_zir_f_c9f352eed87788d1_DiagnosticOutOfMemory();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_KeepParameters_d4a63921
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_KeepParameters_d4a63921
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_KeepParameters(uint8_t* text) __asm__("_KeepParameters");
+uint8_t* zir_foreign_compiler_frontend_ir__KeepParameters(uint8_t* text) __asm__("_KeepParameters");
 #else
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_KeepParameters(uint8_t* text) __asm__("KeepParameters");
+uint8_t* zir_foreign_compiler_frontend_ir__KeepParameters(uint8_t* text) __asm__("KeepParameters");
 #endif
-static uint8_t*
-zir_f_c9f352eed87788d1_KeepParameters(uint8_t* text)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_KeepParameters(text);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_KeepText_81a33958
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_KeepText_81a33958
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_KeepText(uint8_t* text) __asm__("_KeepText");
+uint8_t* zir_foreign_compiler_frontend_ir__KeepText(uint8_t* text) __asm__("_KeepText");
 #else
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_KeepText(uint8_t* text) __asm__("KeepText");
+uint8_t* zir_foreign_compiler_frontend_ir__KeepText(uint8_t* text) __asm__("KeepText");
 #endif
-static uint8_t*
-zir_f_c9f352eed87788d1_KeepText(uint8_t* text)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_KeepText(text);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_ProfileCount_c5a6224b
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_ProfileCount_c5a6224b
 #ifdef __APPLE__
-void zir_foreign_zir_f_c9f352eed87788d1_ProfileCount(uint8_t* counter) __asm__("_ProfileCount");
+void zir_foreign_compiler_frontend_ir__ProfileCount(uint8_t* counter) __asm__("_ProfileCount");
 #else
-void zir_foreign_zir_f_c9f352eed87788d1_ProfileCount(uint8_t* counter) __asm__("ProfileCount");
+void zir_foreign_compiler_frontend_ir__ProfileCount(uint8_t* counter) __asm__("ProfileCount");
 #endif
-static void
-zir_f_c9f352eed87788d1_ProfileCount(uint8_t* counter)
-{
-    zir_foreign_zir_f_c9f352eed87788d1_ProfileCount(counter);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_ScalarType_9055c366
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_ScalarType_9055c366
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_ScalarType(uint8_t* type) __asm__("_ScalarType");
+uint8_t* zir_foreign_compiler_frontend_ir__ScalarType(uint8_t* type) __asm__("_ScalarType");
 #else
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_ScalarType(uint8_t* type) __asm__("ScalarType");
+uint8_t* zir_foreign_compiler_frontend_ir__ScalarType(uint8_t* type) __asm__("ScalarType");
 #endif
-static uint8_t*
-zir_f_c9f352eed87788d1_ScalarType(uint8_t* type)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_ScalarType(type);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_SpanPath_57316ae8
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_SpanPath_57316ae8
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_SpanPath(ZirSourceSpan span) __asm__("_SpanPath");
+uint8_t* zir_foreign_compiler_frontend_ir__SpanPath(ZirSourceSpan span) __asm__("_SpanPath");
 #else
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_SpanPath(ZirSourceSpan span) __asm__("SpanPath");
+uint8_t* zir_foreign_compiler_frontend_ir__SpanPath(ZirSourceSpan span) __asm__("SpanPath");
 #endif
-static uint8_t*
-zir_f_c9f352eed87788d1_SpanPath(ZirSourceSpan span)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_SpanPath(span);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_abort_9317fd2f
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_abort_9317fd2f
 #ifdef __APPLE__
-void zir_foreign_zir_f_c9f352eed87788d1_abort(void) __asm__("_abort");
+void zir_foreign_compiler_frontend_ir__abort(void) __asm__("_abort");
 #else
-void zir_foreign_zir_f_c9f352eed87788d1_abort(void) __asm__("abort");
+void zir_foreign_compiler_frontend_ir__abort(void) __asm__("abort");
 #endif
-static void
-zir_f_c9f352eed87788d1_abort(void)
-{
-    zir_foreign_zir_f_c9f352eed87788d1_abort();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_exit_1120afe9
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_exit_1120afe9
 #ifdef __APPLE__
-void zir_foreign_zir_f_c9f352eed87788d1_exit(int32_t ziran_keyword___status_0) __asm__("_exit");
+void zir_foreign_compiler_frontend_ir__exit(int32_t ziran_keyword___status_0) __asm__("_exit");
 #else
-void zir_foreign_zir_f_c9f352eed87788d1_exit(int32_t ziran_keyword___status_0) __asm__("exit");
+void zir_foreign_compiler_frontend_ir__exit(int32_t ziran_keyword___status_0) __asm__("exit");
 #endif
-static void
-zir_f_c9f352eed87788d1_exit(int32_t ziran_keyword___status_0)
-{
-    zir_foreign_zir_f_c9f352eed87788d1_exit(ziran_keyword___status_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_fprintf_83feebb0
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_fprintf_83feebb0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_c9f352eed87788d1_fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_fprintf");
+int32_t zir_foreign_compiler_frontend_ir__fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_fprintf");
 #else
-int32_t zir_foreign_zir_f_c9f352eed87788d1_fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("fprintf");
+int32_t zir_foreign_compiler_frontend_ir__fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("fprintf");
 #endif
-#define zir_f_c9f352eed87788d1_fprintf zir_foreign_zir_f_c9f352eed87788d1_fprintf
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_fputs_28723a01
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_fputs_28723a01
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_c9f352eed87788d1_fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0) __asm__("_fputs");
+int32_t zir_foreign_compiler_frontend_ir__fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0) __asm__("_fputs");
 #else
-int32_t zir_foreign_zir_f_c9f352eed87788d1_fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0) __asm__("fputs");
+int32_t zir_foreign_compiler_frontend_ir__fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0) __asm__("fputs");
 #endif
-static int32_t
-zir_f_c9f352eed87788d1_fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_fputs(ziran_keyword___s_0, ziran_keyword___stream_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_fread_9f1323cb
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_fread_9f1323cb
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_c9f352eed87788d1_fread(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0, size_t ziran_keyword___n_0, void* ziran_keyword___stream_0) __asm__("_fread");
+size_t zir_foreign_compiler_frontend_ir__fread(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0, size_t ziran_keyword___n_0, void* ziran_keyword___stream_0) __asm__("_fread");
 #else
-size_t zir_foreign_zir_f_c9f352eed87788d1_fread(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0, size_t ziran_keyword___n_0, void* ziran_keyword___stream_0) __asm__("fread");
+size_t zir_foreign_compiler_frontend_ir__fread(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0, size_t ziran_keyword___n_0, void* ziran_keyword___stream_0) __asm__("fread");
 #endif
-static size_t
-zir_f_c9f352eed87788d1_fread(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0, size_t ziran_keyword___n_0, void* ziran_keyword___stream_0)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_fread(ziran_keyword___ptr_0, ziran_keyword___size_0, ziran_keyword___n_0, ziran_keyword___stream_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_getenv_40be1ae7
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_getenv_40be1ae7
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_getenv(uint8_t* ziran_keyword___name_0) __asm__("_getenv");
+uint8_t* zir_foreign_compiler_frontend_ir__getenv(uint8_t* ziran_keyword___name_0) __asm__("_getenv");
 #else
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_getenv(uint8_t* ziran_keyword___name_0) __asm__("getenv");
+uint8_t* zir_foreign_compiler_frontend_ir__getenv(uint8_t* ziran_keyword___name_0) __asm__("getenv");
 #endif
-static uint8_t*
-zir_f_c9f352eed87788d1_getenv(uint8_t* ziran_keyword___name_0)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_getenv(ziran_keyword___name_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_memcmp_ce1296ae
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_memcmp_ce1296ae
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_c9f352eed87788d1_memcmp(void* ziran_keyword___s1_0, void* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("_memcmp");
+int32_t zir_foreign_compiler_frontend_ir__memcmp(void* ziran_keyword___s1_0, void* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("_memcmp");
 #else
-int32_t zir_foreign_zir_f_c9f352eed87788d1_memcmp(void* ziran_keyword___s1_0, void* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("memcmp");
+int32_t zir_foreign_compiler_frontend_ir__memcmp(void* ziran_keyword___s1_0, void* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("memcmp");
 #endif
-static int32_t
-zir_f_c9f352eed87788d1_memcmp(void* ziran_keyword___s1_0, void* ziran_keyword___s2_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_memcmp(ziran_keyword___s1_0, ziran_keyword___s2_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_memcpy_d3838e83
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_memcpy_d3838e83
 #ifdef __APPLE__
-void* zir_foreign_zir_f_c9f352eed87788d1_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("_memcpy");
+void* zir_foreign_compiler_frontend_ir__memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("_memcpy");
 #else
-void* zir_foreign_zir_f_c9f352eed87788d1_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("memcpy");
+void* zir_foreign_compiler_frontend_ir__memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("memcpy");
 #endif
-static void*
-zir_f_c9f352eed87788d1_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_memcpy(ziran_keyword___dest_0, ziran_keyword___src_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_memmove_f228d238
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_memmove_f228d238
 #ifdef __APPLE__
-void* zir_foreign_zir_f_c9f352eed87788d1_memmove(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("_memmove");
+void* zir_foreign_compiler_frontend_ir__memmove(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("_memmove");
 #else
-void* zir_foreign_zir_f_c9f352eed87788d1_memmove(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("memmove");
+void* zir_foreign_compiler_frontend_ir__memmove(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("memmove");
 #endif
-static void*
-zir_f_c9f352eed87788d1_memmove(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_memmove(ziran_keyword___dest_0, ziran_keyword___src_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_memset_0839e910
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_memset_0839e910
 #ifdef __APPLE__
-void* zir_foreign_zir_f_c9f352eed87788d1_memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("_memset");
+void* zir_foreign_compiler_frontend_ir__memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("_memset");
 #else
-void* zir_foreign_zir_f_c9f352eed87788d1_memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("memset");
+void* zir_foreign_compiler_frontend_ir__memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("memset");
 #endif
-static void*
-zir_f_c9f352eed87788d1_memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_memset(ziran_keyword___s_0, ziran_keyword___c_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_remove_d044dcbc
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_remove_d044dcbc
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_c9f352eed87788d1_remove(uint8_t* ziran_keyword___filename_0) __asm__("_remove");
+int32_t zir_foreign_compiler_frontend_ir__remove(uint8_t* ziran_keyword___filename_0) __asm__("_remove");
 #else
-int32_t zir_foreign_zir_f_c9f352eed87788d1_remove(uint8_t* ziran_keyword___filename_0) __asm__("remove");
+int32_t zir_foreign_compiler_frontend_ir__remove(uint8_t* ziran_keyword___filename_0) __asm__("remove");
 #endif
-static int32_t
-zir_f_c9f352eed87788d1_remove(uint8_t* ziran_keyword___filename_0)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_remove(ziran_keyword___filename_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_rename_c18b8a8c
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_rename_c18b8a8c
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_c9f352eed87788d1_rename(uint8_t* ziran_keyword___old_0, uint8_t* ziran_keyword___new_0) __asm__("_rename");
+int32_t zir_foreign_compiler_frontend_ir__rename(uint8_t* ziran_keyword___old_0, uint8_t* ziran_keyword___new_0) __asm__("_rename");
 #else
-int32_t zir_foreign_zir_f_c9f352eed87788d1_rename(uint8_t* ziran_keyword___old_0, uint8_t* ziran_keyword___new_0) __asm__("rename");
+int32_t zir_foreign_compiler_frontend_ir__rename(uint8_t* ziran_keyword___old_0, uint8_t* ziran_keyword___new_0) __asm__("rename");
 #endif
-static int32_t
-zir_f_c9f352eed87788d1_rename(uint8_t* ziran_keyword___old_0, uint8_t* ziran_keyword___new_0)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_rename(ziran_keyword___old_0, ziran_keyword___new_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_snprintf_7c8971c5
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_snprintf_7c8971c5
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_c9f352eed87788d1_snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_snprintf");
+int32_t zir_foreign_compiler_frontend_ir__snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_snprintf");
 #else
-int32_t zir_foreign_zir_f_c9f352eed87788d1_snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("snprintf");
+int32_t zir_foreign_compiler_frontend_ir__snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("snprintf");
 #endif
-#define zir_f_c9f352eed87788d1_snprintf zir_foreign_zir_f_c9f352eed87788d1_snprintf
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_split_top_level_c66cacd8
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_split_top_level_c66cacd8
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_c9f352eed87788d1_split_top_level(uint8_t* s, uint8_t* parts, int32_t max, size_t part_size) __asm__("_split_top_level");
+int32_t zir_foreign_compiler_frontend_ir__split_top_level(uint8_t* s, uint8_t* parts, int32_t max, size_t part_size) __asm__("_split_top_level");
 #else
-int32_t zir_foreign_zir_f_c9f352eed87788d1_split_top_level(uint8_t* s, uint8_t* parts, int32_t max, size_t part_size) __asm__("split_top_level");
+int32_t zir_foreign_compiler_frontend_ir__split_top_level(uint8_t* s, uint8_t* parts, int32_t max, size_t part_size) __asm__("split_top_level");
 #endif
-static int32_t
-zir_f_c9f352eed87788d1_split_top_level(uint8_t* s, uint8_t* parts, int32_t max, size_t part_size)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_split_top_level(s, parts, max, part_size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_strchr_35c1c732
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_strchr_35c1c732
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("_strchr");
+uint8_t* zir_foreign_compiler_frontend_ir__strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("_strchr");
 #else
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strchr");
+uint8_t* zir_foreign_compiler_frontend_ir__strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strchr");
 #endif
-static uint8_t*
-zir_f_c9f352eed87788d1_strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_strchr(ziran_keyword___s_0, ziran_keyword___c_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_strcmp_b1a4f317
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_strcmp_b1a4f317
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_c9f352eed87788d1_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("_strcmp");
+int32_t zir_foreign_compiler_frontend_ir__strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("_strcmp");
 #else
-int32_t zir_foreign_zir_f_c9f352eed87788d1_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("strcmp");
+int32_t zir_foreign_compiler_frontend_ir__strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("strcmp");
 #endif
-static int32_t
-zir_f_c9f352eed87788d1_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_strcmp(ziran_keyword___s1_0, ziran_keyword___s2_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_strcpy_e6ae563d
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_strcpy_e6ae563d
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_strcpy(uint8_t* ziran_keyword___dest_0, uint8_t* ziran_keyword___src_0) __asm__("_strcpy");
+uint8_t* zir_foreign_compiler_frontend_ir__strcpy(uint8_t* ziran_keyword___dest_0, uint8_t* ziran_keyword___src_0) __asm__("_strcpy");
 #else
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_strcpy(uint8_t* ziran_keyword___dest_0, uint8_t* ziran_keyword___src_0) __asm__("strcpy");
+uint8_t* zir_foreign_compiler_frontend_ir__strcpy(uint8_t* ziran_keyword___dest_0, uint8_t* ziran_keyword___src_0) __asm__("strcpy");
 #endif
-static uint8_t*
-zir_f_c9f352eed87788d1_strcpy(uint8_t* ziran_keyword___dest_0, uint8_t* ziran_keyword___src_0)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_strcpy(ziran_keyword___dest_0, ziran_keyword___src_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_strlen_b24a2871
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_strlen_b24a2871
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_c9f352eed87788d1_strlen(uint8_t* ziran_keyword___s_0) __asm__("_strlen");
+size_t zir_foreign_compiler_frontend_ir__strlen(uint8_t* ziran_keyword___s_0) __asm__("_strlen");
 #else
-size_t zir_foreign_zir_f_c9f352eed87788d1_strlen(uint8_t* ziran_keyword___s_0) __asm__("strlen");
+size_t zir_foreign_compiler_frontend_ir__strlen(uint8_t* ziran_keyword___s_0) __asm__("strlen");
 #endif
-static size_t
-zir_f_c9f352eed87788d1_strlen(uint8_t* ziran_keyword___s_0)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_strlen(ziran_keyword___s_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_strncmp_5281c9d0
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_strncmp_5281c9d0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_c9f352eed87788d1_strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("_strncmp");
+int32_t zir_foreign_compiler_frontend_ir__strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("_strncmp");
 #else
-int32_t zir_foreign_zir_f_c9f352eed87788d1_strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("strncmp");
+int32_t zir_foreign_compiler_frontend_ir__strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("strncmp");
 #endif
-static int32_t
-zir_f_c9f352eed87788d1_strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_strncmp(ziran_keyword___s1_0, ziran_keyword___s2_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_strnlen_f0659c2a
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_strnlen_f0659c2a
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_c9f352eed87788d1_strnlen(uint8_t* ziran_keyword___string_0, size_t ziran_keyword___maxlen_0) __asm__("_strnlen");
+size_t zir_foreign_compiler_frontend_ir__strnlen(uint8_t* ziran_keyword___string_0, size_t ziran_keyword___maxlen_0) __asm__("_strnlen");
 #else
-size_t zir_foreign_zir_f_c9f352eed87788d1_strnlen(uint8_t* ziran_keyword___string_0, size_t ziran_keyword___maxlen_0) __asm__("strnlen");
+size_t zir_foreign_compiler_frontend_ir__strnlen(uint8_t* ziran_keyword___string_0, size_t ziran_keyword___maxlen_0) __asm__("strnlen");
 #endif
-static size_t
-zir_f_c9f352eed87788d1_strnlen(uint8_t* ziran_keyword___string_0, size_t ziran_keyword___maxlen_0)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_strnlen(ziran_keyword___string_0, ziran_keyword___maxlen_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_strrchr_1eb3f404
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_strrchr_1eb3f404
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("_strrchr");
+uint8_t* zir_foreign_compiler_frontend_ir__strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("_strrchr");
 #else
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strrchr");
+uint8_t* zir_foreign_compiler_frontend_ir__strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strrchr");
 #endif
-static uint8_t*
-zir_f_c9f352eed87788d1_strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_strrchr(ziran_keyword___s_0, ziran_keyword___c_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_strstr_ae26e2fa
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_strstr_ae26e2fa
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_strstr(uint8_t* ziran_keyword___haystack_0, uint8_t* ziran_keyword___needle_0) __asm__("_strstr");
+uint8_t* zir_foreign_compiler_frontend_ir__strstr(uint8_t* ziran_keyword___haystack_0, uint8_t* ziran_keyword___needle_0) __asm__("_strstr");
 #else
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_strstr(uint8_t* ziran_keyword___haystack_0, uint8_t* ziran_keyword___needle_0) __asm__("strstr");
+uint8_t* zir_foreign_compiler_frontend_ir__strstr(uint8_t* ziran_keyword___haystack_0, uint8_t* ziran_keyword___needle_0) __asm__("strstr");
 #endif
-static uint8_t*
-zir_f_c9f352eed87788d1_strstr(uint8_t* ziran_keyword___haystack_0, uint8_t* ziran_keyword___needle_0)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_strstr(ziran_keyword___haystack_0, ziran_keyword___needle_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_isdigit_191aad1d
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_isdigit_191aad1d
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_c9f352eed87788d1_isdigit(int32_t byte) __asm__("_isdigit");
+int32_t zir_foreign_compiler_frontend_ir__isdigit(int32_t byte) __asm__("_isdigit");
 #else
-int32_t zir_foreign_zir_f_c9f352eed87788d1_isdigit(int32_t byte) __asm__("isdigit");
+int32_t zir_foreign_compiler_frontend_ir__isdigit(int32_t byte) __asm__("isdigit");
 #endif
-static int32_t
-zir_f_c9f352eed87788d1_isdigit(int32_t byte)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_isdigit(byte);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_isspace_13fa2c18
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_isspace_13fa2c18
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_c9f352eed87788d1_isspace(int32_t byte) __asm__("_isspace");
+int32_t zir_foreign_compiler_frontend_ir__isspace(int32_t byte) __asm__("_isspace");
 #else
-int32_t zir_foreign_zir_f_c9f352eed87788d1_isspace(int32_t byte) __asm__("isspace");
+int32_t zir_foreign_compiler_frontend_ir__isspace(int32_t byte) __asm__("isspace");
 #endif
-static int32_t
-zir_f_c9f352eed87788d1_isspace(int32_t byte)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_isspace(byte);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_isalnum_6f4b98bf
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_isalnum_6f4b98bf
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_c9f352eed87788d1_isalnum(int32_t byte) __asm__("_isalnum");
+int32_t zir_foreign_compiler_frontend_ir__isalnum(int32_t byte) __asm__("_isalnum");
 #else
-int32_t zir_foreign_zir_f_c9f352eed87788d1_isalnum(int32_t byte) __asm__("isalnum");
+int32_t zir_foreign_compiler_frontend_ir__isalnum(int32_t byte) __asm__("isalnum");
 #endif
-static int32_t
-zir_f_c9f352eed87788d1_isalnum(int32_t byte)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_isalnum(byte);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerThreadStateAddress_9b349a24
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerThreadStateAddress_9b349a24
 #ifdef __APPLE__
-CompilerThread* zir_foreign_zir_f_c9f352eed87788d1_CompilerThreadStateAddress(void) __asm__("_CompilerThreadStateAddress");
+CompilerThread* zir_foreign_compiler_frontend_ir__CompilerThreadStateAddress(void) __asm__("_CompilerThreadStateAddress");
 #else
-CompilerThread* zir_foreign_zir_f_c9f352eed87788d1_CompilerThreadStateAddress(void) __asm__("CompilerThreadStateAddress");
+CompilerThread* zir_foreign_compiler_frontend_ir__CompilerThreadStateAddress(void) __asm__("CompilerThreadStateAddress");
 #endif
-static CompilerThread*
-zir_f_c9f352eed87788d1_CompilerThreadStateAddress(void)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_CompilerThreadStateAddress();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_S15FlagTake_31d4ffc1
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_S15FlagTake_31d4ffc1
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_c9f352eed87788d1_S15FlagTake(void* flag) __asm__("_S15FlagTake");
+int32_t zir_foreign_compiler_frontend_ir__S15FlagTake(void* flag) __asm__("_S15FlagTake");
 #else
-int32_t zir_foreign_zir_f_c9f352eed87788d1_S15FlagTake(void* flag) __asm__("S15FlagTake");
+int32_t zir_foreign_compiler_frontend_ir__S15FlagTake(void* flag) __asm__("S15FlagTake");
 #endif
-static int32_t
-zir_f_c9f352eed87788d1_S15FlagTake(void* flag)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_S15FlagTake(flag);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_S15FlagClear_67ee695e
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_S15FlagClear_67ee695e
 #ifdef __APPLE__
-void zir_foreign_zir_f_c9f352eed87788d1_S15FlagClear(void* flag) __asm__("_S15FlagClear");
+void zir_foreign_compiler_frontend_ir__S15FlagClear(void* flag) __asm__("_S15FlagClear");
 #else
-void zir_foreign_zir_f_c9f352eed87788d1_S15FlagClear(void* flag) __asm__("S15FlagClear");
+void zir_foreign_compiler_frontend_ir__S15FlagClear(void* flag) __asm__("S15FlagClear");
 #endif
-static void
-zir_f_c9f352eed87788d1_S15FlagClear(void* flag)
-{
-    zir_foreign_zir_f_c9f352eed87788d1_S15FlagClear(flag);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerDirectoryOpen_d6eecaad
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerDirectoryOpen_d6eecaad
 #ifdef __APPLE__
-void* zir_foreign_zir_f_c9f352eed87788d1_CompilerDirectoryOpen(uint8_t* path) __asm__("_CompilerDirectoryOpen");
+void* zir_foreign_compiler_frontend_ir__CompilerDirectoryOpen(uint8_t* path) __asm__("_CompilerDirectoryOpen");
 #else
-void* zir_foreign_zir_f_c9f352eed87788d1_CompilerDirectoryOpen(uint8_t* path) __asm__("CompilerDirectoryOpen");
+void* zir_foreign_compiler_frontend_ir__CompilerDirectoryOpen(uint8_t* path) __asm__("CompilerDirectoryOpen");
 #endif
-static void*
-zir_f_c9f352eed87788d1_CompilerDirectoryOpen(uint8_t* path)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_CompilerDirectoryOpen(path);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerDirectoryNext_399ad98c
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerDirectoryNext_399ad98c
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_CompilerDirectoryNext(void* directory) __asm__("_CompilerDirectoryNext");
+uint8_t* zir_foreign_compiler_frontend_ir__CompilerDirectoryNext(void* directory) __asm__("_CompilerDirectoryNext");
 #else
-uint8_t* zir_foreign_zir_f_c9f352eed87788d1_CompilerDirectoryNext(void* directory) __asm__("CompilerDirectoryNext");
+uint8_t* zir_foreign_compiler_frontend_ir__CompilerDirectoryNext(void* directory) __asm__("CompilerDirectoryNext");
 #endif
-static uint8_t*
-zir_f_c9f352eed87788d1_CompilerDirectoryNext(void* directory)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_CompilerDirectoryNext(directory);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerDirectoryClose_97b6e4ac
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerDirectoryClose_97b6e4ac
 #ifdef __APPLE__
-void zir_foreign_zir_f_c9f352eed87788d1_CompilerDirectoryClose(void* directory) __asm__("_CompilerDirectoryClose");
+void zir_foreign_compiler_frontend_ir__CompilerDirectoryClose(void* directory) __asm__("_CompilerDirectoryClose");
 #else
-void zir_foreign_zir_f_c9f352eed87788d1_CompilerDirectoryClose(void* directory) __asm__("CompilerDirectoryClose");
+void zir_foreign_compiler_frontend_ir__CompilerDirectoryClose(void* directory) __asm__("CompilerDirectoryClose");
 #endif
-static void
-zir_f_c9f352eed87788d1_CompilerDirectoryClose(void* directory)
-{
-    zir_foreign_zir_f_c9f352eed87788d1_CompilerDirectoryClose(directory);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerPathEntryKind_f0aecff2
-#define ZIR_FOREIGN_zir_f_c9f352eed87788d1_CompilerPathEntryKind_f0aecff2
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_c9f352eed87788d1_CompilerPathEntryKind(uint8_t* path) __asm__("_CompilerPathEntryKind");
+int32_t zir_foreign_compiler_frontend_ir__CompilerPathEntryKind(uint8_t* path) __asm__("_CompilerPathEntryKind");
 #else
-int32_t zir_foreign_zir_f_c9f352eed87788d1_CompilerPathEntryKind(uint8_t* path) __asm__("CompilerPathEntryKind");
-#endif
-static int32_t
-zir_f_c9f352eed87788d1_CompilerPathEntryKind(uint8_t* path)
-{
-    return zir_foreign_zir_f_c9f352eed87788d1_CompilerPathEntryKind(path);
-}
+int32_t zir_foreign_compiler_frontend_ir__CompilerPathEntryKind(uint8_t* path) __asm__("CompilerPathEntryKind");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -772,7 +328,7 @@ static size_t compiler_frontend_ir_ParserPre17(size_t* p) ZIRAN_MAYBE_UNUSED;
 static SymbolLookup compiler_frontend_ir_ParserSet18(SymbolLookup* p, SymbolLookup value) ZIRAN_MAYBE_UNUSED;
 static size_t compiler_frontend_ir_ParserSet19(size_t* p, size_t value) ZIRAN_MAYBE_UNUSED;
 static ZirTypeField compiler_frontend_ir_ParserSet20(ZirTypeField* p, ZirTypeField value) ZIRAN_MAYBE_UNUSED;
-static zir_21ab3782f2ff75d0_ZirVector compiler_frontend_ir_ParserSet21(zir_21ab3782f2ff75d0_ZirVector* p, zir_21ab3782f2ff75d0_ZirVector value) ZIRAN_MAYBE_UNUSED;
+static compiler_frontend_ir_ZirVector compiler_frontend_ir_ParserSet21(compiler_frontend_ir_ZirVector* p, compiler_frontend_ir_ZirVector value) ZIRAN_MAYBE_UNUSED;
 static ZirTypeField* compiler_frontend_ir_ParserSet22(ZirTypeField** p, ZirTypeField* value) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_frontend_ir_ParserSet23(int64_t* p, int64_t value) ZIRAN_MAYBE_UNUSED;
 static bool compiler_frontend_ir_CompilerAtomicFlagTestAndSet(uint8_t* flag) ZIRAN_MAYBE_UNUSED;
@@ -780,6 +336,7 @@ static void compiler_frontend_ir_CompilerAtomicFlagClear(uint8_t* flag) ZIRAN_MA
 static String compiler_frontend_ir_type_text(uint8_t* source) ZIRAN_MAYBE_UNUSED;
 static CompilerScope compiler_frontend_ir_CompilerThreadEnter(CompilerThread* thread, uint8_t* context_local) ZIRAN_MAYBE_UNUSED;
 static void compiler_frontend_ir_CompilerThreadLeave(CompilerThread* thread, CompilerScope scope) ZIRAN_MAYBE_UNUSED;
+static bool compiler_frontend_ir_SameGeneratedPath(uint8_t* left, uint8_t* right) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_frontend_ir_same_file_bytes(uint8_t* left, uint8_t* right) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_frontend_ir_prune_generated(uint8_t* directory_path, uint8_t* marker, int32_t depth) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_frontend_ir_same_map_argument(ZirModule* a_owner, uint8_t* a_name, ZirModule* b_owner, uint8_t* b_name, int32_t depth) ZIRAN_MAYBE_UNUSED;
@@ -1026,10 +583,10 @@ compiler_frontend_ir_ParserSet20(ZirTypeField* p, ZirTypeField value)
     return value;
 }
 
-static zir_21ab3782f2ff75d0_ZirVector
-compiler_frontend_ir_ParserSet21(zir_21ab3782f2ff75d0_ZirVector* p, zir_21ab3782f2ff75d0_ZirVector value)
+static compiler_frontend_ir_ZirVector
+compiler_frontend_ir_ParserSet21(compiler_frontend_ir_ZirVector* p, compiler_frontend_ir_ZirVector value)
 {
-    zir_21ab3782f2ff75d0_ZirVector* value_0 = &(p[0]);
+    compiler_frontend_ir_ZirVector* value_0 = &(p[0]);
     (*value_0) = value;
     return value;
 }
@@ -1053,13 +610,13 @@ compiler_frontend_ir_ParserSet23(int64_t* p, int64_t value)
 static bool
 compiler_frontend_ir_CompilerAtomicFlagTestAndSet(uint8_t* flag)
 {
-    return zir_f_c9f352eed87788d1_S15FlagTake((void*)(flag)) != 0;
+    return zir_foreign_compiler_frontend_ir__S15FlagTake((void*)(flag)) != 0;
 }
 
 static void
 compiler_frontend_ir_CompilerAtomicFlagClear(uint8_t* flag)
 {
-    zir_f_c9f352eed87788d1_S15FlagClear((void*)(flag));
+    zir_foreign_compiler_frontend_ir__S15FlagClear((void*)(flag));
 }
 
 static String
@@ -1119,6 +676,30 @@ BuiltinType(uint8_t* name)
     return (void *)0;
 }
 
+static bool
+compiler_frontend_ir_SameGeneratedPath(uint8_t* left, uint8_t* right)
+{
+    uint8_t* a = left;
+    uint8_t* b = right;
+    while (a[0] != 0 && b[0] != 0) {
+        if (a[0] != b[0]) {
+            return false;
+        }
+        uint8_t c = a[0];
+        a = (uint8_t*)(((size_t)(a) + 1));
+        b = (uint8_t*)(((size_t)(b) + 1));
+        if (c == 47) {
+            while (a[0] == 47) {
+                a = (uint8_t*)(((size_t)(a) + 1));
+            }
+            while (b[0] == 47) {
+                b = (uint8_t*)(((size_t)(b) + 1));
+            }
+        }
+    }
+    return a[0] == b[0];
+}
+
 static int32_t
 compiler_frontend_ir_same_file_bytes(uint8_t* left, uint8_t* right)
 {
@@ -1132,13 +713,13 @@ compiler_frontend_ir_same_file_bytes(uint8_t* left, uint8_t* right)
 static int32_t
 compiler_frontend_ir_prune_generated(uint8_t* directory_path, uint8_t* marker, int32_t depth)
 {
-    void* directory = zir_f_c9f352eed87788d1_CompilerDirectoryOpen(directory_path);
+    void* directory = zir_foreign_compiler_frontend_ir__CompilerDirectoryOpen(directory_path);
     if (directory == ((void *)0)) {
         return 0;
     }
     bool failed = false;
     while (true) {
-        uint8_t* name = zir_f_c9f352eed87788d1_CompilerDirectoryNext(directory);
+        uint8_t* name = zir_foreign_compiler_frontend_ir__CompilerDirectoryNext(directory);
         if (name == ((void *)0)) {
             break;
         }
@@ -1146,11 +727,11 @@ compiler_frontend_ir_prune_generated(uint8_t* directory_path, uint8_t* marker, i
             continue;
         }
         uint8_t path[4096] = {0};
-        int32_t size = zir_f_c9f352eed87788d1_snprintf(&(path[0]), (4096) * (sizeof(uint8_t)), compiler_parse_types_ParserCString(StringLiteral("%s/%s")), directory_path, name);
+        int32_t size = zir_foreign_compiler_frontend_ir__snprintf(&(path[0]), (4096) * (sizeof(uint8_t)), compiler_parse_types_ParserCString(StringLiteral("%s/%s")), directory_path, name);
         if (size < 0 || size >= 4096) {
             continue;
         }
-        int32_t kind = zir_f_c9f352eed87788d1_CompilerPathEntryKind(&(path[0]));
+        int32_t kind = zir_foreign_compiler_frontend_ir__CompilerPathEntryKind(&(path[0]));
         if (kind == 2) {
             if (depth < 32 && compiler_frontend_ir_prune_generated(&(path[0]), marker, (int32_t)((uint32_t)depth + 1u)) != 0) {
                 failed = true;
@@ -1167,7 +748,7 @@ compiler_frontend_ir_prune_generated(uint8_t* directory_path, uint8_t* marker, i
             int32_t range_last_30 = (int32_t)((uint32_t)(outputs->count) - 1u);
             int32_t i = range_first_30;
             if (i <= range_last_30) for (;;) {
-                if (zir_f_c9f352eed87788d1_strcmp(outputs->paths[i], &(path[0])) == 0) {
+                if (compiler_frontend_ir_SameGeneratedPath(outputs->paths[i], &(path[0]))) {
                     written = true;
                     break;
                 }
@@ -1178,7 +759,7 @@ compiler_frontend_ir_prune_generated(uint8_t* directory_path, uint8_t* marker, i
             }
         }
         bool value_0 = !written && compiler_frontend_ir_starts_with_marker(&(path[0]), marker) != 0;
-        if (value_0 && zir_f_c9f352eed87788d1_remove(&(path[0])) != 0) {
+        if (value_0 && zir_foreign_compiler_frontend_ir__remove(&(path[0])) != 0) {
             failed = true;
         }
     }
@@ -1189,7 +770,7 @@ compiler_frontend_ir_prune_generated(uint8_t* directory_path, uint8_t* marker, i
         value_1 = 0;
     }
     int32_t cleanup_return_0 = value_1;
-    zir_f_c9f352eed87788d1_CompilerDirectoryClose(directory);
+    zir_foreign_compiler_frontend_ir__CompilerDirectoryClose(directory);
     return cleanup_return_0;
 }
 
@@ -1213,25 +794,25 @@ MapTypeParts(ZirModule* module, uint8_t* name, uint8_t* key, size_t key_size, ui
     ZirTypeField end = {0};
     size_t offset = (size_t)(0LL);
     bool value_3 = TypeNextField(type, &(offset), &(k)) != 1;
-    bool value_4 = value_3 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(k.name)), compiler_parse_types_ParserCString(StringLiteral("key"))) != 0;
+    bool value_4 = value_3 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(k.name)), compiler_parse_types_ParserCString(StringLiteral("key"))) != 0;
     bool value_5 = value_4 || TypeNextField(type, &(offset), &(v)) != 1;
-    bool value_6 = value_5 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(v.name)), compiler_parse_types_ParserCString(StringLiteral("value"))) != 0;
+    bool value_6 = value_5 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(v.name)), compiler_parse_types_ParserCString(StringLiteral("value"))) != 0;
     bool value_7 = value_6 || TypeNextField(type, &(offset), &(end)) != 0;
     bool value_8 = value_7 || k.is_using != 0 || v.is_using != 0 || (k.go_tag)[0] != 0 || (v.go_tag)[0] != 0 || !((k.type)[0] != 0);
     if (value_8 || !((v.type)[0] != 0)) {
         return 0;
     }
     if (key != (uint8_t*)(((void *)0))) {
-        if (zir_f_c9f352eed87788d1_strlen((uint8_t*)(&(k.type))) >= key_size) {
+        if (zir_foreign_compiler_frontend_ir__strlen((uint8_t*)(&(k.type))) >= key_size) {
             return 0;
         }
-        zir_f_c9f352eed87788d1_strcpy(key, (uint8_t*)(&(k.type)));
+        zir_foreign_compiler_frontend_ir__strcpy(key, (uint8_t*)(&(k.type)));
     }
     if (value != (uint8_t*)(((void *)0))) {
-        if (zir_f_c9f352eed87788d1_strlen((uint8_t*)(&(v.type))) >= value_size) {
+        if (zir_foreign_compiler_frontend_ir__strlen((uint8_t*)(&(v.type))) >= value_size) {
             return 0;
         }
-        zir_f_c9f352eed87788d1_strcpy(value, (uint8_t*)(&(v.type)));
+        zir_foreign_compiler_frontend_ir__strcpy(value, (uint8_t*)(&(v.type)));
     }
     return 1;
 }
@@ -1241,7 +822,7 @@ MapKeyComparable(ZirModule* module, uint8_t* type, int32_t depth)
 {
     bool value_0 = depth > 32;
     if (!value_0) {
-        bool value_1 = zir_f_c9f352eed87788d1_strcmp(type, compiler_parse_types_ParserCString(StringLiteral("void"))) != 0;
+        bool value_1 = zir_foreign_compiler_frontend_ir__strcmp(type, compiler_parse_types_ParserCString(StringLiteral("void"))) != 0;
         value_0 = !value_1;
     }
     if (value_0) {
@@ -1250,9 +831,9 @@ MapKeyComparable(ZirModule* module, uint8_t* type, int32_t depth)
     if ((int32_t)((int8_t)(type[0])) == 42) {
         return 1;
     }
-    uint8_t* value_2 = zir_f_c9f352eed87788d1_ScalarType(type);
+    uint8_t* value_2 = zir_foreign_compiler_frontend_ir__ScalarType(type);
     if (value_2[0] != 0) {
-        bool value_3 = zir_f_c9f352eed87788d1_strcmp(type, compiler_parse_types_ParserCString(StringLiteral("void"))) != 0;
+        bool value_3 = zir_foreign_compiler_frontend_ir__strcmp(type, compiler_parse_types_ParserCString(StringLiteral("void"))) != 0;
         int32_t value_4 = 0;
         if (value_3) {
             value_4 = 1;
@@ -1314,10 +895,10 @@ compiler_frontend_ir_same_map_argument(ZirModule* a_owner, uint8_t* a_name, ZirM
     if (depth > 32) {
         return 0;
     }
-    uint8_t* a_scalar = zir_f_c9f352eed87788d1_ScalarType(a_name);
-    uint8_t* b_scalar = zir_f_c9f352eed87788d1_ScalarType(b_name);
+    uint8_t* a_scalar = zir_foreign_compiler_frontend_ir__ScalarType(a_name);
+    uint8_t* b_scalar = zir_foreign_compiler_frontend_ir__ScalarType(b_name);
     if (a_scalar[0] != 0 || b_scalar[0] != 0) {
-        bool value_0 = zir_f_c9f352eed87788d1_strcmp(a_scalar, b_scalar) != 0;
+        bool value_0 = zir_foreign_compiler_frontend_ir__strcmp(a_scalar, b_scalar) != 0;
         int32_t value_1 = 0;
         if (!value_0) {
             value_1 = 1;
@@ -1358,7 +939,7 @@ compiler_frontend_ir_same_map_argument(ZirModule* a_owner, uint8_t* a_name, ZirM
     bool value_7 = (a->foreign_target)[0] != 0;
     bool value_8 = value_7;
     if (value_8) {
-        bool value_9 = zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(a->foreign_target)), (uint8_t*)(&(b->foreign_target))) != 0;
+        bool value_9 = zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(a->foreign_target)), (uint8_t*)(&(b->foreign_target))) != 0;
         value_8 = !value_9;
     }
     if (value_8) {
@@ -1440,30 +1021,30 @@ VecElementType(ZirModule* module, uint8_t* name, uint8_t* element, size_t elemen
     size_t offset = (size_t)(0LL);
     ZirTypeField field = {0};
     bool value_1 = TypeNextField(type, &(offset), &(field)) != 1;
-    bool value_2 = value_1 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(field.name)), compiler_parse_types_ParserCString(StringLiteral("data"))) != 0;
+    bool value_2 = value_1 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(field.name)), compiler_parse_types_ParserCString(StringLiteral("data"))) != 0;
     if (value_2 || (int32_t)((int8_t)((field.type)[0])) != 42 || !((field.type)[1] != 0)) {
         return 0;
     }
     CoreArray128_u8 item = {0};
-    zir_f_c9f352eed87788d1_strcpy((uint8_t*)(&(item.items)), (uint8_t*)(((size_t)((uint8_t*)(&(field.type))) + ((size_t)(1LL) * sizeof(uint8_t)))));
+    zir_foreign_compiler_frontend_ir__strcpy((uint8_t*)(&(item.items)), (uint8_t*)(((size_t)((uint8_t*)(&(field.type))) + ((size_t)(1LL) * sizeof(uint8_t)))));
     bool value_3 = TypeNextField(type, &(offset), &(field)) != 1;
-    bool value_4 = value_3 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(field.name)), compiler_parse_types_ParserCString(StringLiteral("count"))) != 0;
-    if (value_4 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(field.type)), compiler_parse_types_ParserCString(StringLiteral("s64"))) != 0) {
+    bool value_4 = value_3 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(field.name)), compiler_parse_types_ParserCString(StringLiteral("count"))) != 0;
+    if (value_4 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(field.type)), compiler_parse_types_ParserCString(StringLiteral("s64"))) != 0) {
         return 0;
     }
     bool value_5 = TypeNextField(type, &(offset), &(field)) != 1;
-    bool value_6 = value_5 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(field.name)), compiler_parse_types_ParserCString(StringLiteral("capacity"))) != 0;
-    if (value_6 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(field.type)), compiler_parse_types_ParserCString(StringLiteral("s64"))) != 0) {
+    bool value_6 = value_5 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(field.name)), compiler_parse_types_ParserCString(StringLiteral("capacity"))) != 0;
+    if (value_6 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(field.type)), compiler_parse_types_ParserCString(StringLiteral("s64"))) != 0) {
         return 0;
     }
     if (TypeNextField(type, &(offset), &(field)) != 0) {
         return 0;
     }
     if (element != (uint8_t*)(((void *)0))) {
-        if (zir_f_c9f352eed87788d1_strlen((uint8_t*)(&(item.items))) >= element_size) {
+        if (zir_foreign_compiler_frontend_ir__strlen((uint8_t*)(&(item.items))) >= element_size) {
             return 0;
         }
-        zir_f_c9f352eed87788d1_strcpy(element, (uint8_t*)(&(item.items)));
+        zir_foreign_compiler_frontend_ir__strcpy(element, (uint8_t*)(&(item.items)));
     }
     return 1;
 }
@@ -1494,7 +1075,7 @@ StandardScopedName(uint8_t* leaf, uint8_t* out, size_t size)
             (void)value_2;
         }
     }
-    int32_t written = zir_f_c9f352eed87788d1_snprintf(out, size, compiler_parse_types_ParserCString(StringLiteral("p%016jx_%s")), hash, leaf);
+    int32_t written = zir_foreign_compiler_frontend_ir__snprintf(out, size, compiler_parse_types_ParserCString(StringLiteral("p%016jx_%s")), hash, leaf);
     int32_t value_5 = 0;
     if (written > 0 && (size_t)(written) < size) {
         value_5 = 1;
@@ -1509,13 +1090,13 @@ StandardModuleName(uint8_t* name, uint8_t* leaf)
     if (name == (uint8_t*)(((void *)0)) || leaf == (uint8_t*)(((void *)0))) {
         return 0;
     }
-    bool value_0 = zir_f_c9f352eed87788d1_strcmp(name, leaf) != 0;
+    bool value_0 = zir_foreign_compiler_frontend_ir__strcmp(name, leaf) != 0;
     bool value_1 = !value_0;
     if (!value_1) {
-        bool value_2 = zir_f_c9f352eed87788d1_strncmp(name, compiler_parse_types_ParserCString(StringLiteral("std_")), (size_t)(4LL)) != 0;
+        bool value_2 = zir_foreign_compiler_frontend_ir__strncmp(name, compiler_parse_types_ParserCString(StringLiteral("std_")), (size_t)(4LL)) != 0;
         bool value_3 = !value_2;
         if (value_3) {
-            bool value_4 = zir_f_c9f352eed87788d1_strcmp((uint8_t*)(((size_t)(name) + ((size_t)(4LL) * sizeof(uint8_t)))), leaf) != 0;
+            bool value_4 = zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(((size_t)(name) + ((size_t)(4LL) * sizeof(uint8_t)))), leaf) != 0;
             value_3 = !value_4;
         }
         value_1 = value_3;
@@ -1526,7 +1107,7 @@ StandardModuleName(uint8_t* name, uint8_t* leaf)
     bool value_5 = StandardScopedName(leaf, (uint8_t*)(&(scoped.items)), (size_t)(sizeof(CoreArray128_u8))) != 0;
     bool value_6 = value_5;
     if (value_6) {
-        bool value_7 = zir_f_c9f352eed87788d1_strcmp(name, (uint8_t*)(&(scoped.items))) != 0;
+        bool value_7 = zir_foreign_compiler_frontend_ir__strcmp(name, (uint8_t*)(&(scoped.items))) != 0;
         value_6 = !value_7;
     }
     int32_t value_8 = 0;
@@ -1547,7 +1128,7 @@ OwnedTextType(ZirModule* module, uint8_t* name)
     bool value_0 = type == (ZirType*)(((void *)0)) || owner == (ZirModule*)(((void *)0));
     bool value_1 = value_0;
     if (!value_1) {
-        bool value_2 = zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(owner->standard_name)), compiler_parse_types_ParserCString(StringLiteral("vec"))) != 0;
+        bool value_2 = zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(owner->standard_name)), compiler_parse_types_ParserCString(StringLiteral("vec"))) != 0;
         bool value_3 = value_2;
         if (value_3) {
             bool value_4 = StandardModuleName((uint8_t*)(&(owner->name)), compiler_parse_types_ParserCString(StringLiteral("vec"))) != 0;
@@ -1556,7 +1137,7 @@ OwnedTextType(ZirModule* module, uint8_t* name)
         value_1 = value_3;
     }
     bool value_5 = value_1;
-    bool value_6 = value_5 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(type->name)), compiler_parse_types_ParserCString(StringLiteral("Text"))) != 0;
+    bool value_6 = value_5 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(type->name)), compiler_parse_types_ParserCString(StringLiteral("Text"))) != 0;
     bool value_7 = value_6 || type->is_enum != 0 || type->is_union != 0 || type->is_procedure_type != 0 || type->is_record_template != 0;
     if (value_7 || type->is_extern != 0 || type->is_owned_vec != 0 || type->is_map != 0) {
         return 0;
@@ -1565,13 +1146,13 @@ OwnedTextType(ZirModule* module, uint8_t* name)
     ZirTypeField field = {0};
     CoreArray128_u8 element = {0};
     bool value_8 = TypeNextField(type, &(offset), &(field)) != 1;
-    bool value_9 = value_8 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(field.name)), compiler_parse_types_ParserCString(StringLiteral("bytes"))) != 0;
+    bool value_9 = value_8 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(field.name)), compiler_parse_types_ParserCString(StringLiteral("bytes"))) != 0;
     bool value_10 = value_9;
     if (!value_10) {
         bool value_11 = VecElementType(owner, (uint8_t*)(&(field.type)), (uint8_t*)(&(element.items)), (size_t)(sizeof(CoreArray128_u8))) != 0;
         value_10 = !value_11;
     }
-    if (value_10 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(element.items)), compiler_parse_types_ParserCString(StringLiteral("u8"))) != 0) {
+    if (value_10 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(element.items)), compiler_parse_types_ParserCString(StringLiteral("u8"))) != 0) {
         return 0;
     }
     bool value_12 = TypeNextField(type, &(offset), &(field)) == 0;
@@ -1586,7 +1167,7 @@ static int32_t
 compiler_frontend_ir_file_scope_visible(ZirModule* module, int32_t is_file_private, ZirSourceSpan span)
 {
     bool value_0 = !(is_file_private != 0) || (int32_t)((int8_t)((module->lookup_path)[0])) == 0;
-    bool value_1 = value_0 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(module->lookup_path)), zir_f_c9f352eed87788d1_SpanPath(span)) == 0;
+    bool value_1 = value_0 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(module->lookup_path)), zir_foreign_compiler_frontend_ir__SpanPath(span)) == 0;
     int32_t value_2 = 0;
     if (value_1) {
         value_2 = 1;
@@ -1598,7 +1179,7 @@ static int32_t
 compiler_frontend_ir_file_scope_visible_at(uint8_t* source_path, int32_t is_file_private, ZirSourceSpan span)
 {
     bool value_0 = !(is_file_private != 0) || source_path == (uint8_t*)(((void *)0)) || !(source_path[0] != 0);
-    bool value_1 = value_0 || zir_f_c9f352eed87788d1_strcmp(source_path, zir_f_c9f352eed87788d1_SpanPath(span)) == 0;
+    bool value_1 = value_0 || zir_foreign_compiler_frontend_ir__strcmp(source_path, zir_foreign_compiler_frontend_ir__SpanPath(span)) == 0;
     int32_t value_2 = 0;
     if (value_1) {
         value_2 = 1;
@@ -1633,9 +1214,9 @@ compiler_frontend_ir_symbol_visit(SymbolVisit** visits, ZirModule* module, uint8
                 value_2 = (visit->entry_scope == value_3);
             }
             bool value_4 = value_2;
-            bool value_5 = value_4 && zir_f_c9f352eed87788d1_strcmp(visit->name, name) == 0;
+            bool value_5 = value_4 && zir_foreign_compiler_frontend_ir__strcmp(visit->name, name) == 0;
             bool value_6 = value_5;
-            if (value_6 && zir_f_c9f352eed87788d1_strcmp(visit->source_path, path) == 0) {
+            if (value_6 && zir_foreign_compiler_frontend_ir__strcmp(visit->source_path, path) == 0) {
                 int32_t value_7 = 0;
                 {
                     int32_t* p = created;
@@ -1666,7 +1247,7 @@ compiler_frontend_ir_symbol_visit(SymbolVisit** visits, ZirModule* module, uint8
         SymbolVisit* value_16 = (SymbolVisit*)(((size_t)((SymbolVisit*)(&(pool->local.items))) + ((size_t)(value_13) * sizeof(SymbolVisit))));
         value_11 = (void*)(value_16);
     } else {
-        void* value_17 = zir_f_c9f352eed87788d1_AllocateOrExit((size_t)(sizeof(SymbolVisit)));
+        void* value_17 = zir_foreign_compiler_frontend_ir__AllocateOrExit((size_t)(sizeof(SymbolVisit)));
         value_11 = value_17;
     }
     SymbolVisit* visit = (SymbolVisit*)(value_11);
@@ -1717,7 +1298,7 @@ compiler_frontend_ir_free_symbol_visits(SymbolVisits* visits)
             }
             SymbolVisit* next = visit->next;
             if (visit < (SymbolVisit*)(&(visits->local.items)) || visit >= (SymbolVisit*)(((size_t)((SymbolVisit*)(&(visits->local.items))) + ((size_t)(64LL) * sizeof(SymbolVisit))))) {
-                zir_f_c9f352eed87788d1_CompilerFree((void*)(visit));
+                zir_foreign_compiler_frontend_ir__CompilerFree((void*)(visit));
             }
             visit = next;
         }
@@ -1747,13 +1328,13 @@ compiler_frontend_ir_resolve_function_uncached(ZirModule* module, uint8_t* name,
         value_5 = value;
     }
     (void)value_5;
-    uint8_t* dot = zir_f_c9f352eed87788d1_strchr(name, 46);
+    uint8_t* dot = zir_foreign_compiler_frontend_ir__strchr(name, 46);
     if (dot != (uint8_t*)(((void *)0))) {
         size_t alias_length = (size_t)(((ptrdiff_t)(((size_t)(dot) - (size_t)(name))) / (ptrdiff_t)(sizeof(uint8_t))));
         bool value_8 = alias_length == (size_t)(0LL) || (int32_t)((int8_t)(dot[1])) == 0;
         bool value_9 = value_8;
         if (!value_9) {
-            uint8_t* value_10 = zir_f_c9f352eed87788d1_strchr((uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t)))), 46);
+            uint8_t* value_10 = zir_foreign_compiler_frontend_ir__strchr((uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t)))), 46);
             value_9 = (value_10 != (uint8_t*)(((void *)0)));
         }
         if (value_9) {
@@ -1778,11 +1359,11 @@ compiler_frontend_ir_resolve_function_uncached(ZirModule* module, uint8_t* name,
                     bool value_14 = value_12;
                     bool value_15 = value_14;
                     if (!value_15) {
-                        size_t value_16 = zir_f_c9f352eed87788d1_strlen((uint8_t*)(&(import_local->name)));
+                        size_t value_16 = zir_foreign_compiler_frontend_ir__strlen((uint8_t*)(&(import_local->name)));
                         value_15 = (value_16 != alias_length);
                     }
                     bool value_17 = value_15;
-                    if (value_17 || zir_f_c9f352eed87788d1_strncmp((uint8_t*)(&(import_local->name)), name, alias_length) != 0) {
+                    if (value_17 || zir_foreign_compiler_frontend_ir__strncmp((uint8_t*)(&(import_local->name)), name, alias_length) != 0) {
                         int32_t* value_18 = &(i);
                         int32_t value_19 = 0;
                         {
@@ -1806,7 +1387,7 @@ compiler_frontend_ir_resolve_function_uncached(ZirModule* module, uint8_t* name,
                             bool value_22 = candidate->is_public != 0;
                             bool value_23 = value_22;
                             if (value_23) {
-                                bool value_24 = zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(candidate->name)), (uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t))))) != 0;
+                                bool value_24 = zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), (uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t))))) != 0;
                                 value_23 = !value_24;
                             }
                             if (value_23) {
@@ -1970,7 +1551,7 @@ compiler_frontend_ir_resolve_function_uncached(ZirModule* module, uint8_t* name,
                         bool value_73 = candidate->is_public != 0 && !(candidate->is_file_private != 0);
                         bool value_74 = value_73;
                         if (value_74) {
-                            bool value_75 = zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(candidate->name)), (uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t))))) != 0;
+                            bool value_75 = zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), (uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t))))) != 0;
                             value_74 = !value_75;
                         }
                         if (value_74) {
@@ -2025,7 +1606,7 @@ compiler_frontend_ir_resolve_function_uncached(ZirModule* module, uint8_t* name,
                     break;
                 }
                 ZirFunction* candidate = (ZirFunction*)(((size_t)(module->functions) + ((size_t)(i) * sizeof(ZirFunction))));
-                bool value_87 = zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(candidate->name)), name) != 0;
+                bool value_87 = zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), name) != 0;
                 bool value_88 = value_87;
                 if (!value_88) {
                     bool value_89 = compiler_frontend_ir_file_scope_visible_at(source_path, candidate->is_file_private, candidate->span) != 0;
@@ -2193,7 +1774,7 @@ compiler_frontend_ir_resolve_function_uncached(ZirModule* module, uint8_t* name,
                             }
                             ZirFunction* candidate = (ZirFunction*)(((size_t)(imported->functions) + ((size_t)(f) * sizeof(ZirFunction))));
                             bool value_135 = !(candidate->is_public != 0);
-                            if (value_135 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(candidate->name)), name) != 0) {
+                            if (value_135 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), name) != 0) {
                                 int32_t* value_136 = &(f);
                                 int32_t value_137 = 0;
                                 {
@@ -2488,11 +2069,11 @@ ResolveQualifiedHostImportAt(ZirModule* module, uint8_t* name, uint8_t* source_p
         value_5 = value;
     }
     (void)value_5;
-    uint8_t* dot = zir_f_c9f352eed87788d1_strchr(name, 46);
+    uint8_t* dot = zir_foreign_compiler_frontend_ir__strchr(name, 46);
     bool value_8 = dot == (uint8_t*)(((void *)0)) || dot == name || (int32_t)((int8_t)(dot[1])) == 0;
     bool value_9 = value_8;
     if (!value_9) {
-        uint8_t* value_10 = zir_f_c9f352eed87788d1_strchr((uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t)))), 46);
+        uint8_t* value_10 = zir_foreign_compiler_frontend_ir__strchr((uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t)))), 46);
         value_9 = (value_10 != (uint8_t*)(((void *)0)));
     }
     if (value_9) {
@@ -2518,11 +2099,11 @@ ResolveQualifiedHostImportAt(ZirModule* module, uint8_t* name, uint8_t* source_p
                 bool value_14 = value_12;
                 bool value_15 = value_14;
                 if (!value_15) {
-                    size_t value_16 = zir_f_c9f352eed87788d1_strlen((uint8_t*)(&(alias->name)));
+                    size_t value_16 = zir_foreign_compiler_frontend_ir__strlen((uint8_t*)(&(alias->name)));
                     value_15 = (value_16 != alias_length);
                 }
                 bool value_17 = value_15;
-                if (value_17 || zir_f_c9f352eed87788d1_strncmp((uint8_t*)(&(alias->name)), name, alias_length) != 0) {
+                if (value_17 || zir_foreign_compiler_frontend_ir__strncmp((uint8_t*)(&(alias->name)), name, alias_length) != 0) {
                     int32_t* value_18 = &(i);
                     int32_t value_19 = 0;
                     {
@@ -2546,7 +2127,7 @@ ResolveQualifiedHostImportAt(ZirModule* module, uint8_t* name, uint8_t* source_p
                             ZirImport* candidate = (ZirImport*)(((size_t)(target->imports) + ((size_t)(j) * sizeof(ZirImport))));
                             bool value_22 = (int32_t)(((ZirImportKind)(candidate->kind))) != 3 || (int32_t)(((ZirExternKind)(candidate->extern_kind))) != 1;
                             bool value_23 = value_22 || !(candidate->is_public != 0) || candidate->is_file_private != 0;
-                            if (value_23 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(candidate->name)), (uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t))))) != 0) {
+                            if (value_23 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), (uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t))))) != 0) {
                                 int32_t* value_24 = &(j);
                                 int32_t value_25 = 0;
                                 {
@@ -2640,7 +2221,7 @@ ResolveQualifiedHostImportAt(ZirModule* module, uint8_t* name, uint8_t* source_p
 static int32_t
 compiler_frontend_ir_resolve_global_uncached(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirGlobal** global, int32_t depth, SymbolVisit** visits)
 {
-    uint8_t* dot = zir_f_c9f352eed87788d1_strchr(name, 46);
+    uint8_t* dot = zir_foreign_compiler_frontend_ir__strchr(name, 46);
     ZirModule* value_0 = (void *)0;
     ZirModule* value_1 = (void *)0;
     {
@@ -2671,7 +2252,7 @@ compiler_frontend_ir_resolve_global_uncached(ZirModule* module, uint8_t* name, u
                         break;
                     }
                     ZirGlobal* candidate = (ZirGlobal*)(((size_t)(module->globals) + ((size_t)(g) * sizeof(ZirGlobal))));
-                    bool value_8 = zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(candidate->name)), name) != 0;
+                    bool value_8 = zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), name) != 0;
                     bool value_9 = value_8;
                     if (!value_9) {
                         bool value_10 = compiler_frontend_ir_file_scope_visible_at(source_path, candidate->is_file_private, candidate->span) != 0;
@@ -2774,7 +2355,7 @@ compiler_frontend_ir_resolve_global_uncached(ZirModule* module, uint8_t* name, u
         bool value_39 = dot == name || (int32_t)((int8_t)(dot[1])) == 0;
         bool value_40 = value_39;
         if (!value_40) {
-            uint8_t* value_41 = zir_f_c9f352eed87788d1_strchr((uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t)))), 46);
+            uint8_t* value_41 = zir_foreign_compiler_frontend_ir__strchr((uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t)))), 46);
             value_40 = (value_41 != (uint8_t*)(((void *)0)));
         }
         if (value_40) {
@@ -2828,11 +2409,11 @@ compiler_frontend_ir_resolve_global_uncached(ZirModule* module, uint8_t* name, u
                     bool value_53 = (int32_t)(((ZirImportKind)(import_local->kind))) != 2;
                     bool value_54 = value_53;
                     if (!value_54) {
-                        size_t value_55 = zir_f_c9f352eed87788d1_strlen((uint8_t*)(&(import_local->name)));
+                        size_t value_55 = zir_foreign_compiler_frontend_ir__strlen((uint8_t*)(&(import_local->name)));
                         value_54 = (value_55 != alias_length);
                     }
                     bool value_56 = value_54;
-                    if (value_56 || zir_f_c9f352eed87788d1_strncmp((uint8_t*)(&(import_local->name)), name, alias_length) != 0) {
+                    if (value_56 || zir_foreign_compiler_frontend_ir__strncmp((uint8_t*)(&(import_local->name)), name, alias_length) != 0) {
                         int32_t* value_57 = &(i);
                         int32_t value_58 = 0;
                         {
@@ -2877,7 +2458,7 @@ compiler_frontend_ir_resolve_global_uncached(ZirModule* module, uint8_t* name, u
                             }
                             ZirGlobal* candidate = (ZirGlobal*)(((size_t)(target->globals) + ((size_t)(g) * sizeof(ZirGlobal))));
                             bool value_66 = candidate->is_static != 0 || candidate->is_file_private != 0;
-                            if (value_66 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(candidate->name)), symbol) != 0) {
+                            if (value_66 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), symbol) != 0) {
                                 int32_t* value_67 = &(g);
                                 int32_t value_68 = 0;
                                 {
@@ -3175,14 +2756,14 @@ compiler_frontend_ir_visit_module(ModuleVisits* visits, ZirModule* module)
     }
     if (visits->count == visits->capacity / (size_t)(2LL)) {
         if (visits->capacity > ((size_t)(-1LL) / (size_t)(2LL)) / (size_t)(sizeof(void *))) {
-            zir_f_c9f352eed87788d1_DiagnosticOutOfMemory();
-            zir_f_c9f352eed87788d1_exit(1);
+            zir_foreign_compiler_frontend_ir__DiagnosticOutOfMemory();
+            zir_foreign_compiler_frontend_ir__exit(1);
             abort();
         }
         size_t capacity = visits->capacity * (size_t)(2LL);
-        void* value_0 = zir_f_c9f352eed87788d1_AllocateOrExit(capacity * (size_t)(sizeof(void *)));
+        void* value_0 = zir_foreign_compiler_frontend_ir__AllocateOrExit(capacity * (size_t)(sizeof(void *)));
         ZirModule** slots = (ZirModule**)(value_0);
-        zir_f_c9f352eed87788d1_memset((void*)(slots), 0, capacity * (size_t)(sizeof(void *)));
+        zir_foreign_compiler_frontend_ir__memset((void*)(slots), 0, capacity * (size_t)(sizeof(void *)));
         {
             size_t i = (size_t)(0LL);
             while (true) {
@@ -3208,7 +2789,7 @@ compiler_frontend_ir_visit_module(ModuleVisits* visits, ZirModule* module)
             }
         }
         if (visits->slots != (ZirModule**)(&(visits->small.items))) {
-            zir_f_c9f352eed87788d1_CompilerFree((void*)(visits->slots));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)(visits->slots));
         }
         ZirModule*** value_7 = &(visits->slots);
         (*value_7) = slots;
@@ -3234,9 +2815,9 @@ compiler_frontend_ir_visit_module(ModuleVisits* visits, ZirModule* module)
 static ZirModule*
 compiler_frontend_ir_reachable_module(ZirModule* module, uint8_t* name, size_t length)
 {
-    size_t value_0 = zir_f_c9f352eed87788d1_strlen((uint8_t*)(&(module->name)));
+    size_t value_0 = zir_foreign_compiler_frontend_ir__strlen((uint8_t*)(&(module->name)));
     bool value_1 = value_0 == length;
-    if (value_1 && zir_f_c9f352eed87788d1_strncmp((uint8_t*)(&(module->name)), name, length) == 0) {
+    if (value_1 && zir_foreign_compiler_frontend_ir__strncmp((uint8_t*)(&(module->name)), name, length) == 0) {
         return module;
     }
     CoreArray16_ModuleFrame small = {0};
@@ -3285,11 +2866,11 @@ compiler_frontend_ir_reachable_module(ZirModule* module, uint8_t* name, size_t l
             if (target == (ZirModule*)(((void *)0))) {
                 goto zir_loop_continue_1;
             }
-            size_t value_13 = zir_f_c9f352eed87788d1_strlen((uint8_t*)(&(target->name)));
+            size_t value_13 = zir_foreign_compiler_frontend_ir__strlen((uint8_t*)(&(target->name)));
             bool value_14 = value_13 == length;
             bool value_15 = value_14;
             if (value_15) {
-                bool value_16 = zir_f_c9f352eed87788d1_strncmp((uint8_t*)(&(target->name)), name, length) != 0;
+                bool value_16 = zir_foreign_compiler_frontend_ir__strncmp((uint8_t*)(&(target->name)), name, length) != 0;
                 value_15 = !value_16;
             }
             if (value_15) {
@@ -3302,16 +2883,16 @@ compiler_frontend_ir_reachable_module(ZirModule* module, uint8_t* name, size_t l
             }
             if (count == capacity) {
                 if (capacity > ((size_t)(-1LL) / (size_t)(2LL)) / (size_t)(sizeof(ModuleFrame))) {
-                    zir_f_c9f352eed87788d1_DiagnosticOutOfMemory();
-                    zir_f_c9f352eed87788d1_exit(1);
+                    zir_foreign_compiler_frontend_ir__DiagnosticOutOfMemory();
+                    zir_foreign_compiler_frontend_ir__exit(1);
                     abort();
                 }
                 capacity = capacity * (size_t)(2LL);
-                void* value_18 = zir_f_c9f352eed87788d1_AllocateOrExit(capacity * (size_t)(sizeof(ModuleFrame)));
+                void* value_18 = zir_foreign_compiler_frontend_ir__AllocateOrExit(capacity * (size_t)(sizeof(ModuleFrame)));
                 ModuleFrame* grown = (ModuleFrame*)(value_18);
-                zir_f_c9f352eed87788d1_memcpy((void*)(grown), (void*)(frames), count * (size_t)(sizeof(ModuleFrame)));
+                zir_foreign_compiler_frontend_ir__memcpy((void*)(grown), (void*)(frames), count * (size_t)(sizeof(ModuleFrame)));
                 if (frames != (ModuleFrame*)(&(small.items))) {
-                    zir_f_c9f352eed87788d1_CompilerFree((void*)(frames));
+                    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(frames));
                 }
                 frames = grown;
             }
@@ -3331,10 +2912,10 @@ compiler_frontend_ir_reachable_module(ZirModule* module, uint8_t* name, size_t l
     }
     zir_loop_break_1: ;
     if (visits.slots != (ZirModule**)(&(visits.small.items))) {
-        zir_f_c9f352eed87788d1_CompilerFree((void*)(visits.slots));
+        zir_foreign_compiler_frontend_ir__CompilerFree((void*)(visits.slots));
     }
     if (frames != (ModuleFrame*)(&(small.items))) {
-        zir_f_c9f352eed87788d1_CompilerFree((void*)(frames));
+        zir_foreign_compiler_frontend_ir__CompilerFree((void*)(frames));
     }
     return found;
 }
@@ -3353,7 +2934,7 @@ compiler_frontend_ir_local_type(ZirModule* module, uint8_t* name)
             bool value_0 = type->is_file_private != 0;
             bool value_1 = value_0;
             if (value_1) {
-                bool value_2 = zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(type->name)), name) != 0;
+                bool value_2 = zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(type->name)), name) != 0;
                 value_1 = !value_2;
             }
             bool value_3 = value_1;
@@ -3380,7 +2961,7 @@ compiler_frontend_ir_local_type(ZirModule* module, uint8_t* name)
                 break;
             }
             ZirType* type = (ZirType*)(((size_t)(module->types) + ((size_t)(i) * sizeof(ZirType))));
-            bool value_8 = zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(type->name)), name) != 0;
+            bool value_8 = zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(type->name)), name) != 0;
             if (!value_8 && compiler_frontend_ir_file_scope_visible(module, type->is_file_private, type->span) != 0) {
                 return type;
             }
@@ -3408,17 +2989,17 @@ compiler_frontend_ir_push_type_module(TypeSearch* search, ZirModule* module)
     }
     if (search->count == search->capacity) {
         if (search->capacity > ((size_t)(-1LL) / (size_t)(2LL)) / (size_t)(sizeof(void *))) {
-            zir_f_c9f352eed87788d1_DiagnosticOutOfMemory();
-            zir_f_c9f352eed87788d1_exit(1);
+            zir_foreign_compiler_frontend_ir__DiagnosticOutOfMemory();
+            zir_foreign_compiler_frontend_ir__exit(1);
             abort();
         }
         size_t* value_1 = &(search->capacity);
         (*value_1) = (*value_1) * (size_t)(2LL);
-        void* value_2 = zir_f_c9f352eed87788d1_AllocateOrExit(search->capacity * (size_t)(sizeof(void *)));
+        void* value_2 = zir_foreign_compiler_frontend_ir__AllocateOrExit(search->capacity * (size_t)(sizeof(void *)));
         ZirModule** grown = (ZirModule**)(value_2);
-        zir_f_c9f352eed87788d1_memcpy((void*)(grown), (void*)(search->pending), search->count * (size_t)(sizeof(void *)));
+        zir_foreign_compiler_frontend_ir__memcpy((void*)(grown), (void*)(search->pending), search->count * (size_t)(sizeof(void *)));
         if (search->pending != (ZirModule**)(&(search->small.items))) {
-            zir_f_c9f352eed87788d1_CompilerFree((void*)(search->pending));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)(search->pending));
         }
         ZirModule*** value_3 = &(search->pending);
         (*value_3) = grown;
@@ -3524,11 +3105,11 @@ compiler_frontend_ir_imported_type(ZirModule* module, uint8_t* name, uint8_t* al
                             bool value_23 = (int32_t)(((ZirImportKind)(import_local->kind))) != 2;
                             bool value_24 = value_23;
                             if (!value_24) {
-                                size_t value_25 = zir_f_c9f352eed87788d1_strlen((uint8_t*)(&(import_local->name)));
+                                size_t value_25 = zir_foreign_compiler_frontend_ir__strlen((uint8_t*)(&(import_local->name)));
                                 value_24 = (value_25 != alias_length);
                             }
                             bool value_26 = value_24;
-                            if (value_26 || zir_f_c9f352eed87788d1_strncmp((uint8_t*)(&(import_local->name)), alias, alias_length) != 0) {
+                            if (value_26 || zir_foreign_compiler_frontend_ir__strncmp((uint8_t*)(&(import_local->name)), alias, alias_length) != 0) {
                                 int32_t* value_27 = &(i);
                                 int32_t value_28 = 0;
                                 {
@@ -3612,7 +3193,7 @@ compiler_frontend_ir_imported_type(ZirModule* module, uint8_t* name, uint8_t* al
                                 }
                                 ZirType* candidate = (ZirType*)(((size_t)(scope->types) + ((size_t)(i) * sizeof(ZirType))));
                                 bool value_46 = candidate->is_file_private != 0;
-                                if (value_46 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(candidate->name)), name) != 0) {
+                                if (value_46 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), name) != 0) {
                                     int32_t* value_47 = &(i);
                                     int32_t value_48 = 0;
                                     {
@@ -3734,10 +3315,10 @@ compiler_frontend_ir_imported_type(ZirModule* module, uint8_t* name, uint8_t* al
     }
     zir_loop_break_1: ;
     if (search.visits.slots != (ZirModule**)(&(search.visits.small.items))) {
-        zir_f_c9f352eed87788d1_CompilerFree((void*)(search.visits.slots));
+        zir_foreign_compiler_frontend_ir__CompilerFree((void*)(search.visits.slots));
     }
     if (search.pending != (ZirModule**)(&(search.small.items))) {
-        zir_f_c9f352eed87788d1_CompilerFree((void*)(search.pending));
+        zir_foreign_compiler_frontend_ir__CompilerFree((void*)(search.pending));
     }
     if (status < 0) {
         ZirType* value_76 = (void *)0;
@@ -3779,7 +3360,7 @@ compiler_frontend_ir_find_type(ZirModule* module, uint8_t* name, ZirModule** own
         }
         (void)value_1;
     }
-    uint8_t* dot = zir_f_c9f352eed87788d1_strchr(name, 46);
+    uint8_t* dot = zir_foreign_compiler_frontend_ir__strchr(name, 46);
     if (dot == (uint8_t*)(((void *)0))) {
         ZirType* local = compiler_frontend_ir_local_type(module, name);
         if (local != (ZirType*)(((void *)0))) {
@@ -3800,7 +3381,7 @@ compiler_frontend_ir_find_type(ZirModule* module, uint8_t* name, ZirModule** own
         bool value_7 = dot == name || !(dot[1] != 0);
         bool value_8 = value_7;
         if (!value_8) {
-            uint8_t* value_9 = zir_f_c9f352eed87788d1_strchr((uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t)))), 46);
+            uint8_t* value_9 = zir_foreign_compiler_frontend_ir__strchr((uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t)))), 46);
             value_8 = (value_9 != (uint8_t*)(((void *)0)));
         }
         if (value_8) {
@@ -3846,7 +3427,7 @@ compiler_frontend_ir_find_type(ZirModule* module, uint8_t* name, ZirModule** own
                     bool value_13 = candidate->is_public != 0 && !(candidate->is_file_private != 0);
                     bool value_14 = value_13;
                     if (value_14) {
-                        bool value_15 = zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(candidate->name)), (uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t))))) != 0;
+                        bool value_15 = zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), (uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t))))) != 0;
                         value_14 = !value_15;
                     }
                     if (value_14) {
@@ -3938,7 +3519,7 @@ compiler_frontend_ir_exported_define_uncached(ZirModule* module, uint8_t* name, 
                 }
                 ZirDefine* candidate = (ZirDefine*)(((size_t)(module->defines) + ((size_t)(d) * sizeof(ZirDefine))));
                 bool value_8 = !(candidate->is_public != 0) || candidate->is_file_private != 0;
-                if (value_8 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(candidate->name)), name) != 0) {
+                if (value_8 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), name) != 0) {
                     int32_t* value_9 = &(d);
                     int32_t value_10 = 0;
                     {
@@ -4113,7 +3694,7 @@ compiler_frontend_ir_exported_define_depth(ZirModule* module, uint8_t* name, int
         DefineVisit* value_14 = (DefineVisit*)(((size_t)((DefineVisit*)(&(pool->local.items))) + ((size_t)(value_11) * sizeof(DefineVisit))));
         value_9 = (void*)(value_14);
     } else {
-        void* value_15 = zir_f_c9f352eed87788d1_AllocateOrExit((size_t)(sizeof(DefineVisit)));
+        void* value_15 = zir_foreign_compiler_frontend_ir__AllocateOrExit((size_t)(sizeof(DefineVisit)));
         value_9 = value_15;
     }
     DefineVisit* visit = (DefineVisit*)(value_9);
@@ -4266,7 +3847,7 @@ compiler_frontend_ir_define_once(DefineOnces* once, ZirModule* module, int32_t d
                 }
                 ZirDefine* candidate = (ZirDefine*)(((size_t)(module->defines) + ((size_t)(d) * sizeof(ZirDefine))));
                 bool value_24 = !(candidate->is_public != 0) || candidate->is_file_private != 0;
-                if (value_24 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(candidate->name)), once->name) != 0) {
+                if (value_24 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), once->name) != 0) {
                     int32_t* value_25 = &(d);
                     int32_t value_26 = 0;
                     {
@@ -4426,7 +4007,7 @@ compiler_frontend_ir_exported_define_by_depth(ZirModule* module, uint8_t* name, 
             }
             DefineVisit* next = visit->next;
             if (visit < (DefineVisit*)(&(visits.local.items)) || visit >= (DefineVisit*)(((size_t)((DefineVisit*)(&(visits.local.items))) + ((size_t)(96LL) * sizeof(DefineVisit))))) {
-                zir_f_c9f352eed87788d1_CompilerFree((void*)(visit));
+                zir_foreign_compiler_frontend_ir__CompilerFree((void*)(visit));
             }
             visit = next;
         }
@@ -4485,7 +4066,7 @@ compiler_frontend_ir_resolve_define_uncached(ZirModule* module, uint8_t* name, Z
         }
         (void)value_9;
     }
-    uint8_t* dot = zir_f_c9f352eed87788d1_strchr(name, 46);
+    uint8_t* dot = zir_foreign_compiler_frontend_ir__strchr(name, 46);
     uint8_t* value_12 = (void *)0;
     if (dot == (uint8_t*)(((void *)0))) {
         value_12 = name;
@@ -4570,12 +4151,12 @@ compiler_frontend_ir_resolve_define_uncached(ZirModule* module, uint8_t* name, Z
                                     bool value_30 = (int32_t)(((ZirImportKind)(import_local->kind))) != 2;
                                     bool value_31 = value_30;
                                     if (!value_31) {
-                                        size_t value_32 = zir_f_c9f352eed87788d1_strlen((uint8_t*)(&(import_local->name)));
+                                        size_t value_32 = zir_foreign_compiler_frontend_ir__strlen((uint8_t*)(&(import_local->name)));
                                         bool value_33 = value_32 != (size_t)(((ptrdiff_t)(((size_t)(dot) - (size_t)(name))) / (ptrdiff_t)(sizeof(uint8_t))));
                                         value_31 = value_33;
                                     }
                                     bool value_34 = value_31;
-                                    bool value_35 = value_34 || zir_f_c9f352eed87788d1_strncmp((uint8_t*)(&(import_local->name)), name, (size_t)(((ptrdiff_t)(((size_t)(dot) - (size_t)(name))) / (ptrdiff_t)(sizeof(uint8_t))))) != 0;
+                                    bool value_35 = value_34 || zir_foreign_compiler_frontend_ir__strncmp((uint8_t*)(&(import_local->name)), name, (size_t)(((ptrdiff_t)(((size_t)(dot) - (size_t)(name))) / (ptrdiff_t)(sizeof(uint8_t))))) != 0;
                                     value_29 = value_35;
                                 }
                                 if (value_29) {
@@ -4623,7 +4204,7 @@ compiler_frontend_ir_resolve_define_uncached(ZirModule* module, uint8_t* name, Z
                                             }
                                             ZirDefine* candidate = (ZirDefine*)(((size_t)(scope->defines) + ((size_t)(j) * sizeof(ZirDefine))));
                                             bool value_45 = compiler_frontend_ir_file_scope_visible(module, candidate->is_file_private, candidate->span) != 0;
-                                            if (!value_45 || zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(candidate->name)), symbol) != 0) {
+                                            if (!value_45 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), symbol) != 0) {
                                                 int32_t* value_46 = &(j);
                                                 int32_t value_47 = 0;
                                                 {
@@ -4754,21 +4335,21 @@ compiler_frontend_ir_resolve_define_uncached(ZirModule* module, uint8_t* name, Z
 static void
 compiler_frontend_ir_kept_text_failed(void)
 {
-    zir_f_c9f352eed87788d1_DiagnosticOutOfMemory();
-    zir_f_c9f352eed87788d1_exit(1);
+    zir_foreign_compiler_frontend_ir__DiagnosticOutOfMemory();
+    zir_foreign_compiler_frontend_ir__exit(1);
     abort();
 }
 
 static void
 compiler_frontend_ir_free_symbol_lookups(void* value)
 {
-    zir_f_c9f352eed87788d1_CompilerFree((void*)(((SymbolLookups*)(value))->items));
+    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(((SymbolLookups*)(value))->items));
 }
 
 static SymbolLookups*
 compiler_frontend_ir_thread_symbol_lookups(CompilerThread* thread)
 {
-    void* value_0 = zir_f_c9f352eed87788d1_CompilerThreadStorage(thread, 6, (size_t)(sizeof(SymbolLookups)), compiler_frontend_ir_free_symbol_lookups);
+    void* value_0 = zir_foreign_compiler_frontend_ir__CompilerThreadStorage(thread, 6, (size_t)(sizeof(SymbolLookups)), compiler_frontend_ir_free_symbol_lookups);
     SymbolLookups* lookups = (SymbolLookups*)(value_0);
     if (!(lookups->generation != 0)) {
         size_t* value_1 = &(lookups->generation);
@@ -4789,7 +4370,7 @@ SymbolLookupsChanged(void)
             break;
         }
     }
-    SymbolLookups* lookups = compiler_frontend_ir_thread_symbol_lookups(zir_f_c9f352eed87788d1_CompilerThreadStateAddress());
+    SymbolLookups* lookups = compiler_frontend_ir_thread_symbol_lookups(zir_foreign_compiler_frontend_ir__CompilerThreadStateAddress());
     size_t* value_1 = &(lookups->generation);
     size_t value_2 = 0;
     {
@@ -4802,7 +4383,7 @@ SymbolLookupsChanged(void)
     }
     if (value_2 == (size_t)(0LL)) {
         if (lookups->slots != 0) {
-            zir_f_c9f352eed87788d1_memset((void*)(lookups->items), 0, lookups->slots * (size_t)(sizeof(SymbolLookup)));
+            zir_foreign_compiler_frontend_ir__memset((void*)(lookups->items), 0, lookups->slots * (size_t)(sizeof(SymbolLookup)));
         }
         size_t* value_5 = &(lookups->count);
         (*value_5) = (size_t)(0LL);
@@ -4874,13 +4455,13 @@ compiler_frontend_ir_lookup_symbol_persistent(CompilerThread* thread, ZirModule*
     }
     SymbolLookups* lookups = compiler_frontend_ir_thread_symbol_lookups(thread);
     if (lookups->verify < 0) {
-        uint8_t* verify = zir_f_c9f352eed87788d1_getenv(compiler_parse_types_ParserCString(StringLiteral("ZIRAN_VERIFY_SYMBOL_LOOKUPS")));
+        uint8_t* verify = zir_foreign_compiler_frontend_ir__getenv(compiler_parse_types_ParserCString(StringLiteral("ZIRAN_VERIFY_SYMBOL_LOOKUPS")));
         int32_t* value_1 = &(lookups->verify);
         bool value_2 = verify != (uint8_t*)(((void *)0));
         bool value_3 = value_2;
         if (value_3) {
             uint8_t* value_4 = verify;
-            bool value_5 = zir_f_c9f352eed87788d1_strcmp(value_4, compiler_parse_types_ParserCString(StringLiteral("1"))) != 0;
+            bool value_5 = zir_foreign_compiler_frontend_ir__strcmp(value_4, compiler_parse_types_ParserCString(StringLiteral("1"))) != 0;
             value_3 = !value_5;
         }
         int32_t value_6 = 0;
@@ -4926,7 +4507,7 @@ compiler_frontend_ir_lookup_symbol_persistent(CompilerThread* thread, ZirModule*
             slots = slots * (size_t)(2LL);
         }
         SymbolLookup** value_12 = &(lookups->items);
-        void* value_13 = zir_f_c9f352eed87788d1_CompilerCalloc(slots, (size_t)(sizeof(SymbolLookup)));
+        void* value_13 = zir_foreign_compiler_frontend_ir__CompilerCalloc(slots, (size_t)(sizeof(SymbolLookup)));
         (*value_12) = (SymbolLookup*)(value_13);
         if (lookups->items == (SymbolLookup*)(((void *)0))) {
             compiler_frontend_ir_kept_text_failed();
@@ -4970,9 +4551,9 @@ compiler_frontend_ir_lookup_symbol_persistent(CompilerThread* thread, ZirModule*
                 (void)value_23;
             }
         }
-        zir_f_c9f352eed87788d1_CompilerFree((void*)(old));
+        zir_foreign_compiler_frontend_ir__CompilerFree((void*)(old));
     }
-    uint8_t* kept_name = zir_f_c9f352eed87788d1_KeepText(name);
+    uint8_t* kept_name = zir_foreign_compiler_frontend_ir__KeepText(name);
     uint8_t* value_26 = (void *)0;
     if (path == (uint8_t*)(((void *)0))) {
         uint8_t* value_27 = compiler_parse_types_ParserCString(StringLiteral(""));
@@ -4980,7 +4561,7 @@ compiler_frontend_ir_lookup_symbol_persistent(CompilerThread* thread, ZirModule*
     } else {
         value_26 = path;
     }
-    uint8_t* kept_path = zir_f_c9f352eed87788d1_KeepText(value_26);
+    uint8_t* kept_path = zir_foreign_compiler_frontend_ir__KeepText(value_26);
     size_t slot = compiler_frontend_ir_symbol_lookup_slot(lookups->items, lookups->slots, module, kept_name, kept_path, kind);
     SymbolLookup* lookup = (SymbolLookup*)(((size_t)(lookups->items) + ((size_t)(slot) * sizeof(SymbolLookup))));
     if (lookup->name != (uint8_t*)(((void *)0)) && lookup->generation == lookups->generation) {
@@ -4999,7 +4580,7 @@ compiler_frontend_ir_lookup_symbol_persistent(CompilerThread* thread, ZirModule*
             }
             value_28 = value_30;
         }
-        zir_f_c9f352eed87788d1_ProfileCount(value_28);
+        zir_foreign_compiler_frontend_ir__ProfileCount(value_28);
         if (lookups->verify != 0) {
             SymbolLookups* value_33 = lookups;
             ZirModule* value_34 = module;
@@ -5049,8 +4630,8 @@ compiler_frontend_ir_lookup_symbol_persistent(CompilerThread* thread, ZirModule*
                 uint8_t* value_51 = compiler_parse_types_ParserCString(StringLiteral("compiler.internal"));
                 uint8_t* value_52 = compiler_parse_types_ParserCString(StringLiteral("kept %s lookup of %s in %s is stale"));
                 uint8_t* value_53 = compiler_parse_types_ParserCString((lookup_kind_names)[kind]);
-                zir_f_c9f352eed87788d1_Diagnostic(value_50, value_51, value_52, value_53, name, (uint8_t*)(&(module->name)));
-                zir_f_c9f352eed87788d1_abort();
+                zir_foreign_compiler_frontend_ir__Diagnostic(value_50, value_51, value_52, value_53, name, (uint8_t*)(&(module->name)));
+                zir_foreign_compiler_frontend_ir__abort();
             }
         }
     } else {
@@ -5069,7 +4650,7 @@ compiler_frontend_ir_lookup_symbol_persistent(CompilerThread* thread, ZirModule*
             }
             value_54 = value_56;
         }
-        zir_f_c9f352eed87788d1_ProfileCount(value_54);
+        zir_foreign_compiler_frontend_ir__ProfileCount(value_54);
         if (lookup->name == (uint8_t*)(((void *)0))) {
             size_t* value_59 = &(lookups->count);
             size_t value_60 = 0;
@@ -5177,7 +4758,7 @@ compiler_frontend_ir_lookup_symbol_persistent(CompilerThread* thread, ZirModule*
 static void*
 compiler_frontend_ir_lookup_symbol(ZirModule* module, uint8_t* name, uint8_t* path, int32_t kind, ZirModule** owner, int32_t* status, ZirImport** via)
 {
-    CompilerThread* thread = zir_f_c9f352eed87788d1_CompilerThreadStateAddress();
+    CompilerThread* thread = zir_foreign_compiler_frontend_ir__CompilerThreadStateAddress();
     CompilerThread* value_0 = thread;
     uint8_t* value_1 = (uint8_t*)module->context;
     CompilerScope value_2 = {0};
@@ -5300,7 +4881,7 @@ static ZirType*
 compiler_frontend_ir_using_field_record(ZirModule* owner, uint8_t* type, ZirModule** next_owner)
 {
     while (true) {
-        bool check_loop_42 = zir_f_c9f352eed87788d1_isspace((int32_t)(type[0])) != 0;
+        bool check_loop_42 = zir_foreign_compiler_frontend_ir__isspace((int32_t)(type[0])) != 0;
         if (!check_loop_42) {
             break;
         }
@@ -5327,7 +4908,7 @@ compiler_frontend_ir_using_field_record(ZirModule* owner, uint8_t* type, ZirModu
         }
         (void)value_5;
         while (true) {
-            bool check_loop_43 = zir_f_c9f352eed87788d1_isspace((int32_t)(type[0])) != 0;
+            bool check_loop_43 = zir_foreign_compiler_frontend_ir__isspace((int32_t)(type[0])) != 0;
             if (!check_loop_43) {
                 break;
             }
@@ -5364,9 +4945,9 @@ compiler_frontend_ir_resolve_record_field(ZirModule* owner, ZirType* record, uin
     int32_t status = TypeFindField(record, name, &(direct));
     if (status != 0) {
         bool value_0 = status < 0;
-        bool value_1 = value_0 || zir_f_c9f352eed87788d1_strlen(name) >= path_size;
+        bool value_1 = value_0 || zir_foreign_compiler_frontend_ir__strlen(name) >= path_size;
         bool value_2 = value_1;
-        if (value_2 || zir_f_c9f352eed87788d1_strlen((uint8_t*)(&(direct.type))) >= type_size) {
+        if (value_2 || zir_foreign_compiler_frontend_ir__strlen((uint8_t*)(&(direct.type))) >= type_size) {
             return -1;
         }
         copy_text(path, path_size, name);
@@ -5421,8 +5002,8 @@ compiler_frontend_ir_resolve_record_field(ZirModule* owner, ZirType* record, uin
             if (value_9 != 0) {
                 return -1;
             }
-            int32_t written = zir_f_c9f352eed87788d1_snprintf(path, path_size, compiler_parse_types_ParserCString(StringLiteral("%s.%s")), (uint8_t*)(&(field.name)), (uint8_t*)(&(tail.items)));
-            if (written < 0 || (size_t)(written) >= path_size || zir_f_c9f352eed87788d1_strlen((uint8_t*)(&(leaf.items))) >= type_size) {
+            int32_t written = zir_foreign_compiler_frontend_ir__snprintf(path, path_size, compiler_parse_types_ParserCString(StringLiteral("%s.%s")), (uint8_t*)(&(field.name)), (uint8_t*)(&(tail.items)));
+            if (written < 0 || (size_t)(written) >= path_size || zir_foreign_compiler_frontend_ir__strlen((uint8_t*)(&(leaf.items))) >= type_size) {
                 return -1;
             }
             copy_text(type, type_size, (uint8_t*)(&(leaf.items)));
@@ -5457,10 +5038,10 @@ RecordFieldPathType(ZirModule* owner, ZirType* record, uint8_t* path, uint8_t* t
     if (value_0 || type == (uint8_t*)(((void *)0)) || !(type_size != 0)) {
         return 0;
     }
-    uint8_t* dot = zir_f_c9f352eed87788d1_strchr(path, 46);
+    uint8_t* dot = zir_foreign_compiler_frontend_ir__strchr(path, 46);
     size_t value_1 = 0;
     if (dot == (uint8_t*)(((void *)0))) {
-        size_t value_2 = zir_f_c9f352eed87788d1_strlen(path);
+        size_t value_2 = zir_foreign_compiler_frontend_ir__strlen(path);
         value_1 = value_2;
     } else {
         value_1 = (size_t)(((ptrdiff_t)(((size_t)(dot) - (size_t)(path))) / (ptrdiff_t)(sizeof(uint8_t))));
@@ -5470,7 +5051,7 @@ RecordFieldPathType(ZirModule* owner, ZirType* record, uint8_t* path, uint8_t* t
         return 0;
     }
     CoreArray128_u8 name = {0};
-    zir_f_c9f352eed87788d1_memcpy((void*)((uint8_t*)(&(name.items))), (void*)(path), length);
+    zir_foreign_compiler_frontend_ir__memcpy((void*)((uint8_t*)(&(name.items))), (void*)(path), length);
     uint8_t* value_3 = &(name.items[length]);
     (*value_3) = 0;
     ZirTypeField field = {0};
@@ -5478,7 +5059,7 @@ RecordFieldPathType(ZirModule* owner, ZirType* record, uint8_t* path, uint8_t* t
         return 0;
     }
     if (dot == (uint8_t*)(((void *)0))) {
-        if (zir_f_c9f352eed87788d1_strlen((uint8_t*)(&(field.type))) >= type_size) {
+        if (zir_foreign_compiler_frontend_ir__strlen((uint8_t*)(&(field.type))) >= type_size) {
             return 0;
         }
         copy_text(type, type_size, (uint8_t*)(&(field.type)));
@@ -5512,14 +5093,14 @@ compiler_frontend_ir_realloc_array(void* pointer, int32_t* capacity, int32_t cou
         value_0 = (int32_t)((uint32_t)old_capacity * 2u);
     }
     int32_t new_capacity = value_0;
-    void* value_1 = zir_f_c9f352eed87788d1_CompilerRealloc(pointer, (size_t)(new_capacity) * element_size);
+    void* value_1 = zir_foreign_compiler_frontend_ir__CompilerRealloc(pointer, (size_t)(new_capacity) * element_size);
     uint8_t* next = (uint8_t*)(value_1);
     if (next == ((void *)0)) {
         return (void *)0;
     }
     size_t start = (size_t)(old_capacity) * element_size;
     size_t extra = (size_t)(((int32_t)((uint32_t)new_capacity - (uint32_t)old_capacity))) * element_size;
-    zir_f_c9f352eed87788d1_memset((void*)(&(next[start])), 0, extra);
+    zir_foreign_compiler_frontend_ir__memset((void*)(&(next[start])), 0, extra);
     int32_t* value_2 = &(capacity[0]);
     (*value_2) = new_capacity;
     return (void*)(next);
@@ -5534,8 +5115,8 @@ copy_text(uint8_t* dst, size_t dst_size, uint8_t* src)
     if (src == ((void *)0)) {
         src = compiler_parse_types_ParserCString(StringLiteral(""));
     }
-    size_t length = zir_f_c9f352eed87788d1_strnlen(src, dst_size - 1);
-    zir_f_c9f352eed87788d1_memmove((void*)(dst), (void*)(src), length);
+    size_t length = zir_foreign_compiler_frontend_ir__strnlen(src, dst_size - 1);
+    zir_foreign_compiler_frontend_ir__memmove((void*)(dst), (void*)(src), length);
     uint8_t* value_0 = &(dst[length]);
     (*value_0) = 0;
 }
@@ -5549,17 +5130,17 @@ compiler_frontend_ir_free_partial_program(void* pointer)
 ZirProgram*
 ProgramNew(void)
 {
-    void* value_0 = zir_f_c9f352eed87788d1_CompilerCalloc(1, sizeof(ZirProgram));
+    void* value_0 = zir_foreign_compiler_frontend_ir__CompilerCalloc(1, sizeof(ZirProgram));
     ZirProgram* program = (ZirProgram*)(value_0);
     if (program == ((void *)0)) {
         return (void *)0;
     }
-    zir_f_c9f352eed87788d1_CompilerMemoryCleanup((void*)(program), compiler_frontend_ir_free_partial_program);
+    zir_foreign_compiler_frontend_ir__CompilerMemoryCleanup((void*)(program), compiler_frontend_ir_free_partial_program);
     struct CompilerContext ** value_1 = &(program->context);
-    uint8_t* value_2 = zir_f_c9f352eed87788d1_CompilerContextCurrent();
+    uint8_t* value_2 = zir_foreign_compiler_frontend_ir__CompilerContextCurrent();
     (*value_1) = (struct CompilerContext *)(value_2);
-    if (zir_f_c9f352eed87788d1_CompilerMemoryRecovering() == 0) {
-        zir_f_c9f352eed87788d1_CompilerContextRetain((uint8_t*)program->context);
+    if (zir_foreign_compiler_frontend_ir__CompilerMemoryRecovering() == 0) {
+        zir_foreign_compiler_frontend_ir__CompilerContextRetain((uint8_t*)program->context);
         int32_t* value_3 = &(program->context_retained);
         (*value_3) = 1;
     }
@@ -5575,7 +5156,7 @@ ProgramFree(ZirProgram* program)
     uint8_t* context = (uint8_t*)program->context;
     int32_t retained = program->context_retained;
     int32_t owned = program->owns_context;
-    uint8_t* previous = zir_f_c9f352eed87788d1_CompilerContextSelect(context);
+    uint8_t* previous = zir_foreign_compiler_frontend_ir__CompilerContextSelect(context);
     SymbolLookupsChanged();
     {
         int32_t range_first_8 = 0;
@@ -5596,21 +5177,21 @@ ProgramFree(ZirProgram* program)
                 int32_t j = range_first_11;
                 if (j <= range_last_11) for (;;) {
                     ZirFunction* function = &(module->functions[j]);
-                    zir_f_c9f352eed87788d1_CompilerFree((void*)(function->stmts));
-                    zir_f_c9f352eed87788d1_CompilerFree((void*)(function->exprs));
+                    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(function->stmts));
+                    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(function->exprs));
                     if (j == range_last_11) {
                         break;
                     }
                     j = (int32_t)((uint32_t)j + 1u);
                 }
             }
-            zir_f_c9f352eed87788d1_CompilerFree((void*)(module->globals));
-            zir_f_c9f352eed87788d1_CompilerFree((void*)(module->imports));
-            zir_f_c9f352eed87788d1_CompilerFree((void*)(module->functions));
-            zir_f_c9f352eed87788d1_CompilerFree((void*)(module->defines));
-            zir_f_c9f352eed87788d1_CompilerFree((void*)(module->parameters));
-            zir_f_c9f352eed87788d1_CompilerFree((void*)(module->asserts));
-            zir_f_c9f352eed87788d1_CompilerFree((void*)(module->usings));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)(module->globals));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)(module->imports));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)(module->functions));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)(module->defines));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)(module->parameters));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)(module->asserts));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)(module->usings));
             {
                 int32_t range_first_23 = 0;
                 int32_t range_last_23 = (int32_t)((uint32_t)(module->law_count) - 1u);
@@ -5624,9 +5205,9 @@ ProgramFree(ZirProgram* program)
                         l = (int32_t)((uint32_t)l + 1u);
                         continue;
                     }
-                    zir_f_c9f352eed87788d1_CompilerFree((void*)(claim->exprs));
-                    zir_f_c9f352eed87788d1_CompilerFree((void*)(claim->stmts));
-                    zir_f_c9f352eed87788d1_CompilerFree((void*)(claim));
+                    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(claim->exprs));
+                    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(claim->stmts));
+                    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(claim));
                     if (l == range_last_23) {
                         break;
                     }
@@ -5639,47 +5220,47 @@ ProgramFree(ZirProgram* program)
                 int32_t p = range_first_32;
                 if (p <= range_last_32) for (;;) {
                     ZirProof* proof = &(module->proofs[p]);
-                    zir_f_c9f352eed87788d1_CompilerFree((void*)(proof->steps));
-                    zir_f_c9f352eed87788d1_CompilerFree((void*)(proof->terms.exprs));
-                    zir_f_c9f352eed87788d1_CompilerFree((void*)(proof->terms.stmts));
+                    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(proof->steps));
+                    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(proof->terms.exprs));
+                    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(proof->terms.stmts));
                     if (p == range_last_32) {
                         break;
                     }
                     p = (int32_t)((uint32_t)p + 1u);
                 }
             }
-            zir_f_c9f352eed87788d1_CompilerFree((void*)(module->proofs));
-            zir_f_c9f352eed87788d1_CompilerFree((void*)(module->laws));
-            zir_f_c9f352eed87788d1_CompilerFree((void*)(module->law_waivers));
-            zir_f_c9f352eed87788d1_CompilerFree((void*)(module->types));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)(module->proofs));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)(module->laws));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)(module->law_waivers));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)(module->types));
             if (i == range_last_8) {
                 break;
             }
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    zir_f_c9f352eed87788d1_CompilerFree((void*)(program->modules));
+    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(program->modules));
     uint8_t** contexts = (uint8_t**)((void*)(((uint8_t**)program->retained_contexts)));
     {
         int32_t range_first_45 = 0;
         int32_t range_last_45 = (int32_t)((uint32_t)(program->retained_context_count) - 1u);
         int32_t i = range_first_45;
         if (i <= range_last_45) for (;;) {
-            zir_f_c9f352eed87788d1_CompilerContextRelease(contexts[i]);
+            zir_foreign_compiler_frontend_ir__CompilerContextRelease(contexts[i]);
             if (i == range_last_45) {
                 break;
             }
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    zir_f_c9f352eed87788d1_CompilerFree((void*)(((uint8_t**)program->retained_contexts)));
-    zir_f_c9f352eed87788d1_CompilerFree((void*)(program));
-    zir_f_c9f352eed87788d1_CompilerContextSelect(previous);
+    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(((uint8_t**)program->retained_contexts)));
+    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(program));
+    zir_foreign_compiler_frontend_ir__CompilerContextSelect(previous);
     if (retained != 0) {
-        zir_f_c9f352eed87788d1_CompilerContextRelease(context);
+        zir_foreign_compiler_frontend_ir__CompilerContextRelease(context);
     }
     if (owned != 0) {
-        zir_f_c9f352eed87788d1_CompilerContextDispose(context);
+        zir_foreign_compiler_frontend_ir__CompilerContextDispose(context);
     }
 }
 
@@ -5705,7 +5286,7 @@ compiler_frontend_ir_retain_context(ZirProgram* target, uint8_t* context)
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    void* value_0 = zir_f_c9f352eed87788d1_CompilerRealloc((void*)(items), ((size_t)(count) + 1) * sizeof(void *));
+    void* value_0 = zir_foreign_compiler_frontend_ir__CompilerRealloc((void*)(items), ((size_t)(count) + 1) * sizeof(void *));
     items = (uint8_t**)(value_0);
     if (items == ((void *)0)) {
         return 0;
@@ -5716,7 +5297,7 @@ compiler_frontend_ir_retain_context(ZirProgram* target, uint8_t* context)
     (*value_2) = context;
     int32_t* value_3 = &(target->retained_context_count);
     (*value_3) = (int32_t)((uint32_t)((*value_3)) + 1u);
-    zir_f_c9f352eed87788d1_CompilerContextRetain(context);
+    zir_foreign_compiler_frontend_ir__CompilerContextRetain(context);
     return 1;
 }
 
@@ -5787,7 +5368,7 @@ ProgramAddModule(ZirProgram* program, uint8_t* name, uint8_t* source_path, ZirSo
         value_4 = old;
     }
     m = (ZirModule*)((value_2 + ((size_t)(value_4) * sizeof(ZirModule))));
-    zir_f_c9f352eed87788d1_memset((void*)(m), 0, (size_t)(sizeof(ZirModule)));
+    zir_foreign_compiler_frontend_ir__memset((void*)(m), 0, (size_t)(sizeof(ZirModule)));
     struct CompilerContext ** value_7 = &(m->context);
     (*value_7) = (struct CompilerContext *)(((uint8_t*)program->context));
     copy_text((uint8_t*)(&(m->name)), (size_t)(sizeof(CoreArray128_u8)), name);
@@ -5824,7 +5405,7 @@ ModuleAddImport(ZirModule* module, ZirImportKind kind, uint8_t* name, uint8_t* t
         value_4 = old;
     }
     imp = (ZirImport*)((value_2 + ((size_t)(value_4) * sizeof(ZirImport))));
-    zir_f_c9f352eed87788d1_memset((void*)(imp), 0, (size_t)(sizeof(ZirImport)));
+    zir_foreign_compiler_frontend_ir__memset((void*)(imp), 0, (size_t)(sizeof(ZirImport)));
     ZirImportKind* value_7 = &(imp->kind);
     (*value_7) = kind;
     copy_text((uint8_t*)(&(imp->name)), (size_t)(sizeof(CoreArray128_u8)), name);
@@ -5864,10 +5445,10 @@ ModuleAddFunction(ZirModule* module, uint8_t* name, uint8_t* args, uint8_t* retu
         value_4 = old;
     }
     fn = (ZirFunction*)((value_2 + ((size_t)(value_4) * sizeof(ZirFunction))));
-    zir_f_c9f352eed87788d1_memset((void*)(fn), 0, (size_t)(sizeof(ZirFunction)));
+    zir_foreign_compiler_frontend_ir__memset((void*)(fn), 0, (size_t)(sizeof(ZirFunction)));
     copy_text((uint8_t*)(&(fn->name)), (size_t)(sizeof(CoreArray128_u8)), name);
     const char ** value_7 = &(fn->args_text);
-    uint8_t* value_8 = zir_f_c9f352eed87788d1_KeepParameters(args);
+    uint8_t* value_8 = zir_foreign_compiler_frontend_ir__KeepParameters(args);
     (*value_7) = (const char *)(value_8);
     copy_text((uint8_t*)(&(fn->return_type)), (size_t)(sizeof(CoreArray128_u8)), return_type);
     int32_t* value_9 = &(fn->exported);
@@ -5897,7 +5478,7 @@ DefaultIsLiteral(uint8_t* value)
         }
         (void)value_1;
     }
-    length = zir_f_c9f352eed87788d1_strlen(value);
+    length = zir_foreign_compiler_frontend_ir__strlen(value);
     while (true) {
         bool check_loop_54 = length > (size_t)(0LL) && ((int32_t)((int8_t)(value[(length - (size_t)(1LL))])) == 32 || (int32_t)((int8_t)(value[(length - (size_t)(1LL))])) == 9);
         if (!check_loop_54) {
@@ -5921,7 +5502,7 @@ DefaultIsLiteral(uint8_t* value)
     bool value_9 = value_8;
     if (value_9) {
         uint8_t* value_10 = value;
-        bool value_11 = zir_f_c9f352eed87788d1_strncmp(value_10, compiler_parse_types_ParserCString(StringLiteral("true")), (size_t)(4LL)) != 0;
+        bool value_11 = zir_foreign_compiler_frontend_ir__strncmp(value_10, compiler_parse_types_ParserCString(StringLiteral("true")), (size_t)(4LL)) != 0;
         value_9 = !value_11;
     }
     bool value_12 = value_9;
@@ -5931,7 +5512,7 @@ DefaultIsLiteral(uint8_t* value)
         bool value_15 = value_14;
         if (value_15) {
             uint8_t* value_16 = value;
-            bool value_17 = zir_f_c9f352eed87788d1_strncmp(value_16, compiler_parse_types_ParserCString(StringLiteral("false")), (size_t)(5LL)) != 0;
+            bool value_17 = zir_foreign_compiler_frontend_ir__strncmp(value_16, compiler_parse_types_ParserCString(StringLiteral("false")), (size_t)(5LL)) != 0;
             value_15 = !value_17;
         }
         value_13 = value_15;
@@ -5943,7 +5524,7 @@ DefaultIsLiteral(uint8_t* value)
         bool value_21 = value_20;
         if (value_21) {
             uint8_t* value_22 = value;
-            bool value_23 = zir_f_c9f352eed87788d1_strncmp(value_22, compiler_parse_types_ParserCString(StringLiteral("null")), (size_t)(4LL)) != 0;
+            bool value_23 = zir_foreign_compiler_frontend_ir__strncmp(value_22, compiler_parse_types_ParserCString(StringLiteral("null")), (size_t)(4LL)) != 0;
             value_21 = !value_23;
         }
         value_19 = value_21;
@@ -6017,7 +5598,7 @@ DefaultIsLiteral(uint8_t* value)
     bool value_38 = i >= length;
     bool value_39 = value_38;
     if (!value_39) {
-        bool value_40 = zir_f_c9f352eed87788d1_isdigit((int32_t)(value[i])) != 0;
+        bool value_40 = zir_foreign_compiler_frontend_ir__isdigit((int32_t)(value[i])) != 0;
         value_39 = !value_40;
     }
     if (value_39) {
@@ -6029,7 +5610,7 @@ DefaultIsLiteral(uint8_t* value)
             if (!check_loop_56) {
                 break;
             }
-            bool value_41 = zir_f_c9f352eed87788d1_isalnum((int32_t)(value[i])) != 0;
+            bool value_41 = zir_foreign_compiler_frontend_ir__isalnum((int32_t)(value[i])) != 0;
             if (!value_41 && (int32_t)((int8_t)(value[i])) != 46 && (int32_t)((int8_t)(value[i])) != 95) {
                 return 0;
             }
@@ -6054,7 +5635,7 @@ FunctionDefaultHelperName(ZirFunction* function, int32_t parameter, uint8_t* out
     uint64_t hash = (uint64_t)((size_t)(14695981039346656037ULL));
     CoreArray3__u8 value_0 = {0};
     uint8_t* value_1[3] = {0};
-    uint8_t* value_2 = zir_f_c9f352eed87788d1_SpanPath(function->span);
+    uint8_t* value_2 = zir_foreign_compiler_frontend_ir__SpanPath(function->span);
     value_1[0] = value_2;
     value_1[1] = (uint8_t*)(&(function->name));
     value_1[2] = (void *)0;
@@ -6152,7 +5733,7 @@ FunctionDefaultHelperName(ZirFunction* function, int32_t parameter, uint8_t* out
     uint8_t* value_22 = out;
     size_t value_23 = size;
     uint8_t* value_24 = compiler_parse_types_ParserCString(StringLiteral("zi_default_%016jx"));
-    zir_f_c9f352eed87788d1_snprintf(value_22, value_23, value_24, hash);
+    zir_foreign_compiler_frontend_ir__snprintf(value_22, value_23, value_24, hash);
 }
 
 void
@@ -6169,11 +5750,11 @@ ModuleAddGlobal(ZirModule* module, uint8_t* name, uint8_t* type, uint8_t* init, 
     }
     ZirGlobal** value_1 = &(module->globals);
     (*value_1) = globals;
-    zir_f_c9f352eed87788d1_memset((void*)((ZirGlobal*)(((size_t)(module->globals) + ((size_t)(module->global_count) * sizeof(ZirGlobal))))), 0, (size_t)(sizeof(ZirGlobal)));
+    zir_foreign_compiler_frontend_ir__memset((void*)((ZirGlobal*)(((size_t)(module->globals) + ((size_t)(module->global_count) * sizeof(ZirGlobal))))), 0, (size_t)(sizeof(ZirGlobal)));
     copy_text((uint8_t*)(&((module->globals[module->global_count]).name)), (size_t)(sizeof(CoreArray128_u8)), name);
     copy_text((uint8_t*)(&((module->globals[module->global_count]).type)), (size_t)(sizeof(CoreArray4096_u8)), type);
     const char ** value_2 = &((module->globals[module->global_count]).init);
-    uint8_t* value_3 = zir_f_c9f352eed87788d1_KeepText(init);
+    uint8_t* value_3 = zir_foreign_compiler_frontend_ir__KeepText(init);
     (*value_2) = (const char *)(value_3);
     ZirSourceSpan* value_4 = &((module->globals[module->global_count]).span);
     (*value_4) = span;
@@ -6202,10 +5783,10 @@ ModuleAddStatic(ZirModule* module, uint8_t* name, uint8_t* type, uint8_t* init, 
 uint8_t*
 TextEditBegin(uint8_t* text, size_t* capacity)
 {
-    size_t length = zir_f_c9f352eed87788d1_strlen(text);
-    void* value_0 = zir_f_c9f352eed87788d1_AllocateOrExit(length + (size_t)(4096LL));
+    size_t length = zir_foreign_compiler_frontend_ir__strlen(text);
+    void* value_0 = zir_foreign_compiler_frontend_ir__AllocateOrExit(length + (size_t)(4096LL));
     uint8_t* buffer = (uint8_t*)(value_0);
-    zir_f_c9f352eed87788d1_memcpy((void*)(buffer), (void*)(text), length + (size_t)(1LL));
+    zir_foreign_compiler_frontend_ir__memcpy((void*)(buffer), (void*)(text), length + (size_t)(1LL));
     size_t value_1 = length + (size_t)(4096LL);
     size_t value_2 = 0;
     {
@@ -6222,8 +5803,8 @@ TextEditBegin(uint8_t* text, size_t* capacity)
 uint8_t*
 TextEditEnd(uint8_t* buffer)
 {
-    uint8_t* kept = zir_f_c9f352eed87788d1_KeepText(buffer);
-    zir_f_c9f352eed87788d1_CompilerFree((void*)(buffer));
+    uint8_t* kept = zir_foreign_compiler_frontend_ir__KeepText(buffer);
+    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(buffer));
     return kept;
 }
 
@@ -6254,10 +5835,10 @@ ModuleAddDefine(ZirModule* module, uint8_t* name, uint8_t* value, ZirSourceSpan 
         value_4 = old;
     }
     d = (ZirDefine*)((value_2 + ((size_t)(value_4) * sizeof(ZirDefine))));
-    zir_f_c9f352eed87788d1_memset((void*)(d), 0, (size_t)(sizeof(ZirDefine)));
+    zir_foreign_compiler_frontend_ir__memset((void*)(d), 0, (size_t)(sizeof(ZirDefine)));
     copy_text((uint8_t*)(&(d->name)), (size_t)(sizeof(CoreArray128_u8)), name);
     const char ** value_7 = &(d->value);
-    uint8_t* value_8 = zir_f_c9f352eed87788d1_KeepText(value);
+    uint8_t* value_8 = zir_foreign_compiler_frontend_ir__KeepText(value);
     (*value_7) = (const char *)(value_8);
     int32_t* value_9 = &(d->is_public);
     (*value_9) = 1;
@@ -6290,11 +5871,11 @@ ModuleAddParameter(ZirModule* module, uint8_t* name, uint8_t* type, uint8_t* def
         value_4 = old;
     }
     ZirModuleParameter* parameter = (ZirModuleParameter*)((value_2 + ((size_t)(value_4) * sizeof(ZirModuleParameter))));
-    zir_f_c9f352eed87788d1_memset((void*)(parameter), 0, (size_t)(sizeof(ZirModuleParameter)));
+    zir_foreign_compiler_frontend_ir__memset((void*)(parameter), 0, (size_t)(sizeof(ZirModuleParameter)));
     copy_text((uint8_t*)(&(parameter->name)), (size_t)(sizeof(CoreArray128_u8)), name);
     copy_text((uint8_t*)(&(parameter->type)), (size_t)(sizeof(CoreArray128_u8)), type);
     const char ** value_7 = &(parameter->default_value);
-    uint8_t* value_8 = zir_f_c9f352eed87788d1_KeepText(default_value);
+    uint8_t* value_8 = zir_foreign_compiler_frontend_ir__KeepText(default_value);
     (*value_7) = (const char *)(value_8);
     const char ** value_9 = &(parameter->value);
     (*value_9) = (const char *)(((uint8_t*)parameter->default_value));
@@ -6325,7 +5906,7 @@ ModuleAddLaw(ZirModule* module, uint8_t* name, uint8_t* kind, uint8_t* payload, 
         value_4 = old;
     }
     law = (ZirLaw*)((value_2 + ((size_t)(value_4) * sizeof(ZirLaw))));
-    zir_f_c9f352eed87788d1_memset((void*)(law), 0, (size_t)(sizeof(ZirLaw)));
+    zir_foreign_compiler_frontend_ir__memset((void*)(law), 0, (size_t)(sizeof(ZirLaw)));
     copy_text((uint8_t*)(&(law->name)), (size_t)(sizeof(CoreArray128_u8)), name);
     copy_text((uint8_t*)(&(law->kind)), (size_t)(sizeof(CoreArray16_u8)), kind);
     copy_text((uint8_t*)(&(law->payload)), (size_t)(sizeof(CoreArray4096_u8)), payload);
@@ -6356,7 +5937,7 @@ ModuleAddLawWaiver(ZirModule* module, uint8_t* name, uint8_t* reason, ZirSourceS
         value_4 = old;
     }
     waiver = (ZirLawWaiver*)((value_2 + ((size_t)(value_4) * sizeof(ZirLawWaiver))));
-    zir_f_c9f352eed87788d1_memset((void*)(waiver), 0, (size_t)(sizeof(ZirLawWaiver)));
+    zir_foreign_compiler_frontend_ir__memset((void*)(waiver), 0, (size_t)(sizeof(ZirLawWaiver)));
     copy_text((uint8_t*)(&(waiver->name)), (size_t)(sizeof(CoreArray128_u8)), name);
     copy_text((uint8_t*)(&(waiver->reason)), (size_t)(sizeof(CoreArray4096_u8)), reason);
     ZirSourceSpan* value_7 = &(waiver->span);
@@ -6388,7 +5969,7 @@ ModuleAddProof(ZirModule* module, uint8_t* name, uint8_t* source, ZirSourceSpan 
         value_4 = old;
     }
     ZirProof* proof = (ZirProof*)((value_2 + ((size_t)(value_4) * sizeof(ZirProof))));
-    zir_f_c9f352eed87788d1_memset((void*)(proof), 0, (size_t)(sizeof(ZirProof)));
+    zir_foreign_compiler_frontend_ir__memset((void*)(proof), 0, (size_t)(sizeof(ZirProof)));
     copy_text((uint8_t*)(&(proof->name)), (size_t)(sizeof(CoreArray128_u8)), name);
     copy_text((uint8_t*)(&(proof->source)), (size_t)(sizeof(CoreArray4096_u8)), source);
     ZirSourceSpan* value_7 = &(proof->span);
@@ -6422,7 +6003,7 @@ ModuleAddAssert(ZirModule* module, uint8_t* condition, uint8_t* message, ZirSour
         value_4 = old;
     }
     a = (ZirAssert*)((value_2 + ((size_t)(value_4) * sizeof(ZirAssert))));
-    zir_f_c9f352eed87788d1_memset((void*)(a), 0, (size_t)(sizeof(ZirAssert)));
+    zir_foreign_compiler_frontend_ir__memset((void*)(a), 0, (size_t)(sizeof(ZirAssert)));
     copy_text((uint8_t*)(&(a->condition)), (size_t)(sizeof(CoreArray4096_u8)), condition);
     copy_text((uint8_t*)(&(a->message)), (size_t)(sizeof(CoreArray4096_u8)), message);
     ZirSourceSpan* value_7 = &(a->span);
@@ -6451,7 +6032,7 @@ ModuleAddUsing(ZirModule* module, uint8_t* path, ZirSourceSpan span)
         value_4 = old;
     }
     ZirUsing* using_local = (ZirUsing*)((value_2 + ((size_t)(value_4) * sizeof(ZirUsing))));
-    zir_f_c9f352eed87788d1_memset((void*)(using_local), 0, (size_t)(sizeof(ZirUsing)));
+    zir_foreign_compiler_frontend_ir__memset((void*)(using_local), 0, (size_t)(sizeof(ZirUsing)));
     copy_text((uint8_t*)(&(using_local->path)), (size_t)(sizeof(CoreArray128_u8)), path);
     ZirSourceSpan* value_7 = &(using_local->span);
     (*value_7) = span;
@@ -6473,7 +6054,7 @@ ModuleAddType(ZirModule* module, uint8_t* name, ZirSourceSpan span)
     }
     ZirType** value_1 = &(module->types);
     (*value_1) = types;
-    zir_f_c9f352eed87788d1_memset((void*)((ZirType*)(((size_t)(module->types) + ((size_t)(module->type_count) * sizeof(ZirType))))), 0, (size_t)(sizeof(ZirType)));
+    zir_foreign_compiler_frontend_ir__memset((void*)((ZirType*)(((size_t)(module->types) + ((size_t)(module->type_count) * sizeof(ZirType))))), 0, (size_t)(sizeof(ZirType)));
     copy_text((uint8_t*)(&((module->types[module->type_count]).name)), (size_t)(sizeof(CoreArray128_u8)), name);
     int32_t* value_2 = &((module->types[module->type_count]).is_public);
     (*value_2) = 1;
@@ -6522,7 +6103,7 @@ FunctionAddStmt(ZirFunction* fn, ZirStmtKind kind, uint8_t* text, ZirSourceSpan 
     ZirStmtKind* value_7 = &(st->kind);
     (*value_7) = kind;
     const char ** value_8 = &(st->text);
-    uint8_t* value_9 = zir_f_c9f352eed87788d1_KeepText(text);
+    uint8_t* value_9 = zir_foreign_compiler_frontend_ir__KeepText(text);
     (*value_8) = (const char *)(value_9);
     int32_t* value_10 = &(st->expr_root);
     (*value_10) = -1;
@@ -6536,7 +6117,7 @@ FunctionAddStmt(ZirFunction* fn, ZirStmtKind kind, uint8_t* text, ZirSourceSpan 
 void
 StmtReset(ZirStmt* stmt)
 {
-    zir_f_c9f352eed87788d1_memset((void*)(stmt), 0, (size_t)(sizeof(ZirStmt)));
+    zir_foreign_compiler_frontend_ir__memset((void*)(stmt), 0, (size_t)(sizeof(ZirStmt)));
     const char ** value_0 = &(stmt->names.name);
     uint8_t* value_1 = compiler_parse_types_ParserCString(StringLiteral(""));
     (*value_0) = (const char *)(value_1);
@@ -6548,7 +6129,7 @@ StmtReset(ZirStmt* stmt)
 void
 ExprReset(ZirExpr* expr)
 {
-    zir_f_c9f352eed87788d1_memset((void*)(expr), 0, (size_t)(sizeof(ZirExpr)));
+    zir_foreign_compiler_frontend_ir__memset((void*)(expr), 0, (size_t)(sizeof(ZirExpr)));
     const char ** value_0 = &(expr->slot_type);
     uint8_t* value_1 = compiler_parse_types_ParserCString(StringLiteral(""));
     (*value_0) = (const char *)(value_1);
@@ -6605,7 +6186,7 @@ FunctionAddExpr(ZirFunction* fn, ZirExprKind kind, uint8_t* text, ZirSourceSpan 
     int32_t* value_13 = &(expr->argument_index);
     (*value_13) = -1;
     const char ** value_14 = &(expr->text);
-    uint8_t* value_15 = zir_f_c9f352eed87788d1_KeepText(text);
+    uint8_t* value_15 = zir_foreign_compiler_frontend_ir__KeepText(text);
     (*value_14) = (const char *)(value_15);
     ZirSourceSpan* value_16 = &(expr->span);
     (*value_16) = span;
@@ -6716,9 +6297,9 @@ static void
 compiler_frontend_ir_dump_span(void* out, ZirSourceSpan span)
 {
     uint8_t* value_0 = compiler_parse_types_ParserCString(StringLiteral("%s:%d:%d"));
-    zir_f_c9f352eed87788d1_fprintf(out, value_0, zir_f_c9f352eed87788d1_SpanPath(span), span.line, span.column);
+    zir_foreign_compiler_frontend_ir__fprintf(out, value_0, zir_foreign_compiler_frontend_ir__SpanPath(span), span.line, span.column);
     if (span.end_line > 0 && span.end_column > 0 && (span.end_line != span.line || span.end_column != span.column)) {
-        zir_f_c9f352eed87788d1_fprintf(out, compiler_parse_types_ParserCString(StringLiteral("-%d:%d")), span.end_line, span.end_column);
+        zir_foreign_compiler_frontend_ir__fprintf(out, compiler_parse_types_ParserCString(StringLiteral("-%d:%d")), span.end_line, span.end_column);
     }
 }
 
@@ -6738,7 +6319,7 @@ compiler_frontend_ir_dump_expr(ZirFunction* fn, int32_t index, void* out, int32_
                 break;
             }
             uint8_t* value_0 = compiler_parse_types_ParserCString(StringLiteral("  "));
-            zir_f_c9f352eed87788d1_fputs(value_0, out);
+            zir_foreign_compiler_frontend_ir__fputs(value_0, out);
             int32_t* value_1 = &(i);
             int32_t value_2 = 0;
             {
@@ -6754,15 +6335,15 @@ compiler_frontend_ir_dump_expr(ZirFunction* fn, int32_t index, void* out, int32_
     void* value_5 = out;
     uint8_t* value_6 = compiler_parse_types_ParserCString(StringLiteral("expr %s text %s name %s op %s span "));
     uint8_t* value_7 = ExprKindName((ZirExprKind)(expr->kind));
-    zir_f_c9f352eed87788d1_fprintf(value_5, value_6, value_7, (uint8_t*)expr->text, (uint8_t*)expr->name, (uint8_t*)(&(expr->op)));
+    zir_foreign_compiler_frontend_ir__fprintf(value_5, value_6, value_7, (uint8_t*)expr->text, (uint8_t*)expr->name, (uint8_t*)(&(expr->op)));
     compiler_frontend_ir_dump_span(out, expr->span);
     if (expr->type[0] != 0) {
         void* value_8 = out;
         uint8_t* value_9 = compiler_parse_types_ParserCString(StringLiteral(" type %s"));
-        zir_f_c9f352eed87788d1_fprintf(value_8, value_9, (uint8_t*)expr->type);
+        zir_foreign_compiler_frontend_ir__fprintf(value_8, value_9, (uint8_t*)expr->type);
     }
     void* value_10 = out;
-    zir_f_c9f352eed87788d1_fprintf(value_10, compiler_parse_types_ParserCString(StringLiteral("\n")));
+    zir_foreign_compiler_frontend_ir__fprintf(value_10, compiler_parse_types_ParserCString(StringLiteral("\n")));
     if (expr->left >= 0) {
         compiler_frontend_ir_dump_expr(fn, expr->left, out, (int32_t)((uint32_t)indent + 1u));
     }
@@ -6796,7 +6377,7 @@ compiler_frontend_ir_free_generated_outputs(void* value)
             if (!check_loop_65) {
                 break;
             }
-            zir_f_c9f352eed87788d1_CompilerFree((void*)(outputs->paths[i]));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)(outputs->paths[i]));
             int32_t* value_0 = &(i);
             int32_t value_1 = 0;
             {
@@ -6809,20 +6390,20 @@ compiler_frontend_ir_free_generated_outputs(void* value)
             (void)value_1;
         }
     }
-    zir_f_c9f352eed87788d1_CompilerFree((void*)(outputs->paths));
+    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(outputs->paths));
 }
 
 static GeneratedOutputs*
 compiler_frontend_ir_context_outputs(void)
 {
-    void* value_0 = zir_f_c9f352eed87788d1_CompilerCurrentStorage(10, (size_t)(sizeof(GeneratedOutputs)), compiler_frontend_ir_free_generated_outputs);
+    void* value_0 = zir_foreign_compiler_frontend_ir__CompilerCurrentStorage(10, (size_t)(sizeof(GeneratedOutputs)), compiler_frontend_ir_free_generated_outputs);
     return (GeneratedOutputs*)(value_0);
 }
 
 static uint8_t*
 compiler_frontend_ir_path_base_name(uint8_t* path)
 {
-    uint8_t* slash = zir_f_c9f352eed87788d1_strrchr(path, 47);
+    uint8_t* slash = zir_foreign_compiler_frontend_ir__strrchr(path, 47);
     uint8_t* value_0 = (void *)0;
     if (slash != (uint8_t*)(((void *)0))) {
         value_0 = (uint8_t*)(((size_t)(slash) + ((size_t)(1LL) * sizeof(uint8_t))));
@@ -6844,7 +6425,7 @@ GeneratedOutputRecord(uint8_t* path)
             if (!check_loop_66) {
                 break;
             }
-            if (zir_f_c9f352eed87788d1_strcmp(outputs->paths[i], name) == 0) {
+            if (zir_foreign_compiler_frontend_ir__strcmp(outputs->paths[i], name) == 0) {
                 return;
             }
             int32_t* value_0 = &(i);
@@ -6867,7 +6448,7 @@ GeneratedOutputRecord(uint8_t* path)
             value_4 = 64;
         }
         int32_t capacity = value_4;
-        void* value_5 = zir_f_c9f352eed87788d1_CompilerRealloc((void*)(outputs->paths), (size_t)(capacity) * (size_t)(sizeof(void *)));
+        void* value_5 = zir_foreign_compiler_frontend_ir__CompilerRealloc((void*)(outputs->paths), (size_t)(capacity) * (size_t)(sizeof(void *)));
         uint8_t** grown = (uint8_t**)(value_5);
         if (grown == (uint8_t**)(((void *)0))) {
             return;
@@ -6877,13 +6458,13 @@ GeneratedOutputRecord(uint8_t* path)
         int32_t* value_7 = &(outputs->capacity);
         (*value_7) = capacity;
     }
-    size_t length = zir_f_c9f352eed87788d1_strlen(name);
-    void* value_8 = zir_f_c9f352eed87788d1_CompilerMalloc(length + (size_t)(1LL));
+    size_t length = zir_foreign_compiler_frontend_ir__strlen(name);
+    void* value_8 = zir_foreign_compiler_frontend_ir__CompilerMalloc(length + (size_t)(1LL));
     uint8_t* copy = (uint8_t*)(value_8);
     if (copy == (uint8_t*)(((void *)0))) {
         return;
     }
-    zir_f_c9f352eed87788d1_memcpy((void*)(copy), (void*)(name), length + (size_t)(1LL));
+    zir_foreign_compiler_frontend_ir__memcpy((void*)(copy), (void*)(name), length + (size_t)(1LL));
     int32_t* value_9 = &(outputs->count);
     int32_t value_10 = 0;
     {
@@ -6914,21 +6495,21 @@ void*
 GeneratedOutputOpen(uint8_t* path, uint8_t* temp, size_t size)
 {
     uint8_t* name = compiler_frontend_ir_path_base_name(path);
-    int32_t length = zir_f_c9f352eed87788d1_snprintf(temp, size, compiler_parse_types_ParserCString(StringLiteral("%.*s.%s.tmp")), (int32_t)(((ptrdiff_t)(((size_t)(name) - (size_t)(path))) / (ptrdiff_t)(sizeof(uint8_t)))), path, name);
+    int32_t length = zir_foreign_compiler_frontend_ir__snprintf(temp, size, compiler_parse_types_ParserCString(StringLiteral("%.*s.%s.tmp")), (int32_t)(((ptrdiff_t)(((size_t)(name) - (size_t)(path))) / (ptrdiff_t)(sizeof(uint8_t)))), path, name);
     if (length < 0 || (size_t)(length) >= size) {
         return (void *)0;
     }
     GeneratedOutputRecord(path);
-    return zir_f_c9f352eed87788d1_CompilerFopen(temp, compiler_parse_types_ParserCString(StringLiteral("wb")));
+    return zir_foreign_compiler_frontend_ir__CompilerFopen(temp, compiler_parse_types_ParserCString(StringLiteral("wb")));
 }
 
 static int32_t
 compiler_frontend_ir_same_file_bytes_with_buffers(uint8_t* left, uint8_t* right, SameFileBytesBuffers* buffers)
 {
     uint8_t* value_0 = left;
-    void* a = zir_f_c9f352eed87788d1_CompilerFopen(value_0, compiler_parse_types_ParserCString(StringLiteral("rb")));
+    void* a = zir_foreign_compiler_frontend_ir__CompilerFopen(value_0, compiler_parse_types_ParserCString(StringLiteral("rb")));
     uint8_t* value_1 = right;
-    void* b = zir_f_c9f352eed87788d1_CompilerFopen(value_1, compiler_parse_types_ParserCString(StringLiteral("rb")));
+    void* b = zir_foreign_compiler_frontend_ir__CompilerFopen(value_1, compiler_parse_types_ParserCString(StringLiteral("rb")));
     int32_t value_2 = 0;
     if (a != ((void *)0) && b != ((void *)0)) {
         value_2 = 1;
@@ -6940,10 +6521,10 @@ compiler_frontend_ir_same_file_bytes_with_buffers(uint8_t* left, uint8_t* right,
             if (!check_loop_67) {
                 break;
             }
-            size_t an = zir_f_c9f352eed87788d1_fread((void*)((uint8_t*)(&(buffers->abuf.items))), (size_t)(1LL), (size_t)(sizeof(CoreArray8192_u8)), a);
-            size_t bn = zir_f_c9f352eed87788d1_fread((void*)((uint8_t*)(&(buffers->bbuf.items))), (size_t)(1LL), (size_t)(sizeof(CoreArray8192_u8)), b);
+            size_t an = zir_foreign_compiler_frontend_ir__fread((void*)((uint8_t*)(&(buffers->abuf.items))), (size_t)(1LL), (size_t)(sizeof(CoreArray8192_u8)), a);
+            size_t bn = zir_foreign_compiler_frontend_ir__fread((void*)((uint8_t*)(&(buffers->bbuf.items))), (size_t)(1LL), (size_t)(sizeof(CoreArray8192_u8)), b);
             bool value_3 = an != bn;
-            if (value_3 || zir_f_c9f352eed87788d1_memcmp((void*)((uint8_t*)(&(buffers->abuf.items))), (void*)((uint8_t*)(&(buffers->bbuf.items))), an) != 0) {
+            if (value_3 || zir_foreign_compiler_frontend_ir__memcmp((void*)((uint8_t*)(&(buffers->abuf.items))), (void*)((uint8_t*)(&(buffers->bbuf.items))), an) != 0) {
                 same = 0;
             } else {
                 if (an == (size_t)(0LL)) {
@@ -6955,10 +6536,10 @@ compiler_frontend_ir_same_file_bytes_with_buffers(uint8_t* left, uint8_t* right,
     }
     zir_loop_break_1: ;
     if (a != ((void *)0)) {
-        zir_f_c9f352eed87788d1_CompilerFclose(a);
+        zir_foreign_compiler_frontend_ir__CompilerFclose(a);
     }
     if (b != ((void *)0)) {
-        zir_f_c9f352eed87788d1_CompilerFclose(b);
+        zir_foreign_compiler_frontend_ir__CompilerFclose(b);
     }
     return same;
 }
@@ -6967,7 +6548,7 @@ int32_t
 GeneratedOutputReplace(uint8_t* temp, uint8_t* path)
 {
     if (compiler_frontend_ir_same_file_bytes(temp, path) != 0) {
-        bool value_0 = zir_f_c9f352eed87788d1_remove(temp) == 0;
+        bool value_0 = zir_foreign_compiler_frontend_ir__remove(temp) == 0;
         int32_t value_1 = 0;
         if (value_0) {
             value_1 = 0;
@@ -6976,8 +6557,8 @@ GeneratedOutputReplace(uint8_t* temp, uint8_t* path)
         }
         return value_1;
     }
-    if (zir_f_c9f352eed87788d1_rename(temp, path) != 0) {
-        zir_f_c9f352eed87788d1_remove(temp);
+    if (zir_foreign_compiler_frontend_ir__rename(temp, path) != 0) {
+        zir_foreign_compiler_frontend_ir__remove(temp);
         return -1;
     }
     return 0;
@@ -6987,19 +6568,19 @@ static int32_t
 compiler_frontend_ir_starts_with_marker(uint8_t* path, uint8_t* marker)
 {
     CoreArray256_u8 line = {0};
-    void* file = zir_f_c9f352eed87788d1_CompilerFopen(path, compiler_parse_types_ParserCString(StringLiteral("rb")));
+    void* file = zir_foreign_compiler_frontend_ir__CompilerFopen(path, compiler_parse_types_ParserCString(StringLiteral("rb")));
     if (file == ((void *)0)) {
         return 0;
     }
-    size_t length = zir_f_c9f352eed87788d1_strlen(marker);
-    bool value_0 = length < (size_t)(sizeof(CoreArray256_u8)) && zir_f_c9f352eed87788d1_fread((void*)((uint8_t*)(&(line.items))), (size_t)(1LL), length, file) == length;
-    bool value_1 = value_0 && zir_f_c9f352eed87788d1_memcmp((void*)((uint8_t*)(&(line.items))), (void*)(marker), length) == 0;
+    size_t length = zir_foreign_compiler_frontend_ir__strlen(marker);
+    bool value_0 = length < (size_t)(sizeof(CoreArray256_u8)) && zir_foreign_compiler_frontend_ir__fread((void*)((uint8_t*)(&(line.items))), (size_t)(1LL), length, file) == length;
+    bool value_1 = value_0 && zir_foreign_compiler_frontend_ir__memcmp((void*)((uint8_t*)(&(line.items))), (void*)(marker), length) == 0;
     int32_t value_2 = 0;
     if (value_1) {
         value_2 = 1;
     }
     int32_t matches = value_2;
-    zir_f_c9f352eed87788d1_CompilerFclose(file);
+    zir_foreign_compiler_frontend_ir__CompilerFclose(file);
     return matches;
 }
 
@@ -7012,10 +6593,10 @@ GeneratedOutputPrune(uint8_t* out_dir, uint8_t* marker)
 static int32_t
 compiler_frontend_ir_same_type_argument(ZirModule* target_owner, uint8_t* target, ZirModule* source_owner, uint8_t* source, int32_t depth)
 {
-    while (zir_f_c9f352eed87788d1_isspace((int32_t)(target[0])) != 0) {
+    while (zir_foreign_compiler_frontend_ir__isspace((int32_t)(target[0])) != 0) {
         target = (uint8_t*)(((size_t)(target) + 1));
     }
-    while (zir_f_c9f352eed87788d1_isspace((int32_t)(source[0])) != 0) {
+    while (zir_foreign_compiler_frontend_ir__isspace((int32_t)(source[0])) != 0) {
         source = (uint8_t*)(((size_t)(source) + 1));
     }
     if (target[0] == 42 || source[0] == 42) {
@@ -7025,21 +6606,21 @@ compiler_frontend_ir_same_type_argument(ZirModule* target_owner, uint8_t* target
         return compiler_frontend_ir_same_type_argument(target_owner, (uint8_t*)(((size_t)(target) + 1)), source_owner, (uint8_t*)(((size_t)(source) + 1)), depth);
     }
     if (target[0] == 91 || source[0] == 91) {
-        uint8_t* target_close = zir_f_c9f352eed87788d1_strchr(target, 93);
-        uint8_t* source_close = zir_f_c9f352eed87788d1_strchr(source, 93);
+        uint8_t* target_close = zir_foreign_compiler_frontend_ir__strchr(target, 93);
+        uint8_t* source_close = zir_foreign_compiler_frontend_ir__strchr(source, 93);
         if (target_close == ((void *)0) || source_close == ((void *)0)) {
             return 0;
         }
         size_t length = (size_t)(target_close) - (size_t)(target);
-        if (length != (size_t)(source_close) - (size_t)(source) || zir_f_c9f352eed87788d1_strncmp(target, source, length) != 0) {
+        if (length != (size_t)(source_close) - (size_t)(source) || zir_foreign_compiler_frontend_ir__strncmp(target, source, length) != 0) {
             return 0;
         }
         return compiler_frontend_ir_same_type_argument(target_owner, (uint8_t*)(((size_t)(target_close) + 1)), source_owner, (uint8_t*)(((size_t)(source_close) + 1)), depth);
     }
-    uint8_t* target_scalar = zir_f_c9f352eed87788d1_ScalarType(target);
-    uint8_t* source_scalar = zir_f_c9f352eed87788d1_ScalarType(source);
+    uint8_t* target_scalar = zir_foreign_compiler_frontend_ir__ScalarType(target);
+    uint8_t* source_scalar = zir_foreign_compiler_frontend_ir__ScalarType(source);
     if (target_scalar[0] != 0 || source_scalar[0] != 0) {
-        bool value_0 = zir_f_c9f352eed87788d1_strcmp(target_scalar, source_scalar) == 0;
+        bool value_0 = zir_foreign_compiler_frontend_ir__strcmp(target_scalar, source_scalar) == 0;
         int32_t value_1 = 0;
         if (value_0) {
             value_1 = 1;
@@ -7074,8 +6655,8 @@ compiler_frontend_ir_same_type_application_at_depth(ZirModule* target_owner, Zir
         if (target_template != (ZirType*)(((void *)0)) && target_template == source_template) {
             CoreArray16_CoreArray128_u8 target_args = {0};
             CoreArray16_CoreArray128_u8 source_args = {0};
-            int32_t target_count = zir_f_c9f352eed87788d1_split_top_level((uint8_t*)(&(target->template_args)), (uint8_t*)(&(((target_args.items[0]).items)[0])), 16, (size_t)(128LL));
-            int32_t source_count = zir_f_c9f352eed87788d1_split_top_level((uint8_t*)(&(source->template_args)), (uint8_t*)(&(((source_args.items[0]).items)[0])), 16, (size_t)(128LL));
+            int32_t target_count = zir_foreign_compiler_frontend_ir__split_top_level((uint8_t*)(&(target->template_args)), (uint8_t*)(&(((target_args.items[0]).items)[0])), 16, (size_t)(128LL));
+            int32_t source_count = zir_foreign_compiler_frontend_ir__split_top_level((uint8_t*)(&(source->template_args)), (uint8_t*)(&(((source_args.items[0]).items)[0])), 16, (size_t)(128LL));
             int32_t value_1 = 0;
             if (target_count > 0 && target_count < 16 && target_count == source_count) {
                 value_1 = 1;
@@ -7132,7 +6713,7 @@ compiler_frontend_ir_copy_part(uint8_t* output, size_t capacity, String part)
     }
     if ((size_t)((int64_t)(part).length) > (size_t)(0LL)) {
         uint8_t* value_3 = compiler_parse_types_ParserCString(part);
-        zir_f_c9f352eed87788d1_memcpy((void*)(output), (void*)(value_3), (size_t)((size_t)((int64_t)(part).length)));
+        zir_foreign_compiler_frontend_ir__memcpy((void*)(output), (void*)(value_3), (size_t)((size_t)((int64_t)(part).length)));
     }
     uint8_t* value_4 = &(output[(size_t)((int64_t)(part).length)]);
     (*value_4) = 0;
@@ -7142,7 +6723,7 @@ compiler_frontend_ir_copy_part(uint8_t* output, size_t capacity, String part)
 static FieldSnapshots*
 compiler_frontend_ir_context_fields(CompilerThread* thread)
 {
-    void* value_0 = zir_f_c9f352eed87788d1_CompilerThreadStorage(thread, 4, (size_t)(sizeof(FieldSnapshots)), compiler_frontend_ir_free_record_fields);
+    void* value_0 = zir_foreign_compiler_frontend_ir__CompilerThreadStorage(thread, 4, (size_t)(sizeof(FieldSnapshots)), compiler_frontend_ir_free_record_fields);
     return (FieldSnapshots*)(value_0);
 }
 
@@ -7171,9 +6752,9 @@ compiler_frontend_ir_free_record_fields(void* value)
             if (!check_loop_70) {
                 break;
             }
-            zir_f_c9f352eed87788d1_CompilerFree((void*)((fields->ids[i])->items));
-            zir_f_c9f352eed87788d1_CompilerFree((void*)((fields->ids[i])->field_slots));
-            zir_f_c9f352eed87788d1_CompilerFree((void*)(fields->ids[i]));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)((fields->ids[i])->items));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)((fields->ids[i])->field_slots));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)(fields->ids[i]));
             size_t* value_0 = &(i);
             size_t value_1 = 0;
             {
@@ -7186,8 +6767,8 @@ compiler_frontend_ir_free_record_fields(void* value)
             (void)value_1;
         }
     }
-    zir_f_c9f352eed87788d1_CompilerFree((void*)(fields->ids));
-    zir_f_c9f352eed87788d1_CompilerFree((void*)(fields->slots));
+    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(fields->ids));
+    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(fields->slots));
 }
 
 static size_t
@@ -7217,7 +6798,7 @@ compiler_frontend_ir_named_field_slot(RecordFields* fields, uint8_t* name)
     size_t slot = hash & (fields->field_slot_count - (size_t)(1LL));
     while (true) {
         bool value_4 = fields->field_slots[slot] != 0;
-        bool check_loop_72 = value_4 && zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&((fields->items[((int32_t)((uint32_t)(fields->field_slots[slot]) - 1u))]).name)), name) != 0;
+        bool check_loop_72 = value_4 && zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&((fields->items[((int32_t)((uint32_t)(fields->field_slots[slot]) - 1u))]).name)), name) != 0;
         if (!check_loop_72) {
             break;
         }
@@ -7229,11 +6810,11 @@ compiler_frontend_ir_named_field_slot(RecordFields* fields, uint8_t* name)
 static RecordFields*
 compiler_frontend_ir_fields_of(CompilerThread* thread, ZirType* record)
 {
-    size_t length = zir_f_c9f352eed87788d1_strnlen((uint8_t*)(&(record->body)), (size_t)(sizeof(CoreArray8192_u8)));
+    size_t length = zir_foreign_compiler_frontend_ir__strnlen((uint8_t*)(&(record->body)), (size_t)(sizeof(CoreArray8192_u8)));
     if (length == (size_t)(sizeof(CoreArray8192_u8))) {
         return (void *)0;
     }
-    uint8_t* body = zir_f_c9f352eed87788d1_KeepText((uint8_t*)(&(record->body)));
+    uint8_t* body = zir_foreign_compiler_frontend_ir__KeepText((uint8_t*)(&(record->body)));
     FieldSnapshots* snapshots = compiler_frontend_ir_context_fields(thread);
     int32_t value_0 = 0;
     if (record->is_union != 0) {
@@ -7248,9 +6829,9 @@ compiler_frontend_ir_fields_of(CompilerThread* thread, ZirType* record)
             value_1 = (size_t)(128LL);
         }
         size_t count = value_1;
-        void* value_2 = zir_f_c9f352eed87788d1_AllocateOrExit(count * (size_t)(sizeof(void *)));
+        void* value_2 = zir_foreign_compiler_frontend_ir__AllocateOrExit(count * (size_t)(sizeof(void *)));
         RecordFields** slots = (RecordFields**)(value_2);
-        zir_f_c9f352eed87788d1_memset((void*)(slots), 0, count * (size_t)(sizeof(void *)));
+        zir_foreign_compiler_frontend_ir__memset((void*)(slots), 0, count * (size_t)(sizeof(void *)));
         {
             size_t i = (size_t)(0LL);
             while (true) {
@@ -7274,7 +6855,7 @@ compiler_frontend_ir_fields_of(CompilerThread* thread, ZirType* record)
                 (void)value_6;
             }
         }
-        zir_f_c9f352eed87788d1_CompilerFree((void*)(snapshots->slots));
+        zir_foreign_compiler_frontend_ir__CompilerFree((void*)(snapshots->slots));
         RecordFields*** value_9 = &(snapshots->slots);
         (*value_9) = slots;
         size_t* value_10 = &(snapshots->slots_count);
@@ -7282,7 +6863,7 @@ compiler_frontend_ir_fields_of(CompilerThread* thread, ZirType* record)
     }
     size_t slot = compiler_frontend_ir_field_slot(snapshots->slots, snapshots->slots_count, body, is_union);
     if (snapshots->slots[slot] != (RecordFields*)(((void *)0))) {
-        zir_f_c9f352eed87788d1_ProfileCount(compiler_parse_types_ParserCString(StringLiteral("record_fields_reuse")));
+        zir_foreign_compiler_frontend_ir__ProfileCount(compiler_parse_types_ParserCString(StringLiteral("record_fields_reuse")));
         return snapshots->slots[slot];
     }
     if (snapshots->count >= (size_t)(-1LL) >> (size_t)(12LL)) {
@@ -7296,20 +6877,20 @@ compiler_frontend_ir_fields_of(CompilerThread* thread, ZirType* record)
             value_11 = (size_t)(64LL);
         }
         size_t capacity = value_11;
-        void* value_12 = zir_f_c9f352eed87788d1_AllocateOrExit(capacity * (size_t)(sizeof(void *)));
+        void* value_12 = zir_foreign_compiler_frontend_ir__AllocateOrExit(capacity * (size_t)(sizeof(void *)));
         RecordFields** ids = (RecordFields**)(value_12);
         if (snapshots->count != 0) {
-            zir_f_c9f352eed87788d1_memcpy((void*)(ids), (void*)(snapshots->ids), snapshots->count * (size_t)(sizeof(void *)));
+            zir_foreign_compiler_frontend_ir__memcpy((void*)(ids), (void*)(snapshots->ids), snapshots->count * (size_t)(sizeof(void *)));
         }
-        zir_f_c9f352eed87788d1_CompilerFree((void*)(snapshots->ids));
+        zir_foreign_compiler_frontend_ir__CompilerFree((void*)(snapshots->ids));
         RecordFields*** value_13 = &(snapshots->ids);
         (*value_13) = ids;
         size_t* value_14 = &(snapshots->capacity);
         (*value_14) = capacity;
     }
-    void* value_15 = zir_f_c9f352eed87788d1_AllocateOrExit((size_t)(sizeof(RecordFields)));
+    void* value_15 = zir_foreign_compiler_frontend_ir__AllocateOrExit((size_t)(sizeof(RecordFields)));
     RecordFields* result = (RecordFields*)(value_15);
-    zir_f_c9f352eed87788d1_memset((void*)(result), 0, (size_t)(sizeof(RecordFields)));
+    zir_foreign_compiler_frontend_ir__memset((void*)(result), 0, (size_t)(sizeof(RecordFields)));
     uint8_t** value_16 = &(result->body);
     (*value_16) = body;
     int32_t* value_17 = &(result->is_union);
@@ -7327,12 +6908,12 @@ compiler_frontend_ir_fields_of(CompilerThread* thread, ZirType* record)
                 if (!check_loop_74) {
                     break;
                 }
-                zir_f_c9f352eed87788d1_ProfileCount(compiler_parse_types_ParserCString(StringLiteral("record_field_parse")));
+                zir_foreign_compiler_frontend_ir__ProfileCount(compiler_parse_types_ParserCString(StringLiteral("record_field_parse")));
                 Slice value_20 = compiler_ir_CBuffer(body, length);
                 Slice value_21 = value_20;
                 int64_t value_22 = (int64_t)(offset);
                 bool value_23 = (is_union != 0) != false;
-                Slice value_24 = compiler_frontend_ir___zi_spec_957717307b902c01((uint8_t*)((void*)((uint8_t*)(&(tags.items)))), (int64_t)((size_t)(sizeof(CoreArray512_u8))));
+                Slice value_24 = compiler_frontend_ir_compiler_frontend_ir_CoreSlice_for_u8((uint8_t*)((void*)((uint8_t*)(&(tags.items)))), (int64_t)((size_t)(sizeof(CoreArray512_u8))));
                 RecordField parsed = compiler_type_NextField(StringView((const char *)(value_21).data, (size_t)(value_21).length), value_22, value_23, 128LL, 128LL, value_24);
                 if (parsed.status != 1) {
                     int32_t* value_25 = &(result->terminal);
@@ -7355,12 +6936,12 @@ compiler_frontend_ir_fields_of(CompilerThread* thread, ZirType* record)
                         value_29 = (size_t)(8LL);
                     }
                     size_t capacity = value_29;
-                    void* value_30 = zir_f_c9f352eed87788d1_AllocateOrExit(capacity * (size_t)(sizeof(ZirTypeField)));
+                    void* value_30 = zir_foreign_compiler_frontend_ir__AllocateOrExit(capacity * (size_t)(sizeof(ZirTypeField)));
                     ZirTypeField* items = (ZirTypeField*)(value_30);
                     if (result->count != 0) {
-                        zir_f_c9f352eed87788d1_memcpy((void*)(items), (void*)(result->items), result->count * (size_t)(sizeof(ZirTypeField)));
+                        zir_foreign_compiler_frontend_ir__memcpy((void*)(items), (void*)(result->items), result->count * (size_t)(sizeof(ZirTypeField)));
                     }
-                    zir_f_c9f352eed87788d1_CompilerFree((void*)(result->items));
+                    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(result->items));
                     ZirTypeField** value_31 = &(result->items);
                     (*value_31) = items;
                     size_t* value_32 = &(result->capacity);
@@ -7377,7 +6958,7 @@ compiler_frontend_ir_fields_of(CompilerThread* thread, ZirType* record)
                     value_35 = old;
                 }
                 ZirTypeField* field = (ZirTypeField*)((value_33 + ((size_t)(value_35) * sizeof(ZirTypeField))));
-                zir_f_c9f352eed87788d1_memset((void*)(field), 0, (size_t)(sizeof(ZirTypeField)));
+                zir_foreign_compiler_frontend_ir__memset((void*)(field), 0, (size_t)(sizeof(ZirTypeField)));
                 compiler_frontend_ir_copy_part((uint8_t*)(&(field->name)), (size_t)(sizeof(CoreArray128_u8)), parsed.name);
                 compiler_frontend_ir_copy_part((uint8_t*)(&(field->type)), (size_t)(sizeof(CoreArray128_u8)), parsed.type);
                 compiler_frontend_ir_copy_part((uint8_t*)(&(field->go_tag)), (size_t)(sizeof(CoreArray512_u8)), parsed.tag);
@@ -7430,9 +7011,9 @@ compiler_frontend_ir_fields_of(CompilerThread* thread, ZirType* record)
             slots = slots * (size_t)(2LL);
         }
         int32_t** value_52 = &(result->field_slots);
-        void* value_53 = zir_f_c9f352eed87788d1_AllocateOrExit(slots * (size_t)(sizeof(int32_t)));
+        void* value_53 = zir_foreign_compiler_frontend_ir__AllocateOrExit(slots * (size_t)(sizeof(int32_t)));
         (*value_52) = (int32_t*)(value_53);
-        zir_f_c9f352eed87788d1_memset((void*)(result->field_slots), 0, slots * (size_t)(sizeof(int32_t)));
+        zir_foreign_compiler_frontend_ir__memset((void*)(result->field_slots), 0, slots * (size_t)(sizeof(int32_t)));
         size_t* value_54 = &(result->field_slot_count);
         (*value_54) = slots;
         {
@@ -7502,7 +7083,7 @@ compiler_frontend_ir_next_field_persistent(CompilerThread* thread, ZirType* reco
         }
         fields = value_4;
         index = cursor[0] & (size_t)(4095LL);
-        zir_f_c9f352eed87788d1_ProfileCount(compiler_parse_types_ParserCString(StringLiteral("record_fields_reuse")));
+        zir_foreign_compiler_frontend_ir__ProfileCount(compiler_parse_types_ParserCString(StringLiteral("record_fields_reuse")));
     }
     compiler_frontend_ir_CompilerAtomicFlagClear(&(record_fields_lock));
     bool value_5 = fields == (RecordFields*)(((void *)0));
@@ -7555,7 +7136,7 @@ static int32_t
 compiler_frontend_ir_TypeFindField_persistent(CompilerThread* thread, ZirType* record, uint8_t* name, ZirTypeField* field)
 {
     if (record == (ZirType*)(((void *)0)) || name == (uint8_t*)(((void *)0)) || record->is_enum != 0 || record->is_procedure_type != 0) {
-        zir_f_c9f352eed87788d1_memset((void*)(field), 0, (size_t)(sizeof(ZirTypeField)));
+        zir_foreign_compiler_frontend_ir__memset((void*)(field), 0, (size_t)(sizeof(ZirTypeField)));
         return -1;
     }
     while (true) {
@@ -7572,11 +7153,11 @@ compiler_frontend_ir_TypeFindField_persistent(CompilerThread* thread, ZirType* r
         int32_t index = fields->field_slots[value_1];
         if (index != 0) {
             compiler_frontend_ir_ParserSet20(field, fields->items[((int32_t)((uint32_t)index - 1u))]);
-            zir_f_c9f352eed87788d1_ProfileCount(compiler_parse_types_ParserCString(StringLiteral("record_field_lookup")));
+            zir_foreign_compiler_frontend_ir__ProfileCount(compiler_parse_types_ParserCString(StringLiteral("record_field_lookup")));
             return 1;
         }
     }
-    zir_f_c9f352eed87788d1_memset((void*)(field), 0, (size_t)(sizeof(ZirTypeField)));
+    zir_foreign_compiler_frontend_ir__memset((void*)(field), 0, (size_t)(sizeof(ZirTypeField)));
     int32_t value_2 = 0;
     if (fields == (RecordFields*)(((void *)0)) || fields->terminal < 0) {
         value_2 = -1;
@@ -7691,7 +7272,7 @@ ArrayTypeAlias(uint8_t* value)
     bool value_0 = value != (uint8_t*)(((void *)0)) && (int32_t)((int8_t)(value[0])) == 91;
     bool value_1 = value_0;
     if (value_1) {
-        uint8_t* value_2 = zir_f_c9f352eed87788d1_strstr(value, compiler_parse_types_ParserCString(StringLiteral(".[")));
+        uint8_t* value_2 = zir_foreign_compiler_frontend_ir__strstr(value, compiler_parse_types_ParserCString(StringLiteral(".[")));
         value_1 = (value_2 == (uint8_t*)(((void *)0)));
     }
     int32_t value_3 = 0;
@@ -7738,18 +7319,18 @@ ArrayElementType(uint8_t* type, uint8_t* element, size_t element_size, int32_t* 
 }
 
 int32_t
-VectorType(uint8_t* type, zir_21ab3782f2ff75d0_ZirVector* vector)
+VectorType(uint8_t* type, compiler_frontend_ir_ZirVector* vector)
 {
     if (type == (uint8_t*)(((void *)0)) || ((int32_t)((int8_t)(type[0])) != 117 && (int32_t)((int8_t)(type[0])) != 115 && (int32_t)((int8_t)(type[0])) != 102)) {
         return 0;
     }
-    Slice value_0 = compiler_ir_CBuffer(type, zir_f_c9f352eed87788d1_strnlen(type, (size_t)(7LL)));
+    Slice value_0 = compiler_ir_CBuffer(type, zir_foreign_compiler_frontend_ir__strnlen(type, (size_t)(7LL)));
     Slice value_1 = value_0;
     VectorSpelling* spelling = compiler_type_FindVector(StringView((const char *)(value_1).data, (size_t)(value_1).length));
     if (spelling == (VectorSpelling*)(((void *)0))) {
         return 0;
     }
-    if (vector != (zir_21ab3782f2ff75d0_ZirVector*)(((void *)0))) {
+    if (vector != (compiler_frontend_ir_ZirVector*)(((void *)0))) {
         uint8_t* value_2 = compiler_parse_types_ParserCString(spelling->lane);
         uint8_t* lane = (uint8_t*)(value_2);
         uint8_t* value_3 = compiler_parse_types_ParserCString(spelling->name);
@@ -7759,8 +7340,8 @@ VectorType(uint8_t* type, zir_21ab3782f2ff75d0_ZirVector* vector)
             value_4 = 1;
         }
         int32_t native = value_4;
-        zir_21ab3782f2ff75d0_ZirVector* value_5 = vector;
-        zir_21ab3782f2ff75d0_ZirVector value_6 = {0};
+        compiler_frontend_ir_ZirVector* value_5 = vector;
+        compiler_frontend_ir_ZirVector value_6 = {0};
         value_6.name = name;
         value_6.lane = lane;
         value_6.lanes = spelling->lanes;
@@ -7785,11 +7366,11 @@ VectorType(uint8_t* type, zir_21ab3782f2ff75d0_ZirVector* vector)
             value_9 = name;
         }
         value_6.block = value_9;
-        zir_21ab3782f2ff75d0_ZirVector value_11 = {0};
+        compiler_frontend_ir_ZirVector value_11 = {0};
         {
-            zir_21ab3782f2ff75d0_ZirVector* p = value_5;
-            zir_21ab3782f2ff75d0_ZirVector value = value_6;
-            zir_21ab3782f2ff75d0_ZirVector* value_13 = &(p[0]);
+            compiler_frontend_ir_ZirVector* p = value_5;
+            compiler_frontend_ir_ZirVector value = value_6;
+            compiler_frontend_ir_ZirVector* value_13 = &(p[0]);
             (*value_13) = value;
             value_11 = value;
         }
@@ -7891,7 +7472,7 @@ int32_t
 BitBuiltin(uint8_t* checked_name)
 {
     bool value_0 = checked_name == (uint8_t*)(((void *)0));
-    if (value_0 || zir_f_c9f352eed87788d1_strncmp(checked_name, compiler_parse_types_ParserCString(StringLiteral("zi_")), (size_t)(3LL)) != 0) {
+    if (value_0 || zir_foreign_compiler_frontend_ir__strncmp(checked_name, compiler_parse_types_ParserCString(StringLiteral("zi_")), (size_t)(3LL)) != 0) {
         return 0;
     }
     {
@@ -7901,7 +7482,7 @@ BitBuiltin(uint8_t* checked_name)
             if (!check_loop_81) {
                 break;
             }
-            bool value_1 = zir_f_c9f352eed87788d1_strcmp(checked_name, compiler_parse_types_ParserCString((bit_builtins)[i])) != 0;
+            bool value_1 = zir_foreign_compiler_frontend_ir__strcmp(checked_name, compiler_parse_types_ParserCString((bit_builtins)[i])) != 0;
             if (!value_1) {
                 return i;
             }
@@ -7934,7 +7515,7 @@ BitBuiltinName(uint8_t* source_name)
             bool value_1 = value_0;
             if (value_1) {
                 uint8_t* value_2 = compiler_parse_types_ParserCString((bit_builtins)[i]);
-                bool value_3 = zir_f_c9f352eed87788d1_strcmp(source_name, (uint8_t*)(((size_t)(value_2) + ((size_t)(3LL) * sizeof(uint8_t))))) != 0;
+                bool value_3 = zir_foreign_compiler_frontend_ir__strcmp(source_name, (uint8_t*)(((size_t)(value_2) + ((size_t)(3LL) * sizeof(uint8_t))))) != 0;
                 value_1 = !value_3;
             }
             if (value_1) {
@@ -8004,7 +7585,7 @@ GoForeignTargetValid(uint8_t* target)
 int32_t
 GoCHeader(uint8_t* package, uint8_t* header, size_t header_size)
 {
-    bool value_0 = zir_f_c9f352eed87788d1_strncmp(package, compiler_parse_types_ParserCString(StringLiteral("C/")), (size_t)(2LL)) != 0;
+    bool value_0 = zir_foreign_compiler_frontend_ir__strncmp(package, compiler_parse_types_ParserCString(StringLiteral("C/")), (size_t)(2LL)) != 0;
     if (value_0 || !(package[2] != 0)) {
         return 0;
     }
@@ -8060,7 +7641,7 @@ GoCHeader(uint8_t* package, uint8_t* header, size_t header_size)
 int32_t
 TypeNextFieldShared(ZirType* record, size_t* cursor, ZirTypeField** field)
 {
-    CompilerThread* thread = zir_f_c9f352eed87788d1_CompilerThreadStateAddress();
+    CompilerThread* thread = zir_foreign_compiler_frontend_ir__CompilerThreadStateAddress();
     CompilerThread* value_0 = thread;
     uint8_t* value_1 = (void *)0;
     if (record != ((void *)0)) {
@@ -8113,7 +7694,7 @@ TypeNextField(ZirType* record, size_t* cursor, ZirTypeField* field)
     if (shared != ((void *)0)) {
         compiler_frontend_ir_ParserSet20(field, shared[0]);
     } else {
-        zir_f_c9f352eed87788d1_memset((void*)(field), 0, (size_t)(sizeof(ZirTypeField)));
+        zir_foreign_compiler_frontend_ir__memset((void*)(field), 0, (size_t)(sizeof(ZirTypeField)));
     }
     return status;
 }
@@ -8160,13 +7741,13 @@ TypeFieldLine(ZirTypeField* field, uint8_t* type, uint8_t* out, size_t size)
         uint8_t* value_18 = compiler_parse_types_ParserCString(StringLiteral(""));
         value_16 = value_18;
     }
-    return zir_f_c9f352eed87788d1_snprintf(value_0, value_1, value_2, value_6, (uint8_t*)(&(field->name)), value_7, value_11, (uint8_t*)(&(field->go_tag)), value_15, (uint8_t*)(&(field->c_type)), value_16);
+    return zir_foreign_compiler_frontend_ir__snprintf(value_0, value_1, value_2, value_6, (uint8_t*)(&(field->name)), value_7, value_11, (uint8_t*)(&(field->go_tag)), value_15, (uint8_t*)(&(field->c_type)), value_16);
 }
 
 int32_t
 TypeFindField(ZirType* record, uint8_t* name, ZirTypeField* field)
 {
-    CompilerThread* thread = zir_f_c9f352eed87788d1_CompilerThreadStateAddress();
+    CompilerThread* thread = zir_foreign_compiler_frontend_ir__CompilerThreadStateAddress();
     CompilerThread* value_0 = thread;
     uint8_t* value_1 = (void *)0;
     if (record != ((void *)0)) {
@@ -8203,7 +7784,7 @@ TypeFindField(ZirType* record, uint8_t* name, ZirTypeField* field)
 int32_t
 TypeHasOnlyPrimitiveFields(ZirType* record)
 {
-    CompilerThread* thread = zir_f_c9f352eed87788d1_CompilerThreadStateAddress();
+    CompilerThread* thread = zir_foreign_compiler_frontend_ir__CompilerThreadStateAddress();
     CompilerThread* value_0 = thread;
     uint8_t* value_1 = (void *)0;
     if (record != ((void *)0)) {
@@ -8242,8 +7823,8 @@ ArrayValueType(uint8_t* type)
 {
     CoreArray128_u8 element = {0};
     bool value_0 = ArrayElementType(type, (uint8_t*)(&(element.items)), (size_t)(sizeof(CoreArray128_u8)), (void *)0) != 0;
-    bool value_1 = value_0 && zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(element.items)), compiler_parse_types_ParserCString(StringLiteral("char"))) != 0;
-    bool value_2 = value_1 && zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(element.items)), compiler_parse_types_ParserCString(StringLiteral("const char"))) != 0;
+    bool value_1 = value_0 && zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(element.items)), compiler_parse_types_ParserCString(StringLiteral("char"))) != 0;
+    bool value_2 = value_1 && zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(element.items)), compiler_parse_types_ParserCString(StringLiteral("const char"))) != 0;
     int32_t value_3 = 0;
     if (value_2) {
         value_3 = 1;
@@ -8254,7 +7835,7 @@ ArrayValueType(uint8_t* type)
 static EnumSnapshots*
 compiler_frontend_ir_context_enums(void)
 {
-    void* value_0 = zir_f_c9f352eed87788d1_CompilerCurrentStorage(5, (size_t)(sizeof(EnumSnapshots)), compiler_frontend_ir_free_enum_values);
+    void* value_0 = zir_foreign_compiler_frontend_ir__CompilerCurrentStorage(5, (size_t)(sizeof(EnumSnapshots)), compiler_frontend_ir_free_enum_values);
     return (EnumSnapshots*)(value_0);
 }
 
@@ -8285,8 +7866,8 @@ compiler_frontend_ir_free_enum_values(void* pointer)
             }
             EnumValues* values = snapshots->slots[i];
             if (values != ((void *)0)) {
-                zir_f_c9f352eed87788d1_CompilerFree((void*)(values->entries));
-                zir_f_c9f352eed87788d1_CompilerFree((void*)(values));
+                zir_foreign_compiler_frontend_ir__CompilerFree((void*)(values->entries));
+                zir_foreign_compiler_frontend_ir__CompilerFree((void*)(values));
             }
             size_t* value_0 = &(i);
             size_t value_1 = 0;
@@ -8300,20 +7881,20 @@ compiler_frontend_ir_free_enum_values(void* pointer)
             (void)value_1;
         }
     }
-    zir_f_c9f352eed87788d1_CompilerFree((void*)(snapshots->slots));
+    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(snapshots->slots));
 }
 
 static EnumValues*
 compiler_frontend_ir_values_of(ZirType* type)
 {
     EnumSnapshots* snapshots = compiler_frontend_ir_context_enums();
-    size_t length = zir_f_c9f352eed87788d1_strnlen((uint8_t*)(&(type->body)), (size_t)(sizeof(CoreArray8192_u8)));
-    size_t backing_length = zir_f_c9f352eed87788d1_strnlen((uint8_t*)(&(type->enum_backing)), (size_t)(sizeof(CoreArray128_u8)));
+    size_t length = zir_foreign_compiler_frontend_ir__strnlen((uint8_t*)(&(type->body)), (size_t)(sizeof(CoreArray8192_u8)));
+    size_t backing_length = zir_foreign_compiler_frontend_ir__strnlen((uint8_t*)(&(type->enum_backing)), (size_t)(sizeof(CoreArray128_u8)));
     if (length == (size_t)(sizeof(CoreArray8192_u8)) || backing_length == (size_t)(sizeof(CoreArray128_u8))) {
         return (void *)0;
     }
-    uint8_t* body = zir_f_c9f352eed87788d1_KeepText((uint8_t*)(&(type->body)));
-    uint8_t* backing = zir_f_c9f352eed87788d1_KeepText((uint8_t*)(&(type->enum_backing)));
+    uint8_t* body = zir_foreign_compiler_frontend_ir__KeepText((uint8_t*)(&(type->body)));
+    uint8_t* backing = zir_foreign_compiler_frontend_ir__KeepText((uint8_t*)(&(type->enum_backing)));
     if ((snapshots[0]).count * (size_t)(2LL) >= (snapshots[0]).capacity) {
         size_t value_0 = 0;
         if ((snapshots[0]).capacity != 0) {
@@ -8322,7 +7903,7 @@ compiler_frontend_ir_values_of(ZirType* type)
             value_0 = (size_t)(128LL);
         }
         size_t capacity = value_0;
-        void* value_1 = zir_f_c9f352eed87788d1_CompilerCalloc(capacity, (size_t)(sizeof(void *)));
+        void* value_1 = zir_foreign_compiler_frontend_ir__CompilerCalloc(capacity, (size_t)(sizeof(void *)));
         EnumValues** slots = (EnumValues**)(value_1);
         if (slots == (EnumValues**)(((void *)0))) {
             return (void *)0;
@@ -8352,7 +7933,7 @@ compiler_frontend_ir_values_of(ZirType* type)
                 (void)value_5;
             }
         }
-        zir_f_c9f352eed87788d1_CompilerFree((void*)((snapshots[0]).slots));
+        zir_foreign_compiler_frontend_ir__CompilerFree((void*)((snapshots[0]).slots));
         EnumValues*** value_8 = &((snapshots[0]).slots);
         (*value_8) = slots;
         size_t* value_9 = &((snapshots[0]).capacity);
@@ -8360,64 +7941,65 @@ compiler_frontend_ir_values_of(ZirType* type)
     }
     size_t slot = compiler_frontend_ir_enum_slot((snapshots[0]).slots, (snapshots[0]).capacity, body, backing);
     if (((snapshots[0]).slots)[slot] != ((void *)0)) {
-        zir_f_c9f352eed87788d1_ProfileCount(compiler_parse_types_ParserCString(StringLiteral("enum_values_reuse")));
+        zir_foreign_compiler_frontend_ir__ProfileCount(compiler_parse_types_ParserCString(StringLiteral("enum_values_reuse")));
         return ((snapshots[0]).slots)[slot];
     }
-    void* value_10 = zir_f_c9f352eed87788d1_CompilerMalloc((length + (size_t)(1LL)) * (size_t)(sizeof(Entry)));
+    void* value_10 = zir_foreign_compiler_frontend_ir__CompilerMalloc((length + (size_t)(1LL)) * (size_t)(sizeof(Entry)));
     Entry* entries = (Entry*)(value_10);
     if (entries == (Entry*)(((void *)0))) {
         return (void *)0;
     }
-    zir_f_c9f352eed87788d1_ProfileCount(compiler_parse_types_ParserCString(StringLiteral("enum_value_parse")));
+    zir_foreign_compiler_frontend_ir__ProfileCount(compiler_parse_types_ParserCString(StringLiteral("enum_value_parse")));
     Slice value_11 = compiler_ir_CBuffer(body, length);
     Slice value_12 = value_11;
     Slice value_13 = compiler_ir_CBuffer(backing, backing_length);
     Slice value_14 = value_13;
     Slice value_15 = compiler_ir_CBuffer((void *)0, (size_t)(0LL));
     Slice value_16 = value_15;
-    Evaluation result = compiler_enum_MemberValue(StringView((const char *)(value_12).data, (size_t)(value_12).length), StringView((const char *)(value_14).data, (size_t)(value_14).length), StringView((const char *)(value_16).data, (size_t)(value_16).length), compiler_frontend_ir___zi_spec_e8f570eea7636cb9((Entry*)((void*)(entries)), (int64_t)((length + (size_t)(1LL)))), 128LL);
-    void* value_17 = zir_f_c9f352eed87788d1_CompilerCalloc((size_t)(1LL), (size_t)(sizeof(EnumValues)));
-    EnumValues* values = (EnumValues*)(value_17);
+    Slice value_17 = compiler_frontend_ir_compiler_frontend_ir_CoreSlice_for_EnumPolicy_Entry((Entry*)((void*)(entries)), (int64_t)((length + (size_t)(1LL))));
+    Evaluation result = compiler_enum_MemberValue(StringView((const char *)(value_12).data, (size_t)(value_12).length), StringView((const char *)(value_14).data, (size_t)(value_14).length), StringView((const char *)(value_16).data, (size_t)(value_16).length), value_17, 128LL);
+    void* value_18 = zir_foreign_compiler_frontend_ir__CompilerCalloc((size_t)(1LL), (size_t)(sizeof(EnumValues)));
+    EnumValues* values = (EnumValues*)(value_18);
     if (values == (EnumValues*)(((void *)0))) {
-        zir_f_c9f352eed87788d1_CompilerFree((void*)(entries));
+        zir_foreign_compiler_frontend_ir__CompilerFree((void*)(entries));
         return (void *)0;
     }
-    uint8_t** value_18 = &(values->body);
-    (*value_18) = body;
-    uint8_t** value_19 = &(values->backing);
-    (*value_19) = backing;
-    int32_t* value_20 = &(values->valid);
-    int32_t value_21 = 0;
+    uint8_t** value_19 = &(values->body);
+    (*value_19) = body;
+    uint8_t** value_20 = &(values->backing);
+    (*value_20) = backing;
+    int32_t* value_21 = &(values->valid);
+    int32_t value_22 = 0;
     if (result.valid) {
-        value_21 = 1;
+        value_22 = 1;
     }
-    (*value_20) = value_21;
+    (*value_21) = value_22;
     if (result.valid != false) {
-        size_t* value_22 = &(values->count);
-        (*value_22) = (size_t)(result.count);
-        Entry** value_23 = &(values->entries);
-        void* value_24 = zir_f_c9f352eed87788d1_CompilerMalloc(values->count * (size_t)(sizeof(Entry)));
-        (*value_23) = (Entry*)(value_24);
+        size_t* value_23 = &(values->count);
+        (*value_23) = (size_t)(result.count);
+        Entry** value_24 = &(values->entries);
+        void* value_25 = zir_foreign_compiler_frontend_ir__CompilerMalloc(values->count * (size_t)(sizeof(Entry)));
+        (*value_24) = (Entry*)(value_25);
         if (values->entries == (Entry*)(((void *)0))) {
-            zir_f_c9f352eed87788d1_CompilerFree((void*)(values));
-            zir_f_c9f352eed87788d1_CompilerFree((void*)(entries));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)(values));
+            zir_foreign_compiler_frontend_ir__CompilerFree((void*)(entries));
             return (void *)0;
         }
-        zir_f_c9f352eed87788d1_memcpy((void*)(values->entries), (void*)(entries), values->count * (size_t)(sizeof(Entry)));
+        zir_foreign_compiler_frontend_ir__memcpy((void*)(values->entries), (void*)(entries), values->count * (size_t)(sizeof(Entry)));
     }
-    zir_f_c9f352eed87788d1_CompilerFree((void*)(entries));
-    EnumValues** value_25 = &(((snapshots[0]).slots)[slot]);
-    (*value_25) = values;
-    size_t* value_26 = &((snapshots[0]).count);
-    size_t value_27 = 0;
+    zir_foreign_compiler_frontend_ir__CompilerFree((void*)(entries));
+    EnumValues** value_26 = &(((snapshots[0]).slots)[slot]);
+    (*value_26) = values;
+    size_t* value_27 = &((snapshots[0]).count);
+    size_t value_28 = 0;
     {
-        size_t* p = value_26;
+        size_t* p = value_27;
         size_t old = p[0];
-        size_t* value_29 = &(p[0]);
-        (*value_29) = p[0] + 1;
-        value_27 = old;
+        size_t* value_30 = &(p[0]);
+        (*value_30) = p[0] + 1;
+        value_28 = old;
     }
-    (void)value_27;
+    (void)value_28;
     return values;
 }
 
@@ -8427,7 +8009,7 @@ EnumMemberValue(ZirType* type, uint8_t* wanted, int64_t* value)
     if (!(type->is_enum != 0)) {
         return 0;
     }
-    void* memory = zir_f_c9f352eed87788d1_CompilerMemoryPause();
+    void* memory = zir_foreign_compiler_frontend_ir__CompilerMemoryPause();
     while (true) {
         bool value_0 = compiler_frontend_ir_CompilerAtomicFlagTestAndSet(&(enum_values_lock));
         bool check_loop_87 = value_0 != false;
@@ -8437,14 +8019,14 @@ EnumMemberValue(ZirType* type, uint8_t* wanted, int64_t* value)
     }
     EnumValues* values = compiler_frontend_ir_values_of(type);
     compiler_frontend_ir_CompilerAtomicFlagClear(&(enum_values_lock));
-    zir_f_c9f352eed87788d1_CompilerMemoryResume(memory);
+    zir_foreign_compiler_frontend_ir__CompilerMemoryResume(memory);
     if (values == (EnumValues*)(((void *)0)) || !(values->valid != 0)) {
         return 0;
     }
     if (wanted == (uint8_t*)(((void *)0))) {
         return 1;
     }
-    Slice value_1 = compiler_ir_CBuffer(wanted, zir_f_c9f352eed87788d1_strlen(wanted));
+    Slice value_1 = compiler_ir_CBuffer(wanted, zir_foreign_compiler_frontend_ir__strlen(wanted));
     Slice value_2 = value_1;
     String name = StringView((const char *)(value_2).data, (size_t)(value_2).length);
     {
@@ -8486,7 +8068,7 @@ EnumMemberValue(ZirType* type, uint8_t* wanted, int64_t* value)
 }
 
 Slice
-compiler_frontend_ir___zi_spec_957717307b902c01(uint8_t* data, int64_t count)
+compiler_frontend_ir_compiler_frontend_ir_CoreSlice_for_u8(uint8_t* data, int64_t count)
 {
     Slice result = {0};
     CoreSliceStorage* raw = (CoreSliceStorage*)(&(result));
@@ -8498,7 +8080,7 @@ compiler_frontend_ir___zi_spec_957717307b902c01(uint8_t* data, int64_t count)
 }
 
 Slice
-compiler_frontend_ir___zi_spec_e8f570eea7636cb9(Entry* data, int64_t count)
+compiler_frontend_ir_compiler_frontend_ir_CoreSlice_for_EnumPolicy_Entry(Entry* data, int64_t count)
 {
     Slice result = {0};
     CoreSliceStorage* raw = (CoreSliceStorage*)(&(result));

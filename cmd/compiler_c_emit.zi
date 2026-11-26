@@ -434,7 +434,10 @@ IsCKeyword :: (name: string) -> bool {
 // field or local with one of these names would expand, as `linux` does
 // to 1 under GCC's GNU modes and `bool` to _Bool.
 IsCMacroName :: (name: string) -> bool {
-    words := string.["bool", "true", "false", "linux", "unix", "i386", "NULL", "EOF", "assert", "offsetof"]
+    words := string.["bool", "true", "false", "linux", "unix", "i386", "NULL", "EOF", "assert", "offsetof",
+        "INT8_MIN", "INT8_MAX", "UINT8_MAX", "INT16_MIN", "INT16_MAX", "UINT16_MAX",
+        "INT32_MIN", "INT32_MAX", "UINT32_MAX", "INT64_MIN", "INT64_MAX", "UINT64_MAX",
+        "INTPTR_MIN", "INTPTR_MAX", "UINTPTR_MAX", "SIZE_MAX", "PTRDIFF_MIN", "PTRDIFF_MAX"]
     for w: words { if name == w { return true } }
     return false
 }
@@ -857,7 +860,115 @@ MarkNativeNameCollisions :: (programs: **IR.ZirProgram, count: s32) -> s32 {
     return ok
 }
 
+// A declaration's module is a readable qualifier. Synthetic applications
+// keep canonical type identities; ambiguous qualifiers retain hashed names.
+#program_export
+QualifyNativeTypeNames :: (programs: **IR.ZirProgram, count: s32) -> s32 {
+    names: NativeValueNames
+    total: s32 = 0
+    for p: cast(s32)0..count - 1 {
+        for m: cast(s32)0..programs[p].module_count - 1 { total += programs[p].modules[m].type_count }
+    }
+    names.bucket_count = total * 2 + 1
+    names.buckets = cast(*s32)malloc(cast(usize)names.bucket_count * size_of(s32))
+    if names.buckets == null { return 0 }
+    memset(cast(*void)names.buckets, 0xff, cast(usize)names.bucket_count * size_of(s32))
+    defer NativeNamesFree(*names)
+    for p: cast(s32)0..count - 1 {
+        for m: cast(s32)0..programs[p].module_count - 1 {
+            module := *programs[p].modules[m]
+            if !PlainIdentifier(*module.name[0]) { continue }
+            for t: cast(s32)0..module.type_count - 1 {
+                type := *module.types[t]
+                if type.native_name_mangled != 1 || type.is_synthetic_application != 0 || type.is_enum != 0 ||
+                   type.is_extern != 0 || type.is_record_template != 0 || !PlainIdentifier(*type.name[0]) { continue }
+                native: [IR.ZIR_NAME_MAX * 2]u8
+                type.native_name_mangled = 2
+                NativeTypeName(module, type, *native[0], IR.ZIR_NAME_MAX * 2)
+                text := IR.CText(*native[0])
+                if IsCRuntimeHeaderName(text) || IsCMacroName(text) || IsCReservedName(.ZIR_C, *native[0]) {
+                    type.native_name_mangled = 1
+                    continue
+                }
+                if NativeNamesAdd(*names, *native[0], *type.native_name_mangled, 1) == 0 { return 0 }
+            }
+        }
+    }
+    for p: cast(s32)0..count - 1 {
+        for m: cast(s32)0..programs[p].module_count - 1 {
+            module := *programs[p].modules[m]
+            native: [IR.ZIR_NAME_MAX * 2]u8
+            for t: cast(s32)0..module.type_count - 1 {
+                type := *module.types[t]
+                if type.native_name_mangled == 2 || type.is_record_template != 0 { continue }
+                NativeTypeName(module, type, *native[0], IR.ZIR_NAME_MAX * 2)
+                NativeNamesMark(*names, *native[0])
+                if type.is_enum != 0 { MarkEnumNames(*names, module, type) }
+            }
+            for f: cast(s32)0..module.function_count - 1 {
+                function := *module.functions[f]
+                if function.is_template != 0 { continue }
+                NativeCFunctionName(module, function, *native[0], IR.ZIR_NAME_MAX * 2)
+                NativeNamesMark(*names, *native[0])
+            }
+            for i: cast(s32)0..module.import_count - 1 {
+                foreign := *module.imports[i]
+                if foreign.kind != .EXTERN || strncmp(*foreign.target[0], CStr("c."), 2) != 0 { continue }
+                NativeCForeignName(module, foreign, *native[0], IR.ZIR_NAME_MAX * 2)
+                NativeNamesMark(*names, *native[0])
+                NativeNamesMark(*names, *foreign.target[2])
+            }
+            for g: cast(s32)0..module.global_count - 1 {
+                TargetGlobalName(module, .ZIR_C, *module.globals[g].name[0], *native[0], IR.ZIR_NAME_MAX * 2)
+                NativeNamesMark(*names, *native[0])
+            }
+            for d: cast(s32)0..module.define_count - 1 {
+                TargetDefineName(module, .ZIR_C, *module.defines[d].name[0], *native[0], IR.ZIR_NAME_MAX * 2)
+                NativeNamesMark(*names, *native[0])
+            }
+        }
+    }
+    NativeNamesMarkShared(*names)
+    return 1
+}
+
 #scope_file
+
+MarkEnumNames :: (names: *NativeValueNames, module: *IR.ZirModule, type: *IR.ZirType) {
+    line := *type.body[0]
+    while line[0] != 0 {
+        member: [IR.ZIR_NAME_MAX]u8
+        length: usize = 0
+        while IsAlnum(line[length]) || line[length] == #char "_" { length += 1 }
+        if length > 0 && length < IR.ZIR_NAME_MAX {
+            memcpy(cast(*void)*member[0], cast(*void)line, length)
+            member[length] = 0
+            native: [IR.ZIR_NAME_MAX * 2]u8
+            if type.c_prefix[0] != 0 {
+                CheckFormat(snprintf(*native[0], IR.ZIR_NAME_MAX * 2, CStr("%s%s"), *type.c_prefix[0], *member[0]), IR.ZIR_NAME_MAX * 2)
+            } else if NativeEnumMemberName(module, type, *member[0], *native[0], IR.ZIR_NAME_MAX * 2) == 0 {
+                prefixed := strncmp(*member[0], *type.name[0], strlen(*type.name[0])) == 0
+                prefix := ifx prefixed then CStr("") else *type.name[0]
+                separator := ifx prefixed then CStr("") else CStr("_")
+                CheckFormat(snprintf(*native[0], IR.ZIR_NAME_MAX * 2, CStr("%s%s%s"), prefix, separator, *member[0]), IR.ZIR_NAME_MAX * 2)
+            }
+            NativeNamesMark(names, *native[0])
+        }
+        next := strchr(line, #char "\n")
+        if next == null { break }
+        line = PtrAdd(next, 1)
+    }
+}
+
+PlainIdentifier :: (name: *u8) -> bool {
+    if name[0] == 0 || IsDigit(name[0]) { return false }
+    p := name
+    while p[0] != 0 {
+        if !IsAlnum(p[0]) && p[0] != #char "_" { return false }
+        p = PtrAdd(p, 1)
+    }
+    return true
+}
 
 NativeTopHash :: (module: *IR.ZirModule, span: IR.ZirSourceSpan, name: *u8) -> u64 {
     hash: u64 = FnvOffset()
@@ -1023,6 +1134,10 @@ NativeTypeIdentity :: (hash: u64, owner: *IR.ZirModule, type: *IR.ZirType, depth
 NativeTypeName :: (owner: *IR.ZirModule, type: *IR.ZirType, out: *u8, size: usize) {
     if type.native_name_mangled == 0 {
         copy_text(out, size, *type.name[0])
+        return
+    }
+    if type.native_name_mangled == 2 {
+        CheckFormat(snprintf(out, size, CStr("%s_%s"), *owner.name[0], *type.name[0]), size)
         return
     }
     hash := NativeTypeIdentity(FnvOffset(), owner, type, 0)
@@ -1195,6 +1310,29 @@ NativeExportName :: (module: *IR.ZirModule, fn: *IR.ZirFunction, out: *u8, size:
     }
 }
 
+#scope_file
+
+SpecializationPrefixLength :: (fn: *IR.ZirFunction) -> usize {
+    length := strlen(*fn.name[0])
+    if fn.is_specialization != 0 && length > 23 &&
+       strncmp(PtrAdd(*fn.name[0], length - 23), CStr("__spec_"), 7) == 0 { return length - 23 }
+    return length
+}
+
+ReadableFunctionName :: (module: *IR.ZirModule, fn: *IR.ZirFunction, out: *u8, size: usize) {
+    copy_text(out, size, *fn.name[0])
+    length := SpecializationPrefixLength(fn)
+    if length == strlen(*fn.name[0]) { return }
+    for f: cast(s32)0..module.function_count - 1 {
+        other := *module.functions[f]
+        if other == fn || other.is_template != 0 { continue }
+        if SpecializationPrefixLength(other) == length && strncmp(*other.name[0], out, length) == 0 { return }
+    }
+    if length < size { out[length] = 0 }
+}
+
+#scope_export
+
 #program_export
 NativeCFunctionName :: (module: *IR.ZirModule, fn: *IR.ZirFunction, out: *u8, size: usize) {
     if NativeProgramMain(module, fn) != 0 {
@@ -1211,6 +1349,8 @@ NativeCFunctionName :: (module: *IR.ZirModule, fn: *IR.ZirFunction, out: *u8, si
         NativeExportName(module, fn, out, size)
         return
     }
+    readable: [IR.ZIR_NAME_MAX]u8
+    ReadableFunctionName(module, fn, *readable[0], IR.ZIR_NAME_MAX)
     if module.name[0] != 0 && strcmp(*module.name[0], CStr("main")) != 0 {
         prefix: [256]u8
         used: usize = 0
@@ -1224,7 +1364,7 @@ NativeCFunctionName :: (module: *IR.ZirModule, fn: *IR.ZirFunction, out: *u8, si
             hash: u64 = FnvOffset()
             r := *module.name[0]
             while r[0] != 0 { hash = (hash ^ cast(u64)r[0]) * cast(u64)FNV_PRIME; r = PtrAdd(r, 1) }
-            CheckFormat(snprintf(out, size, CStr("zir_m_%016llx_%s"), hash, *fn.name[0]), size)
+            CheckFormat(snprintf(out, size, CStr("zir_m_%016llx_%s"), hash, *readable[0]), size)
             return
         }
         s := *module.name[0]
@@ -1234,18 +1374,31 @@ NativeCFunctionName :: (module: *IR.ZirModule, fn: *IR.ZirFunction, out: *u8, si
             s = PtrAdd(s, 1)
         }
         prefix[used] = 0
-        CheckFormat(snprintf(out, size, CStr("%s_%s"), *prefix[0], *fn.name[0]), size)
+        CheckFormat(snprintf(out, size, CStr("%s_%s"), *prefix[0], *readable[0]), size)
     } else {
-        copy_text(out, size, *fn.name[0])
+        copy_text(out, size, *readable[0])
     }
 }
 
 #program_export
 NativeCForeignName :: (module: *IR.ZirModule, foreign: *IR.ZirImport, out: *u8, size: usize) {
-    hash: u64 = FnvOffset()
+    // Keep the separator unambiguous: encoded module identities use a
+    // different prefix, and ordinary names never contain a double underscore.
+    readable := module.name[0] != 0 && strstr(*module.name[0], CStr("__")) == null &&
+        strstr(*foreign.name[0], CStr("__")) == null
     p := *module.name[0]
+    while p[0] != 0 {
+        if !IsAlnum(p[0]) && p[0] != #char "_" { readable = false }
+        p = PtrAdd(p, 1)
+    }
+    if readable {
+        CheckFormat(snprintf(out, size, CStr("zir_foreign_%s__%s"), *module.name[0], *foreign.name[0]), size)
+        return
+    }
+    hash: u64 = FnvOffset()
+    p = *module.name[0]
     while p[0] != 0 { hash = (hash ^ cast(u64)p[0]) * cast(u64)FNV_PRIME; p = PtrAdd(p, 1) }
-    CheckFormat(snprintf(out, size, CStr("zir_f_%016llx_%s"), hash, *foreign.name[0]), size)
+    CheckFormat(snprintf(out, size, CStr("zir_encoded_foreign_%016llx__%s"), hash, *foreign.name[0]), size)
 }
 
 #scope_file
@@ -1419,7 +1572,9 @@ NativeGoFunctionName :: (programs: **IR.ZirProgram, count: s32, module: *IR.ZirM
     guard: [256]u8
     name: [256]u8
     NativeGoModuleIdentity(programs, count, module, *stem[0], IR.ZIR_PATH_MAX, *guard[0], 256)
-    camel_ident(*fn.name[0], *name[0], 256)
+    readable: [IR.ZIR_NAME_MAX]u8
+    ReadableFunctionName(module, fn, *readable[0], IR.ZIR_NAME_MAX)
+    camel_ident(*readable[0], *name[0], 256)
     CheckFormat(snprintf(out, size, CStr("%s_%s"), *guard[0], *name[0]), size)
 }
 

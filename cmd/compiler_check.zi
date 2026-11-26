@@ -2088,11 +2088,32 @@ specialization_hash :: (owner: *IR.ZirModule, instance_owner: *IR.ZirModule, fn:
     return hash
 }
 
+// Keep the structural identity in checked IR, with an origin and type a
+// reader can recognize. Native output may omit the identity suffix when its
+// readable name is unambiguous in the caller's module.
+SpecializationName :: (owner: *IR.ZirModule, fn: *IR.ZirFunction, type: *u8, hash: u64, out: *u8, size: usize) -> bool {
+    if size < 25 { return false }
+    used: usize = 0
+    parts: [5]*u8 = .{*owner.name[0], CheckCString("_"), *fn.name[0], CheckCString("_for_"), type}
+    for part: parts {
+        p := part
+        while p[0] != 0 && used + 24 < size {
+            c := p[0]
+            identifier := (c >= #char "a" && c <= #char "z") || (c >= #char "A" && c <= #char "Z") ||
+                (c >= #char "0" && c <= #char "9") || c == #char "_"
+            out[used] = ifx identifier then c else #char "_"
+            used += 1
+            p = cast(*u8)(cast(usize)p + 1)
+        }
+    }
+    length := snprintf(cast(*u8)(cast(usize)out + used), size - used, CheckCString("__spec_%016llx"), hash)
+    return length == 23
+}
+
 #scope_export
 #program_export "private_check_queue_specialization"
 queue_specialization :: (c: *Checker, owner: *IR.ZirModule, instance_owner: *IR.ZirModule, fn: *IR.ZirFunction, type: *u8, name: *u8, name_size: usize, span: IR.ZirSourceSpan) -> s32 {
-    length: s32 = snprintf(name, name_size, CheckCString("__zi_spec_%016llx"), cast(u64)(specialization_hash(owner, instance_owner, fn, type)))
-    if ((length < 0) || (cast(usize)(length) >= name_size)) {
+    if !SpecializationName(owner, fn, type, specialization_hash(owner, instance_owner, fn, type), name, name_size) {
         return 0
     }
     index: s32 = cast(s32)(((cast(s64)(cast(isize)(cast(usize)(fn) - cast(usize)((owner).functions))) / cast(s64)size_of(IR.ZirFunction))))

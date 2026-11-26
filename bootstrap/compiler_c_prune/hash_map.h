@@ -67,11 +67,11 @@ uint64_t hash_map_HashKey__overload_1(String key);
 uint64_t hash_map_HashKey__overload_2(uint64_t key);
 uint64_t hash_map_HashKey__overload_3(int64_t key);
 uint64_t hash_map_HashKey__overload_4(uint32_t key);
-bool hash_map___zi_spec_23e963c184ddc8df(__type_85ffe259200e6bb1* map, String key, int64_t* value);
-void hash_map___zi_spec_90efdf9e469b09ec(__type_85ffe259200e6bb1* map, String key, int64_t value);
-int64_t hash_map___zi_spec_af9585169f62289c(__type_85ffe259200e6bb1* map, String key);
-void hash_map___zi_spec_a11f9e576bfe3ee9(__type_85ffe259200e6bb1* map);
-void hash_map___zi_spec_f0f383db5d7335ae(__type_85ffe259200e6bb1* map, int64_t capacity);
+bool hash_map_hash_map_HashMapGet_for_string_s64(__type_85ffe259200e6bb1* map, String key, int64_t* value);
+void hash_map_hash_map_HashMapSet_for_string_s64(__type_85ffe259200e6bb1* map, String key, int64_t value);
+int64_t hash_map_hash_map_HashMapFind_for_string_s64(__type_85ffe259200e6bb1* map, String key);
+void hash_map_hash_map_HashMapGrow_for_string_s64(__type_85ffe259200e6bb1* map);
+void hash_map_hash_map_HashMapRehash_for_string_s64(__type_85ffe259200e6bb1* map, int64_t capacity);
 
 /* Small procedures other modules inline; hash_map.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_HASH_MAP_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
@@ -86,14 +86,14 @@ static inline uint64_t hash_map_HashKey__overload_3_ziran_inline(int64_t key);
 #define hash_map_HashKey__overload_3(...) hash_map_HashKey__overload_3_ziran_inline(__VA_ARGS__)
 static inline uint64_t hash_map_HashKey__overload_4_ziran_inline(uint32_t key);
 #define hash_map_HashKey__overload_4(...) hash_map_HashKey__overload_4_ziran_inline(__VA_ARGS__)
-static inline bool hash_map___zi_spec_23e963c184ddc8df_ziran_inline(__type_85ffe259200e6bb1* map, String key, int64_t* value);
-#define hash_map___zi_spec_23e963c184ddc8df(...) hash_map___zi_spec_23e963c184ddc8df_ziran_inline(__VA_ARGS__)
-static inline void hash_map___zi_spec_90efdf9e469b09ec_ziran_inline(__type_85ffe259200e6bb1* map, String key, int64_t value);
-#define hash_map___zi_spec_90efdf9e469b09ec(...) hash_map___zi_spec_90efdf9e469b09ec_ziran_inline(__VA_ARGS__)
-static inline int64_t hash_map___zi_spec_af9585169f62289c_ziran_inline(__type_85ffe259200e6bb1* map, String key);
-#define hash_map___zi_spec_af9585169f62289c(...) hash_map___zi_spec_af9585169f62289c_ziran_inline(__VA_ARGS__)
-static inline void hash_map___zi_spec_a11f9e576bfe3ee9_ziran_inline(__type_85ffe259200e6bb1* map);
-#define hash_map___zi_spec_a11f9e576bfe3ee9(...) hash_map___zi_spec_a11f9e576bfe3ee9_ziran_inline(__VA_ARGS__)
+static inline bool hash_map_hash_map_HashMapGet_for_string_s64_ziran_inline(__type_85ffe259200e6bb1* map, String key, int64_t* value);
+#define hash_map_hash_map_HashMapGet_for_string_s64(...) hash_map_hash_map_HashMapGet_for_string_s64_ziran_inline(__VA_ARGS__)
+static inline void hash_map_hash_map_HashMapSet_for_string_s64_ziran_inline(__type_85ffe259200e6bb1* map, String key, int64_t value);
+#define hash_map_hash_map_HashMapSet_for_string_s64(...) hash_map_hash_map_HashMapSet_for_string_s64_ziran_inline(__VA_ARGS__)
+static inline int64_t hash_map_hash_map_HashMapFind_for_string_s64_ziran_inline(__type_85ffe259200e6bb1* map, String key);
+#define hash_map_hash_map_HashMapFind_for_string_s64(...) hash_map_hash_map_HashMapFind_for_string_s64_ziran_inline(__VA_ARGS__)
+static inline void hash_map_hash_map_HashMapGrow_for_string_s64_ziran_inline(__type_85ffe259200e6bb1* map);
+#define hash_map_hash_map_HashMapGrow_for_string_s64(...) hash_map_hash_map_HashMapGrow_for_string_s64_ziran_inline(__VA_ARGS__)
 
 static inline uint64_t
 hash_map_HashKey__overload_1_ziran_inline(String key)
@@ -146,9 +146,9 @@ hash_map_HashKey__overload_4_ziran_inline(uint32_t key)
 }
 
 static inline bool
-hash_map___zi_spec_23e963c184ddc8df_ziran_inline(__type_85ffe259200e6bb1* map, String key, int64_t* value)
+hash_map_hash_map_HashMapGet_for_string_s64_ziran_inline(__type_85ffe259200e6bb1* map, String key, int64_t* value)
 {
-    int64_t slot = hash_map___zi_spec_af9585169f62289c(map, key);
+    int64_t slot = hash_map_hash_map_HashMapFind_for_string_s64(map, key);
     if (slot < 0LL) {
         return false;
     }
@@ -158,7 +158,7 @@ hash_map___zi_spec_23e963c184ddc8df_ziran_inline(__type_85ffe259200e6bb1* map, S
 }
 
 static inline void
-hash_map___zi_spec_90efdf9e469b09ec_ziran_inline(__type_85ffe259200e6bb1* map, String key, int64_t value)
+hash_map_hash_map_HashMapSet_for_string_s64_ziran_inline(__type_85ffe259200e6bb1* map, String key, int64_t value)
 {
     int64_t value_0 = (int64_t)(((uint64_t)(map->count) + UINT64_C(1)) * UINT64_C(2));
     int64_t value_1 = map->states.count;
@@ -170,7 +170,7 @@ hash_map___zi_spec_90efdf9e469b09ec_ziran_inline(__type_85ffe259200e6bb1* map, S
             if (capacity < 8LL) {
                 capacity = 8LL;
             }
-            hash_map___zi_spec_f0f383db5d7335ae(map, capacity);
+            hash_map_hash_map_HashMapRehash_for_string_s64(map, capacity);
         }
     } else {
         int64_t value_4 = map->removed;
@@ -182,7 +182,7 @@ hash_map___zi_spec_90efdf9e469b09ec_ziran_inline(__type_85ffe259200e6bb1* map, S
             value_6 = (value_7 >= value_8);
         }
         if (value_6) {
-            hash_map___zi_spec_f0f383db5d7335ae(map, map->states.count);
+            hash_map_hash_map_HashMapRehash_for_string_s64(map, map->states.count);
         }
     }
     int64_t mask = (int64_t)((uint64_t)(map->states.count) - UINT64_C(1));
@@ -224,7 +224,7 @@ hash_map___zi_spec_90efdf9e469b09ec_ziran_inline(__type_85ffe259200e6bb1* map, S
 }
 
 static inline int64_t
-hash_map___zi_spec_af9585169f62289c_ziran_inline(__type_85ffe259200e6bb1* map, String key)
+hash_map_hash_map_HashMapFind_for_string_s64_ziran_inline(__type_85ffe259200e6bb1* map, String key)
 {
     int64_t value_0 = map->states.count;
     if (value_0 == 0LL) {
@@ -251,13 +251,13 @@ hash_map___zi_spec_af9585169f62289c_ziran_inline(__type_85ffe259200e6bb1* map, S
 }
 
 static inline void
-hash_map___zi_spec_a11f9e576bfe3ee9_ziran_inline(__type_85ffe259200e6bb1* map)
+hash_map_hash_map_HashMapGrow_for_string_s64_ziran_inline(__type_85ffe259200e6bb1* map)
 {
     int64_t capacity = (int64_t)((uint64_t)(map->states.count) * UINT64_C(2));
     if (capacity < 8LL) {
         capacity = 8LL;
     }
-    hash_map___zi_spec_f0f383db5d7335ae(map, capacity);
+    hash_map_hash_map_HashMapRehash_for_string_s64(map, capacity);
 }
 #endif
 

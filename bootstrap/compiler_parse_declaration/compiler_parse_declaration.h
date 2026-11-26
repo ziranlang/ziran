@@ -49,9 +49,9 @@ int32_t private_parse_declare_multiple_results(ZirModule* module, uint8_t* name,
 int32_t private_parse_lower_multiple_return(uint8_t* text, size_t size, uint8_t* record, int32_t count, ZirSourceSpan span);
 int32_t private_parse_split_multiple_binding(uint8_t* text, ParserArray128_u8* targets, int32_t max, uint8_t* operator_local, uint8_t* value, size_t value_size);
 int32_t private_parse_expand_builder_print(uint8_t* text, ParserArray4096_u8* lines, int32_t max, ZirSourceSpan span);
-Slice compiler_parse_declaration___zi_spec_3f159bfcb4a44a9a(uint8_t* data, int64_t count);
-Slice compiler_parse_declaration___zi_spec_ba8ed0012b4dc792(NameReplacement* data, int64_t count);
-Slice compiler_parse_declaration___zi_spec_cb1158e0a2f5c329(StatementOutput* data, int64_t count);
+Slice compiler_parse_declaration_compiler_parse_declaration_S14Slice_for_u8(uint8_t* data, int64_t count);
+Slice compiler_parse_declaration_compiler_parse_declaration_S14Slice_for_Declaration_NameReplacement(NameReplacement* data, int64_t count);
+Slice compiler_parse_declaration_compiler_parse_declaration_S14Slice_for_Declaration_StatementOutput(StatementOutput* data, int64_t count);
 
 #ifdef __cplusplus
 }

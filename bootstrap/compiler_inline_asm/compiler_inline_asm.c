@@ -78,7 +78,7 @@ compiler_inline_asm_OperandType(uint8_t* type)
     if (type[0] == 42) {
         return true;
     }
-    uint8_t* scalar = zir_f_b231ca7561351ed8_ScalarType(type);
+    uint8_t* scalar = zir_foreign_compiler_inline_asm__ScalarType(type);
     uint8_t* value_0 = compiler_inline_asm_TargetType(scalar, (ZirTarget)(0));
     bool value_1 = value_0 != ((void *)0);
     bool value_2 = value_1;
@@ -87,7 +87,7 @@ compiler_inline_asm_OperandType(uint8_t* type)
         uint8_t* value_4 = (void *)0;
         {
             String s = value_3;
-            value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         bool value_6 = compiler_inline_asm_Same(scalar, value_4);
         value_2 = !value_6;
@@ -99,7 +99,7 @@ compiler_inline_asm_OperandType(uint8_t* type)
         uint8_t* value_10 = (void *)0;
         {
             String s = value_9;
-            value_10 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_10 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         bool value_12 = compiler_inline_asm_Same(scalar, value_10);
         value_8 = !value_12;
@@ -114,7 +114,7 @@ compiler_inline_asm_SliceOperand(uint8_t* type)
     if (type == ((void *)0)) {
         return false;
     }
-    bool value_0 = zir_f_b231ca7561351ed8_SliceElementType(type, &(element[0]), (ZIR_NAME_MAX) * (sizeof(uint8_t))) != 0;
+    bool value_0 = zir_foreign_compiler_inline_asm__SliceElementType(type, &(element[0]), (ZIR_NAME_MAX) * (sizeof(uint8_t))) != 0;
     return value_0 && compiler_inline_asm_OperandType(&(element[0]));
 }
 
@@ -141,7 +141,7 @@ compiler_inline_asm_TemplateOperandType(ZirFunction* fn, uint8_t* type)
     }
     uint8_t* name = value_0;
     uint8_t* value_3 = name;
-    return zir_f_b231ca7561351ed8_TemplateParameterIndex(&(fn->template_param[0]), value_3, zir_f_b231ca7561351ed8_strlen(name)) >= 0;
+    return zir_foreign_compiler_inline_asm__TemplateParameterIndex(&(fn->template_param[0]), value_3, zir_foreign_compiler_inline_asm__strlen(name)) >= 0;
 }
 
 bool
@@ -204,7 +204,7 @@ compiler_inline_asm_TemplateResultType(ZirFunction* fn)
             uint8_t* to = at;
             value_15 = (size_t)(to) - (size_t)(from);
         }
-        if (zir_f_b231ca7561351ed8_TemplateParameterIndex(&(fn->template_param[0]), value_14, value_15) >= 0) {
+        if (zir_foreign_compiler_inline_asm__TemplateParameterIndex(&(fn->template_param[0]), value_14, value_15) >= 0) {
             return true;
         }
     }
@@ -331,7 +331,7 @@ compiler_inline_asm_X86RegisterSlots(uint8_t* text, size_t length, int32_t* slot
                 uint8_t* value_13 = (void *)0;
                 {
                     String s = value_12;
-                    value_13 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_13 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 bool value_15 = compiler_inline_asm_Same(suffix, value_13);
                 value_11 = value_15;
@@ -343,7 +343,7 @@ compiler_inline_asm_X86RegisterSlots(uint8_t* text, size_t length, int32_t* slot
                 uint8_t* value_19 = (void *)0;
                 {
                     String s = value_18;
-                    value_19 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_19 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 bool value_21 = compiler_inline_asm_Same(suffix, value_19);
                 value_17 = value_21;
@@ -355,7 +355,7 @@ compiler_inline_asm_X86RegisterSlots(uint8_t* text, size_t length, int32_t* slot
                 uint8_t* value_25 = (void *)0;
                 {
                     String s = value_24;
-                    value_25 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_25 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 bool value_27 = compiler_inline_asm_Same(suffix, value_25);
                 value_23 = value_27;
@@ -373,18 +373,18 @@ compiler_inline_asm_X86RegisterSlots(uint8_t* text, size_t length, int32_t* slot
     uint8_t* value_30 = (void *)0;
     {
         String s = value_29;
-        value_30 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_30 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    bool value_32 = zir_f_b231ca7561351ed8_strncmp(text, value_30, 3) == 0;
+    bool value_32 = zir_foreign_compiler_inline_asm__strncmp(text, value_30, 3) == 0;
     bool value_33 = value_32;
     if (!value_33) {
         String value_34 = StringLiteral("ymm");
         uint8_t* value_35 = (void *)0;
         {
             String s = value_34;
-            value_35 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_35 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        bool value_37 = zir_f_b231ca7561351ed8_strncmp(text, value_35, 3) == 0;
+        bool value_37 = zir_foreign_compiler_inline_asm__strncmp(text, value_35, 3) == 0;
         value_33 = value_37;
     }
     bool value_38 = value_33;
@@ -393,9 +393,9 @@ compiler_inline_asm_X86RegisterSlots(uint8_t* text, size_t length, int32_t* slot
         uint8_t* value_40 = (void *)0;
         {
             String s = value_39;
-            value_40 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_40 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        bool value_42 = zir_f_b231ca7561351ed8_strncmp(text, value_40, 3) == 0;
+        bool value_42 = zir_foreign_compiler_inline_asm__strncmp(text, value_40, 3) == 0;
         value_38 = value_42;
     }
     if (value_38) {
@@ -430,9 +430,9 @@ compiler_inline_asm_X86RegisterSlots(uint8_t* text, size_t length, int32_t* slot
     uint8_t* value_50 = (void *)0;
     {
         String s = value_49;
-        value_50 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_50 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    if (zir_f_b231ca7561351ed8_strncmp(text, value_50, 2) == 0) {
+    if (zir_foreign_compiler_inline_asm__strncmp(text, value_50, 2) == 0) {
         uint8_t* value_52 = (void *)0;
         {
             uint8_t* p = text;
@@ -450,7 +450,7 @@ compiler_inline_asm_X86RegisterSlots(uint8_t* text, size_t length, int32_t* slot
     uint8_t* value_56 = (void *)0;
     {
         String s = value_55;
-        value_56 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_56 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     if (compiler_inline_asm_Same(text, value_56)) {
         int32_t* value_58 = &(slots[0]);
@@ -479,9 +479,9 @@ compiler_inline_asm_AArch64RegisterSlots(uint8_t* text, size_t length, int32_t* 
     uint8_t* value_4 = (void *)0;
     {
         String s = value_3;
-        value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    uint8_t* value_6 = zir_f_b231ca7561351ed8_strchr(value_4, (int32_t)(text[0]));
+    uint8_t* value_6 = zir_foreign_compiler_inline_asm__strchr(value_4, (int32_t)(text[0]));
     if (value_6 != ((void *)0) && number >= 0 && number < 32) {
         int32_t* value_7 = &(slots[0]);
         (*value_7) = (int32_t)(32u + (uint32_t)number);
@@ -491,7 +491,7 @@ compiler_inline_asm_AArch64RegisterSlots(uint8_t* text, size_t length, int32_t* 
     uint8_t* value_9 = (void *)0;
     {
         String s = value_8;
-        value_9 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_9 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     if (compiler_inline_asm_Same(text, value_9)) {
         int32_t* value_11 = &(slots[0]);
@@ -502,7 +502,7 @@ compiler_inline_asm_AArch64RegisterSlots(uint8_t* text, size_t length, int32_t* 
     uint8_t* value_13 = (void *)0;
     {
         String s = value_12;
-        value_13 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_13 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     if (compiler_inline_asm_Same(text, value_13)) {
         int32_t* value_15 = &(slots[0]);
@@ -513,7 +513,7 @@ compiler_inline_asm_AArch64RegisterSlots(uint8_t* text, size_t length, int32_t* 
     uint8_t* value_17 = (void *)0;
     {
         String s = value_16;
-        value_17 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_17 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     bool value_19 = compiler_inline_asm_Same(text, value_17);
     bool value_20 = value_19;
@@ -522,7 +522,7 @@ compiler_inline_asm_AArch64RegisterSlots(uint8_t* text, size_t length, int32_t* 
         uint8_t* value_22 = (void *)0;
         {
             String s = value_21;
-            value_22 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_22 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         bool value_24 = compiler_inline_asm_Same(text, value_22);
         value_20 = value_24;
@@ -545,7 +545,7 @@ compiler_inline_asm_ArmRegisterSlots(uint8_t* text, size_t length, int32_t* slot
         if (i <= range_last_0) for (;;) {
             if (compiler_inline_asm_Same(text, (arm_register_aliases)[((int32_t)((uint32_t)i * 2u))])) {
                 uint8_t* canonical = (arm_register_aliases)[((int32_t)(((uint32_t)i * 2u) + 1u))];
-                return compiler_inline_asm_RegisterSlots(3, canonical, zir_f_b231ca7561351ed8_strlen(canonical), slots);
+                return compiler_inline_asm_RegisterSlots(3, canonical, zir_foreign_compiler_inline_asm__strlen(canonical), slots);
             }
             if (i == range_last_0) {
                 break;
@@ -673,7 +673,7 @@ compiler_inline_asm_RegisterClobberName(int32_t architecture, int32_t slot, uint
             uint8_t* value_4 = (void *)0;
             {
                 String s = value_3;
-                value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             uint8_t* value_6 = (void *)0;
             if (architecture == 1) {
@@ -681,47 +681,47 @@ compiler_inline_asm_RegisterClobberName(int32_t architecture, int32_t slot, uint
             } else {
                 value_6 = (x86_64_register_names)[slot];
             }
-            zir_f_b231ca7561351ed8_snprintf(out, size, value_4, value_6);
+            zir_foreign_compiler_inline_asm__snprintf(out, size, value_4, value_6);
         } else if (slot < 16) {
             String value_7 = StringLiteral("r%d");
             uint8_t* value_8 = (void *)0;
             {
                 String s = value_7;
-                value_8 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_8 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_snprintf(out, size, value_8, slot);
+            zir_foreign_compiler_inline_asm__snprintf(out, size, value_8, slot);
         } else if (slot < 48) {
             String value_10 = StringLiteral("xmm%d");
             uint8_t* value_11 = (void *)0;
             {
                 String s = value_10;
-                value_11 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_snprintf(out, size, value_11, (int32_t)((uint32_t)slot - 16u));
+            zir_foreign_compiler_inline_asm__snprintf(out, size, value_11, (int32_t)((uint32_t)slot - 16u));
         } else if (slot < 56) {
             String value_13 = StringLiteral("k%d");
             uint8_t* value_14 = (void *)0;
             {
                 String s = value_13;
-                value_14 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_14 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_snprintf(out, size, value_14, (int32_t)((uint32_t)slot - 48u));
+            zir_foreign_compiler_inline_asm__snprintf(out, size, value_14, (int32_t)((uint32_t)slot - 48u));
         } else if (slot < 64) {
             String value_16 = StringLiteral("mm%d");
             uint8_t* value_17 = (void *)0;
             {
                 String s = value_16;
-                value_17 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_17 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_snprintf(out, size, value_17, (int32_t)((uint32_t)slot - 56u));
+            zir_foreign_compiler_inline_asm__snprintf(out, size, value_17, (int32_t)((uint32_t)slot - 56u));
         } else {
             String value_19 = StringLiteral("st");
             uint8_t* value_20 = (void *)0;
             {
                 String s = value_19;
-                value_20 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_snprintf(out, size, value_20);
+            zir_foreign_compiler_inline_asm__snprintf(out, size, value_20);
         }
     } else if (architecture == 2) {
         if (slot < 31) {
@@ -729,17 +729,17 @@ compiler_inline_asm_RegisterClobberName(int32_t architecture, int32_t slot, uint
             uint8_t* value_23 = (void *)0;
             {
                 String s = value_22;
-                value_23 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_23 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_snprintf(out, size, value_23, slot);
+            zir_foreign_compiler_inline_asm__snprintf(out, size, value_23, slot);
         } else {
             String value_25 = StringLiteral("v%d");
             uint8_t* value_26 = (void *)0;
             {
                 String s = value_25;
-                value_26 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_26 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_snprintf(out, size, value_26, (int32_t)((uint32_t)slot - 32u));
+            zir_foreign_compiler_inline_asm__snprintf(out, size, value_26, (int32_t)((uint32_t)slot - 32u));
         }
     } else {
         if (slot == 14) {
@@ -747,25 +747,25 @@ compiler_inline_asm_RegisterClobberName(int32_t architecture, int32_t slot, uint
             uint8_t* value_29 = (void *)0;
             {
                 String s = value_28;
-                value_29 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_29 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_snprintf(out, size, value_29);
+            zir_foreign_compiler_inline_asm__snprintf(out, size, value_29);
         } else if (slot < 16) {
             String value_31 = StringLiteral("r%d");
             uint8_t* value_32 = (void *)0;
             {
                 String s = value_31;
-                value_32 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_32 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_snprintf(out, size, value_32, slot);
+            zir_foreign_compiler_inline_asm__snprintf(out, size, value_32, slot);
         } else {
             String value_34 = StringLiteral("d%d");
             uint8_t* value_35 = (void *)0;
             {
                 String s = value_34;
-                value_35 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_35 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_snprintf(out, size, value_35, (int32_t)((uint32_t)slot - 16u));
+            zir_foreign_compiler_inline_asm__snprintf(out, size, value_35, (int32_t)((uint32_t)slot - 16u));
         }
     }
     return out;
@@ -778,7 +778,7 @@ compiler_inline_asm_ClobberItem(int32_t architecture, uint8_t* item, RegisterSet
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     if (compiler_inline_asm_Same(item, value_1)) {
         int32_t* value_3 = &((*(memory)));
@@ -789,7 +789,7 @@ compiler_inline_asm_ClobberItem(int32_t architecture, uint8_t* item, RegisterSet
     uint8_t* value_5 = (void *)0;
     {
         String s = value_4;
-        value_5 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_5 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     if (compiler_inline_asm_Same(item, value_5)) {
         return 1;
@@ -815,7 +815,7 @@ compiler_inline_asm_ClobberItem(int32_t architecture, uint8_t* item, RegisterSet
         uint8_t* value_15 = (void *)0;
         {
             String s = value_14;
-            value_15 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_15 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         bool value_17 = compiler_inline_asm_Same(item, value_15);
         bool value_18 = value_17;
@@ -824,7 +824,7 @@ compiler_inline_asm_ClobberItem(int32_t architecture, uint8_t* item, RegisterSet
             uint8_t* value_20 = (void *)0;
             {
                 String s = value_19;
-                value_20 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             bool value_22 = compiler_inline_asm_Same(item, value_20);
             value_18 = value_22;
@@ -835,7 +835,7 @@ compiler_inline_asm_ClobberItem(int32_t architecture, uint8_t* item, RegisterSet
             uint8_t* value_25 = (void *)0;
             {
                 String s = value_24;
-                value_25 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_25 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             bool value_27 = compiler_inline_asm_Same(item, value_25);
             value_23 = value_27;
@@ -849,9 +849,9 @@ compiler_inline_asm_ClobberItem(int32_t architecture, uint8_t* item, RegisterSet
     uint8_t* value_29 = (void *)0;
     {
         String s = value_28;
-        value_29 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_29 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    uint8_t* dots = zir_f_b231ca7561351ed8_strstr(item, value_29);
+    uint8_t* dots = zir_foreign_compiler_inline_asm__strstr(item, value_29);
     size_t value_31 = 0;
     if (dots != ((void *)0)) {
         size_t value_32 = 0;
@@ -862,7 +862,7 @@ compiler_inline_asm_ClobberItem(int32_t architecture, uint8_t* item, RegisterSet
         }
         value_31 = value_32;
     } else {
-        size_t value_34 = zir_f_b231ca7561351ed8_strlen(item);
+        size_t value_34 = zir_foreign_compiler_inline_asm__strlen(item);
         value_31 = value_34;
     }
     size_t first_length = value_31;
@@ -873,15 +873,15 @@ compiler_inline_asm_ClobberItem(int32_t architecture, uint8_t* item, RegisterSet
         uint8_t* value_36 = (void *)0;
         {
             String s = value_35;
-            value_36 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_36 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         String value_38 = StringLiteral("unknown #asm clobber '%s' for %s");
         uint8_t* value_39 = (void *)0;
         {
             String s = value_38;
-            value_39 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_39 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_Diagnostic(span, value_36, value_39, item, (architecture_names)[architecture]);
+        zir_foreign_compiler_inline_asm__Diagnostic(span, value_36, value_39, item, (architecture_names)[architecture]);
         return 0;
     }
     int32_t last = (slots)[((int32_t)((uint32_t)count - 1u))];
@@ -909,8 +909,8 @@ compiler_inline_asm_ClobberItem(int32_t architecture, uint8_t* item, RegisterSet
             prefix = prefix + 1;
         }
         int32_t other[2] = {0};
-        int32_t other_count = compiler_inline_asm_RegisterSlots(architecture, second, zir_f_b231ca7561351ed8_strlen(second), &(other[0]));
-        bool value_47 = other_count == 0 || zir_f_b231ca7561351ed8_strncmp(item, second, prefix) != 0;
+        int32_t other_count = compiler_inline_asm_RegisterSlots(architecture, second, zir_foreign_compiler_inline_asm__strlen(second), &(other[0]));
+        bool value_47 = other_count == 0 || zir_foreign_compiler_inline_asm__strncmp(item, second, prefix) != 0;
         bool value_48 = value_47;
         if (!value_48) {
             uint8_t value_49 = second[prefix];
@@ -926,15 +926,15 @@ compiler_inline_asm_ClobberItem(int32_t architecture, uint8_t* item, RegisterSet
             uint8_t* value_53 = (void *)0;
             {
                 String s = value_52;
-                value_53 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_53 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             String value_55 = StringLiteral("invalid #asm clobber range '%s'");
             uint8_t* value_56 = (void *)0;
             {
                 String s = value_55;
-                value_56 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_56 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_Diagnostic(span, value_53, value_56, item);
+            zir_foreign_compiler_inline_asm__Diagnostic(span, value_53, value_56, item);
             return 0;
         }
         last = (other)[((int32_t)((uint32_t)other_count - 1u))];
@@ -977,15 +977,15 @@ compiler_inline_asm_ClobberItem(int32_t architecture, uint8_t* item, RegisterSet
                 uint8_t* value_66 = (void *)0;
                 {
                     String s = value_65;
-                    value_66 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_66 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 String value_68 = StringLiteral("#asm cannot clobber %s, the stack, frame or platform register");
                 uint8_t* value_69 = (void *)0;
                 {
                     String s = value_68;
-                    value_69 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_69 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_Diagnostic(span, value_66, value_69, compiler_inline_asm_RegisterClobberName(architecture, slot, &(name[0]), 16));
+                zir_foreign_compiler_inline_asm__Diagnostic(span, value_66, value_69, compiler_inline_asm_RegisterClobberName(architecture, slot, &(name[0]), 16));
                 return 0;
             }
             RegisterSet* value_71 = set;
@@ -1020,7 +1020,7 @@ compiler_inline_asm_ClobberSet(Assembly* assembly, RegisterSet* set, int32_t* me
         uint8_t* value_2 = (void *)0;
         {
             String s = value_1;
-            value_2 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_2 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return compiler_inline_asm_AssemblyError(span, value_2);
     }
@@ -1057,12 +1057,12 @@ compiler_inline_asm_PinnedRegisters(int32_t architecture, uint8_t* constraint, R
     uint8_t* value_4 = (void *)0;
     {
         String s = value_3;
-        value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     uint8_t* letters = value_4;
     uint8_t* at = constraint;
     while (at[0] != 0) {
-        uint8_t* fixed = zir_f_b231ca7561351ed8_strchr(letters, (int32_t)(at[0]));
+        uint8_t* fixed = zir_foreign_compiler_inline_asm__strchr(letters, (int32_t)(at[0]));
         if (fixed != ((void *)0)) {
             RegisterSet* value_6 = set;
             size_t value_7 = 0;
@@ -1158,7 +1158,7 @@ compiler_inline_asm_CheckTemplate(Assembly* assembly, uint8_t** names, int32_t c
     uint8_t* value_4 = (void *)0;
     {
         String s = value_3;
-        value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     uint8_t* code = value_4;
     int32_t previous_slot = -1;
@@ -1280,7 +1280,7 @@ compiler_inline_asm_CheckTemplate(Assembly* assembly, uint8_t** names, int32_t c
                         uint8_t* value_36 = (void *)0;
                         {
                             String s = value_35;
-                            value_36 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_36 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         size_t value_38 = 0;
                         {
@@ -1288,7 +1288,7 @@ compiler_inline_asm_CheckTemplate(Assembly* assembly, uint8_t** names, int32_t c
                             uint8_t* to = at;
                             value_38 = (size_t)(to) - (size_t)(from);
                         }
-                        zir_f_b231ca7561351ed8_Diagnostic(span, code, value_36, (int32_t)(value_38), named);
+                        zir_foreign_compiler_inline_asm__Diagnostic(span, code, value_36, (int32_t)(value_38), named);
                         return 0;
                     }
                     if (i == range_last_24) {
@@ -1324,21 +1324,21 @@ compiler_inline_asm_CheckTemplate(Assembly* assembly, uint8_t** names, int32_t c
                 operand = value_45;
             }
             if (operand[0] == 91) {
-                uint8_t* close = zir_f_b231ca7561351ed8_strchr(operand, 93);
+                uint8_t* close = zir_foreign_compiler_inline_asm__strchr(operand, 93);
                 if (close == ((void *)0)) {
                     String value_47 = StringLiteral("#asm template names unknown operand %%%.*s");
                     uint8_t* value_48 = (void *)0;
                     {
                         String s = value_47;
-                        value_48 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_48 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
                     String value_50 = StringLiteral("[");
                     uint8_t* value_51 = (void *)0;
                     {
                         String s = value_50;
-                        value_51 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_51 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
-                    zir_f_b231ca7561351ed8_Diagnostic(span, code, value_48, 1LL, value_51);
+                    zir_foreign_compiler_inline_asm__Diagnostic(span, code, value_48, 1LL, value_51);
                     return 0;
                 }
                 uint8_t* value_53 = (void *)0;
@@ -1358,7 +1358,7 @@ compiler_inline_asm_CheckTemplate(Assembly* assembly, uint8_t** names, int32_t c
                     uint8_t* value_58 = (void *)0;
                     {
                         String s = value_57;
-                        value_58 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_58 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
                     size_t value_60 = 0;
                     {
@@ -1372,7 +1372,7 @@ compiler_inline_asm_CheckTemplate(Assembly* assembly, uint8_t** names, int32_t c
                         size_t n = 1;
                         value_62 = (uint8_t*)(((size_t)(p) + n));
                     }
-                    zir_f_b231ca7561351ed8_Diagnostic(span, code, value_58, (int32_t)(value_60), value_62);
+                    zir_foreign_compiler_inline_asm__Diagnostic(span, code, value_58, (int32_t)(value_60), value_62);
                     return 0;
                 }
                 uint8_t* value_64 = (void *)0;
@@ -1413,9 +1413,9 @@ compiler_inline_asm_CheckTemplate(Assembly* assembly, uint8_t** names, int32_t c
                         uint8_t* value_75 = (void *)0;
                         {
                             String s = value_74;
-                            value_75 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_75 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
-                        zir_f_b231ca7561351ed8_Diagnostic(span, code, value_75, index, count);
+                        zir_foreign_compiler_inline_asm__Diagnostic(span, code, value_75, index, count);
                         return 0;
                     }
                     at = operand;
@@ -1599,7 +1599,7 @@ compiler_inline_asm_CheckTemplate(Assembly* assembly, uint8_t** names, int32_t c
                         uint8_t* value_125 = (void *)0;
                         {
                             String s = value_124;
-                            value_125 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_125 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         size_t value_127 = 0;
                         {
@@ -1607,7 +1607,7 @@ compiler_inline_asm_CheckTemplate(Assembly* assembly, uint8_t** names, int32_t c
                             uint8_t* to = at;
                             value_127 = (size_t)(to) - (size_t)(from);
                         }
-                        zir_f_b231ca7561351ed8_Diagnostic(span, code, value_125, (int32_t)(value_127), word);
+                        zir_foreign_compiler_inline_asm__Diagnostic(span, code, value_125, (int32_t)(value_127), word);
                         return 0;
                     }
                     if (slot == range_last_101) {
@@ -1727,16 +1727,16 @@ compiler_inline_asm_CheckVariant(Assembly* assembly, uint8_t** aliases, uint8_t*
                         uint8_t* value_11 = (void *)0;
                         {
                             String s = value_10;
-                            value_11 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         String value_13 = StringLiteral("#asm clobbers %s, which operand %s already holds");
                         uint8_t* value_14 = (void *)0;
                         {
                             String s = value_13;
-                            value_14 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_14 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         uint8_t* value_16 = compiler_inline_asm_RegisterClobberName(assembly->architecture, slot, &(name[0]), 16);
-                        zir_f_b231ca7561351ed8_Diagnostic(span, value_11, value_14, value_16, aliases[i]);
+                        zir_foreign_compiler_inline_asm__Diagnostic(span, value_11, value_14, value_16, aliases[i]);
                         return 0;
                     }
                     RegisterSet* value_17 = &(allowed);
@@ -1827,7 +1827,7 @@ compiler_inline_asm_AssemblyIdentifier(uint8_t* name)
     uint8_t* value_18 = (void *)0;
     {
         String s = value_17;
-        value_18 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_18 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     bool value_20 = compiler_inline_asm_Same(name, value_18);
     return !value_20;
@@ -1837,29 +1837,29 @@ int32_t
 compiler_inline_asm_ReadBlockBinding(BlockBindings* bindings, uint8_t* item, bool output, int32_t position, ZirSourceSpan span)
 {
     uint8_t text[128] = {0};
-    zir_f_b231ca7561351ed8_strcpy(&(text[0]), item);
-    uint8_t* separator = zir_f_b231ca7561351ed8_strchr(&(text[0]), 58);
+    zir_foreign_compiler_inline_asm__strcpy(&(text[0]), item);
+    uint8_t* separator = zir_foreign_compiler_inline_asm__strchr(&(text[0]), 58);
     if (separator == ((void *)0)) {
         String value_0 = StringLiteral("#asm block operands require constraint:alias=binding (or constraint:binding)");
         uint8_t* value_1 = (void *)0;
         {
             String s = value_0;
-            value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return compiler_inline_asm_AssemblyError(span, value_1);
     }
     uint8_t* value_3 = &(separator[0]);
     (*value_3) = 0;
-    uint8_t* constraint = zir_f_b231ca7561351ed8_trim_in_place(&(text[0]));
+    uint8_t* constraint = zir_foreign_compiler_inline_asm__trim_in_place(&(text[0]));
     uint8_t* value_4 = (void *)0;
     {
         uint8_t* p = separator;
         size_t n = 1;
         value_4 = (uint8_t*)(((size_t)(p) + n));
     }
-    uint8_t* alias = zir_f_b231ca7561351ed8_trim_in_place(value_4);
+    uint8_t* alias = zir_foreign_compiler_inline_asm__trim_in_place(value_4);
     uint8_t* name = alias;
-    uint8_t* equals = zir_f_b231ca7561351ed8_strchr(alias, 61);
+    uint8_t* equals = zir_foreign_compiler_inline_asm__strchr(alias, 61);
     if (equals != ((void *)0)) {
         uint8_t* value_6 = &(equals[0]);
         (*value_6) = 0;
@@ -1869,8 +1869,8 @@ compiler_inline_asm_ReadBlockBinding(BlockBindings* bindings, uint8_t* item, boo
             size_t n = 1;
             value_7 = (uint8_t*)(((size_t)(p) + n));
         }
-        name = zir_f_b231ca7561351ed8_trim_in_place(value_7);
-        alias = zir_f_b231ca7561351ed8_trim_in_place(alias);
+        name = zir_foreign_compiler_inline_asm__trim_in_place(value_7);
+        alias = zir_foreign_compiler_inline_asm__trim_in_place(alias);
     }
     bool value_9 = constraint[0] != 0;
     bool value_10 = value_9 && compiler_inline_asm_AssemblyIdentifier(alias);
@@ -1880,11 +1880,11 @@ compiler_inline_asm_ReadBlockBinding(BlockBindings* bindings, uint8_t* item, boo
         valid = constraint[0] == 61 && constraint[1] != 0;
     }
     if (valid && !output) {
-        uint8_t* value_12 = zir_f_b231ca7561351ed8_strchr(constraint, 61);
+        uint8_t* value_12 = zir_foreign_compiler_inline_asm__strchr(constraint, 61);
         bool value_13 = value_12 == ((void *)0);
         bool value_14 = value_13;
         if (value_14) {
-            uint8_t* value_15 = zir_f_b231ca7561351ed8_strchr(constraint, 43);
+            uint8_t* value_15 = zir_foreign_compiler_inline_asm__strchr(constraint, 43);
             value_14 = (value_15 == ((void *)0));
         }
         valid = value_14;
@@ -1894,7 +1894,7 @@ compiler_inline_asm_ReadBlockBinding(BlockBindings* bindings, uint8_t* item, boo
         uint8_t* value_17 = (void *)0;
         {
             String s = value_16;
-            value_17 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_17 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return compiler_inline_asm_AssemblyError(span, value_17);
     }
@@ -1908,7 +1908,7 @@ compiler_inline_asm_ReadBlockBinding(BlockBindings* bindings, uint8_t* item, boo
                 uint8_t* value_20 = (void *)0;
                 {
                     String s = value_19;
-                    value_20 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 return compiler_inline_asm_AssemblyError(span, value_20);
             }
@@ -1919,13 +1919,13 @@ compiler_inline_asm_ReadBlockBinding(BlockBindings* bindings, uint8_t* item, boo
         }
     }
     uint8_t** value_22 = &((bindings->items[position]).constraint);
-    uint8_t* value_23 = zir_f_b231ca7561351ed8_KeepText(constraint);
+    uint8_t* value_23 = zir_foreign_compiler_inline_asm__KeepText(constraint);
     (*value_22) = value_23;
     uint8_t** value_24 = &((bindings->items[position]).alias);
-    uint8_t* value_25 = zir_f_b231ca7561351ed8_KeepName(alias);
+    uint8_t* value_25 = zir_foreign_compiler_inline_asm__KeepName(alias);
     (*value_24) = value_25;
     uint8_t** value_26 = &((bindings->items[position]).name);
-    uint8_t* value_27 = zir_f_b231ca7561351ed8_KeepName(name);
+    uint8_t* value_27 = zir_foreign_compiler_inline_asm__KeepName(name);
     (*value_26) = value_27;
     return 1;
 }
@@ -1941,7 +1941,7 @@ compiler_inline_asm_ReadBlockBindings(Assembly* assembly, BlockBindings* binding
         uint8_t* value_1 = (void *)0;
         {
             String s = value_0;
-            value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return compiler_inline_asm_AssemblyError(span, value_1);
     }
@@ -2040,13 +2040,13 @@ compiler_inline_asm_BlockBindingType(ZirFunction* fn, int32_t statement, uint8_t
             uint8_t* value_13 = (void *)0;
             {
                 String s = value_12;
-                value_13 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_13 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             value_11 = value_13;
         }
         value_9 = value_11;
     }
-    Parameters* parameters = zir_f_b231ca7561351ed8_ParametersOf(value_9);
+    Parameters* parameters = zir_foreign_compiler_inline_asm__ParametersOf(value_9);
     {
         int32_t range_first_18 = 0;
         int32_t range_last_18 = (int32_t)((uint32_t)(parameters->count) - 1u);
@@ -2112,7 +2112,7 @@ compiler_inline_asm_CheckBlockFallsThrough(ZirFunction* fn, int32_t statement)
                 uint8_t* value_9 = (void *)0;
                 {
                     String s = value_8;
-                    value_9 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_9 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 return compiler_inline_asm_AssemblyError(value_7, value_9);
             }
@@ -2155,7 +2155,7 @@ compiler_inline_asm_CheckBlockFallsThrough(ZirFunction* fn, int32_t statement)
                     uint8_t* value_19 = (void *)0;
                     {
                         String s = value_18;
-                        value_19 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_19 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
                     return compiler_inline_asm_AssemblyError(value_17, value_19);
                 }
@@ -2205,7 +2205,7 @@ compiler_inline_asm_CheckBlock(ZirFunction* fn, int32_t statement, AssemblyBindi
         uint8_t* value_10 = (void *)0;
         {
             String s = value_9;
-            value_10 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_10 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return compiler_inline_asm_AssemblyError(value_8, value_10);
     }
@@ -2215,7 +2215,7 @@ compiler_inline_asm_CheckBlock(ZirFunction* fn, int32_t statement, AssemblyBindi
         uint8_t* value_14 = (void *)0;
         {
             String s = value_13;
-            value_14 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_14 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return compiler_inline_asm_AssemblyError(value_12, value_14);
     }
@@ -2226,7 +2226,7 @@ compiler_inline_asm_CheckBlock(ZirFunction* fn, int32_t statement, AssemblyBindi
         uint8_t* value_19 = (void *)0;
         {
             String s = value_18;
-            value_19 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_19 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return compiler_inline_asm_AssemblyError(value_17, value_19);
     }
@@ -2243,7 +2243,7 @@ compiler_inline_asm_CheckBlock(ZirFunction* fn, int32_t statement, AssemblyBindi
         uint8_t* value_26 = (void *)0;
         {
             String s = value_25;
-            value_26 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_26 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return compiler_inline_asm_AssemblyError(value_24, value_26);
     }
@@ -2251,7 +2251,7 @@ compiler_inline_asm_CheckBlock(ZirFunction* fn, int32_t statement, AssemblyBindi
     uint8_t* value_29 = (void *)0;
     {
         String s = value_28;
-        value_29 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_29 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     uint8_t* mismatch = value_29;
     uint8_t* cursor = (uint8_t*)st->names.assembly_text;
@@ -2282,7 +2282,7 @@ compiler_inline_asm_CheckBlock(ZirFunction* fn, int32_t statement, AssemblyBindi
             uint8_t* value_38 = (void *)0;
             {
                 String s = value_37;
-                value_38 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_38 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             return compiler_inline_asm_AssemblyError(value_36, value_38);
         }
@@ -2303,7 +2303,7 @@ compiler_inline_asm_CheckBlock(ZirFunction* fn, int32_t statement, AssemblyBindi
                     uint8_t* value_45 = (void *)0;
                     {
                         String s = value_44;
-                        value_45 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_45 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
                     return compiler_inline_asm_AssemblyError(value_43, value_45);
                 }
@@ -2384,7 +2384,7 @@ compiler_inline_asm_CheckBlock(ZirFunction* fn, int32_t statement, AssemblyBindi
                     uint8_t* value_62 = (void *)0;
                     {
                         String s = value_61;
-                        value_62 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_62 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
                     return compiler_inline_asm_AssemblyError(value_60, value_62);
                 }
@@ -2504,7 +2504,7 @@ compiler_inline_asm_AssemblyOutputsOf(ZirModule* module, ZirFunction* fn, Assemb
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
-        value_2 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_2 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     if (compiler_inline_asm_Same(value_0, value_2)) {
         return 1;
@@ -2521,14 +2521,14 @@ compiler_inline_asm_AssemblyOutputsOf(ZirModule* module, ZirFunction* fn, Assemb
         uint8_t* value_8 = (void *)0;
         {
             String s = value_7;
-            value_8 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_8 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_strcpy(value_5, value_8);
+        zir_foreign_compiler_inline_asm__strcpy(value_5, value_8);
         int32_t* value_10 = &(outputs->count);
         (*value_10) = 1;
         return 1;
     }
-    ZirType* type = zir_f_b231ca7561351ed8_FindType(module, result, (void *)0);
+    ZirType* type = zir_foreign_compiler_inline_asm__FindType(module, result, (void *)0);
     if (type == ((void *)0) || type->is_union != 0 || type->is_extern != 0 || type->is_procedure_type != 0) {
         return 0;
     }
@@ -2538,7 +2538,7 @@ compiler_inline_asm_AssemblyOutputsOf(ZirModule* module, ZirFunction* fn, Assemb
     int32_t* value_11 = &(outputs->record);
     (*value_11) = 1;
     while (true) {
-        status = zir_f_b231ca7561351ed8_TypeNextField(type, &(offset), &(field));
+        status = zir_foreign_compiler_inline_asm__TypeNextField(type, &(offset), &(field));
         if (status != 1) {
             break;
         }
@@ -2555,7 +2555,7 @@ compiler_inline_asm_AssemblyOutputsOf(ZirModule* module, ZirFunction* fn, Assemb
             uint8_t* value_18 = (void *)0;
             {
                 String s = value_17;
-                value_18 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_18 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             bool value_20 = compiler_inline_asm_Same(&(field.name[0]), value_18);
             value_16 = value_20;
@@ -2577,9 +2577,9 @@ compiler_inline_asm_AssemblyOutputsOf(ZirModule* module, ZirFunction* fn, Assemb
         uint8_t* value_27 = (void *)0;
         {
             String s = value_26;
-            value_27 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_27 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_snprintf(value_24, 132, value_27, &(field.name[0]));
+        zir_foreign_compiler_inline_asm__snprintf(value_24, 132, value_27, &(field.name[0]));
         int32_t* value_29 = &(outputs->count);
         (*value_29) = (int32_t)((uint32_t)((*value_29)) + 1u);
     }
@@ -2595,14 +2595,14 @@ compiler_inline_asm_AssemblyOutputsOf(ZirModule* module, ZirFunction* fn, Assemb
 AssemblyOutputs*
 compiler_inline_asm_NewAssemblyOutputs(void)
 {
-    void* value_0 = zir_f_b231ca7561351ed8_calloc(1, sizeof(AssemblyOutputs));
+    void* value_0 = zir_foreign_compiler_inline_asm__calloc(1, sizeof(AssemblyOutputs));
     return (AssemblyOutputs*)(value_0);
 }
 
 void
 compiler_inline_asm_FreeAssemblyOutputs(AssemblyOutputs* outputs)
 {
-    zir_f_b231ca7561351ed8_free((uint8_t*)(outputs));
+    zir_foreign_compiler_inline_asm__free((uint8_t*)(outputs));
 }
 
 int32_t
@@ -2704,13 +2704,13 @@ AssemblyVariantNext(ZirModule* module, ZirFunction* fn, int32_t statement, uint8
             uint8_t* value_27 = (void *)0;
             {
                 String s = value_26;
-                value_27 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_27 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             value_25 = value_27;
         }
         value_23 = value_25;
     }
-    Parameters* parameters = zir_f_b231ca7561351ed8_ParametersOf(value_23);
+    Parameters* parameters = zir_foreign_compiler_inline_asm__ParametersOf(value_23);
     uint8_t* output_items[30] = {0};
     uint8_t* input_items[30] = {0};
     int32_t valid = compiler_inline_asm_AssemblyOutputsOf(module, fn, outputs);
@@ -2741,14 +2741,14 @@ AssemblyVariantNext(ZirModule* module, ZirFunction* fn, int32_t statement, uint8
                 int32_t index = i;
                 value_35 = &(outputs->names[index][0]);
             }
-            uint8_t* value_37 = zir_f_b231ca7561351ed8_KeepText(value_35);
+            uint8_t* value_37 = zir_foreign_compiler_inline_asm__KeepText(value_35);
             (*value_33) = value_37;
             if (outputs->record != 0) {
                 uint8_t** value_38 = &((variant->operands[i]).binding);
-                uint8_t* value_39 = zir_f_b231ca7561351ed8_KeepText(&(((outputs->fields[i]).name)[0]));
+                uint8_t* value_39 = zir_foreign_compiler_inline_asm__KeepText(&(((outputs->fields[i]).name)[0]));
                 (*value_38) = value_39;
                 uint8_t** value_40 = &((variant->operands[i]).type);
-                uint8_t* value_41 = zir_f_b231ca7561351ed8_KeepText(&(((outputs->fields[i]).type)[0]));
+                uint8_t* value_41 = zir_foreign_compiler_inline_asm__KeepText(&(((outputs->fields[i]).type)[0]));
                 (*value_40) = value_41;
             } else {
                 uint8_t** value_42 = &((variant->operands[i]).binding);
@@ -2756,7 +2756,7 @@ AssemblyVariantNext(ZirModule* module, ZirFunction* fn, int32_t statement, uint8
                 uint8_t* value_44 = (void *)0;
                 {
                     String s = value_43;
-                    value_44 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_44 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 (*value_42) = value_44;
                 uint8_t** value_46 = &((variant->operands[i]).type);
@@ -2815,7 +2815,7 @@ compiler_inline_asm_CheckProcedureVariant(Assembly* assembly, ZirFunction* fn, A
         uint8_t* value_3 = (void *)0;
         {
             String s = value_2;
-            value_3 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_3 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return compiler_inline_asm_AssemblyError(value_1, value_3);
     }
@@ -2840,11 +2840,11 @@ compiler_inline_asm_CheckProcedureVariant(Assembly* assembly, ZirFunction* fn, A
         int32_t range_last_16 = (int32_t)((uint32_t)input_count - 1u);
         int32_t i = range_first_16;
         if (i <= range_last_16) for (;;) {
-            uint8_t* value_5 = zir_f_b231ca7561351ed8_strchr((input_items)[i], 61);
+            uint8_t* value_5 = zir_foreign_compiler_inline_asm__strchr((input_items)[i], 61);
             bool value_6 = value_5 != ((void *)0);
             bool value_7 = value_6;
             if (!value_7) {
-                uint8_t* value_8 = zir_f_b231ca7561351ed8_strchr((input_items)[i], 43);
+                uint8_t* value_8 = zir_foreign_compiler_inline_asm__strchr((input_items)[i], 43);
                 value_7 = (value_8 != ((void *)0));
             }
             if (value_7) {
@@ -2862,7 +2862,7 @@ compiler_inline_asm_CheckProcedureVariant(Assembly* assembly, ZirFunction* fn, A
         uint8_t* value_11 = (void *)0;
         {
             String s = value_10;
-            value_11 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return compiler_inline_asm_AssemblyError(value_9, value_11);
     }
@@ -2967,7 +2967,7 @@ compiler_inline_asm_CheckProcedureVariants(ZirFunction* fn, AssemblyOutputs* out
                         uint8_t* value_11 = (void *)0;
                         {
                             String s = value_10;
-                            value_11 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         return compiler_inline_asm_AssemblyError(value_9, value_11);
                     }
@@ -2984,7 +2984,7 @@ compiler_inline_asm_CheckProcedureVariants(ZirFunction* fn, AssemblyOutputs* out
             uint8_t* value_15 = (void *)0;
             {
                 String s = value_14;
-                value_15 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_15 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             return compiler_inline_asm_AssemblyError(value_13, value_15);
         }
@@ -3018,7 +3018,7 @@ CheckAssembly(ZirModule* module, ZirFunction* fn)
         uint8_t* value_2 = (void *)0;
         {
             String s = value_1;
-            value_2 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_2 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return compiler_inline_asm_AssemblyError(value_0, value_2);
     }
@@ -3029,7 +3029,7 @@ CheckAssembly(ZirModule* module, ZirFunction* fn)
         uint8_t* value_6 = (void *)0;
         {
             String s = value_5;
-            value_6 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_6 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return compiler_inline_asm_AssemblyError(value_4, value_6);
     }
@@ -3050,13 +3050,13 @@ CheckAssembly(ZirModule* module, ZirFunction* fn)
             uint8_t* value_13 = (void *)0;
             {
                 String s = value_12;
-                value_13 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_13 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             value_11 = value_13;
         }
         value_9 = value_11;
     }
-    Parameters* parameters = zir_f_b231ca7561351ed8_ParametersOf(value_9);
+    Parameters* parameters = zir_foreign_compiler_inline_asm__ParametersOf(value_9);
     if (!valid_outputs || (int32_t)((uint32_t)(parameters->count) + (uint32_t)(outputs->count)) > 30) {
         compiler_inline_asm_FreeAssemblyOutputs(outputs);
         ZirSourceSpan value_15 = fn->span;
@@ -3064,7 +3064,7 @@ CheckAssembly(ZirModule* module, ZirFunction* fn)
         uint8_t* value_17 = (void *)0;
         {
             String s = value_16;
-            value_17 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_17 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return compiler_inline_asm_AssemblyError(value_15, value_17);
     }
@@ -3099,7 +3099,7 @@ CheckAssembly(ZirModule* module, ZirFunction* fn)
                 uint8_t* value_29 = (void *)0;
                 {
                     String s = value_28;
-                    value_29 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_29 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 return compiler_inline_asm_AssemblyError(value_27, value_29);
             }
@@ -3123,7 +3123,7 @@ CheckAssembly(ZirModule* module, ZirFunction* fn)
                         uint8_t* value_37 = (void *)0;
                         {
                             String s = value_36;
-                            value_37 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_37 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         return compiler_inline_asm_AssemblyError(value_35, value_37);
                     }
@@ -3151,7 +3151,7 @@ AssemblyInputNeedsStorage(uint8_t* constraint)
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     uint8_t* registers = value_1;
     uint8_t* at = constraint;
@@ -3170,7 +3170,7 @@ AssemblyInputNeedsStorage(uint8_t* constraint)
                 return 1;
             }
         } else {
-            uint8_t* value_5 = zir_f_b231ca7561351ed8_strchr(registers, (int32_t)(at[0]));
+            uint8_t* value_5 = zir_foreign_compiler_inline_asm__strchr(registers, (int32_t)(at[0]));
             if (value_5 == ((void *)0)) {
                 return 1;
             }
@@ -3197,14 +3197,14 @@ AssemblyTiedOutput(AssemblyVariant* source, uint8_t* constraint)
     }
     if (value_1) {
         uint8_t* end = (void *)0;
-        ptrdiff_t index = zir_f_b231ca7561351ed8_strtol(constraint, &(end), 10);
+        ptrdiff_t index = zir_foreign_compiler_inline_asm__strtol(constraint, &(end), 10);
         if (end[0] == 0 && index >= 0 && index < (ptrdiff_t)(source->outputs)) {
             return (int32_t)(index);
         }
         return -1;
     }
     if (constraint[0] == 91) {
-        size_t length = zir_f_b231ca7561351ed8_strlen(constraint);
+        size_t length = zir_foreign_compiler_inline_asm__strlen(constraint);
         if (length > 2 && constraint[(length - 1)] == 93) {
             {
                 int32_t range_first_11 = 0;
@@ -3292,13 +3292,13 @@ AssemblyConstraintAlternative(uint8_t* constraint, int32_t column)
         int32_t range_last_4 = (int32_t)((uint32_t)column - 1u);
         int32_t skipped = range_first_4;
         if (skipped <= range_last_4) for (;;) {
-            uint8_t* comma = zir_f_b231ca7561351ed8_strchr(at, 44);
+            uint8_t* comma = zir_foreign_compiler_inline_asm__strchr(at, 44);
             if (comma == ((void *)0)) {
                 String value_2 = StringLiteral("");
                 uint8_t* value_3 = (void *)0;
                 {
                     String s = value_2;
-                    value_3 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_3 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 return value_3;
             }
@@ -3315,7 +3315,7 @@ AssemblyConstraintAlternative(uint8_t* constraint, int32_t column)
             skipped = (int32_t)((uint32_t)skipped + 1u);
         }
     }
-    uint8_t* end = zir_f_b231ca7561351ed8_strchr(at, 44);
+    uint8_t* end = zir_foreign_compiler_inline_asm__strchr(at, 44);
     size_t value_7 = 0;
     if (end != ((void *)0)) {
         size_t value_8 = 0;
@@ -3326,7 +3326,7 @@ AssemblyConstraintAlternative(uint8_t* constraint, int32_t column)
         }
         value_7 = value_8;
     } else {
-        size_t value_10 = zir_f_b231ca7561351ed8_strlen(at);
+        size_t value_10 = zir_foreign_compiler_inline_asm__strlen(at);
         value_7 = value_10;
     }
     size_t length = value_7;
@@ -3336,14 +3336,14 @@ AssemblyConstraintAlternative(uint8_t* constraint, int32_t column)
         uint8_t* value_12 = (void *)0;
         {
             String s = value_11;
-            value_12 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_12 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return value_12;
     }
-    zir_f_b231ca7561351ed8_memcpy(&(word[0]), at, length);
+    zir_foreign_compiler_inline_asm__memcpy(&(word[0]), at, length);
     uint8_t* value_14 = &(word[length]);
     (*value_14) = 0;
-    return zir_f_b231ca7561351ed8_KeepText(&(word[0]));
+    return zir_foreign_compiler_inline_asm__KeepText(&(word[0]));
 }
 
 void
@@ -3354,26 +3354,26 @@ compiler_inline_asm_AssemblyByte(void* out, uint8_t byte)
         uint8_t* value_1 = (void *)0;
         {
             String s = value_0;
-            value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fprintf(out, value_1, (int32_t)(byte));
+        zir_foreign_compiler_inline_asm__fprintf(out, value_1, (int32_t)(byte));
     } else if (byte < 32 || byte >= 127) {
         String value_3 = StringLiteral("\\%03o");
         uint8_t* value_4 = (void *)0;
         {
             String s = value_3;
-            value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fprintf(out, value_4, (int32_t)(byte));
+        zir_foreign_compiler_inline_asm__fprintf(out, value_4, (int32_t)(byte));
     } else {
-        zir_f_b231ca7561351ed8_fputc((int32_t)(byte), out);
+        zir_foreign_compiler_inline_asm__fputc((int32_t)(byte), out);
     }
 }
 
 void
 compiler_inline_asm_AssemblyString(void* out, uint8_t* text)
 {
-    zir_f_b231ca7561351ed8_fputc(34, out);
+    zir_foreign_compiler_inline_asm__fputc(34, out);
     uint8_t* at = text;
     while (at[0] != 0) {
         compiler_inline_asm_AssemblyByte(out, at[0]);
@@ -3385,13 +3385,13 @@ compiler_inline_asm_AssemblyString(void* out, uint8_t* text)
         }
         at = value_0;
     }
-    zir_f_b231ca7561351ed8_fputc(34, out);
+    zir_foreign_compiler_inline_asm__fputc(34, out);
 }
 
 void
 compiler_inline_asm_AssemblyOperandText(void* out, uint8_t* text, uint8_t** names, int32_t count, bool in_template)
 {
-    zir_f_b231ca7561351ed8_fputc(34, out);
+    zir_foreign_compiler_inline_asm__fputc(34, out);
     uint8_t* at = text;
     while (at[0] != 0) {
         if (in_template && at[0] == 37 && at[1] == 37) {
@@ -3399,9 +3399,9 @@ compiler_inline_asm_AssemblyOperandText(void* out, uint8_t* text, uint8_t** name
             uint8_t* value_1 = (void *)0;
             {
                 String s = value_0;
-                value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fputs(value_1, out);
+            zir_foreign_compiler_inline_asm__fputs(value_1, out);
             uint8_t* value_3 = (void *)0;
             {
                 uint8_t* p = at;
@@ -3449,7 +3449,7 @@ compiler_inline_asm_AssemblyOperandText(void* out, uint8_t* text, uint8_t** name
                 size_t n = 1;
                 value_12 = (uint8_t*)(((size_t)(p) + n));
             }
-            close = zir_f_b231ca7561351ed8_strchr(value_12, 93);
+            close = zir_foreign_compiler_inline_asm__strchr(value_12, 93);
         }
         int32_t index = -1;
         if (close != ((void *)0)) {
@@ -3482,9 +3482,9 @@ compiler_inline_asm_AssemblyOperandText(void* out, uint8_t* text, uint8_t** name
             uint8_t* value_21 = (void *)0;
             {
                 String s = value_20;
-                value_21 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_21 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fprintf(out, value_21, index);
+            zir_foreign_compiler_inline_asm__fprintf(out, value_21, index);
             uint8_t* value_23 = (void *)0;
             {
                 uint8_t* p = close;
@@ -3503,7 +3503,7 @@ compiler_inline_asm_AssemblyOperandText(void* out, uint8_t* text, uint8_t** name
             at = value_25;
         }
     }
-    zir_f_b231ca7561351ed8_fputc(34, out);
+    zir_foreign_compiler_inline_asm__fputc(34, out);
 }
 
 void
@@ -3513,9 +3513,9 @@ compiler_inline_asm_AssemblyGuard(void* out, Assembly* assembly)
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fprintf(out, value_1, (architecture_guards)[assembly->architecture]);
+    zir_foreign_compiler_inline_asm__fprintf(out, value_1, (architecture_guards)[assembly->architecture]);
     uint64_t value_3 = assembly->features;
     if (value_3 == 0ULL) {
         return;
@@ -3531,27 +3531,27 @@ compiler_inline_asm_AssemblyGuard(void* out, Assembly* assembly)
         uint8_t* value_8 = (void *)0;
         {
             String s = value_7;
-            value_8 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_8 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_8, out);
+        zir_foreign_compiler_inline_asm__fputs(value_8, out);
     }
     if (assembly->architecture == 3) {
         String value_10 = StringLiteral(" && defined(__linux__) && !defined(__SOFTFP__) && __ARM_ARCH >= 7 && __ARM_ARCH_PROFILE == 'A' && (!defined(__ANDROID__) || __ANDROID_API__ >= 18)");
         uint8_t* value_11 = (void *)0;
         {
             String s = value_10;
-            value_11 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_11, out);
+        zir_foreign_compiler_inline_asm__fputs(value_11, out);
     }
     if (assembly->architecture == 2) {
         String value_13 = StringLiteral(" && defined(__linux__)");
         uint8_t* value_14 = (void *)0;
         {
             String s = value_13;
-            value_14 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_14 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_14, out);
+        zir_foreign_compiler_inline_asm__fputs(value_14, out);
     }
     {
         int32_t range_first_13 = 0;
@@ -3585,7 +3585,7 @@ compiler_inline_asm_AssemblyGuard(void* out, Assembly* assembly)
                 uint8_t* value_25 = (void *)0;
                 {
                     String s = value_24;
-                    value_25 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_25 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 uint8_t* value_27 = (void *)0;
                 {
@@ -3595,7 +3595,7 @@ compiler_inline_asm_AssemblyGuard(void* out, Assembly* assembly)
                         uint8_t* value_30 = (void *)0;
                         {
                             String s = value_29;
-                            value_30 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_30 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_27 = value_30;
                         goto value_28;
@@ -3605,7 +3605,7 @@ compiler_inline_asm_AssemblyGuard(void* out, Assembly* assembly)
                         uint8_t* value_33 = (void *)0;
                         {
                             String s = value_32;
-                            value_33 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_33 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_27 = value_33;
                         goto value_28;
@@ -3615,7 +3615,7 @@ compiler_inline_asm_AssemblyGuard(void* out, Assembly* assembly)
                         uint8_t* value_36 = (void *)0;
                         {
                             String s = value_35;
-                            value_36 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_36 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_27 = value_36;
                         goto value_28;
@@ -3625,7 +3625,7 @@ compiler_inline_asm_AssemblyGuard(void* out, Assembly* assembly)
                         uint8_t* value_39 = (void *)0;
                         {
                             String s = value_38;
-                            value_39 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_39 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_27 = value_39;
                         goto value_28;
@@ -3635,7 +3635,7 @@ compiler_inline_asm_AssemblyGuard(void* out, Assembly* assembly)
                         uint8_t* value_42 = (void *)0;
                         {
                             String s = value_41;
-                            value_42 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_42 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_27 = value_42;
                         goto value_28;
@@ -3645,7 +3645,7 @@ compiler_inline_asm_AssemblyGuard(void* out, Assembly* assembly)
                         uint8_t* value_45 = (void *)0;
                         {
                             String s = value_44;
-                            value_45 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_45 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_27 = value_45;
                         goto value_28;
@@ -3655,7 +3655,7 @@ compiler_inline_asm_AssemblyGuard(void* out, Assembly* assembly)
                         uint8_t* value_48 = (void *)0;
                         {
                             String s = value_47;
-                            value_48 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_48 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_27 = value_48;
                         goto value_28;
@@ -3663,13 +3663,13 @@ compiler_inline_asm_AssemblyGuard(void* out, Assembly* assembly)
                     value_27 = (void *)0;
                 value_28: ;
                 }
-                zir_f_b231ca7561351ed8_fprintf(out, value_25, value_27);
+                zir_foreign_compiler_inline_asm__fprintf(out, value_25, value_27);
             } else if (assembly->architecture == 4) {
                 String value_50 = StringLiteral(" && defined(__wasm_%s__)");
                 uint8_t* value_51 = (void *)0;
                 {
                     String s = value_50;
-                    value_51 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_51 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 uint8_t* value_53 = (void *)0;
                 {
@@ -3680,7 +3680,7 @@ compiler_inline_asm_AssemblyGuard(void* out, Assembly* assembly)
                         uint8_t* value_57 = (void *)0;
                         {
                             String s = value_56;
-                            value_57 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_57 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_55 = value_57;
                     } else {
@@ -3688,7 +3688,7 @@ compiler_inline_asm_AssemblyGuard(void* out, Assembly* assembly)
                     }
                     value_53 = value_55;
                 }
-                zir_f_b231ca7561351ed8_fprintf(out, value_51, value_53);
+                zir_foreign_compiler_inline_asm__fprintf(out, value_51, value_53);
             }
             if (i == range_last_13) {
                 break;
@@ -3750,17 +3750,17 @@ compiler_inline_asm_AssemblyIncludes(void* out, Assembly* assembly)
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_1, out);
+    zir_foreign_compiler_inline_asm__fputs(value_1, out);
     if (compiler_inline_asm_AssemblyTier(assembly) != 0) {
         String value_3 = StringLiteral("#if !defined(ZIRAN_NO_ASM)\n#include <stdlib.h>\n#endif\n");
         uint8_t* value_4 = (void *)0;
         {
             String s = value_3;
-            value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_4, out);
+        zir_foreign_compiler_inline_asm__fputs(value_4, out);
     }
     uint64_t value_6 = assembly->features;
     if (value_6 == 0ULL || (assembly->architecture != 2 && assembly->architecture != 3)) {
@@ -3772,7 +3772,7 @@ compiler_inline_asm_AssemblyIncludes(void* out, Assembly* assembly)
         uint8_t* value_9 = (void *)0;
         {
             String s = value_8;
-            value_9 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_9 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         value_7 = value_9;
     } else {
@@ -3780,7 +3780,7 @@ compiler_inline_asm_AssemblyIncludes(void* out, Assembly* assembly)
         uint8_t* value_12 = (void *)0;
         {
             String s = value_11;
-            value_12 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_12 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         value_7 = value_12;
     }
@@ -3789,9 +3789,9 @@ compiler_inline_asm_AssemblyIncludes(void* out, Assembly* assembly)
     uint8_t* value_15 = (void *)0;
     {
         String s = value_14;
-        value_15 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_15 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fprintf(out, value_15, machine);
+    zir_foreign_compiler_inline_asm__fprintf(out, value_15, machine);
 }
 
 void
@@ -3817,7 +3817,7 @@ compiler_inline_asm_AssemblyAttribute(void* out, Assembly* assembly)
                     uint8_t* value_3 = (void *)0;
                     {
                         String s = value_2;
-                        value_3 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_3 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
                     value_1 = value_3;
                 } else {
@@ -3825,28 +3825,28 @@ compiler_inline_asm_AssemblyAttribute(void* out, Assembly* assembly)
                     uint8_t* value_6 = (void *)0;
                     {
                         String s = value_5;
-                        value_6 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_6 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
                     value_1 = value_6;
                 }
-                zir_f_b231ca7561351ed8_fputs(value_1, out);
+                zir_foreign_compiler_inline_asm__fputs(value_1, out);
             }
             String value_8 = StringLiteral("__attribute__((noinline, unused, target(\"");
             uint8_t* value_9 = (void *)0;
             {
                 String s = value_8;
-                value_9 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_9 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fputs(value_9, out);
+            zir_foreign_compiler_inline_asm__fputs(value_9, out);
             bool first = true;
             if (arm) {
                 String value_11 = StringLiteral("arm");
                 uint8_t* value_12 = (void *)0;
                 {
                     String s = value_11;
-                    value_12 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_12 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_fputs(value_12, out);
+                zir_foreign_compiler_inline_asm__fputs(value_12, out);
                 first = false;
             }
             {
@@ -3877,16 +3877,16 @@ compiler_inline_asm_AssemblyAttribute(void* out, Assembly* assembly)
                         continue;
                     }
                     if (!first) {
-                        zir_f_b231ca7561351ed8_fputc(44, out);
+                        zir_foreign_compiler_inline_asm__fputc(44, out);
                     }
                     if (compiler != 0) {
                         String value_22 = StringLiteral("fpu=");
                         uint8_t* value_23 = (void *)0;
                         {
                             String s = value_22;
-                            value_23 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_23 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
-                        zir_f_b231ca7561351ed8_fputs(value_23, out);
+                        zir_foreign_compiler_inline_asm__fputs(value_23, out);
                     }
                     int32_t value_25 = assembly->architecture;
                     uint8_t* value_26 = (void *)0;
@@ -3965,7 +3965,7 @@ compiler_inline_asm_AssemblyAttribute(void* out, Assembly* assembly)
                         value_26 = (void *)0;
                     value_27: ;
                     }
-                    zir_f_b231ca7561351ed8_fputs(value_26, out);
+                    zir_foreign_compiler_inline_asm__fputs(value_26, out);
                     first = false;
                     if (i == range_last_12) {
                         break;
@@ -3983,19 +3983,19 @@ compiler_inline_asm_AssemblyAttribute(void* out, Assembly* assembly)
                 uint8_t* value_44 = (void *)0;
                 {
                     String s = value_43;
-                    value_44 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_44 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_fputs(value_44, out);
+                zir_foreign_compiler_inline_asm__fputs(value_44, out);
             }
             String value_46 = StringLiteral("\")))");
             uint8_t* value_47 = (void *)0;
             {
                 String s = value_46;
-                value_47 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_47 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fputs(value_47, out);
+            zir_foreign_compiler_inline_asm__fputs(value_47, out);
             if (arm) {
-                zir_f_b231ca7561351ed8_fputc(10, out);
+                zir_foreign_compiler_inline_asm__fputc(10, out);
             }
             if (compiler == range_last_2) {
                 break;
@@ -4008,9 +4008,9 @@ compiler_inline_asm_AssemblyAttribute(void* out, Assembly* assembly)
         uint8_t* value_50 = (void *)0;
         {
             String s = value_49;
-            value_50 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_50 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_50, out);
+        zir_foreign_compiler_inline_asm__fputs(value_50, out);
     }
 }
 
@@ -4050,7 +4050,7 @@ compiler_inline_asm_AssemblyTemplatePrefix(void* out, Assembly* assembly)
                 uint8_t* value_11 = (void *)0;
                 {
                     String s = value_10;
-                    value_11 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 uint8_t* value_13 = (void *)0;
                 {
@@ -4061,7 +4061,7 @@ compiler_inline_asm_AssemblyTemplatePrefix(void* out, Assembly* assembly)
                         uint8_t* value_17 = (void *)0;
                         {
                             String s = value_16;
-                            value_17 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_17 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_15 = value_17;
                     } else {
@@ -4069,7 +4069,7 @@ compiler_inline_asm_AssemblyTemplatePrefix(void* out, Assembly* assembly)
                     }
                     value_13 = value_15;
                 }
-                zir_f_b231ca7561351ed8_fprintf(out, value_11, value_13);
+                zir_foreign_compiler_inline_asm__fprintf(out, value_11, value_13);
             }
             if (i == range_last_3) {
                 break;
@@ -4082,8 +4082,8 @@ compiler_inline_asm_AssemblyTemplatePrefix(void* out, Assembly* assembly)
 bool
 compiler_inline_asm_EnumHasMember(uint8_t* body, uint8_t* member)
 {
-    size_t length = zir_f_b231ca7561351ed8_strlen(member);
-    uint8_t* at = zir_f_b231ca7561351ed8_strstr(body, member);
+    size_t length = zir_foreign_compiler_inline_asm__strlen(member);
+    uint8_t* at = zir_foreign_compiler_inline_asm__strstr(body, member);
     while (at != ((void *)0)) {
         bool starts = (size_t)(at) == (size_t)(body);
         if (!starts) {
@@ -4111,7 +4111,7 @@ compiler_inline_asm_EnumHasMember(uint8_t* body, uint8_t* member)
             size_t n = 1;
             value_5 = (uint8_t*)(((size_t)(p) + n));
         }
-        at = zir_f_b231ca7561351ed8_strstr(value_5, member);
+        at = zir_foreign_compiler_inline_asm__strstr(value_5, member);
     }
     return false;
 }
@@ -4126,7 +4126,7 @@ compiler_inline_asm_ModuleUsesName(ZirModule* current, ZirTarget target, uint8_t
         int32_t i = range_first_1;
         if (i <= range_last_1) for (;;) {
             ZirFunction* function = (ZirFunction*)(((size_t)(current->functions) + ((size_t)(i) * sizeof(ZirFunction))));
-            zir_f_b231ca7561351ed8_NativeCFunctionName(current, function, &(native[0]), 512);
+            zir_foreign_compiler_inline_asm__NativeCFunctionName(current, function, &(native[0]), 512);
             bool value_0 = compiler_inline_asm_Same(&(native[0]), name);
             if (value_0 || compiler_inline_asm_Same(&(function->name[0]), name)) {
                 return true;
@@ -4143,7 +4143,7 @@ compiler_inline_asm_ModuleUsesName(ZirModule* current, ZirTarget target, uint8_t
         int32_t i = range_first_8;
         if (i <= range_last_8) for (;;) {
             ZirGlobal* variable = (ZirGlobal*)(((size_t)(current->globals) + ((size_t)(i) * sizeof(ZirGlobal))));
-            zir_f_b231ca7561351ed8_TargetGlobalName(current, target, &(variable->name[0]), &(native[0]), 512);
+            zir_foreign_compiler_inline_asm__TargetGlobalName(current, target, &(variable->name[0]), &(native[0]), 512);
             if (compiler_inline_asm_Same(&(native[0]), name)) {
                 return true;
             }
@@ -4159,7 +4159,7 @@ compiler_inline_asm_ModuleUsesName(ZirModule* current, ZirTarget target, uint8_t
         int32_t i = range_first_15;
         if (i <= range_last_15) for (;;) {
             ZirDefine* constant = (ZirDefine*)(((size_t)(current->defines) + ((size_t)(i) * sizeof(ZirDefine))));
-            zir_f_b231ca7561351ed8_TargetDefineName(current, target, &(constant->name[0]), &(native[0]), 512);
+            zir_foreign_compiler_inline_asm__TargetDefineName(current, target, &(constant->name[0]), &(native[0]), 512);
             if (compiler_inline_asm_Same(&(native[0]), name)) {
                 return true;
             }
@@ -4175,13 +4175,13 @@ compiler_inline_asm_ModuleUsesName(ZirModule* current, ZirTarget target, uint8_t
         int32_t i = range_first_22;
         if (i <= range_last_22) for (;;) {
             ZirType* type = (ZirType*)(((size_t)(current->types) + ((size_t)(i) * sizeof(ZirType))));
-            zir_f_b231ca7561351ed8_NativeTypeName(current, type, &(native[0]), 512);
+            zir_foreign_compiler_inline_asm__NativeTypeName(current, type, &(native[0]), 512);
             if (compiler_inline_asm_Same(&(native[0]), name)) {
                 return true;
             }
-            size_t length = zir_f_b231ca7561351ed8_strlen(&(native[0]));
+            size_t length = zir_foreign_compiler_inline_asm__strlen(&(native[0]));
             bool value_1 = type->is_enum != 0;
-            bool value_2 = value_1 && zir_f_b231ca7561351ed8_strncmp(name, &(native[0]), length) == 0;
+            bool value_2 = value_1 && zir_foreign_compiler_inline_asm__strncmp(name, &(native[0]), length) == 0;
             bool value_3 = value_2 && name[length] == 95;
             bool value_4 = value_3;
             if (value_4) {
@@ -4217,7 +4217,7 @@ compiler_inline_asm_ModuleUsesName(ZirModule* current, ZirTarget target, uint8_t
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
             }
-            zir_f_b231ca7561351ed8_NativeCForeignName(current, imported, &(native[0]), 512);
+            zir_foreign_compiler_inline_asm__NativeCForeignName(current, imported, &(native[0]), 512);
             bool value_9 = compiler_inline_asm_Same(&(native[0]), name);
             if (value_9 || compiler_inline_asm_Same(&(imported->extern_symbol[0]), name)) {
                 return true;
@@ -4236,7 +4236,7 @@ compiler_inline_asm_AssemblyNameUsed(ZirModule* module, ZirTarget target, uint8_
 {
     size_t capacity = 16;
     size_t count = 1;
-    void* value_0 = zir_f_b231ca7561351ed8_AllocateOrExit(capacity * sizeof(void *));
+    void* value_0 = zir_foreign_compiler_inline_asm__AllocateOrExit(capacity * sizeof(void *));
     ZirModule** modules = (ZirModule**)(value_0);
     ZirModule** value_1 = &(modules[0]);
     (*value_1) = module;
@@ -4285,10 +4285,10 @@ compiler_inline_asm_AssemblyNameUsed(ZirModule* module, ZirTarget target, uint8_
                     continue;
                 }
                 if (count == capacity) {
-                    void* value_2 = zir_f_b231ca7561351ed8_AllocateOrExit((capacity * 2) * sizeof(void *));
+                    void* value_2 = zir_foreign_compiler_inline_asm__AllocateOrExit((capacity * 2) * sizeof(void *));
                     ZirModule** grown = (ZirModule**)(value_2);
-                    zir_f_b231ca7561351ed8_memcpy((uint8_t*)(grown), (uint8_t*)(modules), capacity * sizeof(void *));
-                    zir_f_b231ca7561351ed8_free((uint8_t*)(modules));
+                    zir_foreign_compiler_inline_asm__memcpy((uint8_t*)(grown), (uint8_t*)(modules), capacity * sizeof(void *));
+                    zir_foreign_compiler_inline_asm__free((uint8_t*)(modules));
                     modules = grown;
                     capacity = capacity * 2;
                 }
@@ -4303,7 +4303,7 @@ compiler_inline_asm_AssemblyNameUsed(ZirModule* module, ZirTarget target, uint8_
         }
         next = next + 1;
     }
-    zir_f_b231ca7561351ed8_free((uint8_t*)(modules));
+    zir_foreign_compiler_inline_asm__free((uint8_t*)(modules));
     return used;
 }
 
@@ -4331,9 +4331,9 @@ compiler_inline_asm_AssemblyHelperName(ZirModule* module, ZirFunction* fn, ZirTa
         uint8_t* value_5 = (void *)0;
         {
             String s = value_4;
-            value_5 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_5 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_snprintf(out, size, value_5, function, ordinal, serial);
+        zir_foreign_compiler_inline_asm__snprintf(out, size, value_5, function, ordinal, serial);
         bool value_7 = compiler_inline_asm_AssemblyNameUsed(module, target, out);
         if (!value_7) {
             return;
@@ -4367,9 +4367,9 @@ compiler_inline_asm_EmitClobbers(void* out, Assembly* assembly, bool implied_mem
                     uint8_t* value_4 = (void *)0;
                     {
                         String s = value_3;
-                        value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
-                    zir_f_b231ca7561351ed8_fputs(value_4, out);
+                    zir_foreign_compiler_inline_asm__fputs(value_4, out);
                 }
                 compiler_inline_asm_AssemblyString(out, (items)[i]);
                 first = false;
@@ -4378,7 +4378,7 @@ compiler_inline_asm_EmitClobbers(void* out, Assembly* assembly, bool implied_mem
                 uint8_t* value_8 = (void *)0;
                 {
                     String s = value_7;
-                    value_8 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_8 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 if (compiler_inline_asm_Same(value_6, value_8)) {
                     memory = 1;
@@ -4393,7 +4393,7 @@ compiler_inline_asm_EmitClobbers(void* out, Assembly* assembly, bool implied_mem
         ZirSourceSpan nowhere = {0};
         compiler_inline_asm_Zero((uint8_t*)(&(nowhere)), sizeof(ZirSourceSpan));
         if (compiler_inline_asm_ClobberSet(assembly, &(set), &(memory), nowhere) == 0) {
-            zir_f_b231ca7561351ed8_exit(1);
+            zir_foreign_compiler_inline_asm__exit(1);
         }
         {
             int32_t range_first_23 = 0;
@@ -4422,9 +4422,9 @@ compiler_inline_asm_EmitClobbers(void* out, Assembly* assembly, bool implied_mem
                     uint8_t* value_16 = (void *)0;
                     {
                         String s = value_15;
-                        value_16 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_16 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
-                    zir_f_b231ca7561351ed8_fputs(value_16, out);
+                    zir_foreign_compiler_inline_asm__fputs(value_16, out);
                 }
                 compiler_inline_asm_AssemblyString(out, compiler_inline_asm_RegisterClobberName(assembly->architecture, slot, &(name[0]), 16));
                 first = false;
@@ -4444,7 +4444,7 @@ compiler_inline_asm_EmitClobbers(void* out, Assembly* assembly, bool implied_mem
                 uint8_t* value_20 = (void *)0;
                 {
                     String s = value_19;
-                    value_20 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 if (compiler_inline_asm_Same(value_18, value_20)) {
                     uint8_t* value_22 = (void *)0;
@@ -4453,7 +4453,7 @@ compiler_inline_asm_EmitClobbers(void* out, Assembly* assembly, bool implied_mem
                         uint8_t* value_24 = (void *)0;
                         {
                             String s = value_23;
-                            value_24 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_24 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_22 = value_24;
                     } else {
@@ -4461,11 +4461,11 @@ compiler_inline_asm_EmitClobbers(void* out, Assembly* assembly, bool implied_mem
                         uint8_t* value_27 = (void *)0;
                         {
                             String s = value_26;
-                            value_27 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_27 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_22 = value_27;
                     }
-                    zir_f_b231ca7561351ed8_fputs(value_22, out);
+                    zir_foreign_compiler_inline_asm__fputs(value_22, out);
                     first = false;
                 }
                 if (i == range_last_34) {
@@ -4482,7 +4482,7 @@ compiler_inline_asm_EmitClobbers(void* out, Assembly* assembly, bool implied_mem
             uint8_t* value_31 = (void *)0;
             {
                 String s = value_30;
-                value_31 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_31 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             value_29 = value_31;
         } else {
@@ -4490,11 +4490,11 @@ compiler_inline_asm_EmitClobbers(void* out, Assembly* assembly, bool implied_mem
             uint8_t* value_34 = (void *)0;
             {
                 String s = value_33;
-                value_34 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_34 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             value_29 = value_34;
         }
-        zir_f_b231ca7561351ed8_fputs(value_29, out);
+        zir_foreign_compiler_inline_asm__fputs(value_29, out);
     }
 }
 
@@ -4513,13 +4513,13 @@ compiler_inline_asm_AssemblyBody(void* out, ZirModule* module, ZirFunction* fn, 
             uint8_t* value_5 = (void *)0;
             {
                 String s = value_4;
-                value_5 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_5 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             value_3 = value_5;
         }
         value_1 = value_3;
     }
-    Parameters* parameters = zir_f_b231ca7561351ed8_ParametersOf(value_1);
+    Parameters* parameters = zir_foreign_compiler_inline_asm__ParametersOf(value_1);
     uint8_t* names[30] = {0};
     {
         int32_t range_first_2 = 0;
@@ -4563,16 +4563,16 @@ compiler_inline_asm_AssemblyBody(void* out, ZirModule* module, ZirFunction* fn, 
         }
     }
     uint8_t result_name[128] = {0};
-    zir_f_b231ca7561351ed8_ArrayAbiName(fn, -1, &(result_name[0]), 128);
+    zir_foreign_compiler_inline_asm__ArrayAbiName(fn, -1, &(result_name[0]), 128);
     if (outputs->count != 0) {
         void* value_15 = out;
         String value_16 = StringLiteral("        %s %s;\n");
         uint8_t* value_17 = (void *)0;
         {
             String s = value_16;
-            value_17 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_17 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fprintf(value_15, value_17, result_type, &(result_name[0]));
+        zir_foreign_compiler_inline_asm__fprintf(value_15, value_17, result_type, &(result_name[0]));
     }
     if (available != ((void *)0)) {
         void* value_19 = out;
@@ -4580,28 +4580,28 @@ compiler_inline_asm_AssemblyBody(void* out, ZirModule* module, ZirFunction* fn, 
         uint8_t* value_21 = (void *)0;
         {
             String s = value_20;
-            value_21 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_21 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fprintf(value_19, value_21, available);
+        zir_foreign_compiler_inline_asm__fprintf(value_19, value_21, available);
     }
     String value_23 = StringLiteral("        __asm__");
     uint8_t* value_24 = (void *)0;
     {
         String s = value_23;
-        value_24 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_24 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_24, out);
+    zir_foreign_compiler_inline_asm__fputs(value_24, out);
     uint8_t* options = (assembly->part)[5];
     if (options[0] != 0) {
         String value_26 = StringLiteral(" __volatile__");
         uint8_t* value_27 = (void *)0;
         {
             String s = value_26;
-            value_27 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_27 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_27, out);
+        zir_foreign_compiler_inline_asm__fputs(value_27, out);
     }
-    zir_f_b231ca7561351ed8_fputc(40, out);
+    zir_foreign_compiler_inline_asm__fputc(40, out);
     compiler_inline_asm_AssemblyTemplatePrefix(out, assembly);
     compiler_inline_asm_AssemblyOperandText(out, (assembly->part)[1], &(names[0]), (int32_t)((uint32_t)(outputs->count) + (uint32_t)(parameters->count)), true);
     uint8_t* constraints[30] = {0};
@@ -4610,9 +4610,9 @@ compiler_inline_asm_AssemblyBody(void* out, ZirModule* module, ZirFunction* fn, 
     uint8_t* value_30 = (void *)0;
     {
         String s = value_29;
-        value_30 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_30 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_30, out);
+    zir_foreign_compiler_inline_asm__fputs(value_30, out);
     {
         int32_t range_first_28 = 0;
         int32_t range_last_28 = (int32_t)((uint32_t)(outputs->count) - 1u);
@@ -4623,9 +4623,9 @@ compiler_inline_asm_AssemblyBody(void* out, ZirModule* module, ZirFunction* fn, 
                 uint8_t* value_33 = (void *)0;
                 {
                     String s = value_32;
-                    value_33 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_33 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_fputs(value_33, out);
+                zir_foreign_compiler_inline_asm__fputs(value_33, out);
             }
             compiler_inline_asm_AssemblyString(out, (constraints)[i]);
             void* value_35 = out;
@@ -4633,23 +4633,23 @@ compiler_inline_asm_AssemblyBody(void* out, ZirModule* module, ZirFunction* fn, 
             uint8_t* value_37 = (void *)0;
             {
                 String s = value_36;
-                value_37 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_37 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fprintf(value_35, value_37, &(result_name[0]));
+            zir_foreign_compiler_inline_asm__fprintf(value_35, value_37, &(result_name[0]));
             if (outputs->record != 0) {
-                ZirType* record = zir_f_b231ca7561351ed8_FindType(module, &(fn->return_type[0]), (void *)0);
+                ZirType* record = zir_foreign_compiler_inline_asm__FindType(module, &(fn->return_type[0]), (void *)0);
                 uint8_t field[512] = {0};
-                zir_f_b231ca7561351ed8_TargetFieldName(record, target, &(((outputs->fields[i]).name)[0]), &(field[0]), 512);
+                zir_foreign_compiler_inline_asm__TargetFieldName(record, target, &(((outputs->fields[i]).name)[0]), &(field[0]), 512);
                 void* value_39 = out;
                 String value_40 = StringLiteral(".%s");
                 uint8_t* value_41 = (void *)0;
                 {
                     String s = value_40;
-                    value_41 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_41 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_fprintf(value_39, value_41, &(field[0]));
+                zir_foreign_compiler_inline_asm__fprintf(value_39, value_41, &(field[0]));
             }
-            zir_f_b231ca7561351ed8_fputc(41, out);
+            zir_foreign_compiler_inline_asm__fputc(41, out);
             if (i == range_last_28) {
                 break;
             }
@@ -4661,9 +4661,9 @@ compiler_inline_asm_AssemblyBody(void* out, ZirModule* module, ZirFunction* fn, 
     uint8_t* value_44 = (void *)0;
     {
         String s = value_43;
-        value_44 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_44 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_44, out);
+    zir_foreign_compiler_inline_asm__fputs(value_44, out);
     bool memory = false;
     {
         int32_t range_first_45 = 0;
@@ -4679,15 +4679,15 @@ compiler_inline_asm_AssemblyBody(void* out, ZirModule* module, ZirFunction* fn, 
             }
             Parameter* parameter = value_47;
             uint8_t name[512] = {0};
-            zir_f_b231ca7561351ed8_TargetBindingName(fn, target, parameter->name, &(name[0]), 512);
+            zir_foreign_compiler_inline_asm__TargetBindingName(fn, target, parameter->name, &(name[0]), 512);
             if (i != 0) {
                 String value_49 = StringLiteral(", ");
                 uint8_t* value_50 = (void *)0;
                 {
                     String s = value_49;
-                    value_50 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_50 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_fputs(value_50, out);
+                zir_foreign_compiler_inline_asm__fputs(value_50, out);
             }
             compiler_inline_asm_AssemblyOperandText(out, (constraints)[i], &(names[0]), outputs->count, false);
             bool slice = compiler_inline_asm_SliceOperand(parameter->type);
@@ -4698,7 +4698,7 @@ compiler_inline_asm_AssemblyBody(void* out, ZirModule* module, ZirFunction* fn, 
                 uint8_t* value_55 = (void *)0;
                 {
                     String s = value_54;
-                    value_55 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_55 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_53 = value_55;
             } else {
@@ -4706,11 +4706,11 @@ compiler_inline_asm_AssemblyBody(void* out, ZirModule* module, ZirFunction* fn, 
                 uint8_t* value_58 = (void *)0;
                 {
                     String s = value_57;
-                    value_58 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_58 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_53 = value_58;
             }
-            zir_f_b231ca7561351ed8_fprintf(value_52, value_53, &(name[0]));
+            zir_foreign_compiler_inline_asm__fprintf(value_52, value_53, &(name[0]));
             if (slice || (parameter->type != ((void *)0) && parameter->type[0] == 42)) {
                 memory = true;
             }
@@ -4724,34 +4724,34 @@ compiler_inline_asm_AssemblyBody(void* out, ZirModule* module, ZirFunction* fn, 
     uint8_t* value_61 = (void *)0;
     {
         String s = value_60;
-        value_61 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_61 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_61, out);
+    zir_foreign_compiler_inline_asm__fputs(value_61, out);
     compiler_inline_asm_EmitClobbers(out, assembly, memory);
     String value_63 = StringLiteral(");\n        return");
     uint8_t* value_64 = (void *)0;
     {
         String s = value_63;
-        value_64 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_64 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_64, out);
+    zir_foreign_compiler_inline_asm__fputs(value_64, out);
     if (outputs->count != 0) {
         void* value_66 = out;
         String value_67 = StringLiteral(" %s");
         uint8_t* value_68 = (void *)0;
         {
             String s = value_67;
-            value_68 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_68 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fprintf(value_66, value_68, &(result_name[0]));
+        zir_foreign_compiler_inline_asm__fprintf(value_66, value_68, &(result_name[0]));
     }
     String value_70 = StringLiteral(";\n");
     uint8_t* value_71 = (void *)0;
     {
         String s = value_70;
-        value_71 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_71 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_71, out);
+    zir_foreign_compiler_inline_asm__fputs(value_71, out);
 }
 
 AssemblyOutputs*
@@ -4762,7 +4762,7 @@ compiler_inline_asm_CheckedOutputs(ZirModule* module, ZirFunction* fn)
     bool value_1 = value_0 || CheckAssembly(module, fn) == 0;
     bool value_2 = value_1;
     if (value_2 || compiler_inline_asm_AssemblyOutputsOf(module, fn, outputs) == 0) {
-        zir_f_b231ca7561351ed8_exit(1);
+        zir_foreign_compiler_inline_asm__exit(1);
     }
     return outputs;
 }
@@ -4781,9 +4781,9 @@ compiler_inline_asm_AssemblyHelpers(void* out, ZirModule* module, ZirFunction* f
         uint8_t* value_1 = (void *)0;
         {
             String s = value_0;
-            value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_1, out);
+        zir_foreign_compiler_inline_asm__fputs(value_1, out);
     }
     while (compiler_inline_asm_NextByte(cursor) != 0) {
         Assembly assembly = {0};
@@ -4798,7 +4798,7 @@ compiler_inline_asm_AssemblyHelpers(void* out, ZirModule* module, ZirFunction* f
             value_6 = compiler_inline_asm_ReadVariant(cursor, assembly, span, false);
         }
         if (value_6 == 0) {
-            zir_f_b231ca7561351ed8_exit(1);
+            zir_foreign_compiler_inline_asm__exit(1);
         }
         Assembly* value_8 = &(assembly);
         bool value_9 = false;
@@ -4816,7 +4816,7 @@ compiler_inline_asm_AssemblyHelpers(void* out, ZirModule* module, ZirFunction* f
                 uint8_t* value_14 = (void *)0;
                 {
                     String s = value_13;
-                    value_14 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_14 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_12 = value_14;
             } else {
@@ -4824,13 +4824,13 @@ compiler_inline_asm_AssemblyHelpers(void* out, ZirModule* module, ZirFunction* f
                 uint8_t* value_17 = (void *)0;
                 {
                     String s = value_16;
-                    value_17 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_17 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_12 = value_17;
             }
-            zir_f_b231ca7561351ed8_fputs(value_12, out);
+            zir_foreign_compiler_inline_asm__fputs(value_12, out);
             compiler_inline_asm_AssemblyGuard(out, &(assembly));
-            zir_f_b231ca7561351ed8_fputc(10, out);
+            zir_foreign_compiler_inline_asm__fputc(10, out);
             uint8_t helper[128] = {0};
             compiler_inline_asm_AssemblyHelperName(module, fn, target, ordinal, &(helper[0]), 128);
             if (selected) {
@@ -4840,25 +4840,25 @@ compiler_inline_asm_AssemblyHelpers(void* out, ZirModule* module, ZirFunction* f
                 uint8_t* value_20 = (void *)0;
                 {
                     String s = value_19;
-                    value_20 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_fputs(value_20, out);
+                zir_foreign_compiler_inline_asm__fputs(value_20, out);
             }
             String value_22 = StringLiteral(" static %s\n%s(%s)\n{\n");
             uint8_t* value_23 = (void *)0;
             {
                 String s = value_22;
-                value_23 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_23 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fprintf(out, value_23, result_type, &(helper[0]), args);
+            zir_foreign_compiler_inline_asm__fprintf(out, value_23, result_type, &(helper[0]), args);
             compiler_inline_asm_AssemblyBody(out, module, fn, target, result_type, &(assembly), outputs, available);
             String value_25 = StringLiteral("}\n#endif\n");
             uint8_t* value_26 = (void *)0;
             {
                 String s = value_25;
-                value_26 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_26 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fputs(value_26, out);
+            zir_foreign_compiler_inline_asm__fputs(value_26, out);
         }
         ordinal = (int32_t)((uint32_t)ordinal + 1u);
     }
@@ -4871,35 +4871,35 @@ compiler_inline_asm_CheckRegion(ZirFunction* fn, ZirTarget target, Parameter* pa
     uint8_t name[512] = {0};
     uint8_t element[128] = {0};
     uint8_t* type = parameter->type;
-    zir_f_b231ca7561351ed8_TargetBindingName(fn, target, parameter->name, &(name[0]), 512);
+    zir_foreign_compiler_inline_asm__TargetBindingName(fn, target, parameter->name, &(name[0]), 512);
     bool value_0 = type != ((void *)0);
-    bool value_1 = value_0 && zir_f_b231ca7561351ed8_SliceElementType(type, &(element[0]), 128) != 0;
+    bool value_1 = value_0 && zir_foreign_compiler_inline_asm__SliceElementType(type, &(element[0]), 128) != 0;
     bool value_2 = value_1;
     if (value_2 && compiler_inline_asm_OperandType(&(element[0]))) {
         String value_3 = StringLiteral("void *");
         uint8_t* value_4 = (void *)0;
         {
             String s = value_3;
-            value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         uint8_t* scalar = value_4;
         if ((element)[0] != 42) {
-            scalar = compiler_inline_asm_TargetType(zir_f_b231ca7561351ed8_ScalarType(&(element[0])), target);
+            scalar = compiler_inline_asm_TargetType(zir_foreign_compiler_inline_asm__ScalarType(&(element[0])), target);
         }
         String value_6 = StringLiteral("(size_t)(%s).length * sizeof(%s)");
         uint8_t* value_7 = (void *)0;
         {
             String s = value_6;
-            value_7 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_7 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_snprintf(size, length, value_7, &(name[0]), scalar);
+        zir_foreign_compiler_inline_asm__snprintf(size, length, value_7, &(name[0]), scalar);
         String value_9 = StringLiteral("(%s).data");
         uint8_t* value_10 = (void *)0;
         {
             String s = value_9;
-            value_10 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_10 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_snprintf(address, length, value_10, &(name[0]));
+        zir_foreign_compiler_inline_asm__snprintf(address, length, value_10, &(name[0]));
         return true;
     }
     if (type == ((void *)0) || type[0] != 42) {
@@ -4911,19 +4911,19 @@ compiler_inline_asm_CheckRegion(ZirFunction* fn, ZirTarget target, Parameter* pa
         size_t n = 1;
         value_12 = (uint8_t*)(((size_t)(p) + n));
     }
-    uint8_t* pointee = zir_f_b231ca7561351ed8_skip_ws(value_12);
+    uint8_t* pointee = zir_foreign_compiler_inline_asm__skip_ws(value_12);
     bool value_14 = compiler_inline_asm_OperandType(pointee);
     bool value_15 = !value_14;
     if (!value_15) {
         bool value_16 = pointee[0] != 42;
         bool value_17 = value_16;
         if (value_17) {
-            uint8_t* value_18 = zir_f_b231ca7561351ed8_ScalarType(pointee);
+            uint8_t* value_18 = zir_foreign_compiler_inline_asm__ScalarType(pointee);
             String value_19 = StringLiteral("void");
             uint8_t* value_20 = (void *)0;
             {
                 String s = value_19;
-                value_20 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             bool value_22 = compiler_inline_asm_Same(value_18, value_20);
             value_17 = value_22;
@@ -4937,16 +4937,16 @@ compiler_inline_asm_CheckRegion(ZirFunction* fn, ZirTarget target, Parameter* pa
     uint8_t* value_24 = (void *)0;
     {
         String s = value_23;
-        value_24 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_24 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_snprintf(size, length, value_24, &(name[0]));
+    zir_foreign_compiler_inline_asm__snprintf(size, length, value_24, &(name[0]));
     String value_26 = StringLiteral("(void *)(%s)");
     uint8_t* value_27 = (void *)0;
     {
         String s = value_26;
-        value_27 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_27 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_snprintf(address, length, value_27, &(name[0]));
+    zir_foreign_compiler_inline_asm__snprintf(address, length, value_27, &(name[0]));
     return true;
 }
 
@@ -4957,33 +4957,33 @@ compiler_inline_asm_CheckFailure(void* out, ZirFunction* fn, Assembly* assembly,
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_1, out);
+    zir_foreign_compiler_inline_asm__fputs(value_1, out);
     compiler_inline_asm_AssemblyString(out, &(fn->name[0]));
     String value_3 = StringLiteral(", ");
     uint8_t* value_4 = (void *)0;
     {
         String s = value_3;
-        value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_4, out);
+    zir_foreign_compiler_inline_asm__fputs(value_4, out);
     compiler_inline_asm_AssemblyString(out, (assembly->part)[0]);
     String value_6 = StringLiteral(", ");
     uint8_t* value_7 = (void *)0;
     {
         String s = value_6;
-        value_7 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_7 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_7, out);
+    zir_foreign_compiler_inline_asm__fputs(value_7, out);
     compiler_inline_asm_AssemblyString(out, what);
     String value_9 = StringLiteral(");\n                    abort();\n                }\n");
     uint8_t* value_10 = (void *)0;
     {
         String s = value_9;
-        value_10 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_10 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_10, out);
+    zir_foreign_compiler_inline_asm__fputs(value_10, out);
 }
 
 void
@@ -5001,21 +5001,21 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
             uint8_t* value_5 = (void *)0;
             {
                 String s = value_4;
-                value_5 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_5 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             value_3 = value_5;
         }
         value_1 = value_3;
     }
-    Parameters* parameters = zir_f_b231ca7561351ed8_ParametersOf(value_1);
+    Parameters* parameters = zir_foreign_compiler_inline_asm__ParametersOf(value_1);
     uint8_t native[512] = {0};
     uint8_t flag[128] = {0};
     uint8_t call[4096] = {0};
     uint8_t size[768] = {0};
     uint8_t address[768] = {0};
     size_t used = 0;
-    zir_f_b231ca7561351ed8_NativeCFunctionName(module, fn, &(native[0]), 512);
-    zir_f_b231ca7561351ed8_ArrayAbiName(fn, 65, &(flag[0]), 128);
+    zir_foreign_compiler_inline_asm__NativeCFunctionName(module, fn, &(native[0]), 512);
+    zir_foreign_compiler_inline_asm__ArrayAbiName(fn, 65, &(flag[0]), 128);
     uint8_t* value_7 = &(call[0]);
     (*value_7) = 0;
     {
@@ -5032,14 +5032,14 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
             }
             Parameter* argument = value_9;
             uint8_t name[512] = {0};
-            zir_f_b231ca7561351ed8_TargetBindingName(fn, target, argument->name, &(name[0]), 512);
+            zir_foreign_compiler_inline_asm__TargetBindingName(fn, target, argument->name, &(name[0]), 512);
             size_t value_11 = used;
             size_t value_12 = 4096 - used;
             String value_13 = StringLiteral("%s%s");
             uint8_t* value_14 = (void *)0;
             {
                 String s = value_13;
-                value_14 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_14 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             uint8_t* value_16 = (void *)0;
             if (i != 0) {
@@ -5047,7 +5047,7 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
                 uint8_t* value_18 = (void *)0;
                 {
                     String s = value_17;
-                    value_18 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_18 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_16 = value_18;
             } else {
@@ -5055,14 +5055,14 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
                 uint8_t* value_21 = (void *)0;
                 {
                     String s = value_20;
-                    value_21 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_21 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_16 = value_21;
             }
-            int32_t value_23 = zir_f_b231ca7561351ed8_snprintf(&(call[used]), value_12, value_14, value_16, &(name[0]));
+            int32_t value_23 = zir_foreign_compiler_inline_asm__snprintf(&(call[used]), value_12, value_14, value_16, &(name[0]));
             used = value_11 + (size_t)(value_23);
             if (used >= 4096) {
-                zir_f_b231ca7561351ed8_exit(1);
+                zir_foreign_compiler_inline_asm__exit(1);
             }
             if (i == range_last_10) {
                 break;
@@ -5075,9 +5075,9 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
     uint8_t* value_26 = (void *)0;
     {
         String s = value_25;
-        value_26 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_26 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fprintf(value_24, value_26, &(flag[0]), &(flag[0]));
+    zir_foreign_compiler_inline_asm__fprintf(value_24, value_26, &(flag[0]), &(flag[0]));
     {
         int32_t range_first_20 = 0;
         int32_t range_last_20 = (int32_t)((uint32_t)(parameters->count) - 1u);
@@ -5105,9 +5105,9 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
             uint8_t* value_36 = (void *)0;
             {
                 String s = value_35;
-                value_36 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_36 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fprintf(value_34, value_36, i, &(size[0]), i, i, i, i, i, i, i, i, &(address[0]), i);
+            zir_foreign_compiler_inline_asm__fprintf(value_34, value_36, i, &(size[0]), i, i, i, i, i, i, i, i, &(address[0]), i);
             if (i == range_last_20) {
                 break;
             }
@@ -5119,27 +5119,27 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
     uint8_t* value_40 = (void *)0;
     {
         String s = value_39;
-        value_40 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_40 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fprintf(value_38, value_40, &(flag[0]));
+    zir_foreign_compiler_inline_asm__fprintf(value_38, value_40, &(flag[0]));
     if (outputs->count != 0) {
         void* value_42 = out;
         String value_43 = StringLiteral("%s ziran_portable = ");
         uint8_t* value_44 = (void *)0;
         {
             String s = value_43;
-            value_44 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_44 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fprintf(value_42, value_44, result_type);
+        zir_foreign_compiler_inline_asm__fprintf(value_42, value_44, result_type);
     }
     void* value_46 = out;
     String value_47 = StringLiteral("%s(%s);\n            %s = 0;\n");
     uint8_t* value_48 = (void *)0;
     {
         String s = value_47;
-        value_48 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_48 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fprintf(value_46, value_48, &(native[0]), &(call[0]), &(flag[0]));
+    zir_foreign_compiler_inline_asm__fprintf(value_46, value_48, &(native[0]), &(call[0]), &(flag[0]));
     {
         int32_t range_first_31 = 0;
         int32_t range_last_31 = (int32_t)((uint32_t)(parameters->count) - 1u);
@@ -5160,9 +5160,9 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
                 uint8_t* value_57 = (void *)0;
                 {
                     String s = value_56;
-                    value_57 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_57 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_fprintf(value_55, value_57, i, i, &(address[0]), i);
+                zir_foreign_compiler_inline_asm__fprintf(value_55, value_57, i, i, &(address[0]), i);
             }
             if (i == range_last_31) {
                 break;
@@ -5185,7 +5185,7 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
             value_62 = compiler_inline_asm_ReadVariant(cursor, assembly, span, false);
         }
         if (value_62 == 0) {
-            zir_f_b231ca7561351ed8_exit(1);
+            zir_foreign_compiler_inline_asm__exit(1);
         }
         uint8_t helper[128] = {0};
         compiler_inline_asm_AssemblyHelperName(module, fn, target, ordinal, &(helper[0]), 128);
@@ -5194,17 +5194,17 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
         uint8_t* value_65 = (void *)0;
         {
             String s = value_64;
-            value_65 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_65 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_65, out);
+        zir_foreign_compiler_inline_asm__fputs(value_65, out);
         compiler_inline_asm_AssemblyGuard(out, &(assembly));
         String value_67 = StringLiteral("\n            if(");
         uint8_t* value_68 = (void *)0;
         {
             String s = value_67;
-            value_68 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_68 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_68, out);
+        zir_foreign_compiler_inline_asm__fputs(value_68, out);
         Assembly* value_70 = &(assembly);
         bool value_71 = false;
         {
@@ -5215,15 +5215,15 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
         if (value_71) {
             compiler_inline_asm_AssemblyPredicate(out, &(assembly));
         } else {
-            zir_f_b231ca7561351ed8_fputc(49, out);
+            zir_foreign_compiler_inline_asm__fputc(49, out);
         }
         String value_74 = StringLiteral(") {\n");
         uint8_t* value_75 = (void *)0;
         {
             String s = value_74;
-            value_75 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_75 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_75, out);
+        zir_foreign_compiler_inline_asm__fputs(value_75, out);
         {
             int32_t range_first_56 = 0;
             int32_t range_last_56 = (int32_t)((uint32_t)(parameters->count) - 1u);
@@ -5244,9 +5244,9 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
                     uint8_t* value_84 = (void *)0;
                     {
                         String s = value_83;
-                        value_84 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_84 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
-                    zir_f_b231ca7561351ed8_fprintf(value_82, value_84, i, &(address[0]), i, i);
+                    zir_foreign_compiler_inline_asm__fprintf(value_82, value_84, i, &(address[0]), i, i);
                 }
                 if (i == range_last_56) {
                     break;
@@ -5258,44 +5258,44 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
         uint8_t* value_87 = (void *)0;
         {
             String s = value_86;
-            value_87 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_87 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_87, out);
+        zir_foreign_compiler_inline_asm__fputs(value_87, out);
         if (outputs->count != 0) {
             void* value_89 = out;
             String value_90 = StringLiteral("%s ziran_variant = ");
             uint8_t* value_91 = (void *)0;
             {
                 String s = value_90;
-                value_91 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_91 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fprintf(value_89, value_91, result_type);
+            zir_foreign_compiler_inline_asm__fprintf(value_89, value_91, result_type);
         }
         void* value_93 = out;
         String value_94 = StringLiteral("%s(%s);\n");
         uint8_t* value_95 = (void *)0;
         {
             String s = value_94;
-            value_95 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_95 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fprintf(value_93, value_95, &(helper[0]), &(call[0]));
+        zir_foreign_compiler_inline_asm__fprintf(value_93, value_95, &(helper[0]), &(call[0]));
         if (outputs->count != 0 && outputs->record != 0) {
-            ZirType* record = zir_f_b231ca7561351ed8_FindType(module, &(fn->return_type[0]), (void *)0);
+            ZirType* record = zir_foreign_compiler_inline_asm__FindType(module, &(fn->return_type[0]), (void *)0);
             {
                 int32_t range_first_68 = 0;
                 int32_t range_last_68 = (int32_t)((uint32_t)(outputs->count) - 1u);
                 int32_t i = range_first_68;
                 if (i <= range_last_68) for (;;) {
                     uint8_t field[512] = {0};
-                    zir_f_b231ca7561351ed8_TargetFieldName(record, target, &(((outputs->fields[i]).name)[0]), &(field[0]), 512);
+                    zir_foreign_compiler_inline_asm__TargetFieldName(record, target, &(((outputs->fields[i]).name)[0]), &(field[0]), 512);
                     void* value_97 = out;
                     String value_98 = StringLiteral("                if(memcmp(&ziran_variant.%s, &ziran_portable.%s, sizeof(ziran_portable.%s)))");
                     uint8_t* value_99 = (void *)0;
                     {
                         String s = value_98;
-                        value_99 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_99 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
-                    zir_f_b231ca7561351ed8_fprintf(value_97, value_99, &(field[0]), &(field[0]), &(field[0]));
+                    zir_foreign_compiler_inline_asm__fprintf(value_97, value_99, &(field[0]), &(field[0]), &(field[0]));
                     compiler_inline_asm_CheckFailure(out, fn, &(assembly), &(((outputs->fields[i]).name)[0]));
                     if (i == range_last_68) {
                         break;
@@ -5308,16 +5308,16 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
             uint8_t* value_102 = (void *)0;
             {
                 String s = value_101;
-                value_102 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_102 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fputs(value_102, out);
+            zir_foreign_compiler_inline_asm__fputs(value_102, out);
             void* value_104 = out;
             ZirFunction* value_105 = fn;
             String value_106 = StringLiteral("its result");
             uint8_t* value_107 = (void *)0;
             {
                 String s = value_106;
-                value_107 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_107 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             compiler_inline_asm_CheckFailure(value_104, value_105, &(assembly), value_107);
         }
@@ -5340,9 +5340,9 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
                     uint8_t* value_114 = (void *)0;
                     {
                         String s = value_113;
-                        value_114 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_114 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
-                    zir_f_b231ca7561351ed8_fprintf(value_112, value_114, i, &(address[0]), i, i);
+                    zir_foreign_compiler_inline_asm__fprintf(value_112, value_114, i, &(address[0]), i, i);
                     compiler_inline_asm_CheckFailure(out, fn, &(assembly), compared->name);
                 }
                 if (i == range_last_79) {
@@ -5355,9 +5355,9 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
         uint8_t* value_117 = (void *)0;
         {
             String s = value_116;
-            value_117 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_117 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_117, out);
+        zir_foreign_compiler_inline_asm__fputs(value_117, out);
     }
     {
         int32_t range_first_88 = 0;
@@ -5379,9 +5379,9 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
                 uint8_t* value_126 = (void *)0;
                 {
                     String s = value_125;
-                    value_126 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_126 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_fprintf(value_124, value_126, i, &(address[0]), i, i, i, i);
+                zir_foreign_compiler_inline_asm__fprintf(value_124, value_126, i, &(address[0]), i, i, i, i);
             }
             if (i == range_last_88) {
                 break;
@@ -5394,7 +5394,7 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
     uint8_t* value_130 = (void *)0;
     {
         String s = value_129;
-        value_130 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_130 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     uint8_t* value_132 = (void *)0;
     if (outputs->count != 0) {
@@ -5402,7 +5402,7 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
         uint8_t* value_134 = (void *)0;
         {
             String s = value_133;
-            value_134 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_134 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         value_132 = value_134;
     } else {
@@ -5410,11 +5410,11 @@ compiler_inline_asm_AssemblyCheck(void* out, ZirModule* module, ZirFunction* fn,
         uint8_t* value_137 = (void *)0;
         {
             String s = value_136;
-            value_137 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_137 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         value_132 = value_137;
     }
-    zir_f_b231ca7561351ed8_fprintf(value_128, value_130, value_132);
+    zir_foreign_compiler_inline_asm__fprintf(value_128, value_130, value_132);
 }
 
 uint8_t*
@@ -5424,7 +5424,7 @@ compiler_inline_asm_LzcntCpuid(void)
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     return value_1;
 }
@@ -5465,16 +5465,16 @@ compiler_inline_asm_AssemblyPredicate(void* out, Assembly* assembly)
                 uint8_t* value_9 = (void *)0;
                 {
                     String s = value_8;
-                    value_9 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_9 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_fputs(value_9, out);
+                zir_foreign_compiler_inline_asm__fputs(value_9, out);
             }
             if (assembly->architecture == 2 || assembly->architecture == 3) {
                 String value_11 = StringLiteral("(getauxval(AT_HWCAP) & %s) != 0");
                 uint8_t* value_12 = (void *)0;
                 {
                     String s = value_11;
-                    value_12 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_12 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 uint8_t* value_14 = (void *)0;
                 {
@@ -5484,7 +5484,7 @@ compiler_inline_asm_AssemblyPredicate(void* out, Assembly* assembly)
                         uint8_t* value_17 = (void *)0;
                         {
                             String s = value_16;
-                            value_17 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_17 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_14 = value_17;
                         goto value_15;
@@ -5494,7 +5494,7 @@ compiler_inline_asm_AssemblyPredicate(void* out, Assembly* assembly)
                         uint8_t* value_20 = (void *)0;
                         {
                             String s = value_19;
-                            value_20 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_14 = value_20;
                         goto value_15;
@@ -5504,7 +5504,7 @@ compiler_inline_asm_AssemblyPredicate(void* out, Assembly* assembly)
                         uint8_t* value_23 = (void *)0;
                         {
                             String s = value_22;
-                            value_23 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_23 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_14 = value_23;
                         goto value_15;
@@ -5514,7 +5514,7 @@ compiler_inline_asm_AssemblyPredicate(void* out, Assembly* assembly)
                         uint8_t* value_26 = (void *)0;
                         {
                             String s = value_25;
-                            value_26 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_26 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_14 = value_26;
                         goto value_15;
@@ -5524,7 +5524,7 @@ compiler_inline_asm_AssemblyPredicate(void* out, Assembly* assembly)
                         uint8_t* value_29 = (void *)0;
                         {
                             String s = value_28;
-                            value_29 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_29 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_14 = value_29;
                         goto value_15;
@@ -5534,7 +5534,7 @@ compiler_inline_asm_AssemblyPredicate(void* out, Assembly* assembly)
                         uint8_t* value_32 = (void *)0;
                         {
                             String s = value_31;
-                            value_32 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_32 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_14 = value_32;
                         goto value_15;
@@ -5544,7 +5544,7 @@ compiler_inline_asm_AssemblyPredicate(void* out, Assembly* assembly)
                         uint8_t* value_35 = (void *)0;
                         {
                             String s = value_34;
-                            value_35 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_35 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_14 = value_35;
                         goto value_15;
@@ -5552,21 +5552,21 @@ compiler_inline_asm_AssemblyPredicate(void* out, Assembly* assembly)
                     value_14 = (void *)0;
                 value_15: ;
                 }
-                zir_f_b231ca7561351ed8_fprintf(out, value_12, value_14);
+                zir_foreign_compiler_inline_asm__fprintf(out, value_12, value_14);
             } else {
                 uint8_t* value_37 = (feature_names)[i];
                 String value_38 = StringLiteral("lzcnt");
                 uint8_t* value_39 = (void *)0;
                 {
                     String s = value_38;
-                    value_39 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_39 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 if (compiler_inline_asm_Same(value_37, value_39)) {
                     String value_41 = StringLiteral("(\n#if defined(__clang__) && __clang_major__ < 19\n%s\n#else\n__builtin_cpu_supports(\"lzcnt\")\n#endif\n)");
                     uint8_t* value_42 = (void *)0;
                     {
                         String s = value_41;
-                        value_42 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_42 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
                     uint8_t* value_44 = (void *)0;
                     {
@@ -5574,19 +5574,19 @@ compiler_inline_asm_AssemblyPredicate(void* out, Assembly* assembly)
                         uint8_t* value_47 = (void *)0;
                         {
                             String s = value_46;
-                            value_47 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_47 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         value_44 = value_47;
                     }
-                    zir_f_b231ca7561351ed8_fprintf(out, value_42, value_44);
+                    zir_foreign_compiler_inline_asm__fprintf(out, value_42, value_44);
                 } else {
                     String value_49 = StringLiteral("__builtin_cpu_supports(\"%s\")");
                     uint8_t* value_50 = (void *)0;
                     {
                         String s = value_49;
-                        value_50 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_50 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
-                    zir_f_b231ca7561351ed8_fprintf(out, value_50, (feature_names)[i]);
+                    zir_foreign_compiler_inline_asm__fprintf(out, value_50, (feature_names)[i]);
                 }
             }
             first = false;
@@ -5602,9 +5602,9 @@ compiler_inline_asm_AssemblyPredicate(void* out, Assembly* assembly)
         uint8_t* value_53 = (void *)0;
         {
             String s = value_52;
-            value_53 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_53 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fprintf(out, value_53, (int32_t)(48u + (uint32_t)tier));
+        zir_foreign_compiler_inline_asm__fprintf(out, value_53, (int32_t)(48u + (uint32_t)tier));
     }
 }
 
@@ -5625,12 +5625,12 @@ compiler_inline_asm_EmitHelperArguments(void* out, ZirFunction* fn, ZirTarget ta
             }
             Parameter* passed = value_1;
             uint8_t name[512] = {0};
-            zir_f_b231ca7561351ed8_TargetBindingName(fn, target, passed->name, &(name[0]), 512);
+            zir_foreign_compiler_inline_asm__TargetBindingName(fn, target, passed->name, &(name[0]), 512);
             String value_3 = StringLiteral("%s%s");
             uint8_t* value_4 = (void *)0;
             {
                 String s = value_3;
-                value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             uint8_t* value_6 = (void *)0;
             if (i != 0) {
@@ -5638,7 +5638,7 @@ compiler_inline_asm_EmitHelperArguments(void* out, ZirFunction* fn, ZirTarget ta
                 uint8_t* value_8 = (void *)0;
                 {
                     String s = value_7;
-                    value_8 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_8 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_6 = value_8;
             } else {
@@ -5646,11 +5646,11 @@ compiler_inline_asm_EmitHelperArguments(void* out, ZirFunction* fn, ZirTarget ta
                 uint8_t* value_11 = (void *)0;
                 {
                     String s = value_10;
-                    value_11 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_6 = value_11;
             }
-            zir_f_b231ca7561351ed8_fprintf(out, value_4, value_6, &(name[0]));
+            zir_foreign_compiler_inline_asm__fprintf(out, value_4, value_6, &(name[0]));
             if (i == range_last_0) {
                 break;
             }
@@ -5662,7 +5662,7 @@ compiler_inline_asm_EmitHelperArguments(void* out, ZirFunction* fn, ZirTarget ta
         uint8_t* value_14 = (void *)0;
         {
             String s = value_13;
-            value_14 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_14 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         uint8_t* value_16 = (void *)0;
         if (parameters->count != 0) {
@@ -5670,7 +5670,7 @@ compiler_inline_asm_EmitHelperArguments(void* out, ZirFunction* fn, ZirTarget ta
             uint8_t* value_18 = (void *)0;
             {
                 String s = value_17;
-                value_18 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_18 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             value_16 = value_18;
         } else {
@@ -5678,11 +5678,11 @@ compiler_inline_asm_EmitHelperArguments(void* out, ZirFunction* fn, ZirTarget ta
             uint8_t* value_21 = (void *)0;
             {
                 String s = value_20;
-                value_21 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_21 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             value_16 = value_21;
         }
-        zir_f_b231ca7561351ed8_fprintf(out, value_14, value_16, available);
+        zir_foreign_compiler_inline_asm__fprintf(out, value_14, value_16, available);
     }
 }
 
@@ -5705,13 +5705,13 @@ compiler_inline_asm_AssemblyFunction(void* out, ZirModule* module, ZirFunction* 
             uint8_t* value_5 = (void *)0;
             {
                 String s = value_4;
-                value_5 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_5 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             value_3 = value_5;
         }
         value_1 = value_3;
     }
-    Parameters* parameters = zir_f_b231ca7561351ed8_ParametersOf(value_1);
+    Parameters* parameters = zir_foreign_compiler_inline_asm__ParametersOf(value_1);
     uint8_t* cursor = (uint8_t*)fn->assembly_text;
     int32_t features = 0;
     if (available == ((void *)0)) {
@@ -5730,7 +5730,7 @@ compiler_inline_asm_AssemblyFunction(void* out, ZirModule* module, ZirFunction* 
             value_10 = compiler_inline_asm_ReadVariant(cursor, assembly, span, false);
         }
         if (value_10 == 0) {
-            zir_f_b231ca7561351ed8_exit(1);
+            zir_foreign_compiler_inline_asm__exit(1);
         }
         Assembly* value_12 = &(guarded);
         bool value_13 = false;
@@ -5746,7 +5746,7 @@ compiler_inline_asm_AssemblyFunction(void* out, ZirModule* module, ZirFunction* 
                 uint8_t* value_18 = (void *)0;
                 {
                     String s = value_17;
-                    value_18 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_18 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_16 = value_18;
             } else {
@@ -5754,37 +5754,37 @@ compiler_inline_asm_AssemblyFunction(void* out, ZirModule* module, ZirFunction* 
                 uint8_t* value_21 = (void *)0;
                 {
                     String s = value_20;
-                    value_21 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_21 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_16 = value_21;
             }
-            zir_f_b231ca7561351ed8_fputs(value_16, out);
+            zir_foreign_compiler_inline_asm__fputs(value_16, out);
             features = (int32_t)((uint32_t)features + 1u);
             compiler_inline_asm_AssemblyGuard(out, &(guarded));
             if (features > 1) {
-                zir_f_b231ca7561351ed8_fputc(41, out);
+                zir_foreign_compiler_inline_asm__fputc(41, out);
             }
         }
     }
     if (features != 0) {
         uint8_t state[128] = {0};
         uint8_t selected[128] = {0};
-        zir_f_b231ca7561351ed8_ArrayAbiName(fn, -1, &(state[0]), 128);
-        zir_f_b231ca7561351ed8_ArrayAbiName(fn, 64, &(selected[0]), 128);
+        zir_foreign_compiler_inline_asm__ArrayAbiName(fn, -1, &(state[0]), 128);
+        zir_foreign_compiler_inline_asm__ArrayAbiName(fn, 64, &(selected[0]), 128);
         String value_23 = StringLiteral("\n    {\n        static int %s;\n        int %s = ZIRAN_ASM_LOAD(&%s);\n        if(%s == 0) {\n            %s = 1;\n");
         uint8_t* value_24 = (void *)0;
         {
             String s = value_23;
-            value_24 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_24 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fprintf(out, value_24, &(state[0]), &(selected[0]), &(state[0]), &(selected[0]), &(selected[0]));
+        zir_foreign_compiler_inline_asm__fprintf(out, value_24, &(state[0]), &(selected[0]), &(state[0]), &(selected[0]), &(selected[0]));
         String value_26 = StringLiteral("#if defined(__x86_64__) || defined(__i386__)\n            __builtin_cpu_init();\n#endif\n");
         uint8_t* value_27 = (void *)0;
         {
             String s = value_26;
-            value_27 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_27 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_27, out);
+        zir_foreign_compiler_inline_asm__fputs(value_27, out);
         cursor = (uint8_t*)fn->assembly_text;
         int32_t ordinal = 0;
         while (compiler_inline_asm_NextByte(cursor) != 0) {
@@ -5800,7 +5800,7 @@ compiler_inline_asm_AssemblyFunction(void* out, ZirModule* module, ZirFunction* 
                 value_32 = compiler_inline_asm_ReadVariant(cursor, assembly, span, false);
             }
             if (value_32 == 0) {
-                zir_f_b231ca7561351ed8_exit(1);
+                zir_foreign_compiler_inline_asm__exit(1);
             }
             Assembly* value_34 = &(probed);
             bool value_35 = false;
@@ -5814,26 +5814,26 @@ compiler_inline_asm_AssemblyFunction(void* out, ZirModule* module, ZirFunction* 
                 uint8_t* value_39 = (void *)0;
                 {
                     String s = value_38;
-                    value_39 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_39 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_fputs(value_39, out);
+                zir_foreign_compiler_inline_asm__fputs(value_39, out);
                 compiler_inline_asm_AssemblyGuard(out, &(probed));
-                zir_f_b231ca7561351ed8_fputc(10, out);
+                zir_foreign_compiler_inline_asm__fputc(10, out);
                 String value_41 = StringLiteral("            if(%s == 1 && (");
                 uint8_t* value_42 = (void *)0;
                 {
                     String s = value_41;
-                    value_42 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_42 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_fprintf(out, value_42, &(selected[0]));
+                zir_foreign_compiler_inline_asm__fprintf(out, value_42, &(selected[0]));
                 compiler_inline_asm_AssemblyPredicate(out, &(probed));
                 String value_44 = StringLiteral(")) %s = %d;\n#endif\n");
                 uint8_t* value_45 = (void *)0;
                 {
                     String s = value_44;
-                    value_45 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_45 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_fprintf(out, value_45, &(selected[0]), (int32_t)((uint32_t)ordinal + 2u));
+                zir_foreign_compiler_inline_asm__fprintf(out, value_45, &(selected[0]), (int32_t)((uint32_t)ordinal + 2u));
             }
             ordinal = (int32_t)((uint32_t)ordinal + 1u);
         }
@@ -5841,9 +5841,9 @@ compiler_inline_asm_AssemblyFunction(void* out, ZirModule* module, ZirFunction* 
         uint8_t* value_48 = (void *)0;
         {
             String s = value_47;
-            value_48 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_48 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fprintf(out, value_48, &(state[0]), &(selected[0]));
+        zir_foreign_compiler_inline_asm__fprintf(out, value_48, &(state[0]), &(selected[0]));
         cursor = (uint8_t*)fn->assembly_text;
         ordinal = 0;
         while (compiler_inline_asm_NextByte(cursor) != 0) {
@@ -5859,7 +5859,7 @@ compiler_inline_asm_AssemblyFunction(void* out, ZirModule* module, ZirFunction* 
                 value_53 = compiler_inline_asm_ReadVariant(cursor, assembly, span, false);
             }
             if (value_53 == 0) {
-                zir_f_b231ca7561351ed8_exit(1);
+                zir_foreign_compiler_inline_asm__exit(1);
             }
             Assembly* value_55 = &(called);
             bool value_56 = false;
@@ -5875,40 +5875,40 @@ compiler_inline_asm_AssemblyFunction(void* out, ZirModule* module, ZirFunction* 
                 uint8_t* value_60 = (void *)0;
                 {
                     String s = value_59;
-                    value_60 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_60 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_fputs(value_60, out);
+                zir_foreign_compiler_inline_asm__fputs(value_60, out);
                 compiler_inline_asm_AssemblyGuard(out, &(called));
-                zir_f_b231ca7561351ed8_fputc(10, out);
+                zir_foreign_compiler_inline_asm__fputc(10, out);
                 String value_62 = StringLiteral("        if(%s == %d) { ");
                 uint8_t* value_63 = (void *)0;
                 {
                     String s = value_62;
-                    value_63 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_63 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_fprintf(out, value_63, &(selected[0]), (int32_t)((uint32_t)ordinal + 2u));
+                zir_foreign_compiler_inline_asm__fprintf(out, value_63, &(selected[0]), (int32_t)((uint32_t)ordinal + 2u));
                 if (outputs->count != 0) {
                     String value_65 = StringLiteral("return ");
                     uint8_t* value_66 = (void *)0;
                     {
                         String s = value_65;
-                        value_66 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_66 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
-                    zir_f_b231ca7561351ed8_fputs(value_66, out);
+                    zir_foreign_compiler_inline_asm__fputs(value_66, out);
                 }
                 String value_68 = StringLiteral("%s(");
                 uint8_t* value_69 = (void *)0;
                 {
                     String s = value_68;
-                    value_69 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_69 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_fprintf(out, value_69, &(helper[0]));
+                zir_foreign_compiler_inline_asm__fprintf(out, value_69, &(helper[0]));
                 compiler_inline_asm_EmitHelperArguments(out, fn, target, parameters, available);
                 String value_71 = StringLiteral(");%s }\n#endif\n");
                 uint8_t* value_72 = (void *)0;
                 {
                     String s = value_71;
-                    value_72 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_72 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 uint8_t* value_74 = (void *)0;
                 if (outputs->count != 0) {
@@ -5916,7 +5916,7 @@ compiler_inline_asm_AssemblyFunction(void* out, ZirModule* module, ZirFunction* 
                     uint8_t* value_76 = (void *)0;
                     {
                         String s = value_75;
-                        value_76 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_76 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
                     value_74 = value_76;
                 } else {
@@ -5924,11 +5924,11 @@ compiler_inline_asm_AssemblyFunction(void* out, ZirModule* module, ZirFunction* 
                     uint8_t* value_79 = (void *)0;
                     {
                         String s = value_78;
-                        value_79 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_79 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
                     value_74 = value_79;
                 }
-                zir_f_b231ca7561351ed8_fprintf(out, value_72, value_74);
+                zir_foreign_compiler_inline_asm__fprintf(out, value_72, value_74);
             }
             ordinal = (int32_t)((uint32_t)ordinal + 1u);
         }
@@ -5936,9 +5936,9 @@ compiler_inline_asm_AssemblyFunction(void* out, ZirModule* module, ZirFunction* 
         uint8_t* value_82 = (void *)0;
         {
             String s = value_81;
-            value_82 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_82 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_82, out);
+        zir_foreign_compiler_inline_asm__fputs(value_82, out);
     }
     cursor = (uint8_t*)fn->assembly_text;
     while (compiler_inline_asm_NextByte(cursor) != 0) {
@@ -5954,7 +5954,7 @@ compiler_inline_asm_AssemblyFunction(void* out, ZirModule* module, ZirFunction* 
             value_87 = compiler_inline_asm_ReadVariant(cursor, assembly, span, false);
         }
         if (value_87 == 0) {
-            zir_f_b231ca7561351ed8_exit(1);
+            zir_foreign_compiler_inline_asm__exit(1);
         }
         Assembly* value_89 = &(direct);
         bool value_90 = false;
@@ -5970,34 +5970,34 @@ compiler_inline_asm_AssemblyFunction(void* out, ZirModule* module, ZirFunction* 
         uint8_t* value_94 = (void *)0;
         {
             String s = value_93;
-            value_94 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_94 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_94, out);
+        zir_foreign_compiler_inline_asm__fputs(value_94, out);
         compiler_inline_asm_AssemblyGuard(out, &(direct));
         String value_96 = StringLiteral("\n    {\n");
         uint8_t* value_97 = (void *)0;
         {
             String s = value_96;
-            value_97 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_97 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_97, out);
+        zir_foreign_compiler_inline_asm__fputs(value_97, out);
         compiler_inline_asm_AssemblyBody(out, module, fn, target, result_type, &(direct), outputs, available);
         String value_99 = StringLiteral("    }\n#endif\n");
         uint8_t* value_100 = (void *)0;
         {
             String s = value_99;
-            value_100 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_100 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_100, out);
+        zir_foreign_compiler_inline_asm__fputs(value_100, out);
     }
     if (available == ((void *)0)) {
         String value_102 = StringLiteral("#endif\n");
         uint8_t* value_103 = (void *)0;
         {
             String s = value_102;
-            value_103 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_103 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_103, out);
+        zir_foreign_compiler_inline_asm__fputs(value_103, out);
     }
     compiler_inline_asm_FreeAssemblyOutputs(outputs);
 }
@@ -6056,17 +6056,17 @@ EmitAssemblyAvailable(void* out, ZirFunction* fn, int32_t statement)
             value_7 = compiler_inline_asm_ReadVariant(cursor, assembly, span, false);
         }
         if (value_7 == 0) {
-            zir_f_b231ca7561351ed8_exit(1);
+            zir_foreign_compiler_inline_asm__exit(1);
         }
         String value_9 = StringLiteral("#if ");
         uint8_t* value_10 = (void *)0;
         {
             String s = value_9;
-            value_10 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_10 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_10, out);
+        zir_foreign_compiler_inline_asm__fputs(value_10, out);
         compiler_inline_asm_AssemblyGuard(out, &(assembly));
-        zir_f_b231ca7561351ed8_fputc(10, out);
+        zir_foreign_compiler_inline_asm__fputc(10, out);
         Assembly* value_12 = &(assembly);
         bool value_13 = false;
         {
@@ -6086,49 +6086,49 @@ EmitAssemblyAvailable(void* out, ZirFunction* fn, int32_t statement)
                 uint8_t* value_20 = (void *)0;
                 {
                     String s = value_19;
-                    value_20 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_fputs(value_20, out);
+                zir_foreign_compiler_inline_asm__fputs(value_20, out);
             }
             String value_22 = StringLiteral("    if(");
             uint8_t* value_23 = (void *)0;
             {
                 String s = value_22;
-                value_23 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_23 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fputs(value_23, out);
+            zir_foreign_compiler_inline_asm__fputs(value_23, out);
             compiler_inline_asm_AssemblyPredicate(out, &(assembly));
             String value_25 = StringLiteral(") return 1;\n");
             uint8_t* value_26 = (void *)0;
             {
                 String s = value_25;
-                value_26 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_26 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fputs(value_26, out);
+            zir_foreign_compiler_inline_asm__fputs(value_26, out);
         } else {
             String value_28 = StringLiteral("    return 1;\n");
             uint8_t* value_29 = (void *)0;
             {
                 String s = value_28;
-                value_29 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_29 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fputs(value_29, out);
+            zir_foreign_compiler_inline_asm__fputs(value_29, out);
         }
         String value_31 = StringLiteral("#endif\n");
         uint8_t* value_32 = (void *)0;
         {
             String s = value_31;
-            value_32 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_32 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_32, out);
+        zir_foreign_compiler_inline_asm__fputs(value_32, out);
     }
     String value_34 = StringLiteral("    return 0;\n");
     uint8_t* value_35 = (void *)0;
     {
         String s = value_34;
-        value_35 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_35 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_35, out);
+    zir_foreign_compiler_inline_asm__fputs(value_35, out);
 }
 
 void
@@ -6149,9 +6149,9 @@ compiler_inline_asm_BlockHelperName(ZirModule* module, ZirFunction* fn, ZirTarge
         uint8_t* value_5 = (void *)0;
         {
             String s = value_4;
-            value_5 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_5 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_snprintf(name, size, value_5, function, statement, variant, serial);
+        zir_foreign_compiler_inline_asm__snprintf(name, size, value_5, function, statement, variant, serial);
         bool value_7 = compiler_inline_asm_AssemblyNameUsed(module, target, name);
         if (!value_7) {
             return;
@@ -6171,7 +6171,7 @@ compiler_inline_asm_BlockReturnsRegister(BlockBindings* bindings)
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     bool value_3 = compiler_inline_asm_Same(constraint, value_1);
     bool value_4 = value_3;
@@ -6180,7 +6180,7 @@ compiler_inline_asm_BlockReturnsRegister(BlockBindings* bindings)
         uint8_t* value_6 = (void *)0;
         {
             String s = value_5;
-            value_6 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_6 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         bool value_8 = compiler_inline_asm_Same(constraint, value_6);
         value_4 = value_8;
@@ -6204,7 +6204,7 @@ compiler_inline_asm_BlockOperandName(ZirFunction* fn, ZirTarget target, BlockBin
         AssemblyOperandResolver value_0 = resolver;
         value_0(context, position, out, 512);
     } else {
-        zir_f_b231ca7561351ed8_TargetBindingName(fn, target, (bindings->items[position]).name, out, 512);
+        zir_foreign_compiler_inline_asm__TargetBindingName(fn, target, (bindings->items[position]).name, out, 512);
     }
 }
 
@@ -6236,20 +6236,20 @@ compiler_inline_asm_BlockAssemblyBody(void* out, ZirFunction* fn, int32_t statem
     uint8_t* value_5 = (void *)0;
     {
         String s = value_4;
-        value_5 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_5 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_5, out);
+    zir_foreign_compiler_inline_asm__fputs(value_5, out);
     uint8_t* options = (assembly->part)[5];
     if (options[0] != 0) {
         String value_7 = StringLiteral(" __volatile__");
         uint8_t* value_8 = (void *)0;
         {
             String s = value_7;
-            value_8 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_8 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_8, out);
+        zir_foreign_compiler_inline_asm__fputs(value_8, out);
     }
-    zir_f_b231ca7561351ed8_fputc(40, out);
+    zir_foreign_compiler_inline_asm__fputc(40, out);
     if (helper) {
         compiler_inline_asm_AssemblyTemplatePrefix(out, assembly);
     }
@@ -6263,9 +6263,9 @@ compiler_inline_asm_BlockAssemblyBody(void* out, ZirFunction* fn, int32_t statem
             uint8_t* value_11 = (void *)0;
             {
                 String s = value_10;
-                value_11 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fputs(value_11, out);
+            zir_foreign_compiler_inline_asm__fputs(value_11, out);
             int32_t value_13 = 0;
             if (direction != 0) {
                 value_13 = bindings->inputs;
@@ -6291,9 +6291,9 @@ compiler_inline_asm_BlockAssemblyBody(void* out, ZirFunction* fn, int32_t statem
                         uint8_t* value_16 = (void *)0;
                         {
                             String s = value_15;
-                            value_16 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_16 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
-                        zir_f_b231ca7561351ed8_fputs(value_16, out);
+                        zir_foreign_compiler_inline_asm__fputs(value_16, out);
                     }
                     compiler_inline_asm_AssemblyOperandText(out, constraint, &(names[0]), bindings->outputs, false);
                     bool value_18 = helper && direction == 0;
@@ -6311,7 +6311,7 @@ compiler_inline_asm_BlockAssemblyBody(void* out, ZirFunction* fn, int32_t statem
                             uint8_t* value_23 = (void *)0;
                             {
                                 String s = value_22;
-                                value_23 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                                value_23 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                             }
                             bool value_25 = compiler_inline_asm_Same(constraint, value_23);
                             bool value_26 = value_25;
@@ -6320,7 +6320,7 @@ compiler_inline_asm_BlockAssemblyBody(void* out, ZirFunction* fn, int32_t statem
                                 uint8_t* value_28 = (void *)0;
                                 {
                                     String s = value_27;
-                                    value_28 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                                    value_28 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                                 }
                                 bool value_30 = compiler_inline_asm_Same(constraint, value_28);
                                 value_26 = value_30;
@@ -6335,16 +6335,16 @@ compiler_inline_asm_BlockAssemblyBody(void* out, ZirFunction* fn, int32_t statem
                         uint8_t* value_32 = (void *)0;
                         {
                             String s = value_31;
-                            value_32 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_32 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
-                        zir_f_b231ca7561351ed8_fputs(value_32, out);
+                        zir_foreign_compiler_inline_asm__fputs(value_32, out);
                     } else if (helper) {
                         bool stored = direction == 0 || AssemblyInputNeedsStorage(constraint) != 0;
                         String value_34 = StringLiteral(" (%sziran_operand_%d)");
                         uint8_t* value_35 = (void *)0;
                         {
                             String s = value_34;
-                            value_35 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_35 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         uint8_t* value_37 = (void *)0;
                         if (stored) {
@@ -6352,7 +6352,7 @@ compiler_inline_asm_BlockAssemblyBody(void* out, ZirFunction* fn, int32_t statem
                             uint8_t* value_39 = (void *)0;
                             {
                                 String s = value_38;
-                                value_39 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                                value_39 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                             }
                             value_37 = value_39;
                         } else {
@@ -6360,11 +6360,11 @@ compiler_inline_asm_BlockAssemblyBody(void* out, ZirFunction* fn, int32_t statem
                             uint8_t* value_42 = (void *)0;
                             {
                                 String s = value_41;
-                                value_42 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                                value_42 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                             }
                             value_37 = value_42;
                         }
-                        zir_f_b231ca7561351ed8_fprintf(out, value_35, value_37, position);
+                        zir_foreign_compiler_inline_asm__fprintf(out, value_35, value_37, position);
                     } else {
                         uint8_t native[512] = {0};
                         compiler_inline_asm_BlockOperandName(fn, target, bindings, position, resolver, context, mapped, &(native[0]));
@@ -6372,9 +6372,9 @@ compiler_inline_asm_BlockAssemblyBody(void* out, ZirFunction* fn, int32_t statem
                         uint8_t* value_45 = (void *)0;
                         {
                             String s = value_44;
-                            value_45 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_45 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
-                        zir_f_b231ca7561351ed8_fprintf(out, value_45, &(native[0]));
+                        zir_foreign_compiler_inline_asm__fprintf(out, value_45, &(native[0]));
                     }
                     if (i == range_last_18) {
                         break;
@@ -6408,17 +6408,17 @@ compiler_inline_asm_BlockAssemblyBody(void* out, ZirFunction* fn, int32_t statem
     uint8_t* value_48 = (void *)0;
     {
         String s = value_47;
-        value_48 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_48 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_48, out);
+    zir_foreign_compiler_inline_asm__fputs(value_48, out);
     compiler_inline_asm_EmitClobbers(out, assembly, memory);
     String value_50 = StringLiteral(");\n");
     uint8_t* value_51 = (void *)0;
     {
         String s = value_50;
-        value_51 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_51 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_51, out);
+    zir_foreign_compiler_inline_asm__fputs(value_51, out);
 }
 
 void
@@ -6434,41 +6434,41 @@ compiler_inline_asm_BlockNativeType(ZirModule* module, uint8_t* type, ZirTarget 
             size_t n = 1;
             value_0 = (uint8_t*)(((size_t)(p) + n));
         }
-        rest = zir_f_b231ca7561351ed8_skip_ws(value_0);
+        rest = zir_foreign_compiler_inline_asm__skip_ws(value_0);
     }
     uint8_t* scalar = (void *)0;
     if (rest != ((void *)0)) {
-        scalar = compiler_inline_asm_TargetType(zir_f_b231ca7561351ed8_ScalarType(rest), target);
+        scalar = compiler_inline_asm_TargetType(zir_foreign_compiler_inline_asm__ScalarType(rest), target);
     }
     if (scalar != ((void *)0)) {
         String value_2 = StringLiteral("%s");
         uint8_t* value_3 = (void *)0;
         {
             String s = value_2;
-            value_3 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_3 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_snprintf(out, size, value_3, scalar);
+        zir_foreign_compiler_inline_asm__snprintf(out, size, value_3, scalar);
     } else {
         ZirModule* owner = (void *)0;
         ZirType* declared = (void *)0;
         if (rest != ((void *)0)) {
-            declared = zir_f_b231ca7561351ed8_FindType(module, rest, &(owner));
+            declared = zir_foreign_compiler_inline_asm__FindType(module, rest, &(owner));
         }
         if (declared == ((void *)0)) {
             String value_5 = StringLiteral("cannot lower #asm block binding type");
             uint8_t* value_6 = (void *)0;
             {
                 String s = value_5;
-                value_6 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_6 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             compiler_inline_asm_AssemblyError(span, value_6);
-            zir_f_b231ca7561351ed8_exit(1);
+            zir_foreign_compiler_inline_asm__exit(1);
         }
-        zir_f_b231ca7561351ed8_NativeTypeName(owner, declared, out, size);
+        zir_foreign_compiler_inline_asm__NativeTypeName(owner, declared, out, size);
     }
-    size_t used = zir_f_b231ca7561351ed8_strlen(out);
+    size_t used = zir_foreign_compiler_inline_asm__strlen(out);
     if ((used + pointers) + 1 > size) {
-        zir_f_b231ca7561351ed8_exit(1);
+        zir_foreign_compiler_inline_asm__exit(1);
     }
     {
         size_t range_first_29 = (size_t)(1LL);
@@ -6496,11 +6496,11 @@ compiler_inline_asm_EmitBlockHelper(void* out, ZirModule* module, ZirFunction* f
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_1, out);
+    zir_foreign_compiler_inline_asm__fputs(value_1, out);
     compiler_inline_asm_AssemblyGuard(out, assembly);
-    zir_f_b231ca7561351ed8_fputc(10, out);
+    zir_foreign_compiler_inline_asm__fputc(10, out);
     uint8_t name[128] = {0};
     compiler_inline_asm_BlockHelperName(module, fn, target, statement, variant, &(name[0]), 128);
     compiler_inline_asm_AssemblyAttribute(out, assembly);
@@ -6509,9 +6509,9 @@ compiler_inline_asm_EmitBlockHelper(void* out, ZirModule* module, ZirFunction* f
     uint8_t* value_4 = (void *)0;
     {
         String s = value_3;
-        value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_strcpy(&(returned[0]), value_4);
+    zir_foreign_compiler_inline_asm__strcpy(&(returned[0]), value_4);
     BlockBindings* value_6 = bindings;
     bool value_7 = false;
     {
@@ -6525,7 +6525,7 @@ compiler_inline_asm_EmitBlockHelper(void* out, ZirModule* module, ZirFunction* f
         uint8_t* value_10 = (void *)0;
         {
             String s = value_9;
-            value_10 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_10 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         bool value_12 = compiler_inline_asm_Same(constraint, value_10);
         bool value_13 = value_12;
@@ -6534,7 +6534,7 @@ compiler_inline_asm_EmitBlockHelper(void* out, ZirModule* module, ZirFunction* f
             uint8_t* value_15 = (void *)0;
             {
                 String s = value_14;
-                value_15 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_15 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             bool value_17 = compiler_inline_asm_Same(constraint, value_15);
             value_13 = value_17;
@@ -6556,9 +6556,9 @@ compiler_inline_asm_EmitBlockHelper(void* out, ZirModule* module, ZirFunction* f
     uint8_t* value_20 = (void *)0;
     {
         String s = value_19;
-        value_20 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fprintf(out, value_20, &(returned[0]), &(name[0]));
+    zir_foreign_compiler_inline_asm__fprintf(out, value_20, &(returned[0]), &(name[0]));
     BlockBindings* value_22 = bindings;
     int32_t value_23 = 0;
     {
@@ -6578,7 +6578,7 @@ compiler_inline_asm_EmitBlockHelper(void* out, ZirModule* module, ZirFunction* f
             uint8_t* value_26 = (void *)0;
             {
                 String s = value_25;
-                value_26 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_26 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             uint8_t* qualifier = value_26;
             if (i < bindings->outputs) {
@@ -6586,7 +6586,7 @@ compiler_inline_asm_EmitBlockHelper(void* out, ZirModule* module, ZirFunction* f
                 uint8_t* value_29 = (void *)0;
                 {
                     String s = value_28;
-                    value_29 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_29 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 qualifier = value_29;
             } else if (AssemblyInputNeedsStorage((bindings->items[i]).constraint) != 0) {
@@ -6594,7 +6594,7 @@ compiler_inline_asm_EmitBlockHelper(void* out, ZirModule* module, ZirFunction* f
                 uint8_t* value_32 = (void *)0;
                 {
                     String s = value_31;
-                    value_32 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_32 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 qualifier = value_32;
             }
@@ -6602,7 +6602,7 @@ compiler_inline_asm_EmitBlockHelper(void* out, ZirModule* module, ZirFunction* f
             uint8_t* value_35 = (void *)0;
             {
                 String s = value_34;
-                value_35 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_35 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             uint8_t* value_37 = (void *)0;
             if (i > first_argument) {
@@ -6610,7 +6610,7 @@ compiler_inline_asm_EmitBlockHelper(void* out, ZirModule* module, ZirFunction* f
                 uint8_t* value_39 = (void *)0;
                 {
                     String s = value_38;
-                    value_39 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_39 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_37 = value_39;
             } else {
@@ -6618,11 +6618,11 @@ compiler_inline_asm_EmitBlockHelper(void* out, ZirModule* module, ZirFunction* f
                 uint8_t* value_42 = (void *)0;
                 {
                     String s = value_41;
-                    value_42 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_42 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_37 = value_42;
             }
-            zir_f_b231ca7561351ed8_fprintf(out, value_35, value_37, &(native[0]), qualifier, i);
+            zir_foreign_compiler_inline_asm__fprintf(out, value_35, value_37, &(native[0]), qualifier, i);
             if (i == range_last_15) {
                 break;
             }
@@ -6634,25 +6634,25 @@ compiler_inline_asm_EmitBlockHelper(void* out, ZirModule* module, ZirFunction* f
         uint8_t* value_45 = (void *)0;
         {
             String s = value_44;
-            value_45 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_45 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_45, out);
+        zir_foreign_compiler_inline_asm__fputs(value_45, out);
     }
     String value_47 = StringLiteral(")\n{\n");
     uint8_t* value_48 = (void *)0;
     {
         String s = value_47;
-        value_48 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_48 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_48, out);
+    zir_foreign_compiler_inline_asm__fputs(value_48, out);
     if (first_argument != 0) {
         String value_50 = StringLiteral("    %s ziran_result;\n");
         uint8_t* value_51 = (void *)0;
         {
             String s = value_50;
-            value_51 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_51 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fprintf(out, value_51, &(returned[0]));
+        zir_foreign_compiler_inline_asm__fprintf(out, value_51, &(returned[0]));
     }
     compiler_inline_asm_BlockAssemblyBody(out, fn, statement, target, assembly, bindings, true, compiler_inline_asm_UnmappedOperand, (void *)0, false);
     if (first_argument != 0) {
@@ -6660,17 +6660,17 @@ compiler_inline_asm_EmitBlockHelper(void* out, ZirModule* module, ZirFunction* f
         uint8_t* value_54 = (void *)0;
         {
             String s = value_53;
-            value_54 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_54 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_54, out);
+        zir_foreign_compiler_inline_asm__fputs(value_54, out);
     }
     String value_56 = StringLiteral("}\n#endif\n");
     uint8_t* value_57 = (void *)0;
     {
         String s = value_56;
-        value_57 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_57 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_57, out);
+    zir_foreign_compiler_inline_asm__fputs(value_57, out);
 }
 
 void
@@ -6704,7 +6704,7 @@ compiler_inline_asm_AssemblyBlockHelpers(void* out, ZirModule* module, ZirFuncti
                 continue;
             }
             if (compiler_inline_asm_CheckBlockStatement(fn, statement) == 0) {
-                zir_f_b231ca7561351ed8_exit(1);
+                zir_foreign_compiler_inline_asm__exit(1);
             }
             uint8_t* cursor = (uint8_t*)st->names.assembly_text;
             int32_t variant = 0;
@@ -6723,7 +6723,7 @@ compiler_inline_asm_AssemblyBlockHelpers(void* out, ZirModule* module, ZirFuncti
                     value_10 = compiler_inline_asm_ReadVariant(cursor, assembly, span, false);
                 }
                 if (value_10 == 0 || compiler_inline_asm_ReadBlockBindings(&(assembly), &(bindings), st->span) == 0) {
-                    zir_f_b231ca7561351ed8_exit(1);
+                    zir_foreign_compiler_inline_asm__exit(1);
                 }
                 Assembly* value_12 = &(assembly);
                 bool value_13 = false;
@@ -6764,7 +6764,7 @@ compiler_inline_asm_EmitBlockHelperCall(void* out, ZirModule* module, ZirFunctio
         uint8_t* value_4 = (void *)0;
         {
             String s = value_3;
-            value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         bool value_6 = compiler_inline_asm_Same(constraint, value_4);
         bool value_7 = value_6;
@@ -6773,7 +6773,7 @@ compiler_inline_asm_EmitBlockHelperCall(void* out, ZirModule* module, ZirFunctio
             uint8_t* value_9 = (void *)0;
             {
                 String s = value_8;
-                value_9 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_9 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             bool value_11 = compiler_inline_asm_Same(constraint, value_9);
             value_7 = value_11;
@@ -6792,26 +6792,26 @@ compiler_inline_asm_EmitBlockHelperCall(void* out, ZirModule* module, ZirFunctio
     uint8_t* value_14 = (void *)0;
     {
         String s = value_13;
-        value_14 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_14 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_14, out);
+    zir_foreign_compiler_inline_asm__fputs(value_14, out);
     if (first_argument != 0) {
         compiler_inline_asm_BlockOperandName(fn, target, bindings, 0, resolver, context, mapped, &(name[0]));
         String value_16 = StringLiteral("%s = ");
         uint8_t* value_17 = (void *)0;
         {
             String s = value_16;
-            value_17 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_17 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fprintf(out, value_17, &(name[0]));
+        zir_foreign_compiler_inline_asm__fprintf(out, value_17, &(name[0]));
     }
     String value_19 = StringLiteral("%s(");
     uint8_t* value_20 = (void *)0;
     {
         String s = value_19;
-        value_20 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fprintf(out, value_20, &(helper[0]));
+    zir_foreign_compiler_inline_asm__fprintf(out, value_20, &(helper[0]));
     {
         int32_t range_first_10 = first_argument;
         BlockBindings* value_22 = bindings;
@@ -6830,7 +6830,7 @@ compiler_inline_asm_EmitBlockHelperCall(void* out, ZirModule* module, ZirFunctio
             uint8_t* value_27 = (void *)0;
             {
                 String s = value_26;
-                value_27 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_27 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             uint8_t* value_29 = (void *)0;
             if (i > first_argument) {
@@ -6838,7 +6838,7 @@ compiler_inline_asm_EmitBlockHelperCall(void* out, ZirModule* module, ZirFunctio
                 uint8_t* value_31 = (void *)0;
                 {
                     String s = value_30;
-                    value_31 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_31 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_29 = value_31;
             } else {
@@ -6846,7 +6846,7 @@ compiler_inline_asm_EmitBlockHelperCall(void* out, ZirModule* module, ZirFunctio
                 uint8_t* value_34 = (void *)0;
                 {
                     String s = value_33;
-                    value_34 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_34 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_29 = value_34;
             }
@@ -6857,7 +6857,7 @@ compiler_inline_asm_EmitBlockHelperCall(void* out, ZirModule* module, ZirFunctio
                 uint8_t* value_39 = (void *)0;
                 {
                     String s = value_38;
-                    value_39 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_39 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_37 = value_39;
             } else {
@@ -6865,11 +6865,11 @@ compiler_inline_asm_EmitBlockHelperCall(void* out, ZirModule* module, ZirFunctio
                 uint8_t* value_42 = (void *)0;
                 {
                     String s = value_41;
-                    value_42 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_42 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_37 = value_42;
             }
-            zir_f_b231ca7561351ed8_fprintf(out, value_27, value_36, value_37, &(name[0]));
+            zir_foreign_compiler_inline_asm__fprintf(out, value_27, value_36, value_37, &(name[0]));
             if (i == range_last_10) {
                 break;
             }
@@ -6880,9 +6880,9 @@ compiler_inline_asm_EmitBlockHelperCall(void* out, ZirModule* module, ZirFunctio
     uint8_t* value_45 = (void *)0;
     {
         String s = value_44;
-        value_45 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_45 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fputs(value_45, out);
+    zir_foreign_compiler_inline_asm__fputs(value_45, out);
 }
 
 int32_t
@@ -6910,7 +6910,7 @@ compiler_inline_asm_AssemblyBlock(void* out, ZirModule* module, ZirFunction* fn,
         return 0;
     }
     if (compiler_inline_asm_CheckBlockStatement(fn, statement) == 0) {
-        zir_f_b231ca7561351ed8_exit(1);
+        zir_foreign_compiler_inline_asm__exit(1);
     }
     uint8_t* cursor = (uint8_t*)st->names.assembly_text;
     bool features = false;
@@ -6927,7 +6927,7 @@ compiler_inline_asm_AssemblyBlock(void* out, ZirModule* module, ZirFunction* fn,
             value_10 = compiler_inline_asm_ReadVariant(cursor, assembly, span, false);
         }
         if (value_10 == 0) {
-            zir_f_b231ca7561351ed8_exit(1);
+            zir_foreign_compiler_inline_asm__exit(1);
         }
         Assembly* value_12 = &(scanned);
         bool value_13 = false;
@@ -6943,16 +6943,16 @@ compiler_inline_asm_AssemblyBlock(void* out, ZirModule* module, ZirFunction* fn,
     uint8_t done[128] = {0};
     uint8_t state[128] = {0};
     uint8_t selected[128] = {0};
-    zir_f_b231ca7561351ed8_ArrayAbiName(fn, (int32_t)(1000u + ((uint32_t)statement * 3u)), &(done[0]), 128);
-    zir_f_b231ca7561351ed8_ArrayAbiName(fn, (int32_t)(1001u + ((uint32_t)statement * 3u)), &(state[0]), 128);
-    zir_f_b231ca7561351ed8_ArrayAbiName(fn, (int32_t)(1002u + ((uint32_t)statement * 3u)), &(selected[0]), 128);
+    zir_foreign_compiler_inline_asm__ArrayAbiName(fn, (int32_t)(1000u + ((uint32_t)statement * 3u)), &(done[0]), 128);
+    zir_foreign_compiler_inline_asm__ArrayAbiName(fn, (int32_t)(1001u + ((uint32_t)statement * 3u)), &(state[0]), 128);
+    zir_foreign_compiler_inline_asm__ArrayAbiName(fn, (int32_t)(1002u + ((uint32_t)statement * 3u)), &(selected[0]), 128);
     String value_16 = StringLiteral("    {\n        int %s = 0;\n");
     uint8_t* value_17 = (void *)0;
     {
         String s = value_16;
-        value_17 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_17 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fprintf(out, value_17, &(done[0]));
+    zir_foreign_compiler_inline_asm__fprintf(out, value_17, &(done[0]));
     if (features) {
         cursor = (uint8_t*)st->names.assembly_text;
         int32_t guards = 0;
@@ -6969,7 +6969,7 @@ compiler_inline_asm_AssemblyBlock(void* out, ZirModule* module, ZirFunction* fn,
                 value_22 = compiler_inline_asm_ReadVariant(cursor, assembly, span, false);
             }
             if (value_22 == 0) {
-                zir_f_b231ca7561351ed8_exit(1);
+                zir_foreign_compiler_inline_asm__exit(1);
             }
             uint8_t* value_24 = (void *)0;
             if (guards != 0) {
@@ -6977,7 +6977,7 @@ compiler_inline_asm_AssemblyBlock(void* out, ZirModule* module, ZirFunction* fn,
                 uint8_t* value_26 = (void *)0;
                 {
                     String s = value_25;
-                    value_26 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_26 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_24 = value_26;
             } else {
@@ -6985,29 +6985,29 @@ compiler_inline_asm_AssemblyBlock(void* out, ZirModule* module, ZirFunction* fn,
                 uint8_t* value_29 = (void *)0;
                 {
                     String s = value_28;
-                    value_29 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_29 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_24 = value_29;
             }
-            zir_f_b231ca7561351ed8_fputs(value_24, out);
+            zir_foreign_compiler_inline_asm__fputs(value_24, out);
             guards = (int32_t)((uint32_t)guards + 1u);
             compiler_inline_asm_AssemblyGuard(out, &(guarded));
-            zir_f_b231ca7561351ed8_fputc(41, out);
+            zir_foreign_compiler_inline_asm__fputc(41, out);
         }
         String value_31 = StringLiteral("\n        static int %s;\n        int %s = ZIRAN_ASM_LOAD(&%s);\n        if(%s == 0) {\n            %s = 1;\n");
         uint8_t* value_32 = (void *)0;
         {
             String s = value_31;
-            value_32 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_32 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fprintf(out, value_32, &(state[0]), &(selected[0]), &(state[0]), &(selected[0]), &(selected[0]));
+        zir_foreign_compiler_inline_asm__fprintf(out, value_32, &(state[0]), &(selected[0]), &(state[0]), &(selected[0]), &(selected[0]));
         String value_34 = StringLiteral("#if (defined(__x86_64__) || defined(__i386__)) && !defined(_MSC_VER)\n            __builtin_cpu_init();\n#endif\n");
         uint8_t* value_35 = (void *)0;
         {
             String s = value_34;
-            value_35 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_35 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_35, out);
+        zir_foreign_compiler_inline_asm__fputs(value_35, out);
         cursor = (uint8_t*)st->names.assembly_text;
         int32_t probe = 0;
         while (compiler_inline_asm_NextByte(cursor) != 0) {
@@ -7023,24 +7023,24 @@ compiler_inline_asm_AssemblyBlock(void* out, ZirModule* module, ZirFunction* fn,
                 value_40 = compiler_inline_asm_ReadVariant(cursor, assembly, span, false);
             }
             if (value_40 == 0) {
-                zir_f_b231ca7561351ed8_exit(1);
+                zir_foreign_compiler_inline_asm__exit(1);
             }
             String value_42 = StringLiteral("#if ");
             uint8_t* value_43 = (void *)0;
             {
                 String s = value_42;
-                value_43 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_43 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fputs(value_43, out);
+            zir_foreign_compiler_inline_asm__fputs(value_43, out);
             compiler_inline_asm_AssemblyGuard(out, &(probed));
-            zir_f_b231ca7561351ed8_fputc(10, out);
+            zir_foreign_compiler_inline_asm__fputc(10, out);
             String value_45 = StringLiteral("            if(%s == 1");
             uint8_t* value_46 = (void *)0;
             {
                 String s = value_45;
-                value_46 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_46 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fprintf(out, value_46, &(selected[0]));
+            zir_foreign_compiler_inline_asm__fprintf(out, value_46, &(selected[0]));
             Assembly* value_48 = &(probed);
             bool value_49 = false;
             {
@@ -7053,28 +7053,28 @@ compiler_inline_asm_AssemblyBlock(void* out, ZirModule* module, ZirFunction* fn,
                 uint8_t* value_53 = (void *)0;
                 {
                     String s = value_52;
-                    value_53 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_53 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_b231ca7561351ed8_fputs(value_53, out);
+                zir_foreign_compiler_inline_asm__fputs(value_53, out);
                 compiler_inline_asm_AssemblyPredicate(out, &(probed));
-                zir_f_b231ca7561351ed8_fputc(41, out);
+                zir_foreign_compiler_inline_asm__fputc(41, out);
             }
             String value_55 = StringLiteral(") %s = %d;\n#endif\n");
             uint8_t* value_56 = (void *)0;
             {
                 String s = value_55;
-                value_56 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_56 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fprintf(out, value_56, &(selected[0]), (int32_t)((uint32_t)probe + 2u));
+            zir_foreign_compiler_inline_asm__fprintf(out, value_56, &(selected[0]), (int32_t)((uint32_t)probe + 2u));
             probe = (int32_t)((uint32_t)probe + 1u);
         }
         String value_58 = StringLiteral("            ZIRAN_ASM_STORE(&%s, %s);\n        }\n#endif\n");
         uint8_t* value_59 = (void *)0;
         {
             String s = value_58;
-            value_59 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_59 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fprintf(out, value_59, &(state[0]), &(selected[0]));
+        zir_foreign_compiler_inline_asm__fprintf(out, value_59, &(state[0]), &(selected[0]));
     }
     cursor = (uint8_t*)st->names.assembly_text;
     int32_t variant = 0;
@@ -7093,33 +7093,33 @@ compiler_inline_asm_AssemblyBlock(void* out, ZirModule* module, ZirFunction* fn,
             value_64 = compiler_inline_asm_ReadVariant(cursor, assembly, span, false);
         }
         if (value_64 == 0 || compiler_inline_asm_ReadBlockBindings(&(assembly), &(bindings), st->span) == 0) {
-            zir_f_b231ca7561351ed8_exit(1);
+            zir_foreign_compiler_inline_asm__exit(1);
         }
         String value_66 = StringLiteral("#if ");
         uint8_t* value_67 = (void *)0;
         {
             String s = value_66;
-            value_67 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_67 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fputs(value_67, out);
+        zir_foreign_compiler_inline_asm__fputs(value_67, out);
         compiler_inline_asm_AssemblyGuard(out, &(assembly));
-        zir_f_b231ca7561351ed8_fputc(10, out);
+        zir_foreign_compiler_inline_asm__fputc(10, out);
         if (features) {
             String value_69 = StringLiteral("        if(%s == %d) {\n");
             uint8_t* value_70 = (void *)0;
             {
                 String s = value_69;
-                value_70 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_70 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fprintf(out, value_70, &(selected[0]), (int32_t)((uint32_t)variant + 2u));
+            zir_foreign_compiler_inline_asm__fprintf(out, value_70, &(selected[0]), (int32_t)((uint32_t)variant + 2u));
         } else {
             String value_72 = StringLiteral("        if(!%s) {\n");
             uint8_t* value_73 = (void *)0;
             {
                 String s = value_72;
-                value_73 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_73 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_b231ca7561351ed8_fprintf(out, value_73, &(done[0]));
+            zir_foreign_compiler_inline_asm__fprintf(out, value_73, &(done[0]));
         }
         Assembly* value_75 = &(assembly);
         bool value_76 = false;
@@ -7137,18 +7137,18 @@ compiler_inline_asm_AssemblyBlock(void* out, ZirModule* module, ZirFunction* fn,
         uint8_t* value_80 = (void *)0;
         {
             String s = value_79;
-            value_80 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_80 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_b231ca7561351ed8_fprintf(out, value_80, &(done[0]));
+        zir_foreign_compiler_inline_asm__fprintf(out, value_80, &(done[0]));
         variant = (int32_t)((uint32_t)variant + 1u);
     }
     String value_82 = StringLiteral("        if(!%s) {\n");
     uint8_t* value_83 = (void *)0;
     {
         String s = value_82;
-        value_83 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_83 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_fprintf(out, value_83, &(done[0]));
+    zir_foreign_compiler_inline_asm__fprintf(out, value_83, &(done[0]));
     return 1;
 }
 
@@ -7179,7 +7179,7 @@ EmitAssemblyBlockMapped(void* out, ZirModule* module, ZirFunction* fn, int32_t s
 uint8_t*
 compiler_inline_asm_CStr(String s)
 {
-    return ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+    return ((compiler_inline_asm_StaticText*)(&(s)))->data;
 }
 
 uint8_t*
@@ -7203,13 +7203,13 @@ compiler_inline_asm_Distance(uint8_t* from, uint8_t* to)
 void
 compiler_inline_asm_Zero(uint8_t* memory, size_t size)
 {
-    zir_f_b231ca7561351ed8_memset(memory, 0, size);
+    zir_foreign_compiler_inline_asm__memset(memory, 0, size);
 }
 
 uint8_t
 compiler_inline_asm_NextByte(uint8_t* text)
 {
-    uint8_t* rest = zir_f_b231ca7561351ed8_skip_ws(text);
+    uint8_t* rest = zir_foreign_compiler_inline_asm__skip_ws(text);
     return rest[0];
 }
 
@@ -7256,7 +7256,7 @@ compiler_inline_asm_IsSpace(uint8_t c)
 bool
 compiler_inline_asm_IsIdent(uint8_t c)
 {
-    return zir_f_b231ca7561351ed8_is_ident_char((int32_t)(c)) != 0;
+    return zir_foreign_compiler_inline_asm__is_ident_char((int32_t)(c)) != 0;
 }
 
 uint8_t
@@ -7274,14 +7274,14 @@ compiler_inline_asm_ToLower(uint8_t c)
 bool
 compiler_inline_asm_Same(uint8_t* a, uint8_t* b)
 {
-    return zir_f_b231ca7561351ed8_strcmp(a, b) == 0;
+    return zir_foreign_compiler_inline_asm__strcmp(a, b) == 0;
 }
 
 bool
 compiler_inline_asm_SameSpan(uint8_t* name, uint8_t* text, size_t length)
 {
-    bool value_0 = zir_f_b231ca7561351ed8_strlen(name) == length;
-    return value_0 && zir_f_b231ca7561351ed8_strncmp(name, text, length) == 0;
+    bool value_0 = zir_foreign_compiler_inline_asm__strlen(name) == length;
+    return value_0 && zir_foreign_compiler_inline_asm__strncmp(name, text, length) == 0;
 }
 
 bool
@@ -7291,9 +7291,9 @@ compiler_inline_asm_StartsAssembly(uint8_t* text)
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    bool value_3 = zir_f_b231ca7561351ed8_strncmp(text, value_1, 4) == 0;
+    bool value_3 = zir_foreign_compiler_inline_asm__strncmp(text, value_1, 4) == 0;
     bool value_4 = value_3;
     if (value_4) {
         bool value_5 = compiler_inline_asm_IsIdent(text[4]);
@@ -7313,7 +7313,7 @@ compiler_inline_asm_FunctionArgs(ZirFunction* fn)
         uint8_t* value_2 = (void *)0;
         {
             String s = value_1;
-            value_2 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_2 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         value_0 = value_2;
     }
@@ -7342,7 +7342,7 @@ compiler_inline_asm_StatementHasAssembly(ZirStmt* st)
 uint8_t*
 compiler_inline_asm_TargetType(uint8_t* type, ZirTarget target)
 {
-    void* value_0 = zir_f_b231ca7561351ed8_TargetTypeZiran((void*)(type), (int32_t)(target));
+    void* value_0 = zir_foreign_compiler_inline_asm__TargetTypeZiran((void*)(type), (int32_t)(target));
     return (uint8_t*)(value_0);
 }
 
@@ -7366,7 +7366,7 @@ compiler_inline_asm_FeatureAArch64(int32_t feature)
         uint8_t* value_1 = (void *)0;
         {
             String s = value_0;
-            value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return value_1;
     }
@@ -7375,7 +7375,7 @@ compiler_inline_asm_FeatureAArch64(int32_t feature)
         uint8_t* value_4 = (void *)0;
         {
             String s = value_3;
-            value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return value_4;
     }
@@ -7384,7 +7384,7 @@ compiler_inline_asm_FeatureAArch64(int32_t feature)
         uint8_t* value_7 = (void *)0;
         {
             String s = value_6;
-            value_7 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_7 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return value_7;
     }
@@ -7393,7 +7393,7 @@ compiler_inline_asm_FeatureAArch64(int32_t feature)
         uint8_t* value_10 = (void *)0;
         {
             String s = value_9;
-            value_10 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_10 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return value_10;
     }
@@ -7402,7 +7402,7 @@ compiler_inline_asm_FeatureAArch64(int32_t feature)
         uint8_t* value_13 = (void *)0;
         {
             String s = value_12;
-            value_13 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_13 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return value_13;
     }
@@ -7417,7 +7417,7 @@ compiler_inline_asm_FeatureHardwareCapability(int32_t feature)
         uint8_t* value_1 = (void *)0;
         {
             String s = value_0;
-            value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return value_1;
     }
@@ -7426,7 +7426,7 @@ compiler_inline_asm_FeatureHardwareCapability(int32_t feature)
         uint8_t* value_4 = (void *)0;
         {
             String s = value_3;
-            value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return value_4;
     }
@@ -7435,7 +7435,7 @@ compiler_inline_asm_FeatureHardwareCapability(int32_t feature)
         uint8_t* value_7 = (void *)0;
         {
             String s = value_6;
-            value_7 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_7 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return value_7;
     }
@@ -7444,7 +7444,7 @@ compiler_inline_asm_FeatureHardwareCapability(int32_t feature)
         uint8_t* value_10 = (void *)0;
         {
             String s = value_9;
-            value_10 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_10 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return value_10;
     }
@@ -7453,7 +7453,7 @@ compiler_inline_asm_FeatureHardwareCapability(int32_t feature)
         uint8_t* value_13 = (void *)0;
         {
             String s = value_12;
-            value_13 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_13 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return value_13;
     }
@@ -7462,7 +7462,7 @@ compiler_inline_asm_FeatureHardwareCapability(int32_t feature)
         uint8_t* value_16 = (void *)0;
         {
             String s = value_15;
-            value_16 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_16 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return value_16;
     }
@@ -7471,7 +7471,7 @@ compiler_inline_asm_FeatureHardwareCapability(int32_t feature)
         uint8_t* value_19 = (void *)0;
         {
             String s = value_18;
-            value_19 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_19 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return value_19;
     }
@@ -7487,7 +7487,7 @@ compiler_inline_asm_FeatureArm(int32_t feature)
         uint8_t* value_2 = (void *)0;
         {
             String s = value_1;
-            value_2 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_2 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         value_0 = value_2;
     } else {
@@ -7505,7 +7505,7 @@ compiler_inline_asm_FeatureWasm32(int32_t feature)
         uint8_t* value_2 = (void *)0;
         {
             String s = value_1;
-            value_2 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_2 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         value_0 = value_2;
     } else {
@@ -7530,7 +7530,7 @@ compiler_inline_asm_FeatureOption(int32_t architecture, int32_t feature)
                 uint8_t* value_4 = (void *)0;
                 {
                     String s = value_3;
-                    value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_1 = value_4;
                 goto value_2;
@@ -7540,7 +7540,7 @@ compiler_inline_asm_FeatureOption(int32_t architecture, int32_t feature)
                 uint8_t* value_7 = (void *)0;
                 {
                     String s = value_6;
-                    value_7 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_7 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_1 = value_7;
                 goto value_2;
@@ -7550,7 +7550,7 @@ compiler_inline_asm_FeatureOption(int32_t architecture, int32_t feature)
                 uint8_t* value_10 = (void *)0;
                 {
                     String s = value_9;
-                    value_10 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_10 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_1 = value_10;
                 goto value_2;
@@ -7560,7 +7560,7 @@ compiler_inline_asm_FeatureOption(int32_t architecture, int32_t feature)
                 uint8_t* value_13 = (void *)0;
                 {
                     String s = value_12;
-                    value_13 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_13 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_1 = value_13;
                 goto value_2;
@@ -7570,7 +7570,7 @@ compiler_inline_asm_FeatureOption(int32_t architecture, int32_t feature)
                 uint8_t* value_16 = (void *)0;
                 {
                     String s = value_15;
-                    value_16 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_16 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_1 = value_16;
                 goto value_2;
@@ -7591,7 +7591,7 @@ compiler_inline_asm_FeatureOption(int32_t architecture, int32_t feature)
                 uint8_t* value_23 = (void *)0;
                 {
                     String s = value_22;
-                    value_23 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_23 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_21 = value_23;
             } else {
@@ -7612,7 +7612,7 @@ compiler_inline_asm_FeatureOption(int32_t architecture, int32_t feature)
                 uint8_t* value_30 = (void *)0;
                 {
                     String s = value_29;
-                    value_30 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_30 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 value_28 = value_30;
             } else {
@@ -7665,15 +7665,15 @@ compiler_inline_asm_AssemblyError(ZirSourceSpan span, uint8_t* message)
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     String value_3 = StringLiteral("%s");
     uint8_t* value_4 = (void *)0;
     {
         String s = value_3;
-        value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_b231ca7561351ed8_Diagnostic(span, value_1, value_4, message);
+    zir_foreign_compiler_inline_asm__Diagnostic(span, value_1, value_4, message);
     return 0;
 }
 
@@ -7681,7 +7681,7 @@ int32_t
 compiler_inline_asm_AssemblyTarget(Assembly* assembly, ZirSourceSpan span)
 {
     uint8_t* name = (assembly->part)[0];
-    uint8_t* end = zir_f_b231ca7561351ed8_strchr(name, 43);
+    uint8_t* end = zir_foreign_compiler_inline_asm__strchr(name, 43);
     size_t value_0 = 0;
     if (end != ((void *)0)) {
         size_t value_1 = 0;
@@ -7692,7 +7692,7 @@ compiler_inline_asm_AssemblyTarget(Assembly* assembly, ZirSourceSpan span)
         }
         value_0 = value_1;
     } else {
-        size_t value_3 = zir_f_b231ca7561351ed8_strlen(name);
+        size_t value_3 = zir_foreign_compiler_inline_asm__strlen(name);
         value_0 = value_3;
     }
     size_t length = value_0;
@@ -7720,7 +7720,7 @@ compiler_inline_asm_AssemblyTarget(Assembly* assembly, ZirSourceSpan span)
         uint8_t* value_8 = (void *)0;
         {
             String s = value_7;
-            value_8 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_8 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return compiler_inline_asm_AssemblyError(span, value_8);
     }
@@ -7732,7 +7732,7 @@ compiler_inline_asm_AssemblyTarget(Assembly* assembly, ZirSourceSpan span)
             value_10 = (uint8_t*)(((size_t)(p) + n));
         }
         name = value_10;
-        end = zir_f_b231ca7561351ed8_strchr(name, 43);
+        end = zir_foreign_compiler_inline_asm__strchr(name, 43);
         size_t value_12 = 0;
         if (end != ((void *)0)) {
             size_t value_13 = 0;
@@ -7743,7 +7743,7 @@ compiler_inline_asm_AssemblyTarget(Assembly* assembly, ZirSourceSpan span)
             }
             value_12 = value_13;
         } else {
-            size_t value_15 = zir_f_b231ca7561351ed8_strlen(name);
+            size_t value_15 = zir_foreign_compiler_inline_asm__strlen(name);
             value_12 = value_15;
         }
         length = value_12;
@@ -7849,7 +7849,7 @@ compiler_inline_asm_AssemblyTarget(Assembly* assembly, ZirSourceSpan span)
             uint8_t* value_35 = (void *)0;
             {
                 String s = value_34;
-                value_35 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_35 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             return compiler_inline_asm_AssemblyError(span, value_35);
         }
@@ -7874,7 +7874,7 @@ compiler_inline_asm_AssemblyTarget(Assembly* assembly, ZirSourceSpan span)
             uint8_t* value_47 = (void *)0;
             {
                 String s = value_46;
-                value_47 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_47 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             return compiler_inline_asm_AssemblyError(span, value_47);
         }
@@ -7894,7 +7894,7 @@ compiler_inline_asm_AssemblyTarget(Assembly* assembly, ZirSourceSpan span)
 int32_t
 compiler_inline_asm_AssemblyArgument(uint8_t** cursor, uint8_t** start, size_t* length)
 {
-    uint8_t* at = zir_f_b231ca7561351ed8_skip_ws(*(cursor));
+    uint8_t* at = zir_foreign_compiler_inline_asm__skip_ws(*(cursor));
     uint8_t* first = at;
     uint8_t** value_0 = &((*(start)));
     (*value_0) = at;
@@ -7988,79 +7988,79 @@ compiler_inline_asm_AssemblyArgument(uint8_t** cursor, uint8_t** start, size_t* 
 uint8_t*
 compiler_inline_asm_AssemblyLiteral(uint8_t* start, size_t length, ZirSourceSpan span)
 {
-    void* value_0 = zir_f_b231ca7561351ed8_malloc(length + 1);
+    void* value_0 = zir_foreign_compiler_inline_asm__malloc(length + 1);
     uint8_t* literal = (uint8_t*)(value_0);
-    void* value_1 = zir_f_b231ca7561351ed8_malloc(length + 1);
+    void* value_1 = zir_foreign_compiler_inline_asm__malloc(length + 1);
     uint8_t* decoded = (uint8_t*)(value_1);
     if (literal == ((void *)0) || decoded == ((void *)0)) {
-        zir_f_b231ca7561351ed8_free(literal);
-        zir_f_b231ca7561351ed8_free(decoded);
+        zir_foreign_compiler_inline_asm__free(literal);
+        zir_foreign_compiler_inline_asm__free(decoded);
         String value_2 = StringLiteral("out of memory reading #asm");
         uint8_t* value_3 = (void *)0;
         {
             String s = value_2;
-            value_3 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_3 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         compiler_inline_asm_AssemblyError(span, value_3);
         return (void *)0;
     }
-    zir_f_b231ca7561351ed8_memcpy(literal, start, length);
+    zir_foreign_compiler_inline_asm__memcpy(literal, start, length);
     uint8_t* value_5 = &(literal[length]);
     (*value_5) = 0;
     size_t decoded_length = 0;
     int32_t valid = 0;
     uint8_t* expanded = (void *)0;
-    uint8_t* value_6 = zir_f_b231ca7561351ed8_strchr(literal, 31);
+    uint8_t* value_6 = zir_foreign_compiler_inline_asm__strchr(literal, 31);
     if (value_6 != ((void *)0)) {
-        expanded = zir_f_b231ca7561351ed8_RawTextExpand(literal);
+        expanded = zir_foreign_compiler_inline_asm__RawTextExpand(literal);
     }
     if (expanded != ((void *)0)) {
-        zir_f_b231ca7561351ed8_free(decoded);
-        void* value_7 = zir_f_b231ca7561351ed8_malloc(zir_f_b231ca7561351ed8_strlen(expanded) + 1);
+        zir_foreign_compiler_inline_asm__free(decoded);
+        void* value_7 = zir_foreign_compiler_inline_asm__malloc(zir_foreign_compiler_inline_asm__strlen(expanded) + 1);
         decoded = (uint8_t*)(value_7);
         if (decoded != ((void *)0)) {
-            valid = zir_f_b231ca7561351ed8_DecodeStringLiteral(expanded, decoded, zir_f_b231ca7561351ed8_strlen(expanded), &(decoded_length));
+            valid = zir_foreign_compiler_inline_asm__DecodeStringLiteral(expanded, decoded, zir_foreign_compiler_inline_asm__strlen(expanded), &(decoded_length));
         }
-        zir_f_b231ca7561351ed8_free(expanded);
+        zir_foreign_compiler_inline_asm__free(expanded);
     } else {
-        valid = zir_f_b231ca7561351ed8_DecodeStringLiteral(literal, decoded, length, &(decoded_length));
+        valid = zir_foreign_compiler_inline_asm__DecodeStringLiteral(literal, decoded, length, &(decoded_length));
     }
-    zir_f_b231ca7561351ed8_free(literal);
+    zir_foreign_compiler_inline_asm__free(literal);
     bool value_8 = valid == 0;
     if (!value_8) {
-        uint8_t* value_9 = zir_f_b231ca7561351ed8_memchr(decoded, 0, decoded_length);
+        uint8_t* value_9 = zir_foreign_compiler_inline_asm__memchr(decoded, 0, decoded_length);
         value_8 = (value_9 != ((void *)0));
     }
     if (value_8) {
-        zir_f_b231ca7561351ed8_free(decoded);
+        zir_foreign_compiler_inline_asm__free(decoded);
         String value_10 = StringLiteral("invalid #asm string (embedded NUL is forbidden)");
         uint8_t* value_11 = (void *)0;
         {
             String s = value_10;
-            value_11 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         compiler_inline_asm_AssemblyError(span, value_11);
         return (void *)0;
     }
     uint8_t* value_13 = &(decoded[decoded_length]);
     (*value_13) = 0;
-    uint8_t* kept = zir_f_b231ca7561351ed8_KeepText(decoded);
-    zir_f_b231ca7561351ed8_free(decoded);
+    uint8_t* kept = zir_foreign_compiler_inline_asm__KeepText(decoded);
+    zir_foreign_compiler_inline_asm__free(decoded);
     return kept;
 }
 
 int32_t
 compiler_inline_asm_ReadVariant(uint8_t** cursor, Assembly* assembly, ZirSourceSpan span, bool names)
 {
-    uint8_t* at = zir_f_b231ca7561351ed8_skip_ws(*(cursor));
+    uint8_t* at = zir_foreign_compiler_inline_asm__skip_ws(*(cursor));
     uint8_t* value_0 = at;
     String value_1 = StringLiteral("#asm");
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
-        value_2 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_2 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    bool value_4 = zir_f_b231ca7561351ed8_strncmp(value_0, value_2, 4) != 0;
+    bool value_4 = zir_foreign_compiler_inline_asm__strncmp(value_0, value_2, 4) != 0;
     bool value_5 = value_4;
     if (!value_5) {
         uint8_t* value_6 = (void *)0;
@@ -8077,7 +8077,7 @@ compiler_inline_asm_ReadVariant(uint8_t** cursor, Assembly* assembly, ZirSourceS
         uint8_t* value_10 = (void *)0;
         {
             String s = value_9;
-            value_10 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_10 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return compiler_inline_asm_AssemblyError(span, value_10);
     }
@@ -8087,7 +8087,7 @@ compiler_inline_asm_ReadVariant(uint8_t** cursor, Assembly* assembly, ZirSourceS
         size_t n = 4;
         value_12 = (uint8_t*)(((size_t)(p) + n));
     }
-    uint8_t* value_14 = zir_f_b231ca7561351ed8_skip_ws(value_12);
+    uint8_t* value_14 = zir_foreign_compiler_inline_asm__skip_ws(value_12);
     uint8_t* value_15 = (void *)0;
     {
         uint8_t* p = value_14;
@@ -8105,7 +8105,7 @@ compiler_inline_asm_ReadVariant(uint8_t** cursor, Assembly* assembly, ZirSourceS
             uint8_t* value_19 = (void *)0;
             {
                 String s = value_18;
-                value_19 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                value_19 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
             (*value_17) = value_19;
             if (i == range_last_5) {
@@ -8128,7 +8128,7 @@ compiler_inline_asm_ReadVariant(uint8_t** cursor, Assembly* assembly, ZirSourceS
                 uint8_t* value_22 = (void *)0;
                 {
                     String s = value_21;
-                    value_22 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_22 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 return compiler_inline_asm_AssemblyError(span, value_22);
             }
@@ -8138,7 +8138,7 @@ compiler_inline_asm_ReadVariant(uint8_t** cursor, Assembly* assembly, ZirSourceS
                     uint8_t* value_25 = (void *)0;
                     {
                         String s = value_24;
-                        value_25 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_25 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
                     return compiler_inline_asm_AssemblyError(span, value_25);
                 }
@@ -8148,7 +8148,7 @@ compiler_inline_asm_ReadVariant(uint8_t** cursor, Assembly* assembly, ZirSourceS
                     uint8_t* value_28 = (void *)0;
                     {
                         String s = value_27;
-                        value_28 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                        value_28 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
                     return compiler_inline_asm_AssemblyError(span, value_28);
                 }
@@ -8156,7 +8156,7 @@ compiler_inline_asm_ReadVariant(uint8_t** cursor, Assembly* assembly, ZirSourceS
                 uint8_t* value_31 = (void *)0;
                 {
                     String s = value_30;
-                    value_31 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_31 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 return compiler_inline_asm_AssemblyError(span, value_31);
             } else {
@@ -8167,7 +8167,7 @@ compiler_inline_asm_ReadVariant(uint8_t** cursor, Assembly* assembly, ZirSourceS
                 uint8_t** value_33 = &(assembly->part[i]);
                 (*value_33) = kept;
             }
-            at = zir_f_b231ca7561351ed8_skip_ws(at);
+            at = zir_foreign_compiler_inline_asm__skip_ws(at);
             uint8_t next = at[0];
             uint8_t* value_34 = (void *)0;
             {
@@ -8191,7 +8191,7 @@ compiler_inline_asm_ReadVariant(uint8_t** cursor, Assembly* assembly, ZirSourceS
                 uint8_t* value_38 = (void *)0;
                 {
                     String s = value_37;
-                    value_38 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_38 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 return compiler_inline_asm_AssemblyError(span, value_38);
             }
@@ -8212,7 +8212,7 @@ compiler_inline_asm_ReadVariant(uint8_t** cursor, Assembly* assembly, ZirSourceS
         uint8_t* value_43 = (void *)0;
         {
             String s = value_42;
-            value_43 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_43 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         bool value_45 = compiler_inline_asm_Same(options, value_43);
         value_41 = !value_45;
@@ -8222,7 +8222,7 @@ compiler_inline_asm_ReadVariant(uint8_t** cursor, Assembly* assembly, ZirSourceS
         uint8_t* value_47 = (void *)0;
         {
             String s = value_46;
-            value_47 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_47 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         return compiler_inline_asm_AssemblyError(span, value_47);
     }
@@ -8251,12 +8251,12 @@ compiler_inline_asm_AssemblyTextAdd(AssemblyText* text, uint8_t* bytes, size_t l
         while ((text->used + length) + 1 > capacity) {
             capacity = capacity * 2;
         }
-        void* value_1 = zir_f_b231ca7561351ed8_AllocateOrExit(capacity);
+        void* value_1 = zir_foreign_compiler_inline_asm__AllocateOrExit(capacity);
         uint8_t* data = (uint8_t*)(value_1);
         if (text->used != 0) {
-            zir_f_b231ca7561351ed8_memcpy(data, text->data, text->used);
+            zir_foreign_compiler_inline_asm__memcpy(data, text->data, text->used);
         }
-        zir_f_b231ca7561351ed8_free(text->data);
+        zir_foreign_compiler_inline_asm__free(text->data);
         uint8_t** value_2 = &(text->data);
         (*value_2) = data;
         size_t* value_3 = &(text->capacity);
@@ -8270,7 +8270,7 @@ compiler_inline_asm_AssemblyTextAdd(AssemblyText* text, uint8_t* bytes, size_t l
         size_t n = value_5;
         value_6 = (uint8_t*)(((size_t)(p) + n));
     }
-    zir_f_b231ca7561351ed8_memcpy(value_6, bytes, length);
+    zir_foreign_compiler_inline_asm__memcpy(value_6, bytes, length);
     size_t* value_8 = &(text->used);
     (*value_8) = (*value_8) + length;
     uint8_t* value_9 = &(text->data[text->used]);
@@ -8284,9 +8284,9 @@ compiler_inline_asm_ResolveAssemblyText(ZirModule* module, uint8_t* text, ZirSou
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    uint8_t* value_3 = zir_f_b231ca7561351ed8_strstr(text, value_1);
+    uint8_t* value_3 = zir_foreign_compiler_inline_asm__strstr(text, value_1);
     if (value_3 == ((void *)0)) {
         return text;
     }
@@ -8295,7 +8295,7 @@ compiler_inline_asm_ResolveAssemblyText(ZirModule* module, uint8_t* text, ZirSou
     uint8_t* copied = text;
     bool changed = false;
     while (true) {
-        at = zir_f_b231ca7561351ed8_skip_ws(at);
+        at = zir_foreign_compiler_inline_asm__skip_ws(at);
         if (at[0] == 0) {
             break;
         }
@@ -8304,9 +8304,9 @@ compiler_inline_asm_ResolveAssemblyText(ZirModule* module, uint8_t* text, ZirSou
         uint8_t* value_6 = (void *)0;
         {
             String s = value_5;
-            value_6 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_6 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        bool value_8 = zir_f_b231ca7561351ed8_strncmp(value_4, value_6, 4) != 0;
+        bool value_8 = zir_foreign_compiler_inline_asm__strncmp(value_4, value_6, 4) != 0;
         bool value_9 = value_8;
         if (!value_9) {
             uint8_t* value_10 = (void *)0;
@@ -8327,7 +8327,7 @@ compiler_inline_asm_ResolveAssemblyText(ZirModule* module, uint8_t* text, ZirSou
             size_t n = 4;
             value_13 = (uint8_t*)(((size_t)(p) + n));
         }
-        uint8_t* value_15 = zir_f_b231ca7561351ed8_skip_ws(value_13);
+        uint8_t* value_15 = zir_foreign_compiler_inline_asm__skip_ws(value_13);
         uint8_t* value_16 = (void *)0;
         {
             uint8_t* p = value_15;
@@ -8346,35 +8346,35 @@ compiler_inline_asm_ResolveAssemblyText(ZirModule* module, uint8_t* text, ZirSou
                     uint8_t name[128] = {0};
                     uint8_t* literal = (void *)0;
                     if (length >= ((ZIR_NAME_MAX) * (sizeof(uint8_t)))) {
-                        zir_f_b231ca7561351ed8_free(out.data);
+                        zir_foreign_compiler_inline_asm__free(out.data);
                         String value_18 = StringLiteral("#asm constant name is too long");
                         uint8_t* value_19 = (void *)0;
                         {
                             String s = value_18;
-                            value_19 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_19 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         compiler_inline_asm_AssemblyError(span, value_19);
                         return (void *)0;
                     }
-                    zir_f_b231ca7561351ed8_memcpy(&(name[0]), start, length);
+                    zir_foreign_compiler_inline_asm__memcpy(&(name[0]), start, length);
                     uint8_t* value_21 = &(name[length]);
                     (*value_21) = 0;
-                    bool value_22 = zir_f_b231ca7561351ed8_EvaluateCompileLiteral(module, &(name[0]), span, 0, &(literal), (void *)0) == 0;
+                    bool value_22 = zir_foreign_compiler_inline_asm__EvaluateCompileLiteral(module, &(name[0]), span, 0, &(literal), (void *)0) == 0;
                     if (value_22 || literal == ((void *)0) || literal[0] != 34) {
-                        zir_f_b231ca7561351ed8_free(out.data);
+                        zir_foreign_compiler_inline_asm__free(out.data);
                         String value_23 = StringLiteral("check.assembly");
                         uint8_t* value_24 = (void *)0;
                         {
                             String s = value_23;
-                            value_24 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_24 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         String value_26 = StringLiteral("#asm argument %s is not a constant string");
                         uint8_t* value_27 = (void *)0;
                         {
                             String s = value_26;
-                            value_27 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_27 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
-                        zir_f_b231ca7561351ed8_Diagnostic(span, value_24, value_27, &(name[0]));
+                        zir_foreign_compiler_inline_asm__Diagnostic(span, value_24, value_27, &(name[0]));
                         return (void *)0;
                     }
                     size_t value_29 = 0;
@@ -8385,11 +8385,11 @@ compiler_inline_asm_ResolveAssemblyText(ZirModule* module, uint8_t* text, ZirSou
                     }
                     compiler_inline_asm_AssemblyTextAdd(&(out), copied, value_29);
                     uint8_t* value_31 = literal;
-                    compiler_inline_asm_AssemblyTextAdd(&(out), value_31, zir_f_b231ca7561351ed8_strlen(literal));
+                    compiler_inline_asm_AssemblyTextAdd(&(out), value_31, zir_foreign_compiler_inline_asm__strlen(literal));
                     copied = at;
                     changed = true;
                 }
-                at = zir_f_b231ca7561351ed8_skip_ws(at);
+                at = zir_foreign_compiler_inline_asm__skip_ws(at);
                 if (at[0] != 44) {
                     break;
                 }
@@ -8419,9 +8419,9 @@ compiler_inline_asm_ResolveAssemblyText(ZirModule* module, uint8_t* text, ZirSou
     if (!changed) {
         return text;
     }
-    compiler_inline_asm_AssemblyTextAdd(&(out), copied, zir_f_b231ca7561351ed8_strlen(copied));
-    uint8_t* resolved = zir_f_b231ca7561351ed8_KeepText(out.data);
-    zir_f_b231ca7561351ed8_free(out.data);
+    compiler_inline_asm_AssemblyTextAdd(&(out), copied, zir_foreign_compiler_inline_asm__strlen(copied));
+    uint8_t* resolved = zir_foreign_compiler_inline_asm__KeepText(out.data);
+    zir_foreign_compiler_inline_asm__free(out.data);
     return resolved;
 }
 
@@ -8435,8 +8435,8 @@ compiler_inline_asm_AssemblyTextMatches(uint8_t* source, uint8_t* resolved)
         uint8_t* b = (void *)0;
         size_t na = 0;
         size_t nb = 0;
-        left = zir_f_b231ca7561351ed8_skip_ws(left);
-        right = zir_f_b231ca7561351ed8_skip_ws(right);
+        left = zir_foreign_compiler_inline_asm__skip_ws(left);
+        right = zir_foreign_compiler_inline_asm__skip_ws(right);
         int32_t ka = compiler_inline_asm_AssemblyArgument(&(left), &(a), &(na));
         if (ka == 0) {
             if (left[0] != right[0]) {
@@ -8469,7 +8469,7 @@ compiler_inline_asm_AssemblyTextMatches(uint8_t* source, uint8_t* resolved)
             continue;
         }
         bool value_4 = ka != kb || na != nb;
-        if (value_4 || zir_f_b231ca7561351ed8_memcmp(a, b, na) != 0) {
+        if (value_4 || zir_foreign_compiler_inline_asm__memcmp(a, b, na) != 0) {
             return false;
         }
     }
@@ -8539,7 +8539,7 @@ ResolveAssemblyConstants(ZirModule* module)
                         uint8_t* value_11 = (void *)0;
                         {
                             String s = value_10;
-                            value_11 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                            value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
                         return compiler_inline_asm_AssemblyError(value_9, value_11);
                     }
@@ -8567,9 +8567,9 @@ ExtractAssemblyModifiers(uint8_t* header, ZirSourceSpan span)
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    uint8_t* value_3 = zir_f_b231ca7561351ed8_strstr(header, value_1);
+    uint8_t* value_3 = zir_foreign_compiler_inline_asm__strstr(header, value_1);
     if (value_3 == ((void *)0)) {
         return (void *)0;
     }
@@ -8621,15 +8621,15 @@ ExtractAssemblyModifiers(uint8_t* header, ZirSourceSpan span)
                 uint8_t* value_13 = (void *)0;
                 {
                     String s = value_12;
-                    value_13 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_13 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 compiler_inline_asm_AssemblyError(span, value_13);
-                zir_f_b231ca7561351ed8_exit(1);
+                zir_foreign_compiler_inline_asm__exit(1);
             }
             uint8_t* end = at;
             Assembly assembly = {0};
             if (compiler_inline_asm_ReadVariant(&(end), &(assembly), span, true) == 0) {
-                zir_f_b231ca7561351ed8_exit(1);
+                zir_foreign_compiler_inline_asm__exit(1);
             }
             size_t value_15 = 0;
             {
@@ -8643,18 +8643,18 @@ ExtractAssemblyModifiers(uint8_t* header, ZirSourceSpan span)
                 uint8_t* value_18 = (void *)0;
                 {
                     String s = value_17;
-                    value_18 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+                    value_18 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
                 compiler_inline_asm_AssemblyError(span, value_18);
-                zir_f_b231ca7561351ed8_exit(1);
+                zir_foreign_compiler_inline_asm__exit(1);
             }
-            zir_f_b231ca7561351ed8_memcpy(&(kept[used]), at, length);
+            zir_foreign_compiler_inline_asm__memcpy(&(kept[used]), at, length);
             used = used + length;
             uint8_t* value_20 = &(kept[used]);
             (*value_20) = 32;
             used = used + 1;
             uint8_t* value_21 = end;
-            zir_f_b231ca7561351ed8_memmove(at, value_21, zir_f_b231ca7561351ed8_strlen(end) + 1);
+            zir_foreign_compiler_inline_asm__memmove(at, value_21, zir_foreign_compiler_inline_asm__strlen(end) + 1);
         } else {
             if (at[0] == 40) {
                 parentheses = (int32_t)((uint32_t)parentheses + 1u);
@@ -8678,13 +8678,13 @@ ExtractAssemblyModifiers(uint8_t* header, ZirSourceSpan span)
     }
     uint8_t* value_24 = &(kept[used]);
     (*value_24) = 0;
-    return zir_f_b231ca7561351ed8_KeepText(&(kept[0]));
+    return zir_foreign_compiler_inline_asm__KeepText(&(kept[0]));
 }
 
 uint8_t*
 AssemblyBlockText(uint8_t* header, ZirSourceSpan span)
 {
-    uint8_t* start = zir_f_b231ca7561351ed8_skip_ws(header);
+    uint8_t* start = zir_foreign_compiler_inline_asm__skip_ws(header);
     uint8_t* at = start;
     int32_t count = 0;
     while (compiler_inline_asm_StartsAssembly(at)) {
@@ -8693,7 +8693,7 @@ AssemblyBlockText(uint8_t* header, ZirSourceSpan span)
             return (void *)0;
         }
         count = (int32_t)((uint32_t)count + 1u);
-        at = zir_f_b231ca7561351ed8_skip_ws(at);
+        at = zir_foreign_compiler_inline_asm__skip_ws(at);
     }
     bool value_0 = count == 0 || at[0] != 123;
     bool value_1 = value_0;
@@ -8712,7 +8712,7 @@ AssemblyBlockText(uint8_t* header, ZirSourceSpan span)
         uint8_t* value_6 = (void *)0;
         {
             String s = value_5;
-            value_6 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_6 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         compiler_inline_asm_AssemblyError(span, value_6);
         return (void *)0;
@@ -8744,15 +8744,15 @@ AssemblyBlockText(uint8_t* header, ZirSourceSpan span)
         uint8_t* value_15 = (void *)0;
         {
             String s = value_14;
-            value_15 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+            value_15 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
         compiler_inline_asm_AssemblyError(span, value_15);
         return (void *)0;
     }
-    zir_f_b231ca7561351ed8_memcpy(&(text[0]), start, length);
+    zir_foreign_compiler_inline_asm__memcpy(&(text[0]), start, length);
     uint8_t* value_17 = &(text[length]);
     (*value_17) = 0;
-    return zir_f_b231ca7561351ed8_KeepText(&(text[0]));
+    return zir_foreign_compiler_inline_asm__KeepText(&(text[0]));
 }
 
 int32_t
@@ -8764,7 +8764,7 @@ compiler_inline_asm_OperandList(uint8_t* text, uint8_t** items)
     }
     uint8_t* at = text;
     while (true) {
-        uint8_t* end = zir_f_b231ca7561351ed8_strchr(at, 59);
+        uint8_t* end = zir_foreign_compiler_inline_asm__strchr(at, 59);
         size_t value_0 = 0;
         if (end != ((void *)0)) {
             size_t value_1 = 0;
@@ -8775,7 +8775,7 @@ compiler_inline_asm_OperandList(uint8_t* text, uint8_t** items)
             }
             value_0 = value_1;
         } else {
-            size_t value_3 = zir_f_b231ca7561351ed8_strlen(at);
+            size_t value_3 = zir_foreign_compiler_inline_asm__strlen(at);
             value_0 = value_3;
         }
         size_t length = value_0;
@@ -8783,15 +8783,15 @@ compiler_inline_asm_OperandList(uint8_t* text, uint8_t** items)
         if (length >= ((ZIR_NAME_MAX) * (sizeof(uint8_t))) || count == 30) {
             return -1;
         }
-        zir_f_b231ca7561351ed8_memcpy(&(item[0]), at, length);
+        zir_foreign_compiler_inline_asm__memcpy(&(item[0]), at, length);
         uint8_t* value_4 = &(item[length]);
         (*value_4) = 0;
-        uint8_t* trimmed = zir_f_b231ca7561351ed8_trim_in_place(&(item[0]));
+        uint8_t* trimmed = zir_foreign_compiler_inline_asm__trim_in_place(&(item[0]));
         if (trimmed[0] == 0) {
             return -1;
         }
         uint8_t** value_5 = &(items[count]);
-        uint8_t* value_6 = zir_f_b231ca7561351ed8_KeepText(trimmed);
+        uint8_t* value_6 = zir_foreign_compiler_inline_asm__KeepText(trimmed);
         (*value_5) = value_6;
         count = (int32_t)((uint32_t)count + 1u);
         if (end == ((void *)0)) {
@@ -8817,35 +8817,35 @@ compiler_inline_asm___global_init_0_0(void)
     uint8_t* value_3 = (void *)0;
     {
         String s = value_2;
-        value_3 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_3 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_1[0] = value_3;
     String value_5 = StringLiteral("eax");
     uint8_t* value_6 = (void *)0;
     {
         String s = value_5;
-        value_6 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_6 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_1[1] = value_6;
     String value_8 = StringLiteral("ax");
     uint8_t* value_9 = (void *)0;
     {
         String s = value_8;
-        value_9 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_9 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_1[2] = value_9;
     String value_11 = StringLiteral("al");
     uint8_t* value_12 = (void *)0;
     {
         String s = value_11;
-        value_12 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_12 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_1[3] = value_12;
     String value_14 = StringLiteral("ah");
     uint8_t* value_15 = (void *)0;
     {
         String s = value_14;
-        value_15 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_15 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_1[4] = value_15;
     memmove(value_0[0], value_1, sizeof(value_0[0]));
@@ -8854,35 +8854,35 @@ compiler_inline_asm___global_init_0_0(void)
     uint8_t* value_19 = (void *)0;
     {
         String s = value_18;
-        value_19 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_19 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_17[0] = value_19;
     String value_21 = StringLiteral("ebx");
     uint8_t* value_22 = (void *)0;
     {
         String s = value_21;
-        value_22 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_22 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_17[1] = value_22;
     String value_24 = StringLiteral("bx");
     uint8_t* value_25 = (void *)0;
     {
         String s = value_24;
-        value_25 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_25 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_17[2] = value_25;
     String value_27 = StringLiteral("bl");
     uint8_t* value_28 = (void *)0;
     {
         String s = value_27;
-        value_28 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_28 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_17[3] = value_28;
     String value_30 = StringLiteral("bh");
     uint8_t* value_31 = (void *)0;
     {
         String s = value_30;
-        value_31 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_31 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_17[4] = value_31;
     memmove(value_0[1], value_17, sizeof(value_0[1]));
@@ -8891,35 +8891,35 @@ compiler_inline_asm___global_init_0_0(void)
     uint8_t* value_35 = (void *)0;
     {
         String s = value_34;
-        value_35 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_35 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_33[0] = value_35;
     String value_37 = StringLiteral("ecx");
     uint8_t* value_38 = (void *)0;
     {
         String s = value_37;
-        value_38 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_38 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_33[1] = value_38;
     String value_40 = StringLiteral("cx");
     uint8_t* value_41 = (void *)0;
     {
         String s = value_40;
-        value_41 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_41 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_33[2] = value_41;
     String value_43 = StringLiteral("cl");
     uint8_t* value_44 = (void *)0;
     {
         String s = value_43;
-        value_44 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_44 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_33[3] = value_44;
     String value_46 = StringLiteral("ch");
     uint8_t* value_47 = (void *)0;
     {
         String s = value_46;
-        value_47 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_47 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_33[4] = value_47;
     memmove(value_0[2], value_33, sizeof(value_0[2]));
@@ -8928,35 +8928,35 @@ compiler_inline_asm___global_init_0_0(void)
     uint8_t* value_51 = (void *)0;
     {
         String s = value_50;
-        value_51 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_51 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_49[0] = value_51;
     String value_53 = StringLiteral("edx");
     uint8_t* value_54 = (void *)0;
     {
         String s = value_53;
-        value_54 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_54 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_49[1] = value_54;
     String value_56 = StringLiteral("dx");
     uint8_t* value_57 = (void *)0;
     {
         String s = value_56;
-        value_57 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_57 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_49[2] = value_57;
     String value_59 = StringLiteral("dl");
     uint8_t* value_60 = (void *)0;
     {
         String s = value_59;
-        value_60 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_60 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_49[3] = value_60;
     String value_62 = StringLiteral("dh");
     uint8_t* value_63 = (void *)0;
     {
         String s = value_62;
-        value_63 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_63 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_49[4] = value_63;
     memmove(value_0[3], value_49, sizeof(value_0[3]));
@@ -8965,35 +8965,35 @@ compiler_inline_asm___global_init_0_0(void)
     uint8_t* value_67 = (void *)0;
     {
         String s = value_66;
-        value_67 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_67 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_65[0] = value_67;
     String value_69 = StringLiteral("esi");
     uint8_t* value_70 = (void *)0;
     {
         String s = value_69;
-        value_70 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_70 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_65[1] = value_70;
     String value_72 = StringLiteral("si");
     uint8_t* value_73 = (void *)0;
     {
         String s = value_72;
-        value_73 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_73 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_65[2] = value_73;
     String value_75 = StringLiteral("sil");
     uint8_t* value_76 = (void *)0;
     {
         String s = value_75;
-        value_76 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_76 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_65[3] = value_76;
     String value_78 = StringLiteral("");
     uint8_t* value_79 = (void *)0;
     {
         String s = value_78;
-        value_79 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_79 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_65[4] = value_79;
     memmove(value_0[4], value_65, sizeof(value_0[4]));
@@ -9002,35 +9002,35 @@ compiler_inline_asm___global_init_0_0(void)
     uint8_t* value_83 = (void *)0;
     {
         String s = value_82;
-        value_83 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_83 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_81[0] = value_83;
     String value_85 = StringLiteral("edi");
     uint8_t* value_86 = (void *)0;
     {
         String s = value_85;
-        value_86 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_86 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_81[1] = value_86;
     String value_88 = StringLiteral("di");
     uint8_t* value_89 = (void *)0;
     {
         String s = value_88;
-        value_89 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_89 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_81[2] = value_89;
     String value_91 = StringLiteral("dil");
     uint8_t* value_92 = (void *)0;
     {
         String s = value_91;
-        value_92 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_92 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_81[3] = value_92;
     String value_94 = StringLiteral("");
     uint8_t* value_95 = (void *)0;
     {
         String s = value_94;
-        value_95 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_95 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_81[4] = value_95;
     memmove(value_0[5], value_81, sizeof(value_0[5]));
@@ -9039,35 +9039,35 @@ compiler_inline_asm___global_init_0_0(void)
     uint8_t* value_99 = (void *)0;
     {
         String s = value_98;
-        value_99 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_99 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_97[0] = value_99;
     String value_101 = StringLiteral("ebp");
     uint8_t* value_102 = (void *)0;
     {
         String s = value_101;
-        value_102 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_102 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_97[1] = value_102;
     String value_104 = StringLiteral("bp");
     uint8_t* value_105 = (void *)0;
     {
         String s = value_104;
-        value_105 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_105 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_97[2] = value_105;
     String value_107 = StringLiteral("bpl");
     uint8_t* value_108 = (void *)0;
     {
         String s = value_107;
-        value_108 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_108 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_97[3] = value_108;
     String value_110 = StringLiteral("");
     uint8_t* value_111 = (void *)0;
     {
         String s = value_110;
-        value_111 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_111 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_97[4] = value_111;
     memmove(value_0[6], value_97, sizeof(value_0[6]));
@@ -9076,35 +9076,35 @@ compiler_inline_asm___global_init_0_0(void)
     uint8_t* value_115 = (void *)0;
     {
         String s = value_114;
-        value_115 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_115 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_113[0] = value_115;
     String value_117 = StringLiteral("esp");
     uint8_t* value_118 = (void *)0;
     {
         String s = value_117;
-        value_118 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_118 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_113[1] = value_118;
     String value_120 = StringLiteral("sp");
     uint8_t* value_121 = (void *)0;
     {
         String s = value_120;
-        value_121 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_121 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_113[2] = value_121;
     String value_123 = StringLiteral("spl");
     uint8_t* value_124 = (void *)0;
     {
         String s = value_123;
-        value_124 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_124 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_113[3] = value_124;
     String value_126 = StringLiteral("");
     uint8_t* value_127 = (void *)0;
     {
         String s = value_126;
-        value_127 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_127 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_113[4] = value_127;
     memmove(value_0[7], value_113, sizeof(value_0[7]));
@@ -9119,98 +9119,98 @@ compiler_inline_asm___global_init_1_0(void)
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
-        value_2 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_2 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[0] = value_2;
     String value_4 = StringLiteral("r12");
     uint8_t* value_5 = (void *)0;
     {
         String s = value_4;
-        value_5 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_5 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[1] = value_5;
     String value_7 = StringLiteral("sp");
     uint8_t* value_8 = (void *)0;
     {
         String s = value_7;
-        value_8 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_8 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[2] = value_8;
     String value_10 = StringLiteral("r13");
     uint8_t* value_11 = (void *)0;
     {
         String s = value_10;
-        value_11 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[3] = value_11;
     String value_13 = StringLiteral("lr");
     uint8_t* value_14 = (void *)0;
     {
         String s = value_13;
-        value_14 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_14 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[4] = value_14;
     String value_16 = StringLiteral("r14");
     uint8_t* value_17 = (void *)0;
     {
         String s = value_16;
-        value_17 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_17 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[5] = value_17;
     String value_19 = StringLiteral("pc");
     uint8_t* value_20 = (void *)0;
     {
         String s = value_19;
-        value_20 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[6] = value_20;
     String value_22 = StringLiteral("r15");
     uint8_t* value_23 = (void *)0;
     {
         String s = value_22;
-        value_23 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_23 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[7] = value_23;
     String value_25 = StringLiteral("fp");
     uint8_t* value_26 = (void *)0;
     {
         String s = value_25;
-        value_26 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_26 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[8] = value_26;
     String value_28 = StringLiteral("r11");
     uint8_t* value_29 = (void *)0;
     {
         String s = value_28;
-        value_29 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_29 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[9] = value_29;
     String value_31 = StringLiteral("sl");
     uint8_t* value_32 = (void *)0;
     {
         String s = value_31;
-        value_32 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_32 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[10] = value_32;
     String value_34 = StringLiteral("r10");
     uint8_t* value_35 = (void *)0;
     {
         String s = value_34;
-        value_35 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_35 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[11] = value_35;
     String value_37 = StringLiteral("sb");
     uint8_t* value_38 = (void *)0;
     {
         String s = value_37;
-        value_38 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_38 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[12] = value_38;
     String value_40 = StringLiteral("r9");
     uint8_t* value_41 = (void *)0;
     {
         String s = value_40;
-        value_41 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_41 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[13] = value_41;
     memmove(arm_register_aliases, value_0, sizeof(arm_register_aliases));
@@ -9224,56 +9224,56 @@ compiler_inline_asm___global_init_2_0(void)
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
-        value_2 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_2 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[0] = value_2;
     String value_4 = StringLiteral("rbx");
     uint8_t* value_5 = (void *)0;
     {
         String s = value_4;
-        value_5 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_5 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[1] = value_5;
     String value_7 = StringLiteral("rcx");
     uint8_t* value_8 = (void *)0;
     {
         String s = value_7;
-        value_8 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_8 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[2] = value_8;
     String value_10 = StringLiteral("rdx");
     uint8_t* value_11 = (void *)0;
     {
         String s = value_10;
-        value_11 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[3] = value_11;
     String value_13 = StringLiteral("rsi");
     uint8_t* value_14 = (void *)0;
     {
         String s = value_13;
-        value_14 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_14 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[4] = value_14;
     String value_16 = StringLiteral("rdi");
     uint8_t* value_17 = (void *)0;
     {
         String s = value_16;
-        value_17 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_17 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[5] = value_17;
     String value_19 = StringLiteral("rbp");
     uint8_t* value_20 = (void *)0;
     {
         String s = value_19;
-        value_20 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[6] = value_20;
     String value_22 = StringLiteral("rsp");
     uint8_t* value_23 = (void *)0;
     {
         String s = value_22;
-        value_23 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_23 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[7] = value_23;
     memmove(x86_64_register_names, value_0, sizeof(x86_64_register_names));
@@ -9287,56 +9287,56 @@ compiler_inline_asm___global_init_3_0(void)
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
-        value_2 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_2 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[0] = value_2;
     String value_4 = StringLiteral("ebx");
     uint8_t* value_5 = (void *)0;
     {
         String s = value_4;
-        value_5 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_5 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[1] = value_5;
     String value_7 = StringLiteral("ecx");
     uint8_t* value_8 = (void *)0;
     {
         String s = value_7;
-        value_8 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_8 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[2] = value_8;
     String value_10 = StringLiteral("edx");
     uint8_t* value_11 = (void *)0;
     {
         String s = value_10;
-        value_11 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[3] = value_11;
     String value_13 = StringLiteral("esi");
     uint8_t* value_14 = (void *)0;
     {
         String s = value_13;
-        value_14 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_14 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[4] = value_14;
     String value_16 = StringLiteral("edi");
     uint8_t* value_17 = (void *)0;
     {
         String s = value_16;
-        value_17 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_17 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[5] = value_17;
     String value_19 = StringLiteral("ebp");
     uint8_t* value_20 = (void *)0;
     {
         String s = value_19;
-        value_20 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[6] = value_20;
     String value_22 = StringLiteral("esp");
     uint8_t* value_23 = (void *)0;
     {
         String s = value_22;
-        value_23 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_23 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[7] = value_23;
     memmove(x86_32_register_names, value_0, sizeof(x86_32_register_names));
@@ -9350,77 +9350,77 @@ compiler_inline_asm___global_init_4_0(void)
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
-        value_2 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_2 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[0] = value_2;
     String value_4 = StringLiteral("x86");
     uint8_t* value_5 = (void *)0;
     {
         String s = value_4;
-        value_5 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_5 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[1] = value_5;
     String value_7 = StringLiteral("aarch64");
     uint8_t* value_8 = (void *)0;
     {
         String s = value_7;
-        value_8 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_8 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[2] = value_8;
     String value_10 = StringLiteral("arm");
     uint8_t* value_11 = (void *)0;
     {
         String s = value_10;
-        value_11 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[3] = value_11;
     String value_13 = StringLiteral("wasm32");
     uint8_t* value_14 = (void *)0;
     {
         String s = value_13;
-        value_14 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_14 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[4] = value_14;
     String value_16 = StringLiteral("riscv64");
     uint8_t* value_17 = (void *)0;
     {
         String s = value_16;
-        value_17 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_17 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[5] = value_17;
     String value_19 = StringLiteral("riscv32");
     uint8_t* value_20 = (void *)0;
     {
         String s = value_19;
-        value_20 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[6] = value_20;
     String value_22 = StringLiteral("powerpc64");
     uint8_t* value_23 = (void *)0;
     {
         String s = value_22;
-        value_23 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_23 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[7] = value_23;
     String value_25 = StringLiteral("powerpc");
     uint8_t* value_26 = (void *)0;
     {
         String s = value_25;
-        value_26 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_26 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[8] = value_26;
     String value_28 = StringLiteral("s390x");
     uint8_t* value_29 = (void *)0;
     {
         String s = value_28;
-        value_29 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_29 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[9] = value_29;
     String value_31 = StringLiteral("loongarch64");
     uint8_t* value_32 = (void *)0;
     {
         String s = value_31;
-        value_32 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_32 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[10] = value_32;
     memmove(architecture_names, value_0, sizeof(architecture_names));
@@ -9434,77 +9434,77 @@ compiler_inline_asm___global_init_5_0(void)
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
-        value_2 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_2 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[0] = value_2;
     String value_4 = StringLiteral("defined(__i386__)");
     uint8_t* value_5 = (void *)0;
     {
         String s = value_4;
-        value_5 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_5 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[1] = value_5;
     String value_7 = StringLiteral("defined(__aarch64__)");
     uint8_t* value_8 = (void *)0;
     {
         String s = value_7;
-        value_8 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_8 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[2] = value_8;
     String value_10 = StringLiteral("defined(__arm__)");
     uint8_t* value_11 = (void *)0;
     {
         String s = value_10;
-        value_11 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[3] = value_11;
     String value_13 = StringLiteral("defined(__wasm32__)");
     uint8_t* value_14 = (void *)0;
     {
         String s = value_13;
-        value_14 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_14 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[4] = value_14;
     String value_16 = StringLiteral("defined(__riscv) && __riscv_xlen == 64");
     uint8_t* value_17 = (void *)0;
     {
         String s = value_16;
-        value_17 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_17 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[5] = value_17;
     String value_19 = StringLiteral("defined(__riscv) && __riscv_xlen == 32");
     uint8_t* value_20 = (void *)0;
     {
         String s = value_19;
-        value_20 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[6] = value_20;
     String value_22 = StringLiteral("defined(__powerpc64__)");
     uint8_t* value_23 = (void *)0;
     {
         String s = value_22;
-        value_23 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_23 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[7] = value_23;
     String value_25 = StringLiteral("defined(__powerpc__) && !defined(__powerpc64__)");
     uint8_t* value_26 = (void *)0;
     {
         String s = value_25;
-        value_26 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_26 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[8] = value_26;
     String value_28 = StringLiteral("defined(__s390x__)");
     uint8_t* value_29 = (void *)0;
     {
         String s = value_28;
-        value_29 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_29 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[9] = value_29;
     String value_31 = StringLiteral("defined(__loongarch64)");
     uint8_t* value_32 = (void *)0;
     {
         String s = value_31;
-        value_32 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_32 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[10] = value_32;
     memmove(architecture_guards, value_0, sizeof(architecture_guards));
@@ -9518,147 +9518,147 @@ compiler_inline_asm___global_init_6_0(void)
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
-        value_2 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_2 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[0] = value_2;
     String value_4 = StringLiteral("sse2");
     uint8_t* value_5 = (void *)0;
     {
         String s = value_4;
-        value_5 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_5 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[1] = value_5;
     String value_7 = StringLiteral("ssse3");
     uint8_t* value_8 = (void *)0;
     {
         String s = value_7;
-        value_8 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_8 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[2] = value_8;
     String value_10 = StringLiteral("sse4.1");
     uint8_t* value_11 = (void *)0;
     {
         String s = value_10;
-        value_11 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[3] = value_11;
     String value_13 = StringLiteral("sse4.2");
     uint8_t* value_14 = (void *)0;
     {
         String s = value_13;
-        value_14 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_14 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[4] = value_14;
     String value_16 = StringLiteral("avx");
     uint8_t* value_17 = (void *)0;
     {
         String s = value_16;
-        value_17 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_17 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[5] = value_17;
     String value_19 = StringLiteral("avx2");
     uint8_t* value_20 = (void *)0;
     {
         String s = value_19;
-        value_20 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[6] = value_20;
     String value_22 = StringLiteral("avx512f");
     uint8_t* value_23 = (void *)0;
     {
         String s = value_22;
-        value_23 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_23 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[7] = value_23;
     String value_25 = StringLiteral("bmi");
     uint8_t* value_26 = (void *)0;
     {
         String s = value_25;
-        value_26 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_26 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[8] = value_26;
     String value_28 = StringLiteral("bmi2");
     uint8_t* value_29 = (void *)0;
     {
         String s = value_28;
-        value_29 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_29 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[9] = value_29;
     String value_31 = StringLiteral("lzcnt");
     uint8_t* value_32 = (void *)0;
     {
         String s = value_31;
-        value_32 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_32 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[10] = value_32;
     String value_34 = StringLiteral("fma");
     uint8_t* value_35 = (void *)0;
     {
         String s = value_34;
-        value_35 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_35 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[11] = value_35;
     String value_37 = StringLiteral("aes");
     uint8_t* value_38 = (void *)0;
     {
         String s = value_37;
-        value_38 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_38 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[12] = value_38;
     String value_40 = StringLiteral("pclmul");
     uint8_t* value_41 = (void *)0;
     {
         String s = value_40;
-        value_41 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_41 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[13] = value_41;
     String value_43 = StringLiteral("crc32");
     uint8_t* value_44 = (void *)0;
     {
         String s = value_43;
-        value_44 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_44 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[14] = value_44;
     String value_46 = StringLiteral("pmull");
     uint8_t* value_47 = (void *)0;
     {
         String s = value_46;
-        value_47 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_47 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[15] = value_47;
     String value_49 = StringLiteral("sha2");
     uint8_t* value_50 = (void *)0;
     {
         String s = value_49;
-        value_50 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_50 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[16] = value_50;
     String value_52 = StringLiteral("atomics");
     uint8_t* value_53 = (void *)0;
     {
         String s = value_52;
-        value_53 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_53 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[17] = value_53;
     String value_55 = StringLiteral("simd");
     uint8_t* value_56 = (void *)0;
     {
         String s = value_55;
-        value_56 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_56 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[18] = value_56;
     String value_58 = StringLiteral("neon");
     uint8_t* value_59 = (void *)0;
     {
         String s = value_58;
-        value_59 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_59 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[19] = value_59;
     String value_61 = StringLiteral("simd128");
     uint8_t* value_62 = (void *)0;
     {
         String s = value_61;
-        value_62 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
+        value_62 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     value_0[20] = value_62;
     memmove(feature_names, value_0, sizeof(feature_names));

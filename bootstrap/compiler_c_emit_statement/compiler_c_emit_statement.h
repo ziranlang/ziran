@@ -33,20 +33,20 @@ extern "C" {
 #define INLINE_RECORD_DEPTH 3
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_STATEMENT_H_PRIVATE
-typedef struct zir_41ddab1de65fb4d3_CParameter zir_41ddab1de65fb4d3_CParameter;
+typedef struct compiler_c_emit_statement_CParameter compiler_c_emit_statement_CParameter;
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_STATEMENT_H_PRIVATE
-typedef struct zir_ca7034dd3573e4a8_CParameters zir_ca7034dd3573e4a8_CParameters;
+typedef struct compiler_c_emit_statement_CParameters compiler_c_emit_statement_CParameters;
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_STATEMENT_H_PRIVATE
-typedef struct zir_70a49ff8f7b56000_StaticText zir_70a49ff8f7b56000_StaticText;
+typedef struct compiler_c_emit_statement_StaticText compiler_c_emit_statement_StaticText;
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_STATEMENT_H_PRIVATE
 typedef struct ParallelRegion ParallelRegion;
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_STATEMENT_H_PRIVATE
 
-struct zir_41ddab1de65fb4d3_CParameter {
+struct compiler_c_emit_statement_CParameter {
     uint8_t* text;
     uint8_t* name;
     uint8_t* type;
@@ -58,14 +58,14 @@ struct zir_41ddab1de65fb4d3_CParameter {
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_STATEMENT_H_PRIVATE
 
-struct zir_ca7034dd3573e4a8_CParameters {
+struct compiler_c_emit_statement_CParameters {
     int32_t count;
-    zir_41ddab1de65fb4d3_CParameter items[1];
+    compiler_c_emit_statement_CParameter items[1];
 };
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_STATEMENT_H_PRIVATE
 
-struct zir_70a49ff8f7b56000_StaticText {
+struct compiler_c_emit_statement_StaticText {
     uint8_t* data;
     size_t length;
 };

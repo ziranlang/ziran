@@ -2,153 +2,65 @@
 #include <stdbool.h>
 #include "zir_string.h"
 #include "compiler_package_resolve.h"
-#ifndef ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_CompilerCalloc_c43c6e6e
-#define ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_CompilerCalloc_c43c6e6e
 #ifdef __APPLE__
-void* zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerCalloc(size_t count, size_t size) __asm__("_CompilerCalloc");
+void* zir_foreign_compiler_package_resolve__CompilerCalloc(size_t count, size_t size) __asm__("_CompilerCalloc");
 #else
-void* zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerCalloc(size_t count, size_t size) __asm__("CompilerCalloc");
+void* zir_foreign_compiler_package_resolve__CompilerCalloc(size_t count, size_t size) __asm__("CompilerCalloc");
 #endif
-static void*
-zir_f_cdbe50046f2f2ecc_CompilerCalloc(size_t count, size_t size)
-{
-    return zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerCalloc(count, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_CompilerRealloc_860ad750
-#define ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_CompilerRealloc_860ad750
 #ifdef __APPLE__
-void* zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerRealloc(void* memory, size_t size) __asm__("_CompilerRealloc");
+void* zir_foreign_compiler_package_resolve__CompilerRealloc(void* memory, size_t size) __asm__("_CompilerRealloc");
 #else
-void* zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerRealloc(void* memory, size_t size) __asm__("CompilerRealloc");
+void* zir_foreign_compiler_package_resolve__CompilerRealloc(void* memory, size_t size) __asm__("CompilerRealloc");
 #endif
-static void*
-zir_f_cdbe50046f2f2ecc_CompilerRealloc(void* memory, size_t size)
-{
-    return zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerRealloc(memory, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_CompilerStrdup_dff2fdcd
-#define ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_CompilerStrdup_dff2fdcd
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerStrdup(uint8_t* text) __asm__("_CompilerStrdup");
+uint8_t* zir_foreign_compiler_package_resolve__CompilerStrdup(uint8_t* text) __asm__("_CompilerStrdup");
 #else
-uint8_t* zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerStrdup(uint8_t* text) __asm__("CompilerStrdup");
+uint8_t* zir_foreign_compiler_package_resolve__CompilerStrdup(uint8_t* text) __asm__("CompilerStrdup");
 #endif
-static uint8_t*
-zir_f_cdbe50046f2f2ecc_CompilerStrdup(uint8_t* text)
-{
-    return zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerStrdup(text);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_CompilerFree_544d5753
-#define ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_CompilerFree_544d5753
 #ifdef __APPLE__
-void zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerFree(void* memory) __asm__("_CompilerFree");
+void zir_foreign_compiler_package_resolve__CompilerFree(void* memory) __asm__("_CompilerFree");
 #else
-void zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerFree(void* memory) __asm__("CompilerFree");
+void zir_foreign_compiler_package_resolve__CompilerFree(void* memory) __asm__("CompilerFree");
 #endif
-static void
-zir_f_cdbe50046f2f2ecc_CompilerFree(void* memory)
-{
-    zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerFree(memory);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_CompilerFopen_170a7b6e
-#define ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_CompilerFopen_170a7b6e
 #ifdef __APPLE__
-void* zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerFopen(uint8_t* path, uint8_t* mode) __asm__("_CompilerFopen");
+void* zir_foreign_compiler_package_resolve__CompilerFopen(uint8_t* path, uint8_t* mode) __asm__("_CompilerFopen");
 #else
-void* zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerFopen(uint8_t* path, uint8_t* mode) __asm__("CompilerFopen");
+void* zir_foreign_compiler_package_resolve__CompilerFopen(uint8_t* path, uint8_t* mode) __asm__("CompilerFopen");
 #endif
-static void*
-zir_f_cdbe50046f2f2ecc_CompilerFopen(uint8_t* path, uint8_t* mode)
-{
-    return zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerFopen(path, mode);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_CompilerFclose_aa9f8094
-#define ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_CompilerFclose_aa9f8094
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerFclose(void* file) __asm__("_CompilerFclose");
+int32_t zir_foreign_compiler_package_resolve__CompilerFclose(void* file) __asm__("_CompilerFclose");
 #else
-int32_t zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerFclose(void* file) __asm__("CompilerFclose");
+int32_t zir_foreign_compiler_package_resolve__CompilerFclose(void* file) __asm__("CompilerFclose");
 #endif
-static int32_t
-zir_f_cdbe50046f2f2ecc_CompilerFclose(void* file)
-{
-    return zir_foreign_zir_f_cdbe50046f2f2ecc_CompilerFclose(file);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_Diagnostic_78ef33bb
-#define ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_Diagnostic_78ef33bb
 #ifdef __APPLE__
-void zir_foreign_zir_f_cdbe50046f2f2ecc_Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("_Diagnostic");
+void zir_foreign_compiler_package_resolve__Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("_Diagnostic");
 #else
-void zir_foreign_zir_f_cdbe50046f2f2ecc_Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("Diagnostic");
+void zir_foreign_compiler_package_resolve__Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("Diagnostic");
 #endif
-#define zir_f_cdbe50046f2f2ecc_Diagnostic zir_foreign_zir_f_cdbe50046f2f2ecc_Diagnostic
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_strchr_35c1c732
-#define ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_strchr_35c1c732
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_cdbe50046f2f2ecc_strchr(uint8_t* text, int32_t byte) __asm__("_strchr");
+uint8_t* zir_foreign_compiler_package_resolve__strchr(uint8_t* text, int32_t byte) __asm__("_strchr");
 #else
-uint8_t* zir_foreign_zir_f_cdbe50046f2f2ecc_strchr(uint8_t* text, int32_t byte) __asm__("strchr");
+uint8_t* zir_foreign_compiler_package_resolve__strchr(uint8_t* text, int32_t byte) __asm__("strchr");
 #endif
-static uint8_t*
-zir_f_cdbe50046f2f2ecc_strchr(uint8_t* text, int32_t byte)
-{
-    return zir_foreign_zir_f_cdbe50046f2f2ecc_strchr(text, byte);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_strcmp_b1a4f317
-#define ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_strcmp_b1a4f317
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_cdbe50046f2f2ecc_strcmp(uint8_t* left, uint8_t* right) __asm__("_strcmp");
+int32_t zir_foreign_compiler_package_resolve__strcmp(uint8_t* left, uint8_t* right) __asm__("_strcmp");
 #else
-int32_t zir_foreign_zir_f_cdbe50046f2f2ecc_strcmp(uint8_t* left, uint8_t* right) __asm__("strcmp");
+int32_t zir_foreign_compiler_package_resolve__strcmp(uint8_t* left, uint8_t* right) __asm__("strcmp");
 #endif
-static int32_t
-zir_f_cdbe50046f2f2ecc_strcmp(uint8_t* left, uint8_t* right)
-{
-    return zir_foreign_zir_f_cdbe50046f2f2ecc_strcmp(left, right);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_strncmp_5281c9d0
-#define ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_strncmp_5281c9d0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_cdbe50046f2f2ecc_strncmp(uint8_t* left, uint8_t* right, size_t length) __asm__("_strncmp");
+int32_t zir_foreign_compiler_package_resolve__strncmp(uint8_t* left, uint8_t* right, size_t length) __asm__("_strncmp");
 #else
-int32_t zir_foreign_zir_f_cdbe50046f2f2ecc_strncmp(uint8_t* left, uint8_t* right, size_t length) __asm__("strncmp");
+int32_t zir_foreign_compiler_package_resolve__strncmp(uint8_t* left, uint8_t* right, size_t length) __asm__("strncmp");
 #endif
-static int32_t
-zir_f_cdbe50046f2f2ecc_strncmp(uint8_t* left, uint8_t* right, size_t length)
-{
-    return zir_foreign_zir_f_cdbe50046f2f2ecc_strncmp(left, right, length);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_strlen_b24a2871
-#define ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_strlen_b24a2871
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_cdbe50046f2f2ecc_strlen(uint8_t* text) __asm__("_strlen");
+size_t zir_foreign_compiler_package_resolve__strlen(uint8_t* text) __asm__("_strlen");
 #else
-size_t zir_foreign_zir_f_cdbe50046f2f2ecc_strlen(uint8_t* text) __asm__("strlen");
+size_t zir_foreign_compiler_package_resolve__strlen(uint8_t* text) __asm__("strlen");
 #endif
-static size_t
-zir_f_cdbe50046f2f2ecc_strlen(uint8_t* text)
-{
-    return zir_foreign_zir_f_cdbe50046f2f2ecc_strlen(text);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_snprintf_7c8971c5
-#define ZIR_FOREIGN_zir_f_cdbe50046f2f2ecc_snprintf_7c8971c5
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_cdbe50046f2f2ecc_snprintf(uint8_t* out, size_t capacity, uint8_t* format, ...) __asm__("_snprintf");
+int32_t zir_foreign_compiler_package_resolve__snprintf(uint8_t* out, size_t capacity, uint8_t* format, ...) __asm__("_snprintf");
 #else
-int32_t zir_foreign_zir_f_cdbe50046f2f2ecc_snprintf(uint8_t* out, size_t capacity, uint8_t* format, ...) __asm__("snprintf");
-#endif
-#define zir_f_cdbe50046f2f2ecc_snprintf zir_foreign_zir_f_cdbe50046f2f2ecc_snprintf
+int32_t zir_foreign_compiler_package_resolve__snprintf(uint8_t* out, size_t capacity, uint8_t* format, ...) __asm__("snprintf");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -169,14 +81,14 @@ compiler_package_resolve_next_field(uint8_t** cursor)
     if (start == ((void *)0)) {
         return (void *)0;
     }
-    uint8_t* tab = zir_f_cdbe50046f2f2ecc_strchr(start, 9);
+    uint8_t* tab = zir_foreign_compiler_package_resolve__strchr(start, 9);
     if (tab != ((void *)0)) {
         uint8_t* value_0 = &(tab[0]);
         (*value_0) = 0;
         uint8_t** value_1 = &(cursor[0]);
         (*value_1) = &(tab[1]);
     } else {
-        uint8_t* end = zir_f_cdbe50046f2f2ecc_strchr(start, 10);
+        uint8_t* end = zir_foreign_compiler_package_resolve__strchr(start, 10);
         if (end != ((void *)0)) {
             uint8_t* value_2 = &(end[0]);
             (*value_2) = 0;
@@ -195,7 +107,7 @@ compiler_package_resolve_copy_field(uint8_t** cursor)
     if (value == ((void *)0)) {
         value_0 = (void *)0;
     } else {
-        uint8_t* value_1 = zir_f_cdbe50046f2f2ecc_CompilerStrdup(value);
+        uint8_t* value_1 = zir_foreign_compiler_package_resolve__CompilerStrdup(value);
         value_0 = value_1;
     }
     return value_0;
@@ -210,7 +122,7 @@ compiler_package_resolve_read_row(ZirPackageMap* map, uint8_t* line)
         return false;
     }
     if (StringEqual(kind, StringLiteral("P"))) {
-        void* value_0 = zir_f_cdbe50046f2f2ecc_CompilerRealloc((void*)(map->roots), (size_t)(((int32_t)((uint32_t)(map->root_count) + 1u))) * sizeof(PackageRoot));
+        void* value_0 = zir_foreign_compiler_package_resolve__CompilerRealloc((void*)(map->roots), (size_t)(((int32_t)((uint32_t)(map->root_count) + 1u))) * sizeof(PackageRoot));
         PackageRoot* rows = (PackageRoot*)(value_0);
         if (rows == ((void *)0)) {
             return false;
@@ -232,14 +144,14 @@ compiler_package_resolve_read_row(ZirPackageMap* map, uint8_t* line)
             (*value_6) = value_7;
             if (row->path == ((void *)0)) {
                 uint8_t** value_8 = &(row->path);
-                uint8_t* value_9 = zir_f_cdbe50046f2f2ecc_CompilerStrdup(directory);
+                uint8_t* value_9 = zir_foreign_compiler_package_resolve__CompilerStrdup(directory);
                 (*value_8) = value_9;
             }
         }
         return row->id != ((void *)0) && row->path != ((void *)0);
     }
     if (StringEqual(kind, StringLiteral("M"))) {
-        void* value_10 = zir_f_cdbe50046f2f2ecc_CompilerRealloc((void*)(map->modules), (size_t)(((int32_t)((uint32_t)(map->module_count) + 1u))) * sizeof(PackageModule));
+        void* value_10 = zir_foreign_compiler_package_resolve__CompilerRealloc((void*)(map->modules), (size_t)(((int32_t)((uint32_t)(map->module_count) + 1u))) * sizeof(PackageModule));
         PackageModule* rows = (PackageModule*)(value_10);
         if (rows == ((void *)0)) {
             return false;
@@ -266,18 +178,18 @@ compiler_package_resolve_read_row(ZirPackageMap* map, uint8_t* line)
         int32_t length = 0;
         if (StringEqual(compiler_ir_CText(row->id), StringLiteral("root"))) {
             uint8_t* value_20 = compiler_parse_types_ParserCString(StringLiteral("%s"));
-            length = zir_f_cdbe50046f2f2ecc_snprintf(&(row->identity[0]), 128, value_20, row->name);
+            length = zir_foreign_compiler_package_resolve__snprintf(&(row->identity[0]), 128, value_20, row->name);
         } else if (StringEqual(compiler_ir_CText(row->id), StringLiteral("std"))) {
             uint8_t* value_21 = compiler_parse_types_ParserCString(StringLiteral("std_%s"));
-            length = zir_f_cdbe50046f2f2ecc_snprintf(&(row->identity[0]), 128, value_21, row->name);
+            length = zir_foreign_compiler_package_resolve__snprintf(&(row->identity[0]), 128, value_21, row->name);
         } else {
             uint8_t* value_22 = compiler_parse_types_ParserCString(StringLiteral("%s__%s"));
-            length = zir_f_cdbe50046f2f2ecc_snprintf(&(row->identity[0]), 128, value_22, row->id, row->name);
+            length = zir_foreign_compiler_package_resolve__snprintf(&(row->identity[0]), 128, value_22, row->id, row->name);
         }
         return length > 0 && length < 128;
     }
     if (StringEqual(kind, StringLiteral("D"))) {
-        void* value_23 = zir_f_cdbe50046f2f2ecc_CompilerRealloc((void*)(map->dependencies), (size_t)(((int32_t)((uint32_t)(map->dependency_count) + 1u))) * sizeof(PackageDependency));
+        void* value_23 = zir_foreign_compiler_package_resolve__CompilerRealloc((void*)(map->dependencies), (size_t)(((int32_t)((uint32_t)(map->dependency_count) + 1u))) * sizeof(PackageDependency));
         PackageDependency* rows = (PackageDependency*)(value_23);
         if (rows == ((void *)0)) {
             return false;
@@ -304,7 +216,7 @@ compiler_package_resolve_read_row(ZirPackageMap* map, uint8_t* line)
         return row->owner != ((void *)0) && row->visible != ((void *)0) && row->target != ((void *)0) && row->exported != ((void *)0);
     }
     if (StringEqual(kind, StringLiteral("R"))) {
-        void* value_35 = zir_f_cdbe50046f2f2ecc_CompilerRealloc((void*)(map->renames), (size_t)(((int32_t)((uint32_t)(map->rename_count) + 1u))) * sizeof(PackageRename));
+        void* value_35 = zir_foreign_compiler_package_resolve__CompilerRealloc((void*)(map->renames), (size_t)(((int32_t)((uint32_t)(map->rename_count) + 1u))) * sizeof(PackageRename));
         PackageRename* rows = (PackageRename*)(value_35);
         if (rows == ((void *)0)) {
             return false;
@@ -328,7 +240,7 @@ compiler_package_resolve_read_row(ZirPackageMap* map, uint8_t* line)
         return row->owner != ((void *)0) && row->original != ((void *)0) && row->target != ((void *)0);
     }
     if (StringEqual(kind, StringLiteral("A"))) {
-        void* value_45 = zir_f_cdbe50046f2f2ecc_CompilerRealloc((void*)(map->ambiguous), (size_t)(((int32_t)((uint32_t)(map->ambiguous_count) + 1u))) * sizeof(PackageAmbiguous));
+        void* value_45 = zir_foreign_compiler_package_resolve__CompilerRealloc((void*)(map->ambiguous), (size_t)(((int32_t)((uint32_t)(map->ambiguous_count) + 1u))) * sizeof(PackageAmbiguous));
         PackageAmbiguous* rows = (PackageAmbiguous*)(value_45);
         if (rows == ((void *)0)) {
             return false;
@@ -357,7 +269,7 @@ compiler_package_resolve_read_row(ZirPackageMap* map, uint8_t* line)
 static bool
 compiler_package_resolve_copy_spelling(uint8_t* out, size_t size, uint8_t* value)
 {
-    return zir_f_cdbe50046f2f2ecc_snprintf(out, size, compiler_parse_types_ParserCString(StringLiteral("%s")), value) < (int32_t)(size);
+    return zir_foreign_compiler_package_resolve__snprintf(out, size, compiler_parse_types_ParserCString(StringLiteral("%s")), value) < (int32_t)(size);
 }
 
 void
@@ -371,8 +283,8 @@ PackageMapFree(ZirPackageMap* map)
         int32_t range_last_3 = (int32_t)((uint32_t)(map->root_count) - 1u);
         int32_t i = range_first_3;
         if (i <= range_last_3) for (;;) {
-            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->roots[i]).id));
-            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->roots[i]).path));
+            zir_foreign_compiler_package_resolve__CompilerFree((void*)((map->roots[i]).id));
+            zir_foreign_compiler_package_resolve__CompilerFree((void*)((map->roots[i]).path));
             if (i == range_last_3) {
                 break;
             }
@@ -384,9 +296,9 @@ PackageMapFree(ZirPackageMap* map)
         int32_t range_last_7 = (int32_t)((uint32_t)(map->module_count) - 1u);
         int32_t i = range_first_7;
         if (i <= range_last_7) for (;;) {
-            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->modules[i]).id));
-            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->modules[i]).name));
-            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->modules[i]).path));
+            zir_foreign_compiler_package_resolve__CompilerFree((void*)((map->modules[i]).id));
+            zir_foreign_compiler_package_resolve__CompilerFree((void*)((map->modules[i]).name));
+            zir_foreign_compiler_package_resolve__CompilerFree((void*)((map->modules[i]).path));
             if (i == range_last_7) {
                 break;
             }
@@ -398,10 +310,10 @@ PackageMapFree(ZirPackageMap* map)
         int32_t range_last_12 = (int32_t)((uint32_t)(map->dependency_count) - 1u);
         int32_t i = range_first_12;
         if (i <= range_last_12) for (;;) {
-            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->dependencies[i]).owner));
-            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->dependencies[i]).visible));
-            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->dependencies[i]).target));
-            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->dependencies[i]).exported));
+            zir_foreign_compiler_package_resolve__CompilerFree((void*)((map->dependencies[i]).owner));
+            zir_foreign_compiler_package_resolve__CompilerFree((void*)((map->dependencies[i]).visible));
+            zir_foreign_compiler_package_resolve__CompilerFree((void*)((map->dependencies[i]).target));
+            zir_foreign_compiler_package_resolve__CompilerFree((void*)((map->dependencies[i]).exported));
             if (i == range_last_12) {
                 break;
             }
@@ -413,9 +325,9 @@ PackageMapFree(ZirPackageMap* map)
         int32_t range_last_18 = (int32_t)((uint32_t)(map->ambiguous_count) - 1u);
         int32_t i = range_first_18;
         if (i <= range_last_18) for (;;) {
-            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->ambiguous[i]).owner));
-            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->ambiguous[i]).visible));
-            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->ambiguous[i]).choices));
+            zir_foreign_compiler_package_resolve__CompilerFree((void*)((map->ambiguous[i]).owner));
+            zir_foreign_compiler_package_resolve__CompilerFree((void*)((map->ambiguous[i]).visible));
+            zir_foreign_compiler_package_resolve__CompilerFree((void*)((map->ambiguous[i]).choices));
             if (i == range_last_18) {
                 break;
             }
@@ -427,34 +339,34 @@ PackageMapFree(ZirPackageMap* map)
         int32_t range_last_23 = (int32_t)((uint32_t)(map->rename_count) - 1u);
         int32_t i = range_first_23;
         if (i <= range_last_23) for (;;) {
-            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->renames[i]).owner));
-            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->renames[i]).original));
-            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->renames[i]).target));
+            zir_foreign_compiler_package_resolve__CompilerFree((void*)((map->renames[i]).owner));
+            zir_foreign_compiler_package_resolve__CompilerFree((void*)((map->renames[i]).original));
+            zir_foreign_compiler_package_resolve__CompilerFree((void*)((map->renames[i]).target));
             if (i == range_last_23) {
                 break;
             }
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    zir_f_cdbe50046f2f2ecc_CompilerFree((void*)(map->roots));
-    zir_f_cdbe50046f2f2ecc_CompilerFree((void*)(map->modules));
-    zir_f_cdbe50046f2f2ecc_CompilerFree((void*)(map->dependencies));
-    zir_f_cdbe50046f2f2ecc_CompilerFree((void*)(map->ambiguous));
-    zir_f_cdbe50046f2f2ecc_CompilerFree((void*)(map->renames));
-    zir_f_cdbe50046f2f2ecc_CompilerFree((void*)(map));
+    zir_foreign_compiler_package_resolve__CompilerFree((void*)(map->roots));
+    zir_foreign_compiler_package_resolve__CompilerFree((void*)(map->modules));
+    zir_foreign_compiler_package_resolve__CompilerFree((void*)(map->dependencies));
+    zir_foreign_compiler_package_resolve__CompilerFree((void*)(map->ambiguous));
+    zir_foreign_compiler_package_resolve__CompilerFree((void*)(map->renames));
+    zir_foreign_compiler_package_resolve__CompilerFree((void*)(map));
 }
 
 ZirPackageMap*
 compiler_package_resolve_PackageMapLoad(uint8_t* path)
 {
-    void* file = zir_f_cdbe50046f2f2ecc_CompilerFopen(path, compiler_parse_types_ParserCString(StringLiteral("r")));
+    void* file = zir_foreign_compiler_package_resolve__CompilerFopen(path, compiler_parse_types_ParserCString(StringLiteral("r")));
     if (file == ((void *)0)) {
         ZirSourceSpan value_0 = Span(path, 1, 1);
         uint8_t* value_1 = compiler_parse_types_ParserCString(StringLiteral("package.map"));
-        zir_f_cdbe50046f2f2ecc_Diagnostic(value_0, value_1, compiler_parse_types_ParserCString(StringLiteral("cannot open package map")));
+        zir_foreign_compiler_package_resolve__Diagnostic(value_0, value_1, compiler_parse_types_ParserCString(StringLiteral("cannot open package map")));
         return (void *)0;
     }
-    void* value_2 = zir_f_cdbe50046f2f2ecc_CompilerCalloc(1, sizeof(ZirPackageMap));
+    void* value_2 = zir_foreign_compiler_package_resolve__CompilerCalloc(1, sizeof(ZirPackageMap));
     ZirPackageMap* map = (ZirPackageMap*)(value_2);
     uint8_t* line = (void *)0;
     size_t capacity = 0;
@@ -467,14 +379,14 @@ compiler_package_resolve_PackageMapLoad(uint8_t* path)
         }
         okay = compiler_package_resolve_read_row(map, line);
     }
-    zir_f_cdbe50046f2f2ecc_CompilerFree((void*)(line));
-    zir_f_cdbe50046f2f2ecc_CompilerFclose(file);
+    zir_foreign_compiler_package_resolve__CompilerFree((void*)(line));
+    zir_foreign_compiler_package_resolve__CompilerFclose(file);
     if (okay) {
         return map;
     }
     ZirSourceSpan value_3 = Span(path, 1, 1);
     uint8_t* value_4 = compiler_parse_types_ParserCString(StringLiteral("package.map"));
-    zir_f_cdbe50046f2f2ecc_Diagnostic(value_3, value_4, compiler_parse_types_ParserCString(StringLiteral("invalid package map")));
+    zir_foreign_compiler_package_resolve__Diagnostic(value_3, value_4, compiler_parse_types_ParserCString(StringLiteral("invalid package map")));
     PackageMapFree(map);
     return (void *)0;
 }
@@ -490,9 +402,9 @@ compiler_package_resolve_PackageOwner(ZirPackageMap* map, uint8_t* path)
         int32_t i = range_first_2;
         if (i <= range_last_2) for (;;) {
             PackageRoot* root = &(map->roots[i]);
-            size_t length = zir_f_cdbe50046f2f2ecc_strlen(root->path);
+            size_t length = zir_foreign_compiler_package_resolve__strlen(root->path);
             bool value_0 = length > best;
-            bool value_1 = value_0 && zir_f_cdbe50046f2f2ecc_strncmp(path, root->path, length) == 0;
+            bool value_1 = value_0 && zir_foreign_compiler_package_resolve__strncmp(path, root->path, length) == 0;
             if (value_1 && (path[length] == 47 || path[length] == 0)) {
                 owner = root->id;
                 best = length;
@@ -514,7 +426,7 @@ compiler_package_resolve_PackageModuleName(ZirPackageMap* map, uint8_t* path)
         int32_t range_last_0 = (int32_t)((uint32_t)(map->module_count) - 1u);
         int32_t i = range_first_0;
         if (i <= range_last_0) for (;;) {
-            if (zir_f_cdbe50046f2f2ecc_strcmp((map->modules[i]).path, path) == 0) {
+            if (zir_foreign_compiler_package_resolve__strcmp((map->modules[i]).path, path) == 0) {
                 return &(((map->modules[i]).identity)[0]);
             }
             if (i == range_last_0) {
@@ -558,13 +470,13 @@ compiler_package_resolve_PackageRemapSaved(ZirPackageMap* map, uint8_t* path, Zi
                 int32_t rename = range_first_9;
                 if (rename <= range_last_9) for (;;) {
                     PackageRename* row = &(map->renames[rename]);
-                    size_t length = zir_f_cdbe50046f2f2ecc_strlen(row->original);
-                    bool value_1 = zir_f_cdbe50046f2f2ecc_strcmp(row->owner, owner) != 0;
-                    bool value_2 = value_1 || zir_f_cdbe50046f2f2ecc_strncmp(spelling, row->original, length) != 0;
+                    size_t length = zir_foreign_compiler_package_resolve__strlen(row->original);
+                    bool value_1 = zir_foreign_compiler_package_resolve__strcmp(row->owner, owner) != 0;
+                    bool value_2 = value_1 || zir_foreign_compiler_package_resolve__strncmp(spelling, row->original, length) != 0;
                     bool value_3 = value_2;
                     if (!value_3) {
                         uint8_t* value_4 = (uint8_t*)(((size_t)(spelling) + length));
-                        bool value_5 = zir_f_cdbe50046f2f2ecc_strncmp(value_4, compiler_parse_types_ParserCString(StringLiteral("__")), 2) != 0;
+                        bool value_5 = zir_foreign_compiler_package_resolve__strncmp(value_4, compiler_parse_types_ParserCString(StringLiteral("__")), 2) != 0;
                         value_3 = value_5;
                     }
                     if (value_3) {
@@ -584,7 +496,7 @@ compiler_package_resolve_PackageRemapSaved(ZirPackageMap* map, uint8_t* path, Zi
                     size_t size = value_6;
                     size_t value_7 = size;
                     uint8_t* value_8 = compiler_parse_types_ParserCString(StringLiteral("%s%s"));
-                    int32_t value_9 = zir_f_cdbe50046f2f2ecc_snprintf(&(renamed[0]), value_7, value_8, row->target, (uint8_t*)(((size_t)(spelling) + length)));
+                    int32_t value_9 = zir_foreign_compiler_package_resolve__snprintf(&(renamed[0]), value_7, value_8, row->target, (uint8_t*)(((size_t)(spelling) + length)));
                     if (value_9 >= (int32_t)(size)) {
                         return false;
                     }
@@ -611,7 +523,7 @@ compiler_package_resolve_PackageResolve(ZirPackageMap* map, uint8_t* owner, uint
     uint8_t* name = visible;
     bool local = false;
     uint8_t* value_0 = visible;
-    if (zir_f_cdbe50046f2f2ecc_strncmp(value_0, compiler_parse_types_ParserCString(StringLiteral("std/")), 4) == 0) {
+    if (zir_foreign_compiler_package_resolve__strncmp(value_0, compiler_parse_types_ParserCString(StringLiteral("std/")), 4) == 0) {
         target = compiler_parse_types_ParserCString(StringLiteral("std"));
         name = &(visible[4]);
         local = true;
@@ -623,8 +535,8 @@ compiler_package_resolve_PackageResolve(ZirPackageMap* map, uint8_t* owner, uint
             int32_t i = range_first_9;
             if (i <= range_last_9) for (;;) {
                 PackageModule* module = &(map->modules[i]);
-                bool value_1 = zir_f_cdbe50046f2f2ecc_strcmp(module->id, owner) == 0;
-                if (value_1 && zir_f_cdbe50046f2f2ecc_strcmp(module->name, visible) == 0) {
+                bool value_1 = zir_foreign_compiler_package_resolve__strcmp(module->id, owner) == 0;
+                if (value_1 && zir_foreign_compiler_package_resolve__strcmp(module->name, visible) == 0) {
                     local = true;
                     break;
                 }
@@ -643,8 +555,8 @@ compiler_package_resolve_PackageResolve(ZirPackageMap* map, uint8_t* owner, uint
             int32_t i = range_first_19;
             if (i <= range_last_19) for (;;) {
                 PackageDependency* edge = &(map->dependencies[i]);
-                bool value_2 = zir_f_cdbe50046f2f2ecc_strcmp(edge->owner, owner) == 0;
-                if (value_2 && zir_f_cdbe50046f2f2ecc_strcmp(edge->visible, visible) == 0) {
+                bool value_2 = zir_foreign_compiler_package_resolve__strcmp(edge->owner, owner) == 0;
+                if (value_2 && zir_foreign_compiler_package_resolve__strcmp(edge->visible, visible) == 0) {
                     target = edge->target;
                     name = edge->exported;
                     break;
@@ -660,7 +572,7 @@ compiler_package_resolve_PackageResolve(ZirPackageMap* map, uint8_t* owner, uint
             bool value_4 = value_3 != ((void *)0);
             bool value_5 = value_4;
             if (!value_5) {
-                uint8_t* value_6 = zir_f_cdbe50046f2f2ecc_strchr(visible, 47);
+                uint8_t* value_6 = zir_foreign_compiler_package_resolve__strchr(visible, 47);
                 value_5 = (value_6 != ((void *)0));
             }
             if (value_5) {
@@ -675,8 +587,8 @@ compiler_package_resolve_PackageResolve(ZirPackageMap* map, uint8_t* owner, uint
         int32_t i = range_first_34;
         if (i <= range_last_34) for (;;) {
             PackageModule* module = &(map->modules[i]);
-            bool value_7 = zir_f_cdbe50046f2f2ecc_strcmp(module->id, target) == 0;
-            if (value_7 && zir_f_cdbe50046f2f2ecc_strcmp(module->name, name) == 0) {
+            bool value_7 = zir_foreign_compiler_package_resolve__strcmp(module->id, target) == 0;
+            if (value_7 && zir_foreign_compiler_package_resolve__strcmp(module->name, name) == 0) {
                 bool value_8 = compiler_package_resolve_copy_spelling(path, path_size, module->path);
                 bool value_9 = value_8 && compiler_package_resolve_copy_spelling(identity, identity_size, &(module->identity[0]));
                 int32_t value_10 = 0;
@@ -703,14 +615,14 @@ compiler_package_resolve_PackageResolveSaved(ZirPackageMap* map, uint8_t* owner,
         int32_t i = range_first_0;
         if (i <= range_last_0) for (;;) {
             PackageModule* module = &(map->modules[i]);
-            if (zir_f_cdbe50046f2f2ecc_strcmp(&(module->identity[0]), identity) != 0) {
+            if (zir_foreign_compiler_package_resolve__strcmp(&(module->identity[0]), identity) != 0) {
                 if (i == range_last_0) {
                     break;
                 }
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
             }
-            bool value_0 = zir_f_cdbe50046f2f2ecc_strcmp(module->id, owner) == 0;
+            bool value_0 = zir_foreign_compiler_package_resolve__strcmp(module->id, owner) == 0;
             bool allowed = value_0 || StringEqual(compiler_ir_CText(module->id), StringLiteral("std"));
             if (!allowed) {
                 {
@@ -719,9 +631,9 @@ compiler_package_resolve_PackageResolveSaved(ZirPackageMap* map, uint8_t* owner,
                     int32_t j = range_first_7;
                     if (j <= range_last_7) for (;;) {
                         PackageDependency* edge = &(map->dependencies[j]);
-                        bool value_1 = zir_f_cdbe50046f2f2ecc_strcmp(edge->owner, owner) == 0;
-                        bool value_2 = value_1 && zir_f_cdbe50046f2f2ecc_strcmp(edge->target, module->id) == 0;
-                        if (value_2 && zir_f_cdbe50046f2f2ecc_strcmp(edge->exported, module->name) == 0) {
+                        bool value_1 = zir_foreign_compiler_package_resolve__strcmp(edge->owner, owner) == 0;
+                        bool value_2 = value_1 && zir_foreign_compiler_package_resolve__strcmp(edge->target, module->id) == 0;
+                        if (value_2 && zir_foreign_compiler_package_resolve__strcmp(edge->exported, module->name) == 0) {
                             allowed = true;
                             break;
                         }
@@ -758,8 +670,8 @@ compiler_package_resolve_PackageAmbiguity(ZirPackageMap* map, uint8_t* owner, ui
         int32_t i = range_first_0;
         if (i <= range_last_0) for (;;) {
             PackageAmbiguous* edge = &(map->ambiguous[i]);
-            bool value_0 = zir_f_cdbe50046f2f2ecc_strcmp(edge->owner, owner) == 0;
-            if (value_0 && zir_f_cdbe50046f2f2ecc_strcmp(edge->visible, visible) == 0) {
+            bool value_0 = zir_foreign_compiler_package_resolve__strcmp(edge->owner, owner) == 0;
+            if (value_0 && zir_foreign_compiler_package_resolve__strcmp(edge->visible, visible) == 0) {
                 return edge->choices;
             }
             if (i == range_last_0) {
@@ -774,14 +686,14 @@ compiler_package_resolve_PackageAmbiguity(ZirPackageMap* map, uint8_t* owner, ui
 int32_t
 compiler_package_resolve_PackageDependencyModule(ZirPackageMap* map, uint8_t* owner, uint8_t* qualified, uint8_t* identity, size_t identity_size)
 {
-    uint8_t* slash = zir_f_cdbe50046f2f2ecc_strchr(qualified, 47);
+    uint8_t* slash = zir_foreign_compiler_package_resolve__strchr(qualified, 47);
     if (slash == ((void *)0) || slash == qualified || slash[1] == 0) {
         return 0;
     }
     size_t prefix = ((size_t)(slash) - (size_t)(qualified)) + 1;
     uint8_t* target = (void *)0;
     uint8_t* value_0 = qualified;
-    if (zir_f_cdbe50046f2f2ecc_strncmp(value_0, compiler_parse_types_ParserCString(StringLiteral("std/")), 4) == 0) {
+    if (zir_foreign_compiler_package_resolve__strncmp(value_0, compiler_parse_types_ParserCString(StringLiteral("std/")), 4) == 0) {
         target = compiler_parse_types_ParserCString(StringLiteral("std"));
     }
     if (target == ((void *)0)) {
@@ -791,8 +703,8 @@ compiler_package_resolve_PackageDependencyModule(ZirPackageMap* map, uint8_t* ow
             int32_t i = range_first_10;
             if (i <= range_last_10) for (;;) {
                 PackageDependency* edge = &(map->dependencies[i]);
-                bool value_1 = zir_f_cdbe50046f2f2ecc_strcmp(edge->owner, owner) == 0;
-                if (value_1 && zir_f_cdbe50046f2f2ecc_strncmp(edge->visible, qualified, prefix) == 0) {
+                bool value_1 = zir_foreign_compiler_package_resolve__strcmp(edge->owner, owner) == 0;
+                if (value_1 && zir_foreign_compiler_package_resolve__strncmp(edge->visible, qualified, prefix) == 0) {
                     target = edge->target;
                     break;
                 }
@@ -812,8 +724,8 @@ compiler_package_resolve_PackageDependencyModule(ZirPackageMap* map, uint8_t* ow
         int32_t i = range_first_21;
         if (i <= range_last_21) for (;;) {
             PackageModule* module = &(map->modules[i]);
-            bool value_2 = zir_f_cdbe50046f2f2ecc_strcmp(module->id, target) == 0;
-            if (value_2 && zir_f_cdbe50046f2f2ecc_strcmp(module->name, &(slash[1])) == 0) {
+            bool value_2 = zir_foreign_compiler_package_resolve__strcmp(module->id, target) == 0;
+            if (value_2 && zir_foreign_compiler_package_resolve__strcmp(module->name, &(slash[1])) == 0) {
                 bool value_3 = compiler_package_resolve_copy_spelling(identity, identity_size, &(module->identity[0]));
                 int32_t value_4 = 0;
                 if (value_3) {

@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Portable Unicode text: the Ziran guide, rendered from docs/UNICODE.md."><title>Portable Unicode text · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/unicode"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Portable Unicode text</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/UNICODE.md">docs/UNICODE.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
-<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#unicode-version-and-regeneration">Unicode version and regeneration</a><a href="#local-tests">Local tests</a></aside><div class="article-body">
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#text-layout-without-a-gui">Text layout without a GUI</a><a href="#unicode-version-and-regeneration">Unicode version and regeneration</a><a href="#local-tests">Local tests</a></aside><div class="article-body">
 <section class="prose"><p>Import <code>U :: #import "std/unicode";</code>. The checked Ziran implementation and
 its generated tables run on native C, Go and the portable engine. There are no
 GLib, ICU, locale, Python or platform Unicode dependencies.</p>
@@ -94,6 +94,39 @@ for empty or all-whitespace input. The returned vector owns its descriptors;
 each string borrows the original input bytes. Keep that input alive. These
 operations leave the existing ASCII helpers in <code>std/text</code> and <code>std/text_tools</code>
 with their documented byte semantics.</p>
+<h2 id="text-layout-without-a-gui">Text layout without a GUI</h2>
+<p><code>std/text_layout</code> borrows UTF-8 strings and returns line/token byte ranges.
+It has no GUI dependency, host calls, allocation or global measurement state.
+<code>NextLine</code> accepts a typed measurement procedure and caller-owned context; the
+callback measures a complete candidate run, preserving the renderer's shaping
+and bidi context. Bind the callback to its procedure type before passing it:</p>
+<pre><code class="language-zi">Layout :: #import &quot;std/text_layout&quot;;
+Grapheme :: #import &quot;std/grapheme&quot;;
+Measure :: #type (string, s32) -&gt; s32 #reads;
+Monospace :: (text: string, advance: s32) -&gt; s32 {
+    return Grapheme.Count(text) * advance
+}
+main :: () -&gt; s32 {
+    measure: Measure = Monospace
+    line := Layout.NextLine(&quot;hello world&quot;, 0, 60.0, .TextWrapAuto, measure, cast(s32)10)
+    return ifx line.end == 5 &amp;&amp; line.next == 6 then 0 else 1
+}
+</code></pre>
+<p><code>TextWrapAuto</code> keeps oversized words whole and permits breaks between CJK
+characters with the existing punctuation restrictions. This is a limited
+word-breaking policy, not full Unicode UAX #14 conformance. <code>TextWrapAnywhere</code>
+breaks only at extended grapheme boundaries and always accepts at least one
+cluster. <code>TextWrapNone</code> and <code>TextWrapEllipsis</code> plan unwrapped lines; ellipsis
+painting belongs to the caller. Newlines include CRLF. <code>NextToken</code> can recognize
+a caller-supplied marker, without assigning it rendering behavior.</p>
+<p><code>CharactersEnd</code> counts grapheme clusters for partial text reveal, and
+<code>TotalHeight</code> clamps line-height arithmetic to a nonnegative s32 result.
+Font discovery, shaping, measurement caches, selection and painting remain
+with the consumer. Kryon's Text widget uses this core through its glyph
+measurement adapter.
+When a consumer installs a <code>#reads</code> text hook, use a <code>#reads</code> measurement
+procedure type and pass immutable measurement settings by value. Context may
+also be a typed pointer when the caller needs mutable measurement state.</p>
 <h2 id="unicode-version-and-regeneration">Unicode version and regeneration</h2>
 <p>Behavior uses Unicode <strong>17.0.0</strong>, the same version as Ziran's grapheme tables.
 Python releases using a different Unicode database can differ for newly

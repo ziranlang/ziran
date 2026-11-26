@@ -27,11 +27,11 @@ int32_t private_parse_parse_compile_check(ZirModule* module, uint8_t* path, int3
 int32_t private_parse_cond_top_step(uint8_t* line, ZirCondFrame* frames, int32_t* count, ZirModule* module, ZirConsts* consts, CompileParseContext* context, uint8_t* source_path, uint8_t* path, int32_t line_no, int32_t* deferred);
 void private_parse_cond_frame_settle(ZirCondFrame* frames, int32_t count);
 void private_parse_strip_block_comments(uint8_t* s, int32_t* comment_depth);
-ZirUsing* compiler_parse_condition___zi_spec_79a869914f3b6a90(ZirUsing* parsed, int32_t count, ZirUsing* future, int32_t future_count, int32_t* visible);
-ZirImport* compiler_parse_condition___zi_spec_583f6f722a009f03(ZirImport* parsed, int32_t count, ZirImport* future, int32_t future_count, int32_t* visible);
-ZirType* compiler_parse_condition___zi_spec_5a7d33f371f951f4(ZirType* parsed, int32_t count, ZirType* future, int32_t future_count, int32_t* visible);
-ZirFunction* compiler_parse_condition___zi_spec_3d4a20bfa8d6b3f8(ZirFunction* parsed, int32_t count, ZirFunction* future, int32_t future_count, int32_t* visible);
-ZirGlobal* compiler_parse_condition___zi_spec_a375022f64c09f1d(ZirGlobal* parsed, int32_t count, ZirGlobal* future, int32_t future_count, int32_t* visible);
+ZirUsing* compiler_parse_condition_compiler_parse_condition_visible_items_for_ZirUsing(ZirUsing* parsed, int32_t count, ZirUsing* future, int32_t future_count, int32_t* visible);
+ZirImport* compiler_parse_condition_compiler_parse_condition_visible_items_for_ZirImport(ZirImport* parsed, int32_t count, ZirImport* future, int32_t future_count, int32_t* visible);
+ZirType* compiler_parse_condition_compiler_parse_condition_visible_items_for_ZirType(ZirType* parsed, int32_t count, ZirType* future, int32_t future_count, int32_t* visible);
+ZirFunction* compiler_parse_condition_compiler_parse_condition_visible_items_for_ZirFunction(ZirFunction* parsed, int32_t count, ZirFunction* future, int32_t future_count, int32_t* visible);
+ZirGlobal* compiler_parse_condition_compiler_parse_condition_visible_items_for_ZirGlobal(ZirGlobal* parsed, int32_t count, ZirGlobal* future, int32_t future_count, int32_t* visible);
 
 #ifdef __cplusplus
 }

@@ -2,71 +2,35 @@
 #include <stdbool.h>
 #include "zir_string.h"
 #include "compiler_target_bridge.h"
-#ifndef ZIR_FOREIGN_zir_f_dc460c31bc6d7644_CompilerTargetFactsAddress_ef8bfaf5
-#define ZIR_FOREIGN_zir_f_dc460c31bc6d7644_CompilerTargetFactsAddress_ef8bfaf5
 #ifdef __APPLE__
-ZirTargetFacts* zir_foreign_zir_f_dc460c31bc6d7644_CompilerTargetFactsAddress(void) __asm__("_CompilerTargetFactsAddress");
+ZirTargetFacts* zir_foreign_compiler_target_bridge__CompilerTargetFactsAddress(void) __asm__("_CompilerTargetFactsAddress");
 #else
-ZirTargetFacts* zir_foreign_zir_f_dc460c31bc6d7644_CompilerTargetFactsAddress(void) __asm__("CompilerTargetFactsAddress");
+ZirTargetFacts* zir_foreign_compiler_target_bridge__CompilerTargetFactsAddress(void) __asm__("CompilerTargetFactsAddress");
 #endif
-static ZirTargetFacts*
-zir_f_dc460c31bc6d7644_CompilerTargetFactsAddress(void)
-{
-    return zir_foreign_zir_f_dc460c31bc6d7644_CompilerTargetFactsAddress();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_dc460c31bc6d7644_CompilerTargetOptionsAddress_0212c5f4
-#define ZIR_FOREIGN_zir_f_dc460c31bc6d7644_CompilerTargetOptionsAddress_0212c5f4
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_dc460c31bc6d7644_CompilerTargetOptionsAddress(void) __asm__("_CompilerTargetOptionsAddress");
+uint8_t* zir_foreign_compiler_target_bridge__CompilerTargetOptionsAddress(void) __asm__("_CompilerTargetOptionsAddress");
 #else
-uint8_t* zir_foreign_zir_f_dc460c31bc6d7644_CompilerTargetOptionsAddress(void) __asm__("CompilerTargetOptionsAddress");
+uint8_t* zir_foreign_compiler_target_bridge__CompilerTargetOptionsAddress(void) __asm__("CompilerTargetOptionsAddress");
 #endif
-static uint8_t*
-zir_f_dc460c31bc6d7644_CompilerTargetOptionsAddress(void)
-{
-    return zir_foreign_zir_f_dc460c31bc6d7644_CompilerTargetOptionsAddress();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_dc460c31bc6d7644_UnionScalarFields_809be02e
-#define ZIR_FOREIGN_zir_f_dc460c31bc6d7644_UnionScalarFields_809be02e
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_dc460c31bc6d7644_UnionScalarFields(ZirModule* module, ZirType* record) __asm__("_UnionScalarFields");
+int32_t zir_foreign_compiler_target_bridge__UnionScalarFields(ZirModule* module, ZirType* record) __asm__("_UnionScalarFields");
 #else
-int32_t zir_foreign_zir_f_dc460c31bc6d7644_UnionScalarFields(ZirModule* module, ZirType* record) __asm__("UnionScalarFields");
+int32_t zir_foreign_compiler_target_bridge__UnionScalarFields(ZirModule* module, ZirType* record) __asm__("UnionScalarFields");
 #endif
-static int32_t
-zir_f_dc460c31bc6d7644_UnionScalarFields(ZirModule* module, ZirType* record)
-{
-    return zir_foreign_zir_f_dc460c31bc6d7644_UnionScalarFields(module, record);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_dc460c31bc6d7644_DiagnosticTarget_69051e88
-#define ZIR_FOREIGN_zir_f_dc460c31bc6d7644_DiagnosticTarget_69051e88
 #ifdef __APPLE__
-void zir_foreign_zir_f_dc460c31bc6d7644_DiagnosticTarget(ZirSourceSpan span, uint8_t* code, uint8_t* target, uint8_t* capability, uint8_t* format, ...) __asm__("_DiagnosticTarget");
+void zir_foreign_compiler_target_bridge__DiagnosticTarget(ZirSourceSpan span, uint8_t* code, uint8_t* target, uint8_t* capability, uint8_t* format, ...) __asm__("_DiagnosticTarget");
 #else
-void zir_foreign_zir_f_dc460c31bc6d7644_DiagnosticTarget(ZirSourceSpan span, uint8_t* code, uint8_t* target, uint8_t* capability, uint8_t* format, ...) __asm__("DiagnosticTarget");
+void zir_foreign_compiler_target_bridge__DiagnosticTarget(ZirSourceSpan span, uint8_t* code, uint8_t* target, uint8_t* capability, uint8_t* format, ...) __asm__("DiagnosticTarget");
 #endif
-#define zir_f_dc460c31bc6d7644_DiagnosticTarget zir_foreign_zir_f_dc460c31bc6d7644_DiagnosticTarget
-#endif
-#ifndef ZIR_FOREIGN_zir_f_dc460c31bc6d7644_DiagnosticDetailed_3a58fab1
-#define ZIR_FOREIGN_zir_f_dc460c31bc6d7644_DiagnosticDetailed_3a58fab1
 #ifdef __APPLE__
-void zir_foreign_zir_f_dc460c31bc6d7644_DiagnosticDetailed(ZirSourceSpan span, uint8_t* code, DiagnosticDetails* details, uint8_t* format, ...) __asm__("_DiagnosticDetailed");
+void zir_foreign_compiler_target_bridge__DiagnosticDetailed(ZirSourceSpan span, uint8_t* code, DiagnosticDetails* details, uint8_t* format, ...) __asm__("_DiagnosticDetailed");
 #else
-void zir_foreign_zir_f_dc460c31bc6d7644_DiagnosticDetailed(ZirSourceSpan span, uint8_t* code, DiagnosticDetails* details, uint8_t* format, ...) __asm__("DiagnosticDetailed");
+void zir_foreign_compiler_target_bridge__DiagnosticDetailed(ZirSourceSpan span, uint8_t* code, DiagnosticDetails* details, uint8_t* format, ...) __asm__("DiagnosticDetailed");
 #endif
-#define zir_f_dc460c31bc6d7644_DiagnosticDetailed zir_foreign_zir_f_dc460c31bc6d7644_DiagnosticDetailed
-#endif
-#ifndef ZIR_FOREIGN_zir_f_dc460c31bc6d7644_snprintf_7c8971c5
-#define ZIR_FOREIGN_zir_f_dc460c31bc6d7644_snprintf_7c8971c5
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_dc460c31bc6d7644_snprintf(uint8_t* output, size_t capacity, uint8_t* format, ...) __asm__("_snprintf");
+int32_t zir_foreign_compiler_target_bridge__snprintf(uint8_t* output, size_t capacity, uint8_t* format, ...) __asm__("_snprintf");
 #else
-int32_t zir_foreign_zir_f_dc460c31bc6d7644_snprintf(uint8_t* output, size_t capacity, uint8_t* format, ...) __asm__("snprintf");
-#endif
-#define zir_f_dc460c31bc6d7644_snprintf zir_foreign_zir_f_dc460c31bc6d7644_snprintf
+int32_t zir_foreign_compiler_target_bridge__snprintf(uint8_t* output, size_t capacity, uint8_t* format, ...) __asm__("snprintf");
 #endif
 static String os_names[6] = {{"NONE", sizeof("NONE") - 1}, {"LINUX", sizeof("LINUX") - 1}, {"WINDOWS", sizeof("WINDOWS") - 1}, {"MACOS", sizeof("MACOS") - 1}, {"ANDROID", sizeof("ANDROID") - 1}, {"WEB", sizeof("WEB") - 1}};
 static String cpu_names[4] = {{"NONE", sizeof("NONE") - 1}, {"X64", sizeof("X64") - 1}, {"ARM64", sizeof("ARM64") - 1}, {"WASM32", sizeof("WASM32") - 1}};
@@ -156,12 +120,12 @@ CompilerParseTargetCPU(uint8_t* name, int32_t* cpu)
 void
 CompilerConfigureTarget(int32_t target, int32_t os, int32_t cpu)
 {
-    ZirTargetFacts* facts = zir_f_dc460c31bc6d7644_CompilerTargetFactsAddress();
-    uint8_t* options = zir_f_dc460c31bc6d7644_CompilerTargetOptionsAddress();
+    ZirTargetFacts* facts = zir_foreign_compiler_target_bridge__CompilerTargetFactsAddress();
+    uint8_t* options = zir_foreign_compiler_target_bridge__CompilerTargetOptionsAddress();
     uint8_t* value_0 = compiler_parse_types_ParserCString(StringLiteral("target=%s os=%s cpu=%s"));
     uint8_t* value_1 = CompilerTargetBackendName(target);
     uint8_t* value_2 = CompilerTargetOSName(os);
-    zir_f_dc460c31bc6d7644_snprintf(options, 128, value_0, value_1, value_2, CompilerTargetCPUName(cpu));
+    zir_foreign_compiler_target_bridge__snprintf(options, 128, value_0, value_1, value_2, CompilerTargetCPUName(cpu));
     ZirTargetFacts* value_3 = &(facts[0]);
     (*value_3) = (ZirTargetFacts){.target = target, .os = os, .cpu = cpu, .options = (const char *)(options)};
 }
@@ -169,7 +133,7 @@ CompilerConfigureTarget(int32_t target, int32_t os, int32_t cpu)
 ZirTargetFacts
 CompilerTargetFacts(void)
 {
-    ZirTargetFacts* facts = zir_f_dc460c31bc6d7644_CompilerTargetFactsAddress();
+    ZirTargetFacts* facts = zir_foreign_compiler_target_bridge__CompilerTargetFactsAddress();
     if (((uint8_t*)facts->options) == ((void *)0)) {
         CompilerConfigureTarget(3, 0, 0);
     }
@@ -235,26 +199,26 @@ CheckTargetCapabilities(ZirProgram* program, uint8_t* target)
                         uint8_t* value_6 = target;
                         uint8_t* value_7 = compiler_parse_types_ParserCString(StringLiteral("procedures.c-call"));
                         uint8_t* value_8 = compiler_parse_types_ParserCString(StringLiteral("target does not support #c_call procedure types: %s"));
-                        zir_f_dc460c31bc6d7644_DiagnosticTarget(value_4, value_5, value_6, value_7, value_8, name);
+                        zir_foreign_compiler_target_bridge__DiagnosticTarget(value_4, value_5, value_6, value_7, value_8, name);
                         return 0;
                     }
                     bool value_9 = record->is_union != 0 && record->is_record_template == 0 && (StringEqual(selected, StringLiteral("zx")) || StringEqual(selected, StringLiteral("go")));
                     bool value_10 = value_9;
-                    if (value_10 && zir_f_dc460c31bc6d7644_UnionScalarFields(module, record) == 0) {
+                    if (value_10 && zir_foreign_compiler_target_bridge__UnionScalarFields(module, record) == 0) {
                         if (StringEqual(selected, StringLiteral("zx"))) {
                             ZirSourceSpan value_11 = record->span;
                             uint8_t* value_12 = compiler_parse_types_ParserCString(StringLiteral("zx.union"));
                             uint8_t* value_13 = target;
                             uint8_t* value_14 = compiler_parse_types_ParserCString(StringLiteral("unions.scalar"));
                             uint8_t* value_15 = compiler_parse_types_ParserCString(StringLiteral("portable unions support scalar fields only: %s"));
-                            zir_f_dc460c31bc6d7644_DiagnosticTarget(value_11, value_12, value_13, value_14, value_15, name);
+                            zir_foreign_compiler_target_bridge__DiagnosticTarget(value_11, value_12, value_13, value_14, value_15, name);
                         } else {
                             ZirSourceSpan value_16 = record->span;
                             uint8_t* value_17 = compiler_parse_types_ParserCString(StringLiteral("zir_go.union"));
                             uint8_t* value_18 = target;
                             uint8_t* value_19 = compiler_parse_types_ParserCString(StringLiteral("unions.scalar"));
                             uint8_t* value_20 = compiler_parse_types_ParserCString(StringLiteral("Go unions support scalar fields only: %s"));
-                            zir_f_dc460c31bc6d7644_DiagnosticTarget(value_16, value_17, value_18, value_19, value_20, name);
+                            zir_foreign_compiler_target_bridge__DiagnosticTarget(value_16, value_17, value_18, value_19, value_20, name);
                         }
                         return 0;
                     }
@@ -285,7 +249,7 @@ CheckTargetCapabilities(ZirProgram* program, uint8_t* target)
                         uint8_t* value_27 = compiler_parse_types_ParserCString(StringLiteral("check.record"));
                         uint8_t* value_28 = compiler_parse_types_ParserCString(StringLiteral("%s require the Go target: %s"));
                         uint8_t* value_29 = compiler_parse_types_ParserCString(feature);
-                        zir_f_dc460c31bc6d7644_DiagnosticDetailed(value_26, value_27, &(details), value_28, value_29, name);
+                        zir_foreign_compiler_target_bridge__DiagnosticDetailed(value_26, value_27, &(details), value_28, value_29, name);
                         return 0;
                     }
                     if (t == range_last_6) {
@@ -345,7 +309,7 @@ CheckTargetCapabilities(ZirProgram* program, uint8_t* target)
                     DiagnosticDetails details = value_33;
                     ZirSourceSpan value_35 = binding->span;
                     uint8_t* value_36 = compiler_parse_types_ParserCString(StringLiteral("check.foreign"));
-                    zir_f_dc460c31bc6d7644_DiagnosticDetailed(value_35, value_36, &(details), compiler_parse_types_ParserCString(message), &(binding->name[0]));
+                    zir_foreign_compiler_target_bridge__DiagnosticDetailed(value_35, value_36, &(details), compiler_parse_types_ParserCString(message), &(binding->name[0]));
                     return 0;
                 }
             }
@@ -387,7 +351,7 @@ CheckTargetCapabilities(ZirProgram* program, uint8_t* target)
                             DiagnosticDetails details = value_37;
                             ZirSourceSpan value_39 = statement->span;
                             uint8_t* value_40 = compiler_parse_types_ParserCString(StringLiteral("gpu.device"));
-                            zir_f_dc460c31bc6d7644_DiagnosticDetailed(value_39, value_40, &(details), compiler_parse_types_ParserCString(StringLiteral("GPU regions have no device backend; CPU fallback is disabled")));
+                            zir_foreign_compiler_target_bridge__DiagnosticDetailed(value_39, value_40, &(details), compiler_parse_types_ParserCString(StringLiteral("GPU regions have no device backend; CPU fallback is disabled")));
                             return 0;
                         }
                     }

@@ -149,7 +149,9 @@ ResolutionExecution :: (fixture: ResolutionFixture) -> bool {
     if !NativeAssert(test, count == 2, "divergent revisions did not retain distinct Value modules") ||
         !FixtureCompile(test, app, CheckPath(test.work, "source-c"), CheckPath(app, "src/app.zi"), true) { return false }
     ir_dir := CheckPath(test.work, "ir")
-    ir := string.["ir", "--project", "--entry", "app:main", "-o", ir_dir, CheckPath(app, "src/app.zi")]; unused PackageCommand(test, app, ir[:])
+    // Preserve the full checked graph here: constant-return providers can be
+    // removed from an entry link, while package identities still stay distinct.
+    ir := string.["ir", "--project", "-o", ir_dir, CheckPath(app, "src/app.zi")]; unused PackageCommand(test, app, ir[:])
     files := NativeFiles(ir_dir, "_Value.zir")
     if !NativeAssert(test, files.count == 2 && PathName(files[0]) != PathName(files[1]), "saved IR merged package namespaces") || !FixtureCompile(test, app, CheckPath(test.work, "saved-c"), CheckPath(ir_dir, "app.zir"), false) { return false }
     if CheckExecutable("go") != "" {

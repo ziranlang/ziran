@@ -76,8 +76,10 @@ main :: (argc: s32, argv: **u8) -> s32 {
     stamps := NativeFiles(output, ".inputs", true)
     if !NativeAssert(*test, stamps.count > 0, "compiler not eligible for native object reuse") || !CacheBuild(fixture, 42, "exact") { return 1 }
     leaf := string.["leaf.c.o"]; stable := string.["stable.c.o"]; host_object := string.["host.c.o"]
+    leaf_app := string.["leaf.c.o", "app.c.o"]
     stable_app := string.["stable.c.o", "app.c.o"]
-    if !NativeWrite(*test, CheckPath(test.work, "leaf.zi"), CacheLeaf(2)) || !CacheBuild(fixture, 43, "exact", leaf[:]) { return 1 }
+    // Folding Step changes Read's inline body as well as its own module.
+    if !NativeWrite(*test, CheckPath(test.work, "leaf.zi"), CacheLeaf(2)) || !CacheBuild(fixture, 43, "exact", leaf_app[:]) { return 1 }
     if !NativeWrite(*test, CheckPath(test.work, "shared.zi"), "Increment :: 10;\n") || !CacheBuild(fixture, 46, "contains", leaf[:], stable[:]) { return 1 }
     if !NativeWrite(*test, CheckPath(test.work, "stable.zi"), "Read :: () -> s32 { three: s32 = 3; return three }\n") || !CacheBuild(fixture, 46, "contains", stable_app[:], leaf[:]) { return 1 }
     time_reference := CheckPath(test.work, "time-reference")

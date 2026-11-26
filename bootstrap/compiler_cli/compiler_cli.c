@@ -14,13 +14,13 @@ compiler_cli_CStr(String s)
 void
 compiler_cli_CommandModulePathsRelease(void)
 {
-    zir_f_60100a8252c73c55_free((void*)(command_module_paths));
+    zir_foreign_compiler_cli__free((void*)(command_module_paths));
 }
 
 void
 compiler_cli_CommandLowerPriority(void)
 {
-    if (zir_f_60100a8252c73c55_CommandPriorityAvailable() == 0) {
+    if (zir_foreign_compiler_cli__CommandPriorityAvailable() == 0) {
         return;
     }
     int32_t target = 10;
@@ -30,20 +30,20 @@ compiler_cli_CommandLowerPriority(void)
         String s = value_0;
         value_1 = ((StaticText*)(&(s)))->data;
     }
-    uint8_t* text = zir_f_60100a8252c73c55_getenv(value_1);
+    uint8_t* text = zir_foreign_compiler_cli__getenv(value_1);
     if (text != ((void *)0) && text[0] != 0) {
         uint8_t* end = (void *)0;
-        ptrdiff_t value = zir_f_60100a8252c73c55_strtol(text, &(end), 10);
+        ptrdiff_t value = zir_foreign_compiler_cli__strtol(text, &(end), 10);
         if (end != ((void *)0) && end[0] == 0 && value >= 0 && value <= 19) {
             target = (int32_t)(value);
         }
     }
     int32_t error = 0;
-    int32_t current = zir_f_60100a8252c73c55_CommandPriorityGet(&(error));
+    int32_t current = zir_foreign_compiler_cli__CommandPriorityGet(&(error));
     if (error == 0 && current < target) {
-        zir_f_60100a8252c73c55_CommandPrioritySet(target);
+        zir_foreign_compiler_cli__CommandPrioritySet(target);
     }
-    zir_f_60100a8252c73c55_CommandPriorityIo(target);
+    zir_foreign_compiler_cli__CommandPriorityIo(target);
 }
 
 uint8_t**
@@ -55,13 +55,13 @@ compiler_cli_CommandModulePaths(int32_t argc)
     if (command_module_paths != ((void *)0)) {
         return command_module_paths;
     }
-    void* value_0 = zir_f_60100a8252c73c55_calloc((size_t)(argc), sizeof(void *));
+    void* value_0 = zir_foreign_compiler_cli__calloc((size_t)(argc), sizeof(void *));
     uint8_t** paths = (uint8_t**)(value_0);
     if (paths == ((void *)0)) {
         return (void *)0;
     }
-    if (zir_f_60100a8252c73c55_atexit(compiler_cli_CommandModulePathsRelease) != 0) {
-        zir_f_60100a8252c73c55_free((void*)(paths));
+    if (zir_foreign_compiler_cli__atexit(compiler_cli_CommandModulePathsRelease) != 0) {
+        zir_foreign_compiler_cli__free((void*)(paths));
         return (void *)0;
     }
     command_module_paths = paths;
@@ -80,8 +80,8 @@ compiler_cli_ReadCommandOptions(int32_t argc, uint8_t** argv, CommandOption* opt
             String s = value_0;
             value_1 = ((StaticText*)(&(s)))->data;
         }
-        if (zir_f_60100a8252c73c55_strncmp(word, value_1, 14) == 0) {
-            if (zir_f_60100a8252c73c55_SetDiagnosticFormat((uint8_t*)(((size_t)(word) + 14))) == 0) {
+        if (zir_foreign_compiler_cli__strncmp(word, value_1, 14) == 0) {
+            if (zir_foreign_compiler_cli__SetDiagnosticFormat((uint8_t*)(((size_t)(word) + 14))) == 0) {
                 return -1;
             }
             index = (int32_t)((uint32_t)index + 1u);
@@ -91,7 +91,7 @@ compiler_cli_ReadCommandOptions(int32_t argc, uint8_t** argv, CommandOption* opt
             return index;
         }
         size_t selected = 0;
-        while (selected < option_count && zir_f_60100a8252c73c55_strcmp(word, (options[selected]).name) != 0) {
+        while (selected < option_count && zir_foreign_compiler_cli__strcmp(word, (options[selected]).name) != 0) {
             selected = selected + 1;
         }
         if (selected == option_count) {
@@ -157,7 +157,7 @@ compiler_cli_CommandMergePrograms(ProgramSet* set, ZirProgram* merged)
     struct CompilerContext ** value_2 = &(merged->context);
     (*value_2) = (struct CompilerContext *)(((uint8_t*)set->context));
     ZirModule** value_3 = &(merged->modules);
-    void* value_4 = zir_f_60100a8252c73c55_calloc((size_t)(merged->module_count), sizeof(ZirModule));
+    void* value_4 = zir_foreign_compiler_cli__calloc((size_t)(merged->module_count), sizeof(ZirModule));
     (*value_3) = (ZirModule*)(value_4);
     if (merged->modules == ((void *)0)) {
         return 0;
@@ -198,19 +198,19 @@ compiler_cli_CommandConfigureTarget(int32_t backend, uint8_t* os_name, uint8_t* 
     int32_t target_os = 0;
     int32_t target_cpu = 0;
     if (backend != 3) {
-        target_os = zir_f_60100a8252c73c55_CompilerHostOS();
-        target_cpu = zir_f_60100a8252c73c55_CompilerHostCPU();
+        target_os = zir_foreign_compiler_cli__CompilerHostOS();
+        target_cpu = zir_foreign_compiler_cli__CompilerHostCPU();
     }
     if (os_name != ((void *)0)) {
         int32_t parsed = target_os;
-        if (zir_f_60100a8252c73c55_CompilerParseTargetOS(os_name, &(parsed)) == 0) {
+        if (zir_foreign_compiler_cli__CompilerParseTargetOS(os_name, &(parsed)) == 0) {
             return 0;
         }
         target_os = parsed;
     }
     if (cpu_name != ((void *)0)) {
         int32_t parsed_cpu = target_cpu;
-        if (zir_f_60100a8252c73c55_CompilerParseTargetCPU(cpu_name, &(parsed_cpu)) == 0) {
+        if (zir_foreign_compiler_cli__CompilerParseTargetCPU(cpu_name, &(parsed_cpu)) == 0) {
             return 0;
         }
         target_cpu = parsed_cpu;
@@ -218,7 +218,7 @@ compiler_cli_CommandConfigureTarget(int32_t backend, uint8_t* os_name, uint8_t* 
     if (target_os == 5 && cpu_name == ((void *)0)) {
         target_cpu = 3;
     }
-    zir_f_60100a8252c73c55_CompilerConfigureTarget(backend, target_os, target_cpu);
+    zir_foreign_compiler_cli__CompilerConfigureTarget(backend, target_os, target_cpu);
     int32_t* value_0 = &((*(os)));
     (*value_0) = target_os;
     return 1;
@@ -233,29 +233,29 @@ compiler_cli_CommandReadBounded(uint8_t* path, int64_t limit, size_t* size)
         String s = value_0;
         value_1 = ((StaticText*)(&(s)))->data;
     }
-    void* stream = zir_f_60100a8252c73c55_fopen(path, value_1);
+    void* stream = zir_foreign_compiler_cli__fopen(path, value_1);
     if (stream == ((void *)0)) {
         return (void *)0;
     }
     uint8_t* bytes = (void *)0;
     ptrdiff_t length = -1;
-    if (zir_f_60100a8252c73c55_fseek(stream, 0, 2) == 0) {
-        length = zir_f_60100a8252c73c55_ftell(stream);
+    if (zir_foreign_compiler_cli__fseek(stream, 0, 2) == 0) {
+        length = zir_foreign_compiler_cli__ftell(stream);
         bool value_3 = length >= 0;
         if (value_3) {
             int64_t value_4 = (int64_t)(length);
             value_3 = (value_4 <= limit);
         }
-        if (value_3 && zir_f_60100a8252c73c55_fseek(stream, 0, 0) == 0) {
-            void* value_5 = zir_f_60100a8252c73c55_malloc((size_t)(length) + 1);
+        if (value_3 && zir_foreign_compiler_cli__fseek(stream, 0, 0) == 0) {
+            void* value_5 = zir_foreign_compiler_cli__malloc((size_t)(length) + 1);
             bytes = (uint8_t*)(value_5);
             if (bytes == ((void *)0)) {
-                zir_f_60100a8252c73c55_DiagnosticOutOfMemory();
+                zir_foreign_compiler_cli__DiagnosticOutOfMemory();
             } else {
-                size_t count = zir_f_60100a8252c73c55_fread((void*)(bytes), 1, (size_t)(length), stream);
-                bool value_6 = count == (size_t)(length) && zir_f_60100a8252c73c55_fgetc(stream) == -1;
-                bool value_7 = value_6 && zir_f_60100a8252c73c55_ferror(stream) == 0;
-                if (value_7 && zir_f_60100a8252c73c55_fclose(stream) == 0) {
+                size_t count = zir_foreign_compiler_cli__fread((void*)(bytes), 1, (size_t)(length), stream);
+                bool value_6 = count == (size_t)(length) && zir_foreign_compiler_cli__fgetc(stream) == -1;
+                bool value_7 = value_6 && zir_foreign_compiler_cli__ferror(stream) == 0;
+                if (value_7 && zir_foreign_compiler_cli__fclose(stream) == 0) {
                     stream = (void *)0;
                     uint8_t* value_8 = &(bytes[(size_t)(length)]);
                     (*value_8) = 0;
@@ -267,9 +267,9 @@ compiler_cli_CommandReadBounded(uint8_t* path, int64_t limit, size_t* size)
         }
     }
     if (stream != ((void *)0)) {
-        zir_f_60100a8252c73c55_fclose(stream);
+        zir_foreign_compiler_cli__fclose(stream);
     }
-    zir_f_60100a8252c73c55_free((void*)(bytes));
+    zir_foreign_compiler_cli__free((void*)(bytes));
     return (void *)0;
 }
 
@@ -309,16 +309,16 @@ compiler_cli_ValidDefine(uint8_t* name)
     bool value_0 = name == ((void *)0);
     bool value_1 = value_0;
     if (!value_1) {
-        bool value_2 = zir_f_60100a8252c73c55_isalpha((int32_t)(name[0])) == 0;
+        bool value_2 = zir_foreign_compiler_cli__isalpha((int32_t)(name[0])) == 0;
         value_1 = (value_2 && name[0] != 95);
     }
     bool value_3 = value_1;
-    if (value_3 || zir_f_60100a8252c73c55_strlen(name) >= (size_t)(128LL)) {
+    if (value_3 || zir_foreign_compiler_cli__strlen(name) >= (size_t)(128LL)) {
         return 0;
     }
     size_t at = 1;
     while (name[at] != 0) {
-        bool value_4 = zir_f_60100a8252c73c55_isalnum((int32_t)(name[at])) == 0;
+        bool value_4 = zir_foreign_compiler_cli__isalnum((int32_t)(name[at])) == 0;
         if (value_4 && name[at] != 95) {
             return 0;
         }
@@ -330,17 +330,17 @@ compiler_cli_ValidDefine(uint8_t* name)
 int32_t
 compiler_cli_SplitEntry(uint8_t* text, uint8_t* module, uint8_t* function)
 {
-    uint8_t* separator = zir_f_60100a8252c73c55_strrchr(text, 58);
+    uint8_t* separator = zir_foreign_compiler_cli__strrchr(text, 58);
     if (separator == ((void *)0) || separator == text || separator[1] == 0) {
         return 0;
     }
     size_t length = (size_t)(((size_t)(separator) - (size_t)(text)));
-    if (length >= (size_t)(128LL) || zir_f_60100a8252c73c55_strlen((uint8_t*)(((size_t)(separator) + 1))) >= (size_t)(128LL)) {
+    if (length >= (size_t)(128LL) || zir_foreign_compiler_cli__strlen((uint8_t*)(((size_t)(separator) + 1))) >= (size_t)(128LL)) {
         return 0;
     }
-    zir_f_60100a8252c73c55_memcpy((void*)(module), (void*)(text), length);
+    zir_foreign_compiler_cli__memcpy((void*)(module), (void*)(text), length);
     uint8_t* value_0 = &(module[length]);
     (*value_0) = 0;
-    zir_f_60100a8252c73c55_strcpy(function, (uint8_t*)(((size_t)(separator) + 1)));
+    zir_foreign_compiler_cli__strcpy(function, (uint8_t*)(((size_t)(separator) + 1)));
     return 1;
 }

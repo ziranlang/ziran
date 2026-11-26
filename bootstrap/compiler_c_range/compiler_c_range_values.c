@@ -1947,7 +1947,7 @@ compiler_c_range_values_MemoStore(RangeFacts* f, int64_t key, Range range)
                 i = (int64_t)((uint64_t)i + UINT64_C(1));
             }
         }
-        compiler_c_range_facts___zi_spec_1cfa5bbe8c743fa4(old);
+        compiler_c_range_facts_compiler_c_range_facts_Release_for_RangeMemo(old);
     }
     RangeMemo* slot = compiler_c_range_values_MemoSlot(f, key);
     int64_t value_10 = slot->key;
@@ -2523,7 +2523,7 @@ compiler_c_range_values_CallRangeOf(RangeFacts* f, int32_t index, Range* out)
         if (c <= range_last_27) for (;;) {
             bool value_19 = (f->calls[c]).callee == callee && (f->calls[c]).seeds == count;
             if (value_19 && compiler_c_range_values_SameSeeds((f->calls[c]).seed, seed, count)) {
-                compiler_c_range_facts___zi_spec_d22218a307c20f46(seed);
+                compiler_c_range_facts_compiler_c_range_facts_Release_for_Range(seed);
                 Range* value_20 = &((*(out)));
                 (*value_20) = (f->calls[c]).result;
                 return (f->calls[c]).known != 0;
@@ -2564,7 +2564,7 @@ compiler_c_range_values_CallRangeOf(RangeFacts* f, int32_t index, Range* out)
             seed = (void *)0;
         }
     }
-    compiler_c_range_facts___zi_spec_d22218a307c20f46(seed);
+    compiler_c_range_facts_compiler_c_range_facts_Release_for_Range(seed);
     Range* value_30 = &((*(out)));
     (*value_30) = result;
     return known;

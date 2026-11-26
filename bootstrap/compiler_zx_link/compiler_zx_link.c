@@ -4,6 +4,7 @@
 #include "zir_string_types.h"
 #include <stdlib.h>
 #include <string.h>
+#include "zir_vec.h"
 #include "compiler_zx_link.h"
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -133,16 +134,105 @@ compiler_zx_link_ConstantBool(ZirFunction* fn, int32_t index, int32_t depth)
         }
         return compiler_zx_link_ConstantBool(fn, expr->right, (int32_t)((uint32_t)depth + 1u));
     }
+    bool value_43 = ((ZirExprKind)(expr->kind)) == ((ZirExprKind)(6));
+    bool value_44 = value_43;
+    if (value_44) {
+        uint8_t* value_45 = op;
+        String value_46 = StringLiteral("==");
+        uint8_t* value_47 = (void *)0;
+        {
+            String s = value_46;
+            value_47 = ((StaticText*)(&(s)))->data;
+        }
+        bool value_49 = compiler_zx_link_Same(value_45, value_47);
+        bool value_50 = value_49;
+        if (!value_50) {
+            uint8_t* value_51 = op;
+            String value_52 = StringLiteral("!=");
+            uint8_t* value_53 = (void *)0;
+            {
+                String s = value_52;
+                value_53 = ((StaticText*)(&(s)))->data;
+            }
+            bool value_55 = compiler_zx_link_Same(value_51, value_53);
+            value_50 = value_55;
+        }
+        value_44 = value_50;
+    }
+    if (value_44) {
+        ZirFunction* value_56 = fn;
+        int32_t value_57 = expr->left;
+        ZirExpr* value_58 = (void *)0;
+        {
+            ZirFunction* fn = value_56;
+            int32_t index = value_57;
+            value_58 = &(fn->exprs[index]);
+        }
+        ZirExpr* left = value_58;
+        ZirFunction* value_60 = fn;
+        int32_t value_61 = expr->right;
+        ZirExpr* value_62 = (void *)0;
+        {
+            ZirFunction* fn = value_60;
+            int32_t index = value_61;
+            value_62 = &(fn->exprs[index]);
+        }
+        ZirExpr* right = value_62;
+        bool value_64 = ((ZirExprKind)(left->kind)) == ((ZirExprKind)(1)) && ((ZirExprKind)(right->kind)) == ((ZirExprKind)(1));
+        bool value_65 = value_64;
+        bool value_66 = value_65;
+        if (value_66) {
+            uint8_t* value_67 = (uint8_t*)left->name;
+            String value_68 = StringLiteral("null");
+            uint8_t* value_69 = (void *)0;
+            {
+                String s = value_68;
+                value_69 = ((StaticText*)(&(s)))->data;
+            }
+            bool value_71 = compiler_zx_link_Same(value_67, value_69);
+            value_66 = value_71;
+        }
+        bool value_72 = value_66;
+        bool value_73 = value_72;
+        if (value_73) {
+            uint8_t* value_74 = (uint8_t*)right->name;
+            String value_75 = StringLiteral("null");
+            uint8_t* value_76 = (void *)0;
+            {
+                String s = value_75;
+                value_76 = ((StaticText*)(&(s)))->data;
+            }
+            bool value_78 = compiler_zx_link_Same(value_74, value_76);
+            value_73 = value_78;
+        }
+        if (value_73) {
+            uint8_t* value_79 = op;
+            String value_80 = StringLiteral("==");
+            uint8_t* value_81 = (void *)0;
+            {
+                String s = value_80;
+                value_81 = ((StaticText*)(&(s)))->data;
+            }
+            bool value_83 = compiler_zx_link_Same(value_79, value_81);
+            int32_t value_84 = 0;
+            if (value_83) {
+                value_84 = 1;
+            } else {
+                value_84 = 0;
+            }
+            return value_84;
+        }
+    }
     if (((ZirExprKind)(expr->kind)) == ((ZirExprKind)(14))) {
         int32_t condition = compiler_zx_link_ConstantBool(fn, expr->left, (int32_t)((uint32_t)depth + 1u));
         if (condition >= 0) {
-            int32_t value_43 = 0;
+            int32_t value_85 = 0;
             if (condition != 0) {
-                value_43 = expr->right;
+                value_85 = expr->right;
             } else {
-                value_43 = expr->third;
+                value_85 = expr->third;
             }
-            return compiler_zx_link_ConstantBool(fn, value_43, (int32_t)((uint32_t)depth + 1u));
+            return compiler_zx_link_ConstantBool(fn, value_85, (int32_t)((uint32_t)depth + 1u));
         }
     }
     return -1;
@@ -370,7 +460,7 @@ compiler_zx_link_CopyLiveSequence(ZirFunction* from, ZirFunction* to, int32_t be
             String s = value_4;
             value_5 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_a880a0694b9f00fc_Diagnostic(value_0, value_2, value_5, &(from->name[0]), 128LL);
+        zir_foreign_compiler_zx_link__Diagnostic(value_0, value_2, value_5, &(from->name[0]), 128LL);
         return false;
     }
     bool* value_7 = &((*(stops)));
@@ -613,7 +703,7 @@ compiler_zx_link_CopyLiveExpression(ZirFunction* from, ZirFunction* to, int32_t*
                 bool own_numeric = value_23;
                 if (expr->argument_index >= 0 && arm_numeric && !own_numeric) {
                     const char ** value_29 = &(arm->type);
-                    uint8_t* value_30 = zir_f_a880a0694b9f00fc_KeepName((uint8_t*)expr->type);
+                    uint8_t* value_30 = zir_foreign_compiler_zx_link__KeepName((uint8_t*)expr->type);
                     (*value_29) = (const char *)(value_30);
                 }
             }
@@ -727,7 +817,7 @@ compiler_zx_link_CopyLiveExpression(ZirFunction* from, ZirFunction* to, int32_t*
                 }
                 value_68 = value_73;
             }
-            uint8_t* value_75 = zir_f_a880a0694b9f00fc_KeepName(value_68);
+            uint8_t* value_75 = zir_foreign_compiler_zx_link__KeepName(value_68);
             (*value_67) = (const char *)(value_75);
             int32_t* value_76 = &(constant->left);
             (*value_76) = -1;
@@ -830,9 +920,9 @@ compiler_zx_link_CopyLiveExpression(ZirFunction* from, ZirFunction* to, int32_t*
 bool
 compiler_zx_link_PruneFunction(ZirFunction* fn)
 {
-    uint8_t* value_0 = zir_f_a880a0694b9f00fc_AllocateOrExit(sizeof(ZirFunction));
+    uint8_t* value_0 = zir_foreign_compiler_zx_link__AllocateOrExit(sizeof(ZirFunction));
     ZirFunction* original = (ZirFunction*)(value_0);
-    uint8_t* value_1 = zir_f_a880a0694b9f00fc_AllocateOrExit(sizeof(ZirFunction));
+    uint8_t* value_1 = zir_foreign_compiler_zx_link__AllocateOrExit(sizeof(ZirFunction));
     ZirFunction* output = (ZirFunction*)(value_1);
     ZirFunction* value_2 = &((*(original)));
     (*value_2) = *(fn);
@@ -851,7 +941,7 @@ compiler_zx_link_PruneFunction(ZirFunction* fn)
         }
         value_6 = value_8;
     }
-    uint8_t* value_9 = zir_f_a880a0694b9f00fc_calloc(value_6, sizeof(ZirStmt));
+    uint8_t* value_9 = zir_foreign_compiler_zx_link__calloc(value_6, sizeof(ZirStmt));
     (*value_4) = (ZirStmt*)(value_9);
     ZirExpr** value_10 = &(output->exprs);
     int32_t value_11 = original->expr_count;
@@ -866,7 +956,7 @@ compiler_zx_link_PruneFunction(ZirFunction* fn)
         }
         value_12 = value_14;
     }
-    uint8_t* value_15 = zir_f_a880a0694b9f00fc_calloc(value_12, sizeof(ZirExpr));
+    uint8_t* value_15 = zir_foreign_compiler_zx_link__calloc(value_12, sizeof(ZirExpr));
     (*value_10) = (ZirExpr*)(value_15);
     int32_t value_16 = original->expr_count;
     size_t value_17 = 0;
@@ -880,16 +970,16 @@ compiler_zx_link_PruneFunction(ZirFunction* fn)
         }
         value_17 = value_19;
     }
-    uint8_t* value_20 = zir_f_a880a0694b9f00fc_malloc(value_17 * sizeof(int32_t));
+    uint8_t* value_20 = zir_foreign_compiler_zx_link__malloc(value_17 * sizeof(int32_t));
     int32_t* mapping = (int32_t*)(value_20);
     if (output->stmts == ((void *)0) || output->exprs == ((void *)0) || mapping == ((void *)0)) {
-        zir_f_a880a0694b9f00fc_free((uint8_t*)(output->stmts));
-        zir_f_a880a0694b9f00fc_free((uint8_t*)(output->exprs));
-        zir_f_a880a0694b9f00fc_free((uint8_t*)(mapping));
+        zir_foreign_compiler_zx_link__free((uint8_t*)(output->stmts));
+        zir_foreign_compiler_zx_link__free((uint8_t*)(output->exprs));
+        zir_foreign_compiler_zx_link__free((uint8_t*)(mapping));
         bool cleanup_return_0 = false;
         {
-            zir_f_a880a0694b9f00fc_free((uint8_t*)(original));
-            zir_f_a880a0694b9f00fc_free((uint8_t*)(output));
+            zir_foreign_compiler_zx_link__free((uint8_t*)(original));
+            zir_foreign_compiler_zx_link__free((uint8_t*)(output));
         }
         return cleanup_return_0;
     }
@@ -944,25 +1034,25 @@ compiler_zx_link_PruneFunction(ZirFunction* fn)
             s = (int32_t)((uint32_t)s + 1u);
         }
     }
-    zir_f_a880a0694b9f00fc_free((uint8_t*)(mapping));
+    zir_foreign_compiler_zx_link__free((uint8_t*)(mapping));
     if (!ok) {
-        zir_f_a880a0694b9f00fc_free((uint8_t*)(output->stmts));
-        zir_f_a880a0694b9f00fc_free((uint8_t*)(output->exprs));
+        zir_foreign_compiler_zx_link__free((uint8_t*)(output->stmts));
+        zir_foreign_compiler_zx_link__free((uint8_t*)(output->exprs));
         bool cleanup_return_1 = false;
         {
-            zir_f_a880a0694b9f00fc_free((uint8_t*)(original));
-            zir_f_a880a0694b9f00fc_free((uint8_t*)(output));
+            zir_foreign_compiler_zx_link__free((uint8_t*)(original));
+            zir_foreign_compiler_zx_link__free((uint8_t*)(output));
         }
         return cleanup_return_1;
     }
-    zir_f_a880a0694b9f00fc_free((uint8_t*)(original->stmts));
-    zir_f_a880a0694b9f00fc_free((uint8_t*)(original->exprs));
+    zir_foreign_compiler_zx_link__free((uint8_t*)(original->stmts));
+    zir_foreign_compiler_zx_link__free((uint8_t*)(original->exprs));
     ZirFunction* value_32 = &((*(fn)));
     (*value_32) = *(output);
     bool cleanup_return_2 = true;
     {
-        zir_f_a880a0694b9f00fc_free((uint8_t*)(original));
-        zir_f_a880a0694b9f00fc_free((uint8_t*)(output));
+        zir_foreign_compiler_zx_link__free((uint8_t*)(original));
+        zir_foreign_compiler_zx_link__free((uint8_t*)(output));
     }
     return cleanup_return_2;
 }
@@ -1043,7 +1133,7 @@ compiler_zx_link_LawNamesImport(ZirModule* module, ZirImport* imported)
 bool
 compiler_zx_link_BuiltinCall(uint8_t* name)
 {
-    if (zir_f_a880a0694b9f00fc_MapPrimitiveName(name) != 0) {
+    if (zir_foreign_compiler_zx_link__MapPrimitiveName(name) != 0) {
         return true;
     }
     {
@@ -1060,10 +1150,10 @@ compiler_zx_link_BuiltinCall(uint8_t* name)
             i = (int64_t)((uint64_t)i + UINT64_C(1));
         }
     }
-    bool value_0 = zir_f_a880a0694b9f00fc_BitBuiltin(name) != 0;
+    bool value_0 = zir_foreign_compiler_zx_link__BitBuiltin(name) != 0;
     bool value_1 = value_0;
     if (!value_1) {
-        uint8_t* value_2 = zir_f_a880a0694b9f00fc_SimdOpChecked(name);
+        uint8_t* value_2 = zir_foreign_compiler_zx_link__SimdOpChecked(name);
         value_1 = (value_2 != ((void *)0));
     }
     return value_1;
@@ -1089,13 +1179,13 @@ void
 compiler_zx_link_MarkAllFields(ZirModule* module, uint8_t* name, FieldUses* uses)
 {
     uint8_t element[128] = {0};
-    bool value_0 = zir_f_a880a0694b9f00fc_ArrayElementType(name, &(element[0]), 128, (void *)0) != 0;
-    if (value_0 || zir_f_a880a0694b9f00fc_SliceElementType(name, &(element[0]), 128) != 0) {
+    bool value_0 = zir_foreign_compiler_zx_link__ArrayElementType(name, &(element[0]), 128, (void *)0) != 0;
+    if (value_0 || zir_foreign_compiler_zx_link__SliceElementType(name, &(element[0]), 128) != 0) {
         compiler_zx_link_MarkAllFields(module, &(element[0]), uses);
         return;
     }
     ZirModule* owner = (void *)0;
-    ZirType* type = zir_f_a880a0694b9f00fc_FindType(module, compiler_zx_link_RecordName(name), &(owner));
+    ZirType* type = zir_foreign_compiler_zx_link__FindType(module, compiler_zx_link_RecordName(name), &(owner));
     FieldUse* use = compiler_zx_link_FindFieldUse(uses, type);
     if (use == ((void *)0) || use->complete != 0) {
         return;
@@ -1107,7 +1197,7 @@ compiler_zx_link_MarkAllFields(ZirModule* module, uint8_t* name, FieldUses* uses
     int32_t index = 0;
     while (true) {
         bool value_2 = index < use->count;
-        if (!(value_2 && zir_f_a880a0694b9f00fc_TypeNextField(type, &(offset), &(field)) == 1)) { break; }
+        if (!(value_2 && zir_foreign_compiler_zx_link__TypeNextField(type, &(offset), &(field)) == 1)) { break; }
         uint8_t* value_3 = &(use->fields[index]);
         (*value_3) = 1;
         compiler_zx_link_MarkAllFields(owner, &(field.type[0]), uses);
@@ -1119,15 +1209,15 @@ void
 compiler_zx_link_MarkMemberField(ZirModule* module, uint8_t* record_type, uint8_t* field_name, FieldUses* uses)
 {
     ZirModule* owner = (void *)0;
-    ZirType* type = zir_f_a880a0694b9f00fc_FindType(module, compiler_zx_link_RecordName(record_type), &(owner));
+    ZirType* type = zir_foreign_compiler_zx_link__FindType(module, compiler_zx_link_RecordName(record_type), &(owner));
     FieldUse* use = compiler_zx_link_FindFieldUse(uses, type);
     if (use == ((void *)0)) {
         return;
     }
-    uint8_t* dot = zir_f_a880a0694b9f00fc_strchr(field_name, 46);
+    uint8_t* dot = zir_foreign_compiler_zx_link__strchr(field_name, 46);
     size_t value_0 = 0;
     if (dot == ((void *)0)) {
-        size_t value_1 = zir_f_a880a0694b9f00fc_strlen(field_name);
+        size_t value_1 = zir_foreign_compiler_zx_link__strlen(field_name);
         value_0 = value_1;
     } else {
         size_t value_2 = 0;
@@ -1144,9 +1234,9 @@ compiler_zx_link_MarkMemberField(ZirModule* module, uint8_t* record_type, uint8_
     int32_t index = 0;
     while (true) {
         bool value_4 = index < use->count;
-        if (!(value_4 && zir_f_a880a0694b9f00fc_TypeNextField(type, &(offset), &(field)) == 1)) { break; }
-        bool value_5 = zir_f_a880a0694b9f00fc_strlen(&(field.name[0])) == name_length;
-        if (value_5 && zir_f_a880a0694b9f00fc_strncmp(&(field.name[0]), field_name, name_length) == 0) {
+        if (!(value_4 && zir_foreign_compiler_zx_link__TypeNextField(type, &(offset), &(field)) == 1)) { break; }
+        bool value_5 = zir_foreign_compiler_zx_link__strlen(&(field.name[0])) == name_length;
+        if (value_5 && zir_foreign_compiler_zx_link__strncmp(&(field.name[0]), field_name, name_length) == 0) {
             uint8_t* value_6 = &(use->fields[index]);
             (*value_6) = 1;
             if (dot != ((void *)0) && field.is_using != 0) {
@@ -1172,11 +1262,11 @@ compiler_zx_link_MarkSignatureFields(ZirModule* module, uint8_t* args, uint8_t* 
     if (args == ((void *)0) || args[0] == 0) {
         return;
     }
-    uint8_t* parts = zir_f_a880a0694b9f00fc_calloc(64, 4096);
+    uint8_t* parts = zir_foreign_compiler_zx_link__calloc(64, 4096);
     if (parts == ((void *)0)) {
         return;
     }
-    int32_t count = zir_f_a880a0694b9f00fc_split_top_level(args, parts, 64, 4096);
+    int32_t count = zir_foreign_compiler_zx_link__split_top_level(args, parts, 64, 4096);
     {
         int32_t range_first_9 = 0;
         int32_t range_last_9 = (int32_t)((uint32_t)count - 1u);
@@ -1190,7 +1280,7 @@ compiler_zx_link_MarkSignatureFields(ZirModule* module, uint8_t* args, uint8_t* 
                 value_1 = (uint8_t*)(((size_t)(p) + n));
             }
             uint8_t* part = value_1;
-            uint8_t* colon = zir_f_a880a0694b9f00fc_strchr(part, 58);
+            uint8_t* colon = zir_foreign_compiler_zx_link__strchr(part, 58);
             if (colon != ((void *)0)) {
                 uint8_t* value_3 = (void *)0;
                 {
@@ -1206,7 +1296,7 @@ compiler_zx_link_MarkSignatureFields(ZirModule* module, uint8_t* args, uint8_t* 
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    zir_f_a880a0694b9f00fc_free(parts);
+    zir_foreign_compiler_zx_link__free(parts);
 }
 
 bool
@@ -1220,7 +1310,7 @@ compiler_zx_link_LawSubject(ZirLaw* law, uint8_t* name)
         String s = value_1;
         value_2 = ((StaticText*)(&(s)))->data;
     }
-    uint8_t* op = zir_f_a880a0694b9f00fc_strstr(value_0, value_2);
+    uint8_t* op = zir_foreign_compiler_zx_link__strstr(value_0, value_2);
     if (op == ((void *)0)) {
         uint8_t* value_4 = payload;
         String value_5 = StringLiteral(">=");
@@ -1229,7 +1319,7 @@ compiler_zx_link_LawSubject(ZirLaw* law, uint8_t* name)
             String s = value_5;
             value_6 = ((StaticText*)(&(s)))->data;
         }
-        op = zir_f_a880a0694b9f00fc_strstr(value_4, value_6);
+        op = zir_foreign_compiler_zx_link__strstr(value_4, value_6);
     }
     if (op == ((void *)0)) {
         uint8_t* value_8 = payload;
@@ -1239,7 +1329,7 @@ compiler_zx_link_LawSubject(ZirLaw* law, uint8_t* name)
             String s = value_9;
             value_10 = ((StaticText*)(&(s)))->data;
         }
-        op = zir_f_a880a0694b9f00fc_strstr(value_8, value_10);
+        op = zir_foreign_compiler_zx_link__strstr(value_8, value_10);
     }
     size_t value_12 = 0;
     if (op != ((void *)0)) {
@@ -1251,17 +1341,17 @@ compiler_zx_link_LawSubject(ZirLaw* law, uint8_t* name)
         }
         value_12 = value_13;
     } else {
-        size_t value_15 = zir_f_a880a0694b9f00fc_strlen(payload);
+        size_t value_15 = zir_foreign_compiler_zx_link__strlen(payload);
         value_12 = value_15;
     }
     size_t length = value_12;
     if (length == 0 || length >= 128) {
         return false;
     }
-    zir_f_a880a0694b9f00fc_memcpy(name, payload, length);
+    zir_foreign_compiler_zx_link__memcpy(name, payload, length);
     uint8_t* value_16 = &(name[length]);
     (*value_16) = 0;
-    zir_f_a880a0694b9f00fc_trim_in_place(name);
+    zir_foreign_compiler_zx_link__trim_in_place(name);
     return true;
 }
 
@@ -1311,7 +1401,7 @@ compiler_zx_link_StartFieldUses(ZirProgram* program, FieldUses* uses, ZirModule*
                     (*value_8) = type;
                     size_t offset = 0;
                     ZirTypeField field = {0};
-                    while (zir_f_a880a0694b9f00fc_TypeNextField(type, &(offset), &(field)) == 1) {
+                    while (zir_foreign_compiler_zx_link__TypeNextField(type, &(offset), &(field)) == 1) {
                         int32_t* value_9 = &(use->count);
                         (*value_9) = (int32_t)((uint32_t)((*value_9)) + 1u);
                     }
@@ -1323,7 +1413,7 @@ compiler_zx_link_StartFieldUses(ZirProgram* program, FieldUses* uses, ZirModule*
                             if (earlier <= range_last_18) for (;;) {
                                 FieldUse* previous = &(uses->items[earlier]);
                                 bool value_10 = previous->type != ((void *)0) && previous->shared == 0;
-                                if (value_10 && zir_f_a880a0694b9f00fc_same_type_application(owners[earlier], previous->type, module, type) != 0) {
+                                if (value_10 && zir_foreign_compiler_zx_link__same_type_application(owners[earlier], previous->type, module, type) != 0) {
                                     uint8_t** value_11 = &(use->fields);
                                     (*value_11) = previous->fields;
                                     int32_t* value_12 = &(use->shared);
@@ -1339,7 +1429,7 @@ compiler_zx_link_StartFieldUses(ZirProgram* program, FieldUses* uses, ZirModule*
                     }
                     if (use->count > 0 && use->shared == 0) {
                         uint8_t** value_13 = &(use->fields);
-                        uint8_t* value_14 = zir_f_a880a0694b9f00fc_calloc((size_t)(use->count), 1);
+                        uint8_t* value_14 = zir_foreign_compiler_zx_link__calloc((size_t)(use->count), 1);
                         (*value_13) = value_14;
                         if (use->fields == ((void *)0)) {
                             return false;
@@ -1376,7 +1466,7 @@ compiler_zx_link_MarkModuleFields(ZirModule* module, uint8_t* entry_module, uint
                 value_1 = &(module->types[index]);
             }
             ZirType* type = value_1;
-            if (zir_f_a880a0694b9f00fc_VecElementType(module, &(type->name[0]), (void *)0, 0) != 0) {
+            if (zir_foreign_compiler_zx_link__VecElementType(module, &(type->name[0]), (void *)0, 0) != 0) {
                 compiler_zx_link_MarkAllFields(module, &(type->name[0]), uses);
             }
             if (t == range_last_0) {
@@ -1627,7 +1717,7 @@ compiler_zx_link_RewriteRecordBody(FieldUse* use, uint8_t* body, size_t size)
     size_t offset = 0;
     ZirTypeField field = {0};
     int32_t index = 0;
-    while (zir_f_a880a0694b9f00fc_TypeNextField(use->type, &(offset), &(field)) == 1) {
+    while (zir_foreign_compiler_zx_link__TypeNextField(use->type, &(offset), &(field)) == 1) {
         if (use->fields[index] != 0) {
             uint8_t* value_1 = (void *)0;
             if (field.is_using != 0) {
@@ -1661,7 +1751,7 @@ compiler_zx_link_RewriteRecordBody(FieldUse* use, uint8_t* body, size_t size)
                 String s = value_11;
                 value_12 = ((StaticText*)(&(s)))->data;
             }
-            int32_t written = zir_f_a880a0694b9f00fc_snprintf(value_8, value_10, value_12, prefix, &(field.name[0]), &(field.type[0]));
+            int32_t written = zir_foreign_compiler_zx_link__snprintf(value_8, value_10, value_12, prefix, &(field.name[0]), &(field.type[0]));
             if (written < 0 || (size_t)(written) >= size - length) {
                 return false;
             }
@@ -1677,9 +1767,9 @@ compiler_zx_link_RewriteRecordBody(FieldUse* use, uint8_t* body, size_t size)
             String s = value_15;
             value_16 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_a880a0694b9f00fc_strcpy(value_14, value_16);
+        zir_foreign_compiler_zx_link__strcpy(value_14, value_16);
     }
-    zir_f_a880a0694b9f00fc_strcpy(&(use->type->body[0]), body);
+    zir_foreign_compiler_zx_link__strcpy(&(use->type->body[0]), body);
     return true;
 }
 
@@ -1693,7 +1783,7 @@ compiler_zx_link_FreeFieldUses(FieldUses* uses)
         if (i <= range_last_0) for (;;) {
             FieldUse* use = &(uses->items[i]);
             if (use->shared == 0) {
-                zir_f_a880a0694b9f00fc_free(use->fields);
+                zir_foreign_compiler_zx_link__free(use->fields);
             }
             if (i == range_last_0) {
                 break;
@@ -1743,7 +1833,7 @@ compiler_zx_link_PruneRecordFields(ZirProgram* program, uint8_t* entry_module, u
         }
         value_8 = value_10;
     }
-    uint8_t* value_11 = zir_f_a880a0694b9f00fc_calloc(value_8, sizeof(FieldUse));
+    uint8_t* value_11 = zir_foreign_compiler_zx_link__calloc(value_8, sizeof(FieldUse));
     (*value_6) = (FieldUse*)(value_11);
     if (uses.items == ((void *)0)) {
         return false;
@@ -1760,14 +1850,14 @@ compiler_zx_link_PruneRecordFields(ZirProgram* program, uint8_t* entry_module, u
         }
         value_13 = value_15;
     }
-    uint8_t* value_16 = zir_f_a880a0694b9f00fc_calloc(value_13, sizeof(void *));
+    uint8_t* value_16 = zir_foreign_compiler_zx_link__calloc(value_13, sizeof(void *));
     ZirModule** owners = (ZirModule**)(value_16);
     if (owners == ((void *)0)) {
-        zir_f_a880a0694b9f00fc_free((uint8_t*)(uses.items));
+        zir_foreign_compiler_zx_link__free((uint8_t*)(uses.items));
         return false;
     }
     size_t body_size = 4096 * 2;
-    uint8_t* value_17 = zir_f_a880a0694b9f00fc_AllocateOrExit(body_size);
+    uint8_t* value_17 = zir_foreign_compiler_zx_link__AllocateOrExit(body_size);
     uint8_t* body = (uint8_t*)(value_17);
     bool ok = compiler_zx_link_StartFieldUses(program, &(uses), owners);
     if (ok) {
@@ -1815,11 +1905,906 @@ compiler_zx_link_PruneRecordFields(ZirProgram* program, uint8_t* entry_module, u
             }
         }
     }
-    zir_f_a880a0694b9f00fc_free(body);
+    zir_foreign_compiler_zx_link__free(body);
     compiler_zx_link_FreeFieldUses(&(uses));
-    zir_f_a880a0694b9f00fc_free((uint8_t*)(owners));
-    zir_f_a880a0694b9f00fc_free((uint8_t*)(uses.items));
+    zir_foreign_compiler_zx_link__free((uint8_t*)(owners));
+    zir_foreign_compiler_zx_link__free((uint8_t*)(uses.items));
     return ok;
+}
+
+int64_t
+compiler_zx_link_SlotReference(ZirModule* module, ZirExpr* expression, Slice slots)
+{
+    if (((ZirExprKind)(expression->kind)) != ((ZirExprKind)(1)) || expression->is_global_value == 0) {
+        return -1LL;
+    }
+    ZirModule* owner = (void *)0;
+    ZirGlobal* global = (void *)0;
+    uint8_t* value_0 = (uint8_t*)expression->name;
+    if (zir_foreign_compiler_zx_link__ResolveGlobalAt(module, value_0, zir_foreign_compiler_zx_link__SpanPath(expression->span), &(owner), &(global)) != 1) {
+        return -1LL;
+    }
+    for (int64_t index = 0LL; index < (int64_t)(slots).length; index++) {
+        UnwrittenSlot slot = ((UnwrittenSlot *)slots.data)[index];
+        if (slot.owner == owner && slot.global == global) {
+            return index;
+        }
+    }
+    return -1LL;
+}
+
+void
+compiler_zx_link_MarkSlotDestination(ZirModule* module, ZirFunction* function, int32_t root, Slice slots, int32_t depth)
+{
+    if (root < 0 || root >= function->expr_count || depth > 128) {
+        return;
+    }
+    ZirExpr* value_0 = (void *)0;
+    {
+        ZirFunction* fn = function;
+        int32_t index = root;
+        value_0 = &(fn->exprs[index]);
+    }
+    ZirExpr* expression = value_0;
+    int64_t index = compiler_zx_link_SlotReference(module, expression, slots);
+    if (index >= 0LL) {
+        bool* value_2 = &((((UnwrittenSlot *)slots.data)[index]).mutable);
+        (*value_2) = true;
+    }
+    compiler_zx_link_MarkSlotDestination(module, function, expression->left, slots, (int32_t)((uint32_t)depth + 1u));
+    compiler_zx_link_MarkSlotDestination(module, function, expression->right, slots, (int32_t)((uint32_t)depth + 1u));
+    compiler_zx_link_MarkSlotDestination(module, function, expression->third, slots, (int32_t)((uint32_t)depth + 1u));
+}
+
+bool
+compiler_zx_link_FoldUnwrittenGlobals(ZirProgram* program)
+{
+    __type_b2d06830c77bfbfb slots = {0};
+    __type_b2d06830c77bfbfb* value_0 = &slots;
+    {
+        int32_t range_first_1 = 0;
+        int32_t range_last_1 = (int32_t)((uint32_t)(program->module_count) - 1u);
+        int32_t m = range_first_1;
+        if (m <= range_last_1) for (;;) {
+            ZirProgram* value_1 = program;
+            ZirModule* value_2 = (void *)0;
+            {
+                ZirProgram* program = value_1;
+                int32_t index = m;
+                value_2 = &(program->modules[index]);
+            }
+            ZirModule* module = value_2;
+            {
+                int32_t range_first_3 = 0;
+                int32_t range_last_3 = (int32_t)((uint32_t)(module->global_count) - 1u);
+                int32_t g = range_first_3;
+                if (g <= range_last_3) for (;;) {
+                    ZirModule* value_4 = module;
+                    ZirGlobal* value_5 = (void *)0;
+                    {
+                        ZirModule* module = value_4;
+                        int32_t index = g;
+                        value_5 = &(module->globals[index]);
+                    }
+                    ZirGlobal* global = value_5;
+                    String value_7 = StringLiteral("bool");
+                    uint8_t* value_8 = (void *)0;
+                    {
+                        String s = value_7;
+                        value_8 = ((StaticText*)(&(s)))->data;
+                    }
+                    bool boolean = compiler_zx_link_Same(&(global->type[0]), value_8);
+                    bool value_10 = ((uint8_t*)global->init) == ((void *)0) || global->init[0] == 0;
+                    bool value_11 = value_10;
+                    if (!value_11) {
+                        uint8_t* value_12 = (uint8_t*)global->init;
+                        uint8_t* value_13 = (void *)0;
+                        if (boolean) {
+                            String value_14 = StringLiteral("false");
+                            uint8_t* value_15 = (void *)0;
+                            {
+                                String s = value_14;
+                                value_15 = ((StaticText*)(&(s)))->data;
+                            }
+                            value_13 = value_15;
+                        } else {
+                            String value_17 = StringLiteral("null");
+                            uint8_t* value_18 = (void *)0;
+                            {
+                                String s = value_17;
+                                value_18 = ((StaticText*)(&(s)))->data;
+                            }
+                            value_13 = value_18;
+                        }
+                        bool value_20 = compiler_zx_link_Same(value_12, value_13);
+                        value_11 = value_20;
+                    }
+                    bool zero = value_11;
+                    if (!zero) {
+                        if (g == range_last_3) {
+                            break;
+                        }
+                        g = (int32_t)((uint32_t)g + 1u);
+                        continue;
+                    }
+                    ZirType* type = zir_foreign_compiler_zx_link__FindType(module, &(global->type[0]), (void *)0);
+                    if (boolean || (type != ((void *)0) && type->is_procedure_type != 0)) {
+                        UnwrittenSlot value_21 = (UnwrittenSlot){.owner = module, .global = global, .boolean = boolean};
+                        bool value_22 = false;
+                        void *value_23 = ZirVecGrow((void *)(slots).data, &(slots).capacity, (slots).count, sizeof(*(slots).data));
+                        if (value_23 != NULL) {
+                            (slots).data = (UnwrittenSlot *)value_23;
+                            (slots).data[(slots).count++] = value_21;
+                            value_22 = true;
+                        }
+                        if (!value_22) {
+                            bool cleanup_return_0 = false;
+                            free((slots).data);
+                            (slots).data = NULL;
+                            slots.capacity = 0;
+                            slots.count = 0;
+                            bool value_24 = cleanup_return_0;
+                            free((*value_0).data);
+                            (*value_0).data = NULL;
+                            (*value_0).capacity = 0;
+                            (*value_0).count = 0;
+                            return value_24;
+                        }
+                    }
+                    if (g == range_last_3) {
+                        break;
+                    }
+                    g = (int32_t)((uint32_t)g + 1u);
+                }
+            }
+            if (m == range_last_1) {
+                break;
+            }
+            m = (int32_t)((uint32_t)m + 1u);
+        }
+    }
+    if (slots.count == 0LL) {
+        bool cleanup_return_1 = false;
+        free((slots).data);
+        (slots).data = NULL;
+        slots.capacity = 0;
+        slots.count = 0;
+        bool value_25 = cleanup_return_1;
+        free((*value_0).data);
+        (*value_0).data = NULL;
+        (*value_0).capacity = 0;
+        (*value_0).count = 0;
+        return value_25;
+    }
+    {
+        int32_t range_first_25 = 0;
+        int32_t range_last_25 = (int32_t)((uint32_t)(program->module_count) - 1u);
+        int32_t m = range_first_25;
+        if (m <= range_last_25) for (;;) {
+            ZirProgram* value_26 = program;
+            ZirModule* value_27 = (void *)0;
+            {
+                ZirProgram* program = value_26;
+                int32_t index = m;
+                value_27 = &(program->modules[index]);
+            }
+            ZirModule* module = value_27;
+            {
+                int32_t range_first_27 = 0;
+                int32_t range_last_27 = (int32_t)((uint32_t)(module->global_count) - 1u);
+                int32_t g = range_first_27;
+                if (g <= range_last_27) for (;;) {
+                    ZirModule* value_29 = module;
+                    ZirGlobal* value_30 = (void *)0;
+                    {
+                        ZirModule* module = value_29;
+                        int32_t index = g;
+                        value_30 = &(module->globals[index]);
+                    }
+                    ZirGlobal* global = value_30;
+                    if (((uint8_t*)global->init) == ((void *)0)) {
+                        if (g == range_last_27) {
+                            break;
+                        }
+                        g = (int32_t)((uint32_t)g + 1u);
+                        continue;
+                    }
+                    {
+                        int64_t range_first_32 = 0LL;
+                        int64_t range_last_32 = (int64_t)((uint64_t)(slots.count) - UINT64_C(1));
+                        int64_t index = range_first_32;
+                        if (index <= range_last_32) for (;;) {
+                            if (compiler_zx_link_MentionsIdentifier((uint8_t*)global->init, &(((((slots).data[index]).global)->name)[0]))) {
+                                bool* value_32 = &((ZIRAN_VEC_INDEX((slots).data, (slots).count, index)).mutable);
+                                (*value_32) = true;
+                            }
+                            if (index == range_last_32) {
+                                break;
+                            }
+                            index = (int64_t)((uint64_t)index + UINT64_C(1));
+                        }
+                    }
+                    if (g == range_last_27) {
+                        break;
+                    }
+                    g = (int32_t)((uint32_t)g + 1u);
+                }
+            }
+            {
+                int32_t range_first_38 = 0;
+                int32_t range_last_38 = (int32_t)((uint32_t)(module->function_count) - 1u);
+                int32_t f = range_first_38;
+                if (f <= range_last_38) for (;;) {
+                    ZirModule* value_33 = module;
+                    ZirFunction* value_34 = (void *)0;
+                    {
+                        ZirModule* module = value_33;
+                        int32_t index = f;
+                        value_34 = &(module->functions[index]);
+                    }
+                    ZirFunction* function = value_34;
+                    if (((uint8_t*)function->assembly_text) != ((void *)0) && function->assembly_text[0] != 0) {
+                        bool cleanup_return_2 = false;
+                        free((slots).data);
+                        (slots).data = NULL;
+                        slots.capacity = 0;
+                        slots.count = 0;
+                        bool value_36 = cleanup_return_2;
+                        free((*value_0).data);
+                        (*value_0).data = NULL;
+                        (*value_0).capacity = 0;
+                        (*value_0).count = 0;
+                        return value_36;
+                    }
+                    {
+                        int32_t range_first_45 = 0;
+                        int32_t range_last_45 = (int32_t)((uint32_t)(function->stmt_count) - 1u);
+                        int32_t st = range_first_45;
+                        if (st <= range_last_45) for (;;) {
+                            ZirStmt* value_37 = (void *)0;
+                            {
+                                ZirFunction* fn = function;
+                                int32_t index = st;
+                                value_37 = &(fn->stmts[index]);
+                            }
+                            ZirStmt* statement = value_37;
+                            bool value_39 = ((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(1)) && ((uint8_t*)statement->names.assembly_text) != ((void *)0);
+                            if (value_39 && statement->names.assembly_text[0] != 0) {
+                                bool cleanup_return_3 = false;
+                                free((slots).data);
+                                (slots).data = NULL;
+                                slots.capacity = 0;
+                                slots.count = 0;
+                                bool value_40 = cleanup_return_3;
+                                free((*value_0).data);
+                                (*value_0).data = NULL;
+                                (*value_0).capacity = 0;
+                                (*value_0).count = 0;
+                                return value_40;
+                            }
+                            ZirModule* value_41 = module;
+                            ZirFunction* value_42 = function;
+                            int32_t value_43 = statement->lhs_root;
+                            Slice value_44 = {(slots).data, (slots).count};
+                            compiler_zx_link_MarkSlotDestination(value_41, value_42, value_43, SliceRangeAt(value_44, 0LL, slots.count, sizeof(*(slots).data)), 0);
+                            if (st == range_last_45) {
+                                break;
+                            }
+                            st = (int32_t)((uint32_t)st + 1u);
+                        }
+                    }
+                    {
+                        int32_t range_first_54 = 0;
+                        int32_t range_last_54 = (int32_t)((uint32_t)(function->expr_count) - 1u);
+                        int32_t e = range_first_54;
+                        if (e <= range_last_54) for (;;) {
+                            ZirExpr* value_45 = (void *)0;
+                            {
+                                ZirFunction* fn = function;
+                                int32_t index = e;
+                                value_45 = &(fn->exprs[index]);
+                            }
+                            ZirExpr* expression = value_45;
+                            bool value_47 = ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(7));
+                            bool value_48 = value_47;
+                            if (value_48) {
+                                String value_49 = StringLiteral("&");
+                                uint8_t* value_50 = (void *)0;
+                                {
+                                    String s = value_49;
+                                    value_50 = ((StaticText*)(&(s)))->data;
+                                }
+                                bool value_52 = compiler_zx_link_Same(&(expression->op[0]), value_50);
+                                value_48 = value_52;
+                            }
+                            if (value_48) {
+                                ZirModule* value_53 = module;
+                                ZirFunction* value_54 = function;
+                                int32_t value_55 = expression->right;
+                                Slice value_56 = {(slots).data, (slots).count};
+                                compiler_zx_link_MarkSlotDestination(value_53, value_54, value_55, SliceRangeAt(value_56, 0LL, slots.count, sizeof(*(slots).data)), 0);
+                            }
+                            if (e == range_last_54) {
+                                break;
+                            }
+                            e = (int32_t)((uint32_t)e + 1u);
+                        }
+                    }
+                    if (f == range_last_38) {
+                        break;
+                    }
+                    f = (int32_t)((uint32_t)f + 1u);
+                }
+            }
+            if (m == range_last_25) {
+                break;
+            }
+            m = (int32_t)((uint32_t)m + 1u);
+        }
+    }
+    bool changed = false;
+    {
+        int32_t range_first_63 = 0;
+        int32_t range_last_63 = (int32_t)((uint32_t)(program->module_count) - 1u);
+        int32_t m = range_first_63;
+        if (m <= range_last_63) for (;;) {
+            ZirProgram* value_57 = program;
+            ZirModule* value_58 = (void *)0;
+            {
+                ZirProgram* program = value_57;
+                int32_t index = m;
+                value_58 = &(program->modules[index]);
+            }
+            ZirModule* module = value_58;
+            {
+                int32_t range_first_65 = 0;
+                int32_t range_last_65 = (int32_t)((uint32_t)(module->function_count) - 1u);
+                int32_t f = range_first_65;
+                if (f <= range_last_65) for (;;) {
+                    ZirModule* value_60 = module;
+                    ZirFunction* value_61 = (void *)0;
+                    {
+                        ZirModule* module = value_60;
+                        int32_t index = f;
+                        value_61 = &(module->functions[index]);
+                    }
+                    ZirFunction* function = value_61;
+                    {
+                        int32_t range_first_67 = 0;
+                        int32_t range_last_67 = (int32_t)((uint32_t)(function->expr_count) - 1u);
+                        int32_t e = range_first_67;
+                        if (e <= range_last_67) for (;;) {
+                            ZirExpr* value_63 = (void *)0;
+                            {
+                                ZirFunction* fn = function;
+                                int32_t index = e;
+                                value_63 = &(fn->exprs[index]);
+                            }
+                            ZirExpr* expression = value_63;
+                            ZirModule* value_65 = module;
+                            ZirExpr* value_66 = expression;
+                            Slice value_67 = {(slots).data, (slots).count};
+                            int64_t direct = compiler_zx_link_SlotReference(value_65, value_66, SliceRangeAt(value_67, 0LL, slots.count, sizeof(*(slots).data)));
+                            if (direct >= 0LL && ((slots).data[direct]).boolean && !((slots).data[direct]).mutable) {
+                                const char ** value_68 = &(expression->name);
+                                String value_69 = StringLiteral("false");
+                                uint8_t* value_70 = (void *)0;
+                                {
+                                    String s = value_69;
+                                    value_70 = ((StaticText*)(&(s)))->data;
+                                }
+                                uint8_t* value_72 = zir_foreign_compiler_zx_link__KeepName(value_70);
+                                (*value_68) = (const char *)(value_72);
+                                const char ** value_73 = &(expression->text);
+                                (*value_73) = (const char *)(((uint8_t*)expression->name));
+                                int32_t* value_74 = &(expression->is_global_value);
+                                (*value_74) = 0;
+                                changed = true;
+                                if (e == range_last_67) {
+                                    break;
+                                }
+                                e = (int32_t)((uint32_t)e + 1u);
+                                continue;
+                            }
+                            bool value_75 = ((ZirExprKind)(expression->kind)) != ((ZirExprKind)(6));
+                            bool value_76 = value_75;
+                            if (!value_76) {
+                                String value_77 = StringLiteral("==");
+                                uint8_t* value_78 = (void *)0;
+                                {
+                                    String s = value_77;
+                                    value_78 = ((StaticText*)(&(s)))->data;
+                                }
+                                bool value_80 = compiler_zx_link_Same(&(expression->op[0]), value_78);
+                                bool value_81 = !value_80;
+                                if (value_81) {
+                                    String value_82 = StringLiteral("!=");
+                                    uint8_t* value_83 = (void *)0;
+                                    {
+                                        String s = value_82;
+                                        value_83 = ((StaticText*)(&(s)))->data;
+                                    }
+                                    bool value_85 = compiler_zx_link_Same(&(expression->op[0]), value_83);
+                                    value_81 = !value_85;
+                                }
+                                value_76 = value_81;
+                            }
+                            if (value_76) {
+                                if (e == range_last_67) {
+                                    break;
+                                }
+                                e = (int32_t)((uint32_t)e + 1u);
+                                continue;
+                            }
+                            int32_t value_86 = expression->left;
+                            ZirExpr* value_87 = (void *)0;
+                            {
+                                ZirFunction* fn = function;
+                                int32_t index = value_86;
+                                value_87 = &(fn->exprs[index]);
+                            }
+                            ZirExpr* left = value_87;
+                            int32_t value_89 = expression->right;
+                            ZirExpr* value_90 = (void *)0;
+                            {
+                                ZirFunction* fn = function;
+                                int32_t index = value_89;
+                                value_90 = &(fn->exprs[index]);
+                            }
+                            ZirExpr* right = value_90;
+                            int64_t index = -1LL;
+                            bool value_92 = ((ZirExprKind)(left->kind)) == ((ZirExprKind)(1));
+                            bool value_93 = value_92;
+                            if (value_93) {
+                                uint8_t* value_94 = (uint8_t*)left->name;
+                                String value_95 = StringLiteral("null");
+                                uint8_t* value_96 = (void *)0;
+                                {
+                                    String s = value_95;
+                                    value_96 = ((StaticText*)(&(s)))->data;
+                                }
+                                bool value_98 = compiler_zx_link_Same(value_94, value_96);
+                                value_93 = value_98;
+                            }
+                            if (value_93) {
+                                ZirModule* value_99 = module;
+                                ZirExpr* value_100 = right;
+                                Slice value_101 = {(slots).data, (slots).count};
+                                index = compiler_zx_link_SlotReference(value_99, value_100, SliceRangeAt(value_101, 0LL, slots.count, sizeof(*(slots).data)));
+                            }
+                            bool value_102 = ((ZirExprKind)(right->kind)) == ((ZirExprKind)(1));
+                            bool value_103 = value_102;
+                            if (value_103) {
+                                uint8_t* value_104 = (uint8_t*)right->name;
+                                String value_105 = StringLiteral("null");
+                                uint8_t* value_106 = (void *)0;
+                                {
+                                    String s = value_105;
+                                    value_106 = ((StaticText*)(&(s)))->data;
+                                }
+                                bool value_108 = compiler_zx_link_Same(value_104, value_106);
+                                value_103 = value_108;
+                            }
+                            if (value_103) {
+                                ZirModule* value_109 = module;
+                                ZirExpr* value_110 = left;
+                                Slice value_111 = {(slots).data, (slots).count};
+                                index = compiler_zx_link_SlotReference(value_109, value_110, SliceRangeAt(value_111, 0LL, slots.count, sizeof(*(slots).data)));
+                            }
+                            if (index < 0LL || ((slots).data[index]).mutable) {
+                                if (e == range_last_67) {
+                                    break;
+                                }
+                                e = (int32_t)((uint32_t)e + 1u);
+                                continue;
+                            }
+                            String value_112 = StringLiteral("==");
+                            uint8_t* value_113 = (void *)0;
+                            {
+                                String s = value_112;
+                                value_113 = ((StaticText*)(&(s)))->data;
+                            }
+                            bool equal = compiler_zx_link_Same(&(expression->op[0]), value_113);
+                            ZirExprKind* value_115 = &(expression->kind);
+                            (*value_115) = (ZirExprKind)(1);
+                            const char ** value_116 = &(expression->name);
+                            uint8_t* value_117 = (void *)0;
+                            if (equal) {
+                                String value_118 = StringLiteral("true");
+                                uint8_t* value_119 = (void *)0;
+                                {
+                                    String s = value_118;
+                                    value_119 = ((StaticText*)(&(s)))->data;
+                                }
+                                value_117 = value_119;
+                            } else {
+                                String value_121 = StringLiteral("false");
+                                uint8_t* value_122 = (void *)0;
+                                {
+                                    String s = value_121;
+                                    value_122 = ((StaticText*)(&(s)))->data;
+                                }
+                                value_117 = value_122;
+                            }
+                            uint8_t* value_124 = zir_foreign_compiler_zx_link__KeepName(value_117);
+                            (*value_116) = (const char *)(value_124);
+                            const char ** value_125 = &(expression->text);
+                            (*value_125) = (const char *)(((uint8_t*)expression->name));
+                            int32_t* value_126 = &(expression->left);
+                            (*value_126) = -1;
+                            int32_t* value_127 = &(expression->right);
+                            (*value_127) = -1;
+                            int32_t* value_128 = &(expression->third);
+                            (*value_128) = -1;
+                            int32_t* value_129 = &(expression->first_child);
+                            (*value_129) = -1;
+                            uint8_t* value_130 = &(expression->op[0]);
+                            (*value_130) = 0;
+                            int32_t* value_131 = &(expression->is_global_value);
+                            (*value_131) = 0;
+                            changed = true;
+                            if (e == range_last_67) {
+                                break;
+                            }
+                            e = (int32_t)((uint32_t)e + 1u);
+                        }
+                    }
+                    if (f == range_last_65) {
+                        break;
+                    }
+                    f = (int32_t)((uint32_t)f + 1u);
+                }
+            }
+            if (m == range_last_63) {
+                break;
+            }
+            m = (int32_t)((uint32_t)m + 1u);
+        }
+    }
+    bool cleanup_return_4 = changed;
+    free((slots).data);
+    (slots).data = NULL;
+    slots.capacity = 0;
+    slots.count = 0;
+    bool value_132 = cleanup_return_4;
+    free((*value_0).data);
+    (*value_0).data = NULL;
+    (*value_0).capacity = 0;
+    (*value_0).count = 0;
+    return value_132;
+}
+
+bool
+compiler_zx_link_SafeDiscard(ZirFunction* function, int32_t root, int32_t depth)
+{
+    if (root < 0) {
+        return true;
+    }
+    if (root >= function->expr_count || depth > 128) {
+        return false;
+    }
+    ZirExpr* value_0 = (void *)0;
+    {
+        ZirFunction* fn = function;
+        int32_t index = root;
+        value_0 = &(fn->exprs[index]);
+    }
+    ZirExpr* expression = value_0;
+    ZirExprKind kind = (ZirExprKind)(expression->kind);
+    bool value_2 = kind != ((ZirExprKind)(1)) && kind != ((ZirExprKind)(2)) && kind != ((ZirExprKind)(3)) && kind != ((ZirExprKind)(4));
+    if (value_2 && kind != ((ZirExprKind)(8)) && kind != ((ZirExprKind)(12)) && kind != ((ZirExprKind)(15))) {
+        return false;
+    }
+    bool value_3 = compiler_zx_link_SafeDiscard(function, expression->left, (int32_t)((uint32_t)depth + 1u));
+    bool value_4 = !value_3;
+    if (!value_4) {
+        bool value_5 = compiler_zx_link_SafeDiscard(function, expression->right, (int32_t)((uint32_t)depth + 1u));
+        value_4 = !value_5;
+    }
+    bool value_6 = value_4;
+    if (!value_6) {
+        bool value_7 = compiler_zx_link_SafeDiscard(function, expression->third, (int32_t)((uint32_t)depth + 1u));
+        value_6 = !value_7;
+    }
+    if (value_6) {
+        return false;
+    }
+    int32_t child = expression->first_child;
+    while (child >= 0) {
+        bool value_8 = compiler_zx_link_SafeDiscard(function, child, (int32_t)((uint32_t)depth + 1u));
+        if (!value_8) {
+            return false;
+        }
+        ZirExpr* value_9 = (void *)0;
+        {
+            ZirFunction* fn = function;
+            int32_t index = child;
+            value_9 = &(fn->exprs[index]);
+        }
+        child = value_9->next_sibling;
+    }
+    return true;
+}
+
+bool
+compiler_zx_link_LiteralResult(ZirFunction* function, ZirExpr** result)
+{
+    ZirExpr** value_0 = &((*(result)));
+    (*value_0) = (void *)0;
+    if (function->is_extern != 0 || function->is_template != 0 || (((uint8_t*)function->assembly_text) != ((void *)0) && function->assembly_text[0] != 0)) {
+        return false;
+    }
+    {
+        int32_t range_first_4 = 0;
+        int32_t range_last_4 = (int32_t)((uint32_t)(function->stmt_count) - 1u);
+        int32_t st = range_first_4;
+        if (st <= range_last_4) for (;;) {
+            ZirStmt* value_1 = (void *)0;
+            {
+                ZirFunction* fn = function;
+                int32_t index = st;
+                value_1 = &(fn->stmts[index]);
+            }
+            ZirStmt* statement = value_1;
+            if (((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(2))) {
+                if (st == range_last_4) {
+                    break;
+                }
+                st = (int32_t)((uint32_t)st + 1u);
+                continue;
+            }
+            if (((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(1)) && (((uint8_t*)statement->names.assembly_text) == ((void *)0) || statement->names.assembly_text[0] == 0)) {
+                if (st == range_last_4) {
+                    break;
+                }
+                st = (int32_t)((uint32_t)st + 1u);
+                continue;
+            }
+            bool value_3 = ((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(14));
+            if (value_3 && compiler_zx_link_SafeDiscard(function, statement->expr_root, 0)) {
+                if (st == range_last_4) {
+                    break;
+                }
+                st = (int32_t)((uint32_t)st + 1u);
+                continue;
+            }
+            if (((ZirStmtKind)(statement->kind)) != ((ZirStmtKind)(10))) {
+                return false;
+            }
+            if (statement->expr_root < 0) {
+                return true;
+            }
+            int32_t value_4 = statement->expr_root;
+            ZirExpr* value_5 = (void *)0;
+            {
+                ZirFunction* fn = function;
+                int32_t index = value_4;
+                value_5 = &(fn->exprs[index]);
+            }
+            ZirExpr* value = value_5;
+            bool value_7 = ((ZirExprKind)(value->kind)) == ((ZirExprKind)(2)) || ((ZirExprKind)(value->kind)) == ((ZirExprKind)(3));
+            bool value_8 = value_7;
+            bool value_9 = value_8;
+            if (!value_9) {
+                bool value_10 = ((ZirExprKind)(value->kind)) == ((ZirExprKind)(1));
+                bool value_11 = value_10;
+                if (value_11) {
+                    uint8_t* value_12 = (uint8_t*)value->name;
+                    String value_13 = StringLiteral("true");
+                    uint8_t* value_14 = (void *)0;
+                    {
+                        String s = value_13;
+                        value_14 = ((StaticText*)(&(s)))->data;
+                    }
+                    bool value_16 = compiler_zx_link_Same(value_12, value_14);
+                    bool value_17 = value_16;
+                    if (!value_17) {
+                        uint8_t* value_18 = (uint8_t*)value->name;
+                        String value_19 = StringLiteral("false");
+                        uint8_t* value_20 = (void *)0;
+                        {
+                            String s = value_19;
+                            value_20 = ((StaticText*)(&(s)))->data;
+                        }
+                        bool value_22 = compiler_zx_link_Same(value_18, value_20);
+                        value_17 = value_22;
+                    }
+                    value_11 = value_17;
+                }
+                value_9 = value_11;
+            }
+            bool literal = value_9;
+            if (!literal) {
+                return false;
+            }
+            ZirExpr** value_23 = &((*(result)));
+            (*value_23) = value;
+            return true;
+        }
+    }
+    String value_24 = StringLiteral("void");
+    uint8_t* value_25 = (void *)0;
+    {
+        String s = value_24;
+        value_25 = ((StaticText*)(&(s)))->data;
+    }
+    bool value_27 = compiler_zx_link_Same(&(function->return_type[0]), value_25);
+    return value_27 || (function->return_type)[0] == 0;
+}
+
+bool
+compiler_zx_link_FoldTrivialCalls(ZirProgram* program)
+{
+    bool changed = false;
+    {
+        int32_t range_first_1 = 0;
+        int32_t range_last_1 = (int32_t)((uint32_t)(program->module_count) - 1u);
+        int32_t m = range_first_1;
+        if (m <= range_last_1) for (;;) {
+            ZirProgram* value_0 = program;
+            ZirModule* value_1 = (void *)0;
+            {
+                ZirProgram* program = value_0;
+                int32_t index = m;
+                value_1 = &(program->modules[index]);
+            }
+            ZirModule* module = value_1;
+            {
+                int32_t range_first_3 = 0;
+                int32_t range_last_3 = (int32_t)((uint32_t)(module->function_count) - 1u);
+                int32_t f = range_first_3;
+                if (f <= range_last_3) for (;;) {
+                    ZirModule* value_3 = module;
+                    ZirFunction* value_4 = (void *)0;
+                    {
+                        ZirModule* module = value_3;
+                        int32_t index = f;
+                        value_4 = &(module->functions[index]);
+                    }
+                    ZirFunction* function = value_4;
+                    {
+                        int32_t range_first_5 = 0;
+                        int32_t range_last_5 = (int32_t)((uint32_t)(function->expr_count) - 1u);
+                        int32_t e = range_first_5;
+                        if (e <= range_last_5) for (;;) {
+                            ZirExpr* value_6 = (void *)0;
+                            {
+                                ZirFunction* fn = function;
+                                int32_t index = e;
+                                value_6 = &(fn->exprs[index]);
+                            }
+                            ZirExpr* call = value_6;
+                            if (((ZirExprKind)(call->kind)) != ((ZirExprKind)(5)) || call->slot_type[0] != 0) {
+                                if (e == range_last_5) {
+                                    break;
+                                }
+                                e = (int32_t)((uint32_t)e + 1u);
+                                continue;
+                            }
+                            ZirModule* owner = (void *)0;
+                            ZirFunction* callee = (void *)0;
+                            bool value_8 = zir_foreign_compiler_zx_link__ResolveFunction(module, (uint8_t*)call->name, &(owner), &(callee)) != 1;
+                            if (value_8 || callee == function) {
+                                if (e == range_last_5) {
+                                    break;
+                                }
+                                e = (int32_t)((uint32_t)e + 1u);
+                                continue;
+                            }
+                            ZirExpr* value = (void *)0;
+                            bool value_9 = compiler_zx_link_LiteralResult(callee, &(value));
+                            if (!value_9) {
+                                if (e == range_last_5) {
+                                    break;
+                                }
+                                e = (int32_t)((uint32_t)e + 1u);
+                                continue;
+                            }
+                            bool safe = true;
+                            int32_t child = call->first_child;
+                            while (child >= 0) {
+                                bool value_10 = compiler_zx_link_SafeDiscard(function, child, 0);
+                                if (!value_10) {
+                                    safe = false;
+                                    break;
+                                }
+                                ZirExpr* value_11 = (void *)0;
+                                {
+                                    ZirFunction* fn = function;
+                                    int32_t index = child;
+                                    value_11 = &(fn->exprs[index]);
+                                }
+                                child = value_11->next_sibling;
+                            }
+                            if (!safe) {
+                                if (e == range_last_5) {
+                                    break;
+                                }
+                                e = (int32_t)((uint32_t)e + 1u);
+                                continue;
+                            }
+                            if (value == ((void *)0)) {
+                                bool found = false;
+                                {
+                                    int32_t range_first_33 = 0;
+                                    int32_t range_last_33 = (int32_t)((uint32_t)(function->stmt_count) - 1u);
+                                    int32_t st = range_first_33;
+                                    if (st <= range_last_33) for (;;) {
+                                        ZirStmt* value_13 = (void *)0;
+                                        {
+                                            ZirFunction* fn = function;
+                                            int32_t index = st;
+                                            value_13 = &(fn->stmts[index]);
+                                        }
+                                        ZirStmt* statement = value_13;
+                                        if (((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(5)) && statement->expr_root == e) {
+                                            ZirStmtKind* value_15 = &(statement->kind);
+                                            (*value_15) = (ZirStmtKind)(14);
+                                            int32_t* value_16 = &(statement->expr_root);
+                                            (*value_16) = -1;
+                                            found = true;
+                                        }
+                                        if (st == range_last_33) {
+                                            break;
+                                        }
+                                        st = (int32_t)((uint32_t)st + 1u);
+                                    }
+                                }
+                                if (!found) {
+                                    if (e == range_last_5) {
+                                        break;
+                                    }
+                                    e = (int32_t)((uint32_t)e + 1u);
+                                    continue;
+                                }
+                            } else {
+                                ZirExprKind* value_17 = &(call->kind);
+                                (*value_17) = (ZirExprKind)(value->kind);
+                                const char ** value_18 = &(call->name);
+                                (*value_18) = (const char *)(((uint8_t*)value->name));
+                                const char ** value_19 = &(call->text);
+                                (*value_19) = (const char *)(((uint8_t*)value->text));
+                                int32_t* value_20 = &(call->is_global_value);
+                                (*value_20) = 0;
+                                int32_t* value_21 = &(call->is_function_value);
+                                (*value_21) = 0;
+                                const char ** value_22 = &(call->slot_type);
+                                String value_23 = StringLiteral("");
+                                uint8_t* value_24 = (void *)0;
+                                {
+                                    String s = value_23;
+                                    value_24 = ((StaticText*)(&(s)))->data;
+                                }
+                                (*value_22) = (const char *)(value_24);
+                                int32_t* value_26 = &(call->left);
+                                (*value_26) = -1;
+                                int32_t* value_27 = &(call->right);
+                                (*value_27) = -1;
+                                int32_t* value_28 = &(call->third);
+                                (*value_28) = -1;
+                                int32_t* value_29 = &(call->first_child);
+                                (*value_29) = -1;
+                            }
+                            changed = true;
+                            if (e == range_last_5) {
+                                break;
+                            }
+                            e = (int32_t)((uint32_t)e + 1u);
+                        }
+                    }
+                    if (f == range_last_3) {
+                        break;
+                    }
+                    f = (int32_t)((uint32_t)f + 1u);
+                }
+            }
+            if (m == range_last_1) {
+                break;
+            }
+            m = (int32_t)((uint32_t)m + 1u);
+        }
+    }
+    return changed;
 }
 
 void
@@ -1865,7 +2850,7 @@ compiler_zx_link_AnySet(uint8_t* flags, int32_t count)
 {
     bool value_0 = count > 0;
     if (value_0) {
-        uint8_t* value_1 = zir_f_a880a0694b9f00fc_memchr(flags, 1, (size_t)(count));
+        uint8_t* value_1 = zir_foreign_compiler_zx_link__memchr(flags, 1, (size_t)(count));
         value_0 = (value_1 != ((void *)0));
     }
     return value_0;
@@ -2045,16 +3030,16 @@ compiler_zx_link_MarkType(ZirProgram* program, ZirModule* scope, uint8_t* name, 
         }
         spelled = value_0;
     }
-    if (zir_f_a880a0694b9f00fc_SliceElementType(spelled, &(element[0]), 128) != 0) {
+    if (zir_foreign_compiler_zx_link__SliceElementType(spelled, &(element[0]), 128) != 0) {
         return compiler_zx_link_MarkType(program, scope, &(element[0]), keep_types, changed);
     }
-    if (zir_f_a880a0694b9f00fc_ArrayElementType(spelled, &(element[0]), 128, (void *)0) != 0) {
+    if (zir_foreign_compiler_zx_link__ArrayElementType(spelled, &(element[0]), 128, (void *)0) != 0) {
         return compiler_zx_link_MarkType(program, scope, &(element[0]), keep_types, changed);
     }
     ZirModule* owner = (void *)0;
-    ZirType* type = zir_f_a880a0694b9f00fc_FindType(scope, spelled, &(owner));
+    ZirType* type = zir_foreign_compiler_zx_link__FindType(scope, spelled, &(owner));
     bool value_2 = type != ((void *)0);
-    if (value_2 && type == zir_f_a880a0694b9f00fc_BuiltinType(spelled)) {
+    if (value_2 && type == zir_foreign_compiler_zx_link__BuiltinType(spelled)) {
         return true;
     }
     bool value_3 = type == ((void *)0);
@@ -2075,11 +3060,11 @@ compiler_zx_link_GoRejectsType(ZirModule* scope, uint8_t* name)
         }
         spelled = value_0;
     }
-    bool value_2 = zir_f_a880a0694b9f00fc_SliceElementType(spelled, &(element[0]), 128) != 0;
-    if (value_2 || zir_f_a880a0694b9f00fc_ArrayElementType(spelled, &(element[0]), 128, (void *)0) != 0) {
+    bool value_2 = zir_foreign_compiler_zx_link__SliceElementType(spelled, &(element[0]), 128) != 0;
+    if (value_2 || zir_foreign_compiler_zx_link__ArrayElementType(spelled, &(element[0]), 128, (void *)0) != 0) {
         return compiler_zx_link_GoRejectsType(scope, &(element[0]));
     }
-    ZirType* type = zir_f_a880a0694b9f00fc_FindType(scope, spelled, (void *)0);
+    ZirType* type = zir_foreign_compiler_zx_link__FindType(scope, spelled, (void *)0);
     bool value_3 = type != ((void *)0) && type->is_procedure_type != 0;
     bool value_4 = value_3;
     if (value_4) {
@@ -2089,7 +3074,7 @@ compiler_zx_link_GoRejectsType(ZirModule* scope, uint8_t* name)
             String s = value_5;
             value_6 = ((StaticText*)(&(s)))->data;
         }
-        bool value_8 = zir_f_a880a0694b9f00fc_TargetProcedureTypeSupported(value_6, type->is_c_call) == 0;
+        bool value_8 = zir_foreign_compiler_zx_link__TargetProcedureTypeSupported(value_6, type->is_c_call) == 0;
         value_4 = value_8;
     }
     return value_4;
@@ -2118,7 +3103,7 @@ compiler_zx_link_GoExportRoot(ZirModule* module, ZirFunction* function)
         }
         value_0 = value_2;
     }
-    Parameters* parameters = zir_f_a880a0694b9f00fc_ParametersOf(value_0);
+    Parameters* parameters = zir_foreign_compiler_zx_link__ParametersOf(value_0);
     {
         int32_t range_first_4 = 0;
         int32_t range_last_4 = (int32_t)((uint32_t)(parameters->count) - 1u);
@@ -2167,7 +3152,7 @@ compiler_zx_link_MarkParameters(ZirProgram* program, ZirModule* module, ZirFunct
     }
     uint8_t* cursor = value_0;
     while (cursor[0] != 0) {
-        uint8_t* colon = zir_f_a880a0694b9f00fc_strchr(cursor, 58);
+        uint8_t* colon = zir_foreign_compiler_zx_link__strchr(cursor, 58);
         if (colon == ((void *)0)) {
             return false;
         }
@@ -2276,7 +3261,7 @@ compiler_zx_link_MarkParameters(ZirProgram* program, ZirModule* module, ZirFunct
         if (value_33) {
             return false;
         }
-        cursor = zir_f_a880a0694b9f00fc_strchr(cursor, 44);
+        cursor = zir_foreign_compiler_zx_link__strchr(cursor, 44);
         if (cursor == ((void *)0)) {
             break;
         }
@@ -2297,7 +3282,7 @@ compiler_zx_link_MarkProofFunction(ZirProgram* program, ZirModule* scope, uint8_
     ZirModule* owner = (void *)0;
     ZirFunction* fn = (void *)0;
     int32_t changed = 0;
-    if (zir_f_a880a0694b9f00fc_ResolveFunction(scope, name, &(owner), &(fn)) == 1) {
+    if (zir_foreign_compiler_zx_link__ResolveFunction(scope, name, &(owner), &(fn)) == 1) {
         compiler_zx_link_KeepFunction(program, owner, fn, keep, &(changed));
     }
 }
@@ -2339,7 +3324,7 @@ compiler_zx_link_MarkProofGraph(ZirProgram* program, ZirModule* scope, ZirFuncti
                 continue;
             }
             uint8_t name[128] = {0};
-            zir_f_a880a0694b9f00fc_copy_text(&(name[0]), 128, (uint8_t*)expr->name);
+            zir_foreign_compiler_zx_link__copy_text(&(name[0]), 128, (uint8_t*)expr->name);
             if ((name)[0] == 0 && expr->left >= 0 && expr->left < graph->expr_count) {
                 int32_t value_6 = expr->left;
                 ZirExpr* value_7 = (void *)0;
@@ -2377,7 +3362,7 @@ compiler_zx_link_MarkProofGraph(ZirProgram* program, ZirModule* scope, ZirFuncti
                     String s = value_12;
                     value_13 = ((StaticText*)(&(s)))->data;
                 }
-                if (zir_f_a880a0694b9f00fc_snprintf(&(name[0]), 128, value_13, (uint8_t*)base->name, (uint8_t*)member->name) >= 128) {
+                if (zir_foreign_compiler_zx_link__snprintf(&(name[0]), 128, value_13, (uint8_t*)base->name, (uint8_t*)member->name) >= 128) {
                     if (e == range_last_4) {
                         break;
                     }
@@ -2426,8 +3411,8 @@ compiler_zx_link_IsWordByte(uint8_t c)
 bool
 compiler_zx_link_MentionsIdentifier(uint8_t* text, uint8_t* name)
 {
-    size_t length = zir_f_a880a0694b9f00fc_strlen(name);
-    uint8_t* match = zir_f_a880a0694b9f00fc_strstr(text, name);
+    size_t length = zir_foreign_compiler_zx_link__strlen(name);
+    uint8_t* match = zir_foreign_compiler_zx_link__strstr(text, name);
     while (match != ((void *)0)) {
         uint8_t before = 0;
         if (match != text) {
@@ -2486,7 +3471,7 @@ compiler_zx_link_MentionsIdentifier(uint8_t* text, uint8_t* name)
             size_t n = 1;
             value_17 = (uint8_t*)(((size_t)(p) + n));
         }
-        match = zir_f_a880a0694b9f00fc_strstr(value_17, name);
+        match = zir_foreign_compiler_zx_link__strstr(value_17, name);
     }
     return false;
 }
@@ -2496,7 +3481,7 @@ compiler_zx_link_CompareNames(void* left, void* right)
 {
     uint8_t** a = (uint8_t**)(left);
     uint8_t** b = (uint8_t**)(right);
-    return zir_f_a880a0694b9f00fc_strcmp(a[0], b[0]);
+    return zir_foreign_compiler_zx_link__strcmp(a[0], b[0]);
 }
 
 void
@@ -2510,14 +3495,14 @@ compiler_zx_link_FreeFlagTable(uint8_t** table, int32_t count)
         int32_t range_last_3 = (int32_t)((uint32_t)count - 1u);
         int32_t m = range_first_3;
         if (m <= range_last_3) for (;;) {
-            zir_f_a880a0694b9f00fc_free(table[m]);
+            zir_foreign_compiler_zx_link__free(table[m]);
             if (m == range_last_3) {
                 break;
             }
             m = (int32_t)((uint32_t)m + 1u);
         }
     }
-    zir_f_a880a0694b9f00fc_free((uint8_t*)(table));
+    zir_foreign_compiler_zx_link__free((uint8_t*)(table));
 }
 
 void
@@ -2528,22 +3513,22 @@ compiler_zx_link_GlobalUsesFree(GlobalUses* uses)
     }
     compiler_zx_link_FreeFlagTable(uses->read, uses->program->module_count);
     compiler_zx_link_FreeFlagTable(uses->used, uses->program->module_count);
-    zir_f_a880a0694b9f00fc_free((uint8_t*)(uses->names));
+    zir_foreign_compiler_zx_link__free((uint8_t*)(uses->names));
 }
 
 bool
 compiler_zx_link_GlobalUsesStart(GlobalUses* uses, ZirProgram* program, uint8_t** keep)
 {
-    zir_f_a880a0694b9f00fc_memset((uint8_t*)(uses), 0, sizeof(GlobalUses));
+    zir_foreign_compiler_zx_link__memset((uint8_t*)(uses), 0, sizeof(GlobalUses));
     ZirProgram** value_0 = &(uses->program);
     (*value_0) = program;
     uint8_t*** value_1 = &(uses->keep);
     (*value_1) = keep;
     uint8_t*** value_2 = &(uses->read);
-    uint8_t* value_3 = zir_f_a880a0694b9f00fc_calloc((size_t)(program->module_count), sizeof(void *));
+    uint8_t* value_3 = zir_foreign_compiler_zx_link__calloc((size_t)(program->module_count), sizeof(void *));
     (*value_2) = (uint8_t**)(value_3);
     uint8_t*** value_4 = &(uses->used);
-    uint8_t* value_5 = zir_f_a880a0694b9f00fc_calloc((size_t)(program->module_count), sizeof(void *));
+    uint8_t* value_5 = zir_foreign_compiler_zx_link__calloc((size_t)(program->module_count), sizeof(void *));
     (*value_4) = (uint8_t**)(value_5);
     if (uses->read == ((void *)0) || uses->used == ((void *)0)) {
         return false;
@@ -2575,7 +3560,7 @@ compiler_zx_link_GlobalUsesStart(GlobalUses* uses, ZirProgram* program, uint8_t*
                 }
                 value_11 = value_13;
             }
-            uint8_t* value_14 = zir_f_a880a0694b9f00fc_calloc(value_11, 1);
+            uint8_t* value_14 = zir_foreign_compiler_zx_link__calloc(value_11, 1);
             (*value_9) = value_14;
             uint8_t** value_15 = &(uses->used[m]);
             int32_t value_16 = module->global_count;
@@ -2590,7 +3575,7 @@ compiler_zx_link_GlobalUsesStart(GlobalUses* uses, ZirProgram* program, uint8_t*
                 }
                 value_17 = value_19;
             }
-            uint8_t* value_20 = zir_f_a880a0694b9f00fc_calloc(value_17, 1);
+            uint8_t* value_20 = zir_foreign_compiler_zx_link__calloc(value_17, 1);
             (*value_15) = value_20;
             if (uses->read[m] == ((void *)0) || uses->used[m] == ((void *)0)) {
                 return false;
@@ -2614,7 +3599,7 @@ compiler_zx_link_GlobalUsesStart(GlobalUses* uses, ZirProgram* program, uint8_t*
         }
         value_22 = value_24;
     }
-    uint8_t* value_25 = zir_f_a880a0694b9f00fc_calloc(value_22, sizeof(void *));
+    uint8_t* value_25 = zir_foreign_compiler_zx_link__calloc(value_22, sizeof(void *));
     (*value_21) = (uint8_t**)(value_25);
     if (uses->names == ((void *)0)) {
         return false;
@@ -2661,7 +3646,7 @@ compiler_zx_link_GlobalUsesStart(GlobalUses* uses, ZirProgram* program, uint8_t*
             m = (int32_t)((uint32_t)m + 1u);
         }
     }
-    zir_f_a880a0694b9f00fc_qsort((uint8_t*)(uses->names), (size_t)(uses->name_count), sizeof(void *), compiler_zx_link_CompareNames);
+    zir_foreign_compiler_zx_link__qsort((uint8_t*)(uses->names), (size_t)(uses->name_count), sizeof(void *), compiler_zx_link_CompareNames);
     return true;
 }
 
@@ -2723,7 +3708,7 @@ compiler_zx_link_ReadFunctionGlobals(GlobalUses* uses, ZirModule* module, ZirFun
                 e = (int32_t)((uint32_t)e + 1u);
                 continue;
             }
-            uint8_t* symbol = zir_f_a880a0694b9f00fc_strrchr((uint8_t*)expression->name, 46);
+            uint8_t* symbol = zir_foreign_compiler_zx_link__strrchr((uint8_t*)expression->name, 46);
             if (symbol == ((void *)0)) {
                 symbol = (uint8_t*)expression->name;
             } else {
@@ -2735,7 +3720,7 @@ compiler_zx_link_ReadFunctionGlobals(GlobalUses* uses, ZirModule* module, ZirFun
                 }
                 symbol = value_2;
             }
-            uint8_t* value_4 = zir_f_a880a0694b9f00fc_bsearch((uint8_t*)(&(symbol)), (uint8_t*)(uses->names), (size_t)(uses->name_count), sizeof(void *), compiler_zx_link_CompareNames);
+            uint8_t* value_4 = zir_foreign_compiler_zx_link__bsearch((uint8_t*)(&(symbol)), (uint8_t*)(uses->names), (size_t)(uses->name_count), sizeof(void *), compiler_zx_link_CompareNames);
             if (value_4 == ((void *)0)) {
                 if (e == range_last_1) {
                     break;
@@ -2748,7 +3733,7 @@ compiler_zx_link_ReadFunctionGlobals(GlobalUses* uses, ZirModule* module, ZirFun
             int32_t m = 0;
             int32_t g = 0;
             uint8_t* value_5 = (uint8_t*)expression->name;
-            bool value_6 = zir_f_a880a0694b9f00fc_ResolveGlobalAt(module, value_5, zir_f_a880a0694b9f00fc_SpanPath(expression->span), &(owner), &(global)) == 1;
+            bool value_6 = zir_foreign_compiler_zx_link__ResolveGlobalAt(module, value_5, zir_foreign_compiler_zx_link__SpanPath(expression->span), &(owner), &(global)) == 1;
             if (value_6 && compiler_zx_link_GlobalIndexIn(program, owner, global, &(m), &(g))) {
                 uint8_t* value_7 = &(uses->used[m][g]);
                 (*value_7) = 1;
@@ -3197,7 +4182,7 @@ compiler_zx_link_ReexportsModule(ZirModule* via, ZirModule* target)
     }
     size_t capacity = 16;
     size_t count = 1;
-    uint8_t* value_0 = zir_f_a880a0694b9f00fc_AllocateOrExit(capacity * sizeof(void *));
+    uint8_t* value_0 = zir_foreign_compiler_zx_link__AllocateOrExit(capacity * sizeof(void *));
     ZirModule** seen = (ZirModule**)(value_0);
     ZirModule** value_1 = &(seen[0]);
     (*value_1) = via;
@@ -3226,7 +4211,7 @@ compiler_zx_link_ReexportsModule(ZirModule* via, ZirModule* target)
                     continue;
                 }
                 if (next == target) {
-                    zir_f_a880a0694b9f00fc_free((uint8_t*)(seen));
+                    zir_foreign_compiler_zx_link__free((uint8_t*)(seen));
                     return true;
                 }
                 size_t found = 0;
@@ -3241,12 +4226,12 @@ compiler_zx_link_ReexportsModule(ZirModule* via, ZirModule* target)
                     continue;
                 }
                 if (count == capacity) {
-                    uint8_t* value_5 = zir_f_a880a0694b9f00fc_realloc((uint8_t*)(seen), (capacity * 2) * sizeof(void *));
+                    uint8_t* value_5 = zir_foreign_compiler_zx_link__realloc((uint8_t*)(seen), (capacity * 2) * sizeof(void *));
                     ZirModule** grown = (ZirModule**)(value_5);
                     if (grown == ((void *)0)) {
-                        zir_f_a880a0694b9f00fc_free((uint8_t*)(seen));
-                        zir_f_a880a0694b9f00fc_DiagnosticOutOfMemory();
-                        zir_f_a880a0694b9f00fc_exit(1);
+                        zir_foreign_compiler_zx_link__free((uint8_t*)(seen));
+                        zir_foreign_compiler_zx_link__DiagnosticOutOfMemory();
+                        zir_foreign_compiler_zx_link__exit(1);
                     }
                     seen = grown;
                     capacity = capacity * 2;
@@ -3262,7 +4247,7 @@ compiler_zx_link_ReexportsModule(ZirModule* via, ZirModule* target)
         }
         at = at + 1;
     }
-    zir_f_a880a0694b9f00fc_free((uint8_t*)(seen));
+    zir_foreign_compiler_zx_link__free((uint8_t*)(seen));
     return false;
 }
 
@@ -3313,12 +4298,12 @@ compiler_zx_link_MarkGlobalFunctions(ZirProgram* program, ZirModule* module, Zir
     if (((uint8_t*)global->init) == ((void *)0) || global->init[0] == 0) {
         return 0;
     }
-    uint8_t* value_0 = zir_f_a880a0694b9f00fc_calloc(1, sizeof(ZirFunction));
+    uint8_t* value_0 = zir_foreign_compiler_zx_link__calloc(1, sizeof(ZirFunction));
     ZirFunction* probe = (ZirFunction*)(value_0);
     if (probe == ((void *)0)) {
         return -1;
     }
-    int32_t root = zir_f_a880a0694b9f00fc_ParseExprTyped(probe, module, (uint8_t*)global->init, global->span, &(global->type[0]));
+    int32_t root = zir_foreign_compiler_zx_link__ParseExprTyped(probe, module, (uint8_t*)global->init, global->span, &(global->type[0]));
     bool used = false;
     if (root >= 0) {
         {
@@ -3337,7 +4322,7 @@ compiler_zx_link_MarkGlobalFunctions(ZirProgram* program, ZirModule* module, Zir
                 ZirFunction* function = (void *)0;
                 bool value_3 = ((ZirExprKind)(expression->kind)) != ((ZirExprKind)(1)) && ((ZirExprKind)(expression->kind)) != ((ZirExprKind)(8));
                 bool value_4 = value_3;
-                bool value_5 = value_4 || zir_f_a880a0694b9f00fc_ResolveFunction(module, (uint8_t*)expression->text, &(owner), &(function)) != 1;
+                bool value_5 = value_4 || zir_foreign_compiler_zx_link__ResolveFunction(module, (uint8_t*)expression->text, &(owner), &(function)) != 1;
                 if (value_5 || owner == ((void *)0) || function == ((void *)0)) {
                     if (e == range_last_10) {
                         break;
@@ -3373,8 +4358,8 @@ compiler_zx_link_MarkGlobalFunctions(ZirProgram* program, ZirModule* module, Zir
             }
         }
     }
-    zir_f_a880a0694b9f00fc_free((uint8_t*)(probe->exprs));
-    zir_f_a880a0694b9f00fc_free((uint8_t*)(probe));
+    zir_foreign_compiler_zx_link__free((uint8_t*)(probe->exprs));
+    zir_foreign_compiler_zx_link__free((uint8_t*)(probe));
     int32_t value_6 = 0;
     if (used) {
         value_6 = 1;
@@ -3429,7 +4414,7 @@ compiler_zx_link_CallsInto(ZirModule* module, uint8_t* keep, ZirModule* target)
                     }
                     ZirModule* owner = (void *)0;
                     ZirFunction* callee = (void *)0;
-                    bool value_5 = zir_f_a880a0694b9f00fc_ResolveFunction(module, (uint8_t*)expression->name, &(owner), &(callee)) == 1;
+                    bool value_5 = zir_foreign_compiler_zx_link__ResolveFunction(module, (uint8_t*)expression->name, &(owner), &(callee)) == 1;
                     if (value_5 && owner == target && callee != ((void *)0)) {
                         return true;
                     }
@@ -3489,7 +4474,7 @@ compiler_zx_link_NamesGlobalOf(ZirModule* module, uint8_t* keep, ZirModule* targ
                     bool value_6 = value_5;
                     if (value_6) {
                         uint8_t* value_7 = (uint8_t*)expression->name;
-                        bool value_8 = zir_f_a880a0694b9f00fc_ResolveGlobalAt(module, value_7, zir_f_a880a0694b9f00fc_SpanPath(expression->span), &(owner), &(global)) == 1;
+                        bool value_8 = zir_foreign_compiler_zx_link__ResolveGlobalAt(module, value_7, zir_foreign_compiler_zx_link__SpanPath(expression->span), &(owner), &(global)) == 1;
                         value_6 = value_8;
                     }
                     if (value_6 && owner == target && global != ((void *)0)) {
@@ -3683,10 +4668,10 @@ compiler_zx_link_LinkStateFree(LinkState* state)
     compiler_zx_link_FreeFlagTable(state->keep, count);
     compiler_zx_link_FreeFlagTable(state->keep_types, count);
     compiler_zx_link_FreeFlagTable(state->keep_defines, count);
-    zir_f_a880a0694b9f00fc_free(state->keep_modules);
-    zir_f_a880a0694b9f00fc_free(state->startup_path);
+    zir_foreign_compiler_zx_link__free(state->keep_modules);
+    zir_foreign_compiler_zx_link__free(state->startup_path);
     compiler_zx_link_GlobalUsesFree(&(state->uses));
-    zir_f_a880a0694b9f00fc_free((uint8_t*)(state->signature));
+    zir_foreign_compiler_zx_link__free((uint8_t*)(state->signature));
 }
 
 bool
@@ -3695,22 +4680,22 @@ compiler_zx_link_LinkStart(LinkState* state, uint8_t* entry_module, uint8_t* ent
     ZirProgram* program = state->program;
     size_t count = (size_t)(program->module_count);
     uint8_t*** value_0 = &(state->keep);
-    uint8_t* value_1 = zir_f_a880a0694b9f00fc_calloc(count, sizeof(void *));
+    uint8_t* value_1 = zir_foreign_compiler_zx_link__calloc(count, sizeof(void *));
     (*value_0) = (uint8_t**)(value_1);
     uint8_t*** value_2 = &(state->keep_types);
-    uint8_t* value_3 = zir_f_a880a0694b9f00fc_calloc(count, sizeof(void *));
+    uint8_t* value_3 = zir_foreign_compiler_zx_link__calloc(count, sizeof(void *));
     (*value_2) = (uint8_t**)(value_3);
     uint8_t*** value_4 = &(state->keep_defines);
-    uint8_t* value_5 = zir_f_a880a0694b9f00fc_calloc(count, sizeof(void *));
+    uint8_t* value_5 = zir_foreign_compiler_zx_link__calloc(count, sizeof(void *));
     (*value_4) = (uint8_t**)(value_5);
     uint8_t** value_6 = &(state->keep_modules);
-    uint8_t* value_7 = zir_f_a880a0694b9f00fc_calloc(count, 1);
+    uint8_t* value_7 = zir_foreign_compiler_zx_link__calloc(count, 1);
     (*value_6) = value_7;
     uint8_t** value_8 = &(state->startup_path);
-    uint8_t* value_9 = zir_f_a880a0694b9f00fc_calloc(count, 1);
+    uint8_t* value_9 = zir_foreign_compiler_zx_link__calloc(count, 1);
     (*value_8) = value_9;
     ZirFunction** value_10 = &(state->signature);
-    uint8_t* value_11 = zir_f_a880a0694b9f00fc_calloc(1, sizeof(ZirFunction));
+    uint8_t* value_11 = zir_foreign_compiler_zx_link__calloc(1, sizeof(ZirFunction));
     (*value_10) = (ZirFunction*)(value_11);
     bool value_12 = state->keep == ((void *)0) || state->keep_types == ((void *)0) || state->keep_defines == ((void *)0);
     bool value_13 = value_12 || state->keep_modules == ((void *)0) || state->startup_path == ((void *)0) || state->signature == ((void *)0);
@@ -3766,7 +4751,7 @@ compiler_zx_link_LinkStart(LinkState* state, uint8_t* entry_module, uint8_t* ent
                             String s = value_29;
                             value_30 = ((StaticText*)(&(s)))->data;
                         }
-                        zir_f_a880a0694b9f00fc_Diagnostic(value_25, value_27, value_30, &(module->name[0]));
+                        zir_foreign_compiler_zx_link__Diagnostic(value_25, value_27, value_30, &(module->name[0]));
                         return false;
                     }
                     if (other == range_last_15) {
@@ -3788,7 +4773,7 @@ compiler_zx_link_LinkStart(LinkState* state, uint8_t* entry_module, uint8_t* ent
                 }
                 value_34 = value_36;
             }
-            uint8_t* value_37 = zir_f_a880a0694b9f00fc_calloc(value_34, 1);
+            uint8_t* value_37 = zir_foreign_compiler_zx_link__calloc(value_34, 1);
             (*value_32) = value_37;
             uint8_t** value_38 = &(state->keep_types[m]);
             int32_t value_39 = module->type_count;
@@ -3803,7 +4788,7 @@ compiler_zx_link_LinkStart(LinkState* state, uint8_t* entry_module, uint8_t* ent
                 }
                 value_40 = value_42;
             }
-            uint8_t* value_43 = zir_f_a880a0694b9f00fc_calloc(value_40, 1);
+            uint8_t* value_43 = zir_foreign_compiler_zx_link__calloc(value_40, 1);
             (*value_38) = value_43;
             uint8_t** value_44 = &(state->keep_defines[m]);
             int32_t value_45 = module->define_count;
@@ -3818,7 +4803,7 @@ compiler_zx_link_LinkStart(LinkState* state, uint8_t* entry_module, uint8_t* ent
                 }
                 value_46 = value_48;
             }
-            uint8_t* value_49 = zir_f_a880a0694b9f00fc_calloc(value_46, 1);
+            uint8_t* value_49 = zir_foreign_compiler_zx_link__calloc(value_46, 1);
             (*value_44) = value_49;
             if (state->keep[m] == ((void *)0) || state->keep_types[m] == ((void *)0) || state->keep_defines[m] == ((void *)0)) {
                 return false;
@@ -3866,7 +4851,7 @@ compiler_zx_link_LinkStart(LinkState* state, uint8_t* entry_module, uint8_t* ent
                             String s = value_59;
                             value_60 = ((StaticText*)(&(s)))->data;
                         }
-                        zir_f_a880a0694b9f00fc_Diagnostic(value_55, value_57, value_60, entry_function);
+                        zir_foreign_compiler_zx_link__Diagnostic(value_55, value_57, value_60, entry_function);
                         return false;
                     }
                     int32_t* value_62 = &(state->entry_module);
@@ -3892,7 +4877,7 @@ compiler_zx_link_LinkStart(LinkState* state, uint8_t* entry_module, uint8_t* ent
             String s = value_64;
             value_65 = ((StaticText*)(&(s)))->data;
         }
-        ZirSourceSpan value_67 = zir_f_a880a0694b9f00fc_Span(value_65, 1, 1);
+        ZirSourceSpan value_67 = zir_foreign_compiler_zx_link__Span(value_65, 1, 1);
         String value_68 = StringLiteral("zx.entry");
         uint8_t* value_69 = (void *)0;
         {
@@ -3905,7 +4890,7 @@ compiler_zx_link_LinkStart(LinkState* state, uint8_t* entry_module, uint8_t* ent
             String s = value_71;
             value_72 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_a880a0694b9f00fc_Diagnostic(value_67, value_69, value_72, entry_module, entry_function);
+        zir_foreign_compiler_zx_link__Diagnostic(value_67, value_69, value_72, entry_module, entry_function);
         return false;
     }
     uint8_t* value_74 = &(state->keep[state->entry_module][state->entry_function]);
@@ -4029,13 +5014,13 @@ compiler_zx_link_MarkNamedFunctions(ZirProgram* program, ZirModule* module, uint
             continue;
         }
         uint8_t name[128] = {0};
-        zir_f_a880a0694b9f00fc_memcpy(&(name[0]), start, length);
+        zir_foreign_compiler_zx_link__memcpy(&(name[0]), start, length);
         uint8_t* value_21 = &(name[length]);
         (*value_21) = 0;
         ZirModule* owner = (void *)0;
         ZirFunction* fn = (void *)0;
         int32_t changed = 0;
-        if (zir_f_a880a0694b9f00fc_ResolveFunction(module, &(name[0]), &(owner), &(fn)) == 1) {
+        if (zir_foreign_compiler_zx_link__ResolveFunction(module, &(name[0]), &(owner), &(fn)) == 1) {
             compiler_zx_link_KeepFunction(program, owner, fn, keep, &(changed));
         }
     }
@@ -4145,7 +5130,7 @@ compiler_zx_link_MarkVerificationRoots(LinkState* state)
                     ZirProof* proof = value_16;
                     ZirModule* scope = module;
                     ZirModule* law_owner = (void *)0;
-                    ZirLaw* value_18 = zir_f_a880a0694b9f00fc_FindVisibleLaw(module, &(proof->name[0]), &(law_owner));
+                    ZirLaw* value_18 = zir_foreign_compiler_zx_link__FindVisibleLaw(module, &(proof->name[0]), &(law_owner));
                     if (value_18 != ((void *)0)) {
                         scope = law_owner;
                     }
@@ -4255,7 +5240,7 @@ compiler_zx_link_FollowCall(LinkState* state, ZirModule* module, ZirExpr* expres
     }
     ZirModule* owner = (void *)0;
     ZirFunction* callee = (void *)0;
-    bool value_10 = zir_f_a880a0694b9f00fc_ResolveFunction(module, (uint8_t*)expression->name, &(owner), &(callee)) == 1;
+    bool value_10 = zir_foreign_compiler_zx_link__ResolveFunction(module, (uint8_t*)expression->name, &(owner), &(callee)) == 1;
     if (value_10 && owner != ((void *)0) && callee != ((void *)0)) {
         if (compiler_zx_link_KeepFunction(program, owner, callee, keep, changed)) {
             return true;
@@ -4273,7 +5258,7 @@ compiler_zx_link_FollowCall(LinkState* state, ZirModule* module, ZirExpr* expres
             String s = value_15;
             value_16 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_a880a0694b9f00fc_Diagnostic(value_11, value_13, value_16, (uint8_t*)expression->name);
+        zir_foreign_compiler_zx_link__Diagnostic(value_11, value_13, value_16, (uint8_t*)expression->name);
         return false;
     }
     if (unbound != ((void *)0)) {
@@ -4290,7 +5275,7 @@ compiler_zx_link_FollowCall(LinkState* state, ZirModule* module, ZirExpr* expres
             String s = value_22;
             value_23 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_a880a0694b9f00fc_Diagnostic(value_18, value_20, value_23, &(unbound->name[0]));
+        zir_foreign_compiler_zx_link__Diagnostic(value_18, value_20, value_23, &(unbound->name[0]));
         return false;
     }
     if (external == ((void *)0)) {
@@ -4307,7 +5292,7 @@ compiler_zx_link_FollowCall(LinkState* state, ZirModule* module, ZirExpr* expres
             String s = value_29;
             value_30 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_a880a0694b9f00fc_Diagnostic(value_25, value_27, value_30, (uint8_t*)expression->name);
+        zir_foreign_compiler_zx_link__Diagnostic(value_25, value_27, value_30, (uint8_t*)expression->name);
         return false;
     }
     if (state->native == 0) {
@@ -4528,7 +5513,7 @@ compiler_zx_link_ReachModule(LinkState* state, int32_t m, int32_t* changed)
                 ZirModule* dependency = (ZirModule*)value_29->resolved_module;
                 int32_t d = compiler_zx_link_ModuleIndex(program, dependency);
                 bool value_31 = d >= 0;
-                if (value_31 && zir_f_a880a0694b9f00fc_ModuleNeedsStartup(dependency) != 0) {
+                if (value_31 && zir_foreign_compiler_zx_link__ModuleNeedsStartup(dependency) != 0) {
                     uint8_t* value_32 = &(state->startup_path[d]);
                     int32_t* value_33 = changed;
                     {
@@ -4624,9 +5609,9 @@ compiler_zx_link_ReachModule(LinkState* state, int32_t m, int32_t* changed)
 bool
 compiler_zx_link_MarkImportSignature(LinkState* state, ZirModule* module, ZirImport* imported, int32_t* changed)
 {
-    zir_f_a880a0694b9f00fc_memset((uint8_t*)(state->signature), 0, sizeof(ZirFunction));
+    zir_foreign_compiler_zx_link__memset((uint8_t*)(state->signature), 0, sizeof(ZirFunction));
     const char ** value_0 = &(state->signature->args_text);
-    uint8_t* value_1 = zir_f_a880a0694b9f00fc_KeepParameters(&(imported->args[0]));
+    uint8_t* value_1 = zir_foreign_compiler_zx_link__KeepParameters(&(imported->args[0]));
     (*value_0) = (const char *)(value_1);
     bool value_2 = compiler_zx_link_MarkType(state->program, module, &(imported->return_type[0]), state->keep_types, changed);
     return value_2 && compiler_zx_link_MarkParameters(state->program, module, state->signature, state->keep_types, changed);
@@ -4735,12 +5720,12 @@ compiler_zx_link_MarkTypeDependencies(LinkState* state, ZirModule* module, ZirTy
         if (!value_3) {
             return false;
         }
-        zir_f_a880a0694b9f00fc_memset((uint8_t*)(state->signature), 0, sizeof(ZirFunction));
-        if (zir_f_a880a0694b9f00fc_strlen(&(type->body[0])) >= 4096) {
+        zir_foreign_compiler_zx_link__memset((uint8_t*)(state->signature), 0, sizeof(ZirFunction));
+        if (zir_foreign_compiler_zx_link__strlen(&(type->body[0])) >= 4096) {
             return false;
         }
         const char ** value_4 = &(state->signature->args_text);
-        uint8_t* value_5 = zir_f_a880a0694b9f00fc_KeepParameters(&(type->body[0]));
+        uint8_t* value_5 = zir_foreign_compiler_zx_link__KeepParameters(&(type->body[0]));
         (*value_4) = (const char *)(value_5);
         return compiler_zx_link_MarkParameters(program, module, state->signature, keep_types, changed);
     }
@@ -4751,7 +5736,7 @@ compiler_zx_link_MarkTypeDependencies(LinkState* state, ZirModule* module, ZirTy
     ZirTypeField field = {0};
     int32_t status = 0;
     while (true) {
-        status = zir_f_a880a0694b9f00fc_TypeNextField(type, &(offset), &(field));
+        status = zir_foreign_compiler_zx_link__TypeNextField(type, &(offset), &(field));
         if (status != 1) {
             break;
         }
@@ -4986,7 +5971,7 @@ compiler_zx_link_KeepGoMethods(LinkState* state)
                         }
                         value_6 = value_8;
                     }
-                    Parameters* parameters = zir_f_a880a0694b9f00fc_ParametersOf(value_6);
+                    Parameters* parameters = zir_foreign_compiler_zx_link__ParametersOf(value_6);
                     Parameters* value_12 = parameters;
                     Parameter* value_13 = (void *)0;
                     {
@@ -5004,7 +5989,7 @@ compiler_zx_link_KeepGoMethods(LinkState* state)
                         }
                         receiver = value_15;
                     }
-                    ZirType* record = zir_f_a880a0694b9f00fc_FindType(module, receiver, (void *)0);
+                    ZirType* record = zir_foreign_compiler_zx_link__FindType(module, receiver, (void *)0);
                     {
                         int32_t range_first_15 = 0;
                         int32_t range_last_15 = (int32_t)((uint32_t)(module->type_count) - 1u);
@@ -5219,7 +6204,7 @@ compiler_zx_link_LawEffectName(ZirLaw* law, uint8_t* name)
         String s = value_1;
         value_2 = ((StaticText*)(&(s)))->data;
     }
-    uint8_t* comparison = zir_f_a880a0694b9f00fc_strstr(value_0, value_2);
+    uint8_t* comparison = zir_foreign_compiler_zx_link__strstr(value_0, value_2);
     size_t value_4 = 0;
     if (comparison != ((void *)0)) {
         size_t value_5 = 0;
@@ -5230,23 +6215,23 @@ compiler_zx_link_LawEffectName(ZirLaw* law, uint8_t* name)
         }
         value_4 = value_5;
     } else {
-        size_t value_7 = zir_f_a880a0694b9f00fc_strlen(payload);
+        size_t value_7 = zir_foreign_compiler_zx_link__strlen(payload);
         value_4 = value_7;
     }
     size_t length = value_4;
     if (length >= 128) {
         length = 128 - 1;
     }
-    zir_f_a880a0694b9f00fc_memcpy(name, payload, length);
+    zir_foreign_compiler_zx_link__memcpy(name, payload, length);
     uint8_t* value_8 = &(name[length]);
     (*value_8) = 0;
-    zir_f_a880a0694b9f00fc_trim_in_place(name);
+    zir_foreign_compiler_zx_link__trim_in_place(name);
 }
 
 void
 compiler_zx_link_KeepLawBound(LinkState* state, int32_t m, ZirModule* module, ZirLaw* law)
 {
-    uint8_t* resolved = zir_f_a880a0694b9f00fc_skip_ws(&(law->payload[0]));
+    uint8_t* resolved = zir_foreign_compiler_zx_link__skip_ws(&(law->payload[0]));
     for (int64_t depth = 0LL; depth <= 7LL; depth++) {
         if (resolved[0] == 91) {
             break;
@@ -5278,10 +6263,10 @@ compiler_zx_link_KeepLawBound(LinkState* state, int32_t m, ZirModule* module, Zi
         if (found == ((void *)0)) {
             break;
         }
-        resolved = zir_f_a880a0694b9f00fc_skip_ws((uint8_t*)found->value);
+        resolved = zir_foreign_compiler_zx_link__skip_ws((uint8_t*)found->value);
     }
     if (resolved[0] == 91) {
-        uint8_t* close = zir_f_a880a0694b9f00fc_strchr(resolved, 93);
+        uint8_t* close = zir_foreign_compiler_zx_link__strchr(resolved, 93);
         if (close == ((void *)0)) {
             return;
         }
@@ -5302,10 +6287,10 @@ compiler_zx_link_KeepLawBound(LinkState* state, int32_t m, ZirModule* module, Zi
             size_t n = 1;
             value_5 = (uint8_t*)(((size_t)(p) + n));
         }
-        zir_f_a880a0694b9f00fc_memcpy(&(bound[0]), value_5, length - 1);
+        zir_foreign_compiler_zx_link__memcpy(&(bound[0]), value_5, length - 1);
         uint8_t* value_7 = &(bound[(length - 1)]);
         (*value_7) = 0;
-        uint8_t* trimmed = zir_f_a880a0694b9f00fc_trim_in_place(&(bound[0]));
+        uint8_t* trimmed = zir_foreign_compiler_zx_link__trim_in_place(&(bound[0]));
         {
             int32_t range_first_31 = 0;
             int32_t range_last_31 = (int32_t)((uint32_t)(module->define_count) - 1u);
@@ -5805,7 +6790,7 @@ compiler_zx_link_CopyKeptModule(LinkState* state, int32_t m, ZirModule* source, 
     }
     if (kept_defines > 0) {
         ZirDefine** value_5 = &(target->defines);
-        uint8_t* value_6 = zir_f_a880a0694b9f00fc_malloc((size_t)(kept_defines) * sizeof(ZirDefine));
+        uint8_t* value_6 = zir_foreign_compiler_zx_link__malloc((size_t)(kept_defines) * sizeof(ZirDefine));
         (*value_5) = (ZirDefine*)(value_6);
         if (target->defines == ((void *)0)) {
             return false;
@@ -5843,7 +6828,7 @@ compiler_zx_link_CopyKeptModule(LinkState* state, int32_t m, ZirModule* source, 
         }
         int32_t* value_14 = &(target->define_cap);
         (*value_14) = kept_defines;
-        zir_f_a880a0694b9f00fc_SymbolLookupsChanged();
+        zir_foreign_compiler_zx_link__SymbolLookupsChanged();
     }
     {
         int32_t range_first_32 = 0;
@@ -5882,7 +6867,7 @@ compiler_zx_link_CopyKeptModule(LinkState* state, int32_t m, ZirModule* source, 
                 g = (int32_t)((uint32_t)g + 1u);
                 continue;
             }
-            uint8_t* value_22 = zir_f_a880a0694b9f00fc_realloc((uint8_t*)(target->globals), (size_t)(((int32_t)((uint32_t)(target->global_count) + 1u))) * sizeof(ZirGlobal));
+            uint8_t* value_22 = zir_foreign_compiler_zx_link__realloc((uint8_t*)(target->globals), (size_t)(((int32_t)((uint32_t)(target->global_count) + 1u))) * sizeof(ZirGlobal));
             ZirGlobal* next = (ZirGlobal*)(value_22);
             if (next == ((void *)0)) {
                 return false;
@@ -5911,7 +6896,7 @@ compiler_zx_link_CopyKeptModule(LinkState* state, int32_t m, ZirModule* source, 
     }
     if (kept_functions > 0) {
         ZirFunction** value_30 = &(target->functions);
-        uint8_t* value_31 = zir_f_a880a0694b9f00fc_calloc((size_t)(kept_functions), sizeof(ZirFunction));
+        uint8_t* value_31 = zir_foreign_compiler_zx_link__calloc((size_t)(kept_functions), sizeof(ZirFunction));
         (*value_30) = (ZirFunction*)(value_31);
         if (target->functions == ((void *)0)) {
             return false;
@@ -5986,9 +6971,9 @@ compiler_zx_link_CopyKeptModule(LinkState* state, int32_t m, ZirModule* source, 
         }
     }
     if (kept_types > 0) {
-        zir_f_a880a0694b9f00fc_SymbolLookupsChanged();
+        zir_foreign_compiler_zx_link__SymbolLookupsChanged();
         ZirType** value_50 = &(target->types);
-        uint8_t* value_51 = zir_f_a880a0694b9f00fc_calloc((size_t)(kept_types), sizeof(ZirType));
+        uint8_t* value_51 = zir_foreign_compiler_zx_link__calloc((size_t)(kept_types), sizeof(ZirType));
         (*value_50) = (ZirType*)(value_51);
         if (target->types == ((void *)0)) {
             return false;
@@ -6035,7 +7020,7 @@ compiler_zx_link_CopyKeptModule(LinkState* state, int32_t m, ZirModule* source, 
     }
     if (source->import_count > 0) {
         ZirImport** value_59 = &(target->imports);
-        uint8_t* value_60 = zir_f_a880a0694b9f00fc_calloc((size_t)(source->import_count), sizeof(ZirImport));
+        uint8_t* value_60 = zir_foreign_compiler_zx_link__calloc((size_t)(source->import_count), sizeof(ZirImport));
         (*value_59) = (ZirImport*)(value_60);
         if (target->imports == ((void *)0)) {
             return false;
@@ -6105,19 +7090,19 @@ compiler_zx_link_BuildLinked(LinkState* state, uint8_t* entry_module, uint8_t* e
     ZirProgram* program = state->program;
     int32_t selected = compiler_zx_link_CountSet(state->keep_modules, program->module_count);
     ZirProgram** value_0 = &(state->linked);
-    ZirProgram* value_1 = zir_f_a880a0694b9f00fc_ProgramNew();
+    ZirProgram* value_1 = zir_foreign_compiler_zx_link__ProgramNew();
     (*value_0) = value_1;
     ZirProgram* linked = state->linked;
     if (linked == ((void *)0)) {
         return false;
     }
     ZirModule** value_2 = &(linked->modules);
-    uint8_t* value_3 = zir_f_a880a0694b9f00fc_calloc((size_t)(selected), sizeof(ZirModule));
+    uint8_t* value_3 = zir_foreign_compiler_zx_link__calloc((size_t)(selected), sizeof(ZirModule));
     (*value_2) = (ZirModule*)(value_3);
     if (linked->modules == ((void *)0)) {
         return false;
     }
-    if (zir_f_a880a0694b9f00fc_ProgramInheritContexts(linked, program) == 0) {
+    if (zir_foreign_compiler_zx_link__ProgramInheritContexts(linked, program) == 0) {
         return false;
     }
     int32_t* value_4 = &(linked->module_count);
@@ -6164,8 +7149,8 @@ compiler_zx_link_BuildLinked(LinkState* state, uint8_t* entry_module, uint8_t* e
             m = (int32_t)((uint32_t)m + 1u);
         }
     }
-    zir_f_a880a0694b9f00fc_qsort((uint8_t*)(linked->modules), (size_t)(linked->module_count), sizeof(ZirModule), compiler_zx_link_ModuleNameOrder);
-    bool value_14 = zir_f_a880a0694b9f00fc_LinkImports(&(state->linked), 1) == 0;
+    zir_foreign_compiler_zx_link__qsort((uint8_t*)(linked->modules), (size_t)(linked->module_count), sizeof(ZirModule), compiler_zx_link_ModuleNameOrder);
+    bool value_14 = zir_foreign_compiler_zx_link__LinkImports(&(state->linked), 1) == 0;
     bool value_15 = value_14;
     if (!value_15) {
         bool value_16 = compiler_zx_link_PruneRecordFields(linked, entry_module, entry_function);
@@ -6212,8 +7197,8 @@ compiler_zx_link_BuildLinked(LinkState* state, uint8_t* entry_module, uint8_t* e
             m = (int32_t)((uint32_t)m + 1u);
         }
     }
-    bool value_23 = zir_f_a880a0694b9f00fc_CheckPrograms(&(state->linked), 1) != 0;
-    return value_23 && zir_f_a880a0694b9f00fc_CheckLawGates(&(state->linked), 1) != 0;
+    bool value_23 = zir_foreign_compiler_zx_link__CheckPrograms(&(state->linked), 1) != 0;
+    return value_23 && zir_foreign_compiler_zx_link__CheckLawGates(&(state->linked), 1) != 0;
 }
 
 ZirProgram*
@@ -6222,9 +7207,9 @@ compiler_zx_link_LinkCheckedEntry(ZirProgram* program, uint8_t* entry_module, ui
     if (program == ((void *)0) || program->module_count <= 0 || entry_module == ((void *)0) || entry_function == ((void *)0)) {
         return (void *)0;
     }
-    uint8_t* value_0 = zir_f_a880a0694b9f00fc_AllocateOrExit(sizeof(LinkState));
+    uint8_t* value_0 = zir_foreign_compiler_zx_link__AllocateOrExit(sizeof(LinkState));
     LinkState* state = (LinkState*)(value_0);
-    zir_f_a880a0694b9f00fc_memset((uint8_t*)(state), 0, sizeof(LinkState));
+    zir_foreign_compiler_zx_link__memset((uint8_t*)(state), 0, sizeof(LinkState));
     ZirProgram** value_1 = &(state->program);
     (*value_1) = program;
     int32_t* value_2 = &(state->native);
@@ -6241,9 +7226,9 @@ compiler_zx_link_LinkCheckedEntry(ZirProgram* program, uint8_t* entry_module, ui
     }
     ZirProgram* linked = state->linked;
     compiler_zx_link_LinkStateFree(state);
-    zir_f_a880a0694b9f00fc_free((uint8_t*)(state));
+    zir_foreign_compiler_zx_link__free((uint8_t*)(state));
     if (!ok) {
-        zir_f_a880a0694b9f00fc_ProgramFree(linked);
+        zir_foreign_compiler_zx_link__ProgramFree(linked);
         return (void *)0;
     }
     return linked;
@@ -6282,7 +7267,7 @@ compiler_zx_link_Distance(uint8_t* from, uint8_t* to)
 bool
 compiler_zx_link_Same(uint8_t* a, uint8_t* b)
 {
-    return zir_f_a880a0694b9f00fc_strcmp(a, b) == 0;
+    return zir_foreign_compiler_zx_link__strcmp(a, b) == 0;
 }
 
 bool
@@ -6424,7 +7409,7 @@ compiler_zx_link_CommandSpan(void)
         String s = value_0;
         value_1 = ((StaticText*)(&(s)))->data;
     }
-    return zir_f_a880a0694b9f00fc_Span(value_1, 1, 1);
+    return zir_foreign_compiler_zx_link__Span(value_1, 1, 1);
 }
 
 bool
@@ -6436,7 +7421,7 @@ compiler_zx_link_BoundToZiran(uint8_t* target)
         String s = value_0;
         value_1 = ((StaticText*)(&(s)))->data;
     }
-    return zir_f_a880a0694b9f00fc_strncmp(target, value_1, 6) == 0;
+    return zir_foreign_compiler_zx_link__strncmp(target, value_1, 6) == 0;
 }
 
 bool
@@ -6450,7 +7435,7 @@ compiler_zx_link_SplitBindingName(uint8_t* text, uint8_t* module, uint8_t* funct
 {
     uint8_t* separator = (void *)0;
     if (text != ((void *)0)) {
-        separator = zir_f_a880a0694b9f00fc_strrchr(text, 58);
+        separator = zir_foreign_compiler_zx_link__strrchr(text, 58);
     }
     if (separator == ((void *)0) || separator == text || separator[1] == 0) {
         return false;
@@ -6469,20 +7454,20 @@ compiler_zx_link_SplitBindingName(uint8_t* text, uint8_t* module, uint8_t* funct
         value_2 = (uint8_t*)(((size_t)(p) + n));
     }
     uint8_t* rest = value_2;
-    if (length >= 128 || zir_f_a880a0694b9f00fc_strlen(rest) >= 128) {
+    if (length >= 128 || zir_foreign_compiler_zx_link__strlen(rest) >= 128) {
         return false;
     }
-    zir_f_a880a0694b9f00fc_memcpy(module, text, length);
+    zir_foreign_compiler_zx_link__memcpy(module, text, length);
     uint8_t* value_4 = &(module[length]);
     (*value_4) = 0;
-    zir_f_a880a0694b9f00fc_strcpy(function, rest);
+    zir_foreign_compiler_zx_link__strcpy(function, rest);
     return true;
 }
 
 bool
 compiler_zx_link_ResolveBindingModule(uint8_t* module)
 {
-    uint8_t* value_0 = zir_f_a880a0694b9f00fc_strchr(module, 47);
+    uint8_t* value_0 = zir_foreign_compiler_zx_link__strchr(module, 47);
     if (value_0 == ((void *)0)) {
         return true;
     }
@@ -6492,7 +7477,7 @@ compiler_zx_link_ResolveBindingModule(uint8_t* module)
         String s = value_1;
         value_2 = ((StaticText*)(&(s)))->data;
     }
-    uint8_t* path = zir_f_a880a0694b9f00fc_getenv(value_2);
+    uint8_t* path = zir_foreign_compiler_zx_link__getenv(value_2);
     if (path == ((void *)0) || path[0] == 0) {
         ZirSourceSpan value_4 = compiler_zx_link_CommandSpan();
         String value_5 = StringLiteral("host.bind");
@@ -6507,10 +7492,10 @@ compiler_zx_link_ResolveBindingModule(uint8_t* module)
             String s = value_8;
             value_9 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_a880a0694b9f00fc_Diagnostic(value_4, value_6, value_9, module);
+        zir_foreign_compiler_zx_link__Diagnostic(value_4, value_6, value_9, module);
         return false;
     }
-    uint8_t* map = zir_f_a880a0694b9f00fc_PackageMapLoad(path);
+    uint8_t* map = zir_foreign_compiler_zx_link__PackageMapLoad(path);
     uint8_t identity[128] = {0};
     bool value_11 = map != ((void *)0);
     bool value_12 = value_11;
@@ -6521,11 +7506,11 @@ compiler_zx_link_ResolveBindingModule(uint8_t* module)
             String s = value_13;
             value_14 = ((StaticText*)(&(s)))->data;
         }
-        bool value_16 = zir_f_a880a0694b9f00fc_PackageDependencyModule(map, value_14, module, &(identity[0]), 128) != 0;
+        bool value_16 = zir_foreign_compiler_zx_link__PackageDependencyModule(map, value_14, module, &(identity[0]), 128) != 0;
         value_12 = value_16;
     }
     bool found = value_12;
-    zir_f_a880a0694b9f00fc_PackageMapFree(map);
+    zir_foreign_compiler_zx_link__PackageMapFree(map);
     if (!found) {
         ZirSourceSpan value_17 = compiler_zx_link_CommandSpan();
         String value_18 = StringLiteral("host.bind");
@@ -6540,7 +7525,7 @@ compiler_zx_link_ResolveBindingModule(uint8_t* module)
             String s = value_21;
             value_22 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_a880a0694b9f00fc_Diagnostic(value_17, value_19, value_22, module);
+        zir_foreign_compiler_zx_link__Diagnostic(value_17, value_19, value_22, module);
         return false;
     }
     String value_24 = StringLiteral("%s");
@@ -6549,7 +7534,7 @@ compiler_zx_link_ResolveBindingModule(uint8_t* module)
         String s = value_24;
         value_25 = ((StaticText*)(&(s)))->data;
     }
-    zir_f_a880a0694b9f00fc_snprintf(module, 128, value_25, &(identity[0]));
+    zir_foreign_compiler_zx_link__snprintf(module, 128, value_25, &(identity[0]));
     return true;
 }
 
@@ -6562,20 +7547,20 @@ compiler_zx_link_BindImport(ZirImport* matched, uint8_t* provider_module, uint8_
         String s = value_0;
         value_1 = ((StaticText*)(&(s)))->data;
     }
-    zir_f_a880a0694b9f00fc_snprintf(&(matched->target[0]), 1024, value_1, provider_module);
+    zir_foreign_compiler_zx_link__snprintf(&(matched->target[0]), 1024, value_1, provider_module);
     String value_3 = StringLiteral("%s");
     uint8_t* value_4 = (void *)0;
     {
         String s = value_3;
         value_4 = ((StaticText*)(&(s)))->data;
     }
-    zir_f_a880a0694b9f00fc_snprintf(&(matched->extern_symbol[0]), 128, value_4, function);
+    zir_foreign_compiler_zx_link__snprintf(&(matched->extern_symbol[0]), 128, value_4, function);
 }
 
 int32_t
 BindHostProvider(ZirProgram* program, uint8_t* spec)
 {
-    uint8_t* equals = zir_f_a880a0694b9f00fc_strchr(spec, 61);
+    uint8_t* equals = zir_foreign_compiler_zx_link__strchr(spec, 61);
     uint8_t source[256] = {0};
     uint8_t provider[256] = {0};
     uint8_t source_module[128] = {0};
@@ -6604,7 +7589,7 @@ BindHostProvider(ZirProgram* program, uint8_t* spec)
             size_t n = 1;
             value_6 = (uint8_t*)(((size_t)(p) + n));
         }
-        bool value_8 = zir_f_a880a0694b9f00fc_strlen(value_6) >= 256;
+        bool value_8 = zir_foreign_compiler_zx_link__strlen(value_6) >= 256;
         value_5 = value_8;
     }
     if (value_5) {
@@ -6621,7 +7606,7 @@ BindHostProvider(ZirProgram* program, uint8_t* spec)
             String s = value_13;
             value_14 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_a880a0694b9f00fc_Diagnostic(value_9, value_11, value_14, spec);
+        zir_foreign_compiler_zx_link__Diagnostic(value_9, value_11, value_14, spec);
         return 0;
     }
     uint8_t* value_16 = spec;
@@ -6631,7 +7616,7 @@ BindHostProvider(ZirProgram* program, uint8_t* spec)
         uint8_t* to = equals;
         value_17 = (size_t)(to) - (size_t)(from);
     }
-    zir_f_a880a0694b9f00fc_memcpy(&(source[0]), value_16, value_17);
+    zir_foreign_compiler_zx_link__memcpy(&(source[0]), value_16, value_17);
     size_t value_19 = 0;
     {
         uint8_t* from = spec;
@@ -6646,7 +7631,7 @@ BindHostProvider(ZirProgram* program, uint8_t* spec)
         size_t n = 1;
         value_22 = (uint8_t*)(((size_t)(p) + n));
     }
-    zir_f_a880a0694b9f00fc_strcpy(&(provider[0]), value_22);
+    zir_foreign_compiler_zx_link__strcpy(&(provider[0]), value_22);
     bool value_24 = compiler_zx_link_SplitBindingName(&(source[0]), &(source_module[0]), &(source_function[0]));
     bool value_25 = !value_24;
     if (!value_25) {
@@ -6667,7 +7652,7 @@ BindHostProvider(ZirProgram* program, uint8_t* spec)
             String s = value_31;
             value_32 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_a880a0694b9f00fc_Diagnostic(value_27, value_29, value_32, spec);
+        zir_foreign_compiler_zx_link__Diagnostic(value_27, value_29, value_32, spec);
         return 0;
     }
     bool value_34 = compiler_zx_link_ResolveBindingModule(&(source_module[0]));
@@ -6727,7 +7712,7 @@ BindHostProvider(ZirProgram* program, uint8_t* spec)
                                     String s = value_50;
                                     value_51 = ((StaticText*)(&(s)))->data;
                                 }
-                                zir_f_a880a0694b9f00fc_Diagnostic(value_46, value_48, value_51, &(source[0]));
+                                zir_foreign_compiler_zx_link__Diagnostic(value_46, value_48, value_51, &(source[0]));
                                 return 0;
                             }
                             matched = imported;
@@ -6769,7 +7754,7 @@ BindHostProvider(ZirProgram* program, uint8_t* spec)
                                     String s = value_61;
                                     value_62 = ((StaticText*)(&(s)))->data;
                                 }
-                                zir_f_a880a0694b9f00fc_Diagnostic(value_57, value_59, value_62, &(provider[0]));
+                                zir_foreign_compiler_zx_link__Diagnostic(value_57, value_59, value_62, &(provider[0]));
                                 return 0;
                             }
                             implementation = function;
@@ -6801,7 +7786,7 @@ BindHostProvider(ZirProgram* program, uint8_t* spec)
             String s = value_68;
             value_69 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_a880a0694b9f00fc_Diagnostic(value_64, value_66, value_69, spec, &(source_module[0]), &(source_function[0]));
+        zir_foreign_compiler_zx_link__Diagnostic(value_64, value_66, value_69, spec, &(source_module[0]), &(source_function[0]));
         return 0;
     }
     if (implementation == ((void *)0)) {
@@ -6818,7 +7803,7 @@ BindHostProvider(ZirProgram* program, uint8_t* spec)
             String s = value_75;
             value_76 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_a880a0694b9f00fc_Diagnostic(value_71, value_73, value_76, spec, &(provider_module[0]), &(provider_function[0]));
+        zir_foreign_compiler_zx_link__Diagnostic(value_71, value_73, value_76, spec, &(provider_module[0]), &(provider_function[0]));
         return 0;
     }
     if (compiler_zx_link_BoundToZiran(&(matched->target[0]))) {
@@ -6892,7 +7877,7 @@ compiler_zx_link_BoundTwice(ZirProgram* program, ZirImport* matched, uint8_t* ca
     uint8_t* value_12 = compiler_zx_link_ModuleFile(program, bound);
     uint8_t* value_13 = module;
     uint8_t* value_14 = function;
-    zir_f_a880a0694b9f00fc_Diagnostic(value_3, value_5, value_8, value_10, value_11, &(matched->extern_symbol[0]), value_12, value_13, value_14, compiler_zx_link_ModuleFile(program, module));
+    zir_foreign_compiler_zx_link__Diagnostic(value_3, value_5, value_8, value_10, value_11, &(matched->extern_symbol[0]), value_12, value_13, value_14, compiler_zx_link_ModuleFile(program, module));
 }
 
 int32_t
@@ -6900,7 +7885,7 @@ BindHostModule(ZirProgram* program, uint8_t* spec)
 {
     uint8_t provider_module[128] = {0};
     ZirModule* provider = (void *)0;
-    bool value_0 = zir_f_a880a0694b9f00fc_strlen(spec) >= 128;
+    bool value_0 = zir_foreign_compiler_zx_link__strlen(spec) >= 128;
     if (value_0 || spec[0] == 0) {
         ZirSourceSpan value_1 = compiler_zx_link_CommandSpan();
         String value_2 = StringLiteral("host.bind");
@@ -6915,10 +7900,10 @@ BindHostModule(ZirProgram* program, uint8_t* spec)
             String s = value_5;
             value_6 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_a880a0694b9f00fc_Diagnostic(value_1, value_3, value_6, spec);
+        zir_foreign_compiler_zx_link__Diagnostic(value_1, value_3, value_6, spec);
         return 0;
     }
-    zir_f_a880a0694b9f00fc_strcpy(&(provider_module[0]), spec);
+    zir_foreign_compiler_zx_link__strcpy(&(provider_module[0]), spec);
     bool value_8 = compiler_zx_link_ResolveBindingModule(&(provider_module[0]));
     if (!value_8) {
         return 0;
@@ -6959,7 +7944,7 @@ BindHostModule(ZirProgram* program, uint8_t* spec)
             String s = value_16;
             value_17 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_a880a0694b9f00fc_Diagnostic(value_12, value_14, value_17, spec);
+        zir_foreign_compiler_zx_link__Diagnostic(value_12, value_14, value_17, spec);
         return 0;
     }
     {
@@ -7044,7 +8029,7 @@ compiler_zx_link_ModuleNameOrder(void* left, void* right)
 {
     ZirModule* a = (ZirModule*)(left);
     ZirModule* b = (ZirModule*)(right);
-    return zir_f_a880a0694b9f00fc_strcmp(&(a->name[0]), &(b->name[0]));
+    return zir_foreign_compiler_zx_link__strcmp(&(a->name[0]), &(b->name[0]));
 }
 
 uint8_t*
@@ -7053,13 +8038,13 @@ compiler_zx_link_CopyRecords(uint8_t* source, int32_t count, size_t size, bool* 
     if (count <= 0) {
         return (void *)0;
     }
-    uint8_t* copy = zir_f_a880a0694b9f00fc_malloc((size_t)(count) * size);
+    uint8_t* copy = zir_foreign_compiler_zx_link__malloc((size_t)(count) * size);
     if (copy == ((void *)0)) {
         bool* value_0 = &((*(failed)));
         (*value_0) = true;
         return (void *)0;
     }
-    zir_f_a880a0694b9f00fc_memcpy(copy, source, (size_t)(count) * size);
+    zir_foreign_compiler_zx_link__memcpy(copy, source, (size_t)(count) * size);
     return copy;
 }
 
@@ -7094,7 +8079,7 @@ compiler_zx_link_CopyLaws(ZirModule* to, ZirModule* from)
 {
     if (from->law_count != 0) {
         ZirLaw** value_0 = &(to->laws);
-        uint8_t* value_1 = zir_f_a880a0694b9f00fc_calloc((size_t)(from->law_count), sizeof(ZirLaw));
+        uint8_t* value_1 = zir_foreign_compiler_zx_link__calloc((size_t)(from->law_count), sizeof(ZirLaw));
         (*value_0) = (ZirLaw*)(value_1);
         if (to->laws == ((void *)0)) {
             return false;
@@ -7130,7 +8115,7 @@ compiler_zx_link_CopyLaws(ZirModule* to, ZirModule* from)
                 (*value_10) = (const ZirProof *)(((void *)0));
                 if (original->claim != ((void *)0)) {
                     ZirFunction** value_11 = &(law->claim);
-                    uint8_t* value_12 = zir_f_a880a0694b9f00fc_calloc(1, sizeof(ZirFunction));
+                    uint8_t* value_12 = zir_foreign_compiler_zx_link__calloc(1, sizeof(ZirFunction));
                     (*value_11) = (ZirFunction*)(value_12);
                     bool value_13 = law->claim == ((void *)0);
                     bool value_14 = value_13;
@@ -7193,7 +8178,7 @@ compiler_zx_link_CopyLaws(ZirModule* to, ZirModule* from)
     }
     if (from->proof_count != 0) {
         ZirProof** value_32 = &(to->proofs);
-        uint8_t* value_33 = zir_f_a880a0694b9f00fc_calloc((size_t)(from->proof_count), sizeof(ZirProof));
+        uint8_t* value_33 = zir_foreign_compiler_zx_link__calloc((size_t)(from->proof_count), sizeof(ZirProof));
         (*value_32) = (ZirProof*)(value_33);
         if (to->proofs == ((void *)0)) {
             return false;
@@ -7227,7 +8212,7 @@ compiler_zx_link_CopyLaws(ZirModule* to, ZirModule* from)
                 (*value_41) = (void *)0;
                 const struct ZirModule ** value_42 = &(proof->owner);
                 (*value_42) = (const struct ZirModule *)(((void *)0));
-                zir_f_a880a0694b9f00fc_memset((uint8_t*)(&(proof->terms)), 0, sizeof(ZirFunction));
+                zir_foreign_compiler_zx_link__memset((uint8_t*)(&(proof->terms)), 0, sizeof(ZirFunction));
                 ZirFunction* value_43 = &(proof->terms);
                 ZirFunction* value_44 = &(original->terms);
                 bool value_45 = false;
@@ -7327,7 +8312,7 @@ compiler_zx_link_ClearModuleCopy(ZirModule* to, ZirModule* from, uint8_t* contex
     (*value_20) = 0;
     int32_t* value_21 = &(to->import_cap);
     (*value_21) = 0;
-    zir_f_a880a0694b9f00fc_SymbolLookupsChanged();
+    zir_foreign_compiler_zx_link__SymbolLookupsChanged();
     ZirFunction** value_22 = &(to->functions);
     (*value_22) = (void *)0;
     int32_t* value_23 = &(to->function_count);
@@ -7443,7 +8428,7 @@ compiler_zx_link_CopyModule(ZirModule* to, ZirModule* from, uint8_t* context)
     }
     if (from->function_count > 0) {
         ZirFunction** value_25 = &(to->functions);
-        uint8_t* value_26 = zir_f_a880a0694b9f00fc_calloc((size_t)(from->function_count), sizeof(ZirFunction));
+        uint8_t* value_26 = zir_foreign_compiler_zx_link__calloc((size_t)(from->function_count), sizeof(ZirFunction));
         (*value_25) = (ZirFunction*)(value_26);
         if (to->functions == ((void *)0)) {
             return false;
@@ -7514,7 +8499,7 @@ compiler_zx_link_CopyModule(ZirModule* to, ZirModule* from, uint8_t* context)
 ZirProgram*
 compiler_zx_link_CopyProgram(ZirProgram* source)
 {
-    ZirProgram* result = zir_f_a880a0694b9f00fc_ProgramNew();
+    ZirProgram* result = zir_foreign_compiler_zx_link__ProgramNew();
     if (result == ((void *)0)) {
         return (void *)0;
     }
@@ -7531,10 +8516,10 @@ compiler_zx_link_CopyProgram(ZirProgram* source)
         }
         value_2 = value_4;
     }
-    uint8_t* value_5 = zir_f_a880a0694b9f00fc_calloc(value_2, sizeof(ZirModule));
+    uint8_t* value_5 = zir_foreign_compiler_zx_link__calloc(value_2, sizeof(ZirModule));
     (*value_0) = (ZirModule*)(value_5);
     bool value_6 = result->modules != ((void *)0);
-    bool copied = value_6 && zir_f_a880a0694b9f00fc_ProgramInheritContexts(result, source) != 0;
+    bool copied = value_6 && zir_foreign_compiler_zx_link__ProgramInheritContexts(result, source) != 0;
     if (copied) {
         int32_t* value_7 = &(result->module_count);
         (*value_7) = source->module_count;
@@ -7568,13 +8553,13 @@ compiler_zx_link_CopyProgram(ZirProgram* source)
         }
     }
     if (copied) {
-        copied = zir_f_a880a0694b9f00fc_LinkImports(&(result), 1) != 0;
+        copied = zir_foreign_compiler_zx_link__LinkImports(&(result), 1) != 0;
     }
     if (copied) {
-        copied = zir_f_a880a0694b9f00fc_CheckLawGates(&(result), 1) != 0;
+        copied = zir_foreign_compiler_zx_link__CheckLawGates(&(result), 1) != 0;
     }
     if (!copied) {
-        zir_f_a880a0694b9f00fc_ProgramFree(result);
+        zir_foreign_compiler_zx_link__ProgramFree(result);
         return (void *)0;
     }
     return result;
@@ -7613,7 +8598,7 @@ compiler_zx_link_LinkNative(ZirProgram* program, uint8_t* entry_module, uint8_t*
                     }
                     bool value_5 = compiler_zx_link_PruneFunction(value_3);
                     if (!value_5) {
-                        zir_f_a880a0694b9f00fc_ProgramFree(optimized);
+                        zir_foreign_compiler_zx_link__ProgramFree(optimized);
                         return (void *)0;
                     }
                     if (f == range_last_6) {
@@ -7629,7 +8614,59 @@ compiler_zx_link_LinkNative(ZirProgram* program, uint8_t* entry_module, uint8_t*
         }
     }
     ZirProgram* linked = compiler_zx_link_LinkCheckedEntry(optimized, entry_module, entry_function, native);
-    zir_f_a880a0694b9f00fc_ProgramFree(optimized);
+    zir_foreign_compiler_zx_link__ProgramFree(optimized);
+    while (native == 1 && linked != ((void *)0)) {
+        bool changed = compiler_zx_link_FoldUnwrittenGlobals(linked);
+        bool value_6 = compiler_zx_link_FoldTrivialCalls(linked);
+        changed = value_6 || changed;
+        if (!changed) {
+            break;
+        }
+        {
+            int32_t range_first_21 = 0;
+            int32_t range_last_21 = (int32_t)((uint32_t)(linked->module_count) - 1u);
+            int32_t m = range_first_21;
+            if (m <= range_last_21) for (;;) {
+                ZirModule* value_7 = (void *)0;
+                {
+                    ZirProgram* program = linked;
+                    int32_t index = m;
+                    value_7 = &(program->modules[index]);
+                }
+                ZirModule* module = value_7;
+                {
+                    int32_t range_first_23 = 0;
+                    int32_t range_last_23 = (int32_t)((uint32_t)(module->function_count) - 1u);
+                    int32_t f = range_first_23;
+                    if (f <= range_last_23) for (;;) {
+                        ZirModule* value_9 = module;
+                        ZirFunction* value_10 = (void *)0;
+                        {
+                            ZirModule* module = value_9;
+                            int32_t index = f;
+                            value_10 = &(module->functions[index]);
+                        }
+                        bool value_12 = compiler_zx_link_PruneFunction(value_10);
+                        if (!value_12) {
+                            zir_foreign_compiler_zx_link__ProgramFree(linked);
+                            return (void *)0;
+                        }
+                        if (f == range_last_23) {
+                            break;
+                        }
+                        f = (int32_t)((uint32_t)f + 1u);
+                    }
+                }
+                if (m == range_last_21) {
+                    break;
+                }
+                m = (int32_t)((uint32_t)m + 1u);
+            }
+        }
+        ZirProgram* previous = linked;
+        linked = compiler_zx_link_LinkCheckedEntry(previous, entry_module, entry_function, native);
+        zir_foreign_compiler_zx_link__ProgramFree(previous);
+    }
     return linked;
 }
 
@@ -7660,9 +8697,9 @@ NativeLink(ZirProgram* program, uint8_t* entry_module, uint8_t* entry_function)
         }
         value_1 = value_3;
     }
-    uint8_t* previous = zir_f_a880a0694b9f00fc_CompilerContextSelect(value_1);
+    uint8_t* previous = zir_foreign_compiler_zx_link__CompilerContextSelect(value_1);
     ZirProgram* linked = compiler_zx_link_LinkNative(program, entry_module, entry_function, 1);
-    zir_f_a880a0694b9f00fc_CompilerContextSelect(previous);
+    zir_foreign_compiler_zx_link__CompilerContextSelect(previous);
     return linked;
 }
 
@@ -7681,9 +8718,9 @@ NativeGoLink(ZirProgram* program, uint8_t* entry_module, uint8_t* entry_function
         }
         value_1 = value_3;
     }
-    uint8_t* previous = zir_f_a880a0694b9f00fc_CompilerContextSelect(value_1);
+    uint8_t* previous = zir_foreign_compiler_zx_link__CompilerContextSelect(value_1);
     ZirProgram* linked = compiler_zx_link_LinkNative(program, entry_module, entry_function, 2);
-    zir_f_a880a0694b9f00fc_CompilerContextSelect(previous);
+    zir_foreign_compiler_zx_link__CompilerContextSelect(previous);
     return linked;
 }
 
@@ -7712,7 +8749,7 @@ compiler_zx_link_FunctionUses(ZirModule* module, ZirFunction* function, ZirFunct
             }
             ZirModule* owner = (void *)0;
             ZirFunction* callee = (void *)0;
-            bool value_2 = zir_f_a880a0694b9f00fc_ResolveFunction(module, (uint8_t*)expression->name, &(owner), &(callee)) == 1;
+            bool value_2 = zir_foreign_compiler_zx_link__ResolveFunction(module, (uint8_t*)expression->name, &(owner), &(callee)) == 1;
             if (value_2 && callee == wanted) {
                 return true;
             }
@@ -7728,7 +8765,7 @@ compiler_zx_link_FunctionUses(ZirModule* module, ZirFunction* function, ZirFunct
 int32_t
 ProgramUsesFunction(ZirProgram* program, ZirFunction* function)
 {
-    uint8_t* previous = zir_f_a880a0694b9f00fc_CompilerContextSelect((uint8_t*)program->context);
+    uint8_t* previous = zir_foreign_compiler_zx_link__CompilerContextSelect((uint8_t*)program->context);
     bool used = false;
     {
         int32_t range_first_2 = 0;
@@ -7800,7 +8837,7 @@ ProgramUsesFunction(ZirProgram* program, ZirFunction* function)
             m = (int32_t)((uint32_t)m + 1u);
         }
     }
-    zir_f_a880a0694b9f00fc_CompilerContextSelect(previous);
+    zir_foreign_compiler_zx_link__CompilerContextSelect(previous);
     int32_t value_10 = 0;
     if (used) {
         value_10 = 1;

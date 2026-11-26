@@ -17,231 +17,95 @@ static inline int32_t ZiShrS32(int32_t a, uint64_t s, int w) {
 #endif
 #endif
 #include "c_string.h"
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_ForkRaw_b09b1e28
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_ForkRaw_b09b1e28
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_eb6527159f8585fd_ForkRaw(void) __asm__("_fork");
+int32_t zir_foreign_process_run_linux__ForkRaw(void) __asm__("_fork");
 #else
-int32_t zir_foreign_zir_f_eb6527159f8585fd_ForkRaw(void) __asm__("fork");
+int32_t zir_foreign_process_run_linux__ForkRaw(void) __asm__("fork");
 #endif
-static int32_t
-zir_f_eb6527159f8585fd_ForkRaw(void)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_ForkRaw();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_DupRaw_8536fc2b
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_DupRaw_8536fc2b
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_eb6527159f8585fd_DupRaw(int32_t source, int32_t destination) __asm__("_dup2");
+int32_t zir_foreign_process_run_linux__DupRaw(int32_t source, int32_t destination) __asm__("_dup2");
 #else
-int32_t zir_foreign_zir_f_eb6527159f8585fd_DupRaw(int32_t source, int32_t destination) __asm__("dup2");
+int32_t zir_foreign_process_run_linux__DupRaw(int32_t source, int32_t destination) __asm__("dup2");
 #endif
-static int32_t
-zir_f_eb6527159f8585fd_DupRaw(int32_t source, int32_t destination)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_DupRaw(source, destination);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_CloseRaw_d6ec0c1e
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_CloseRaw_d6ec0c1e
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_eb6527159f8585fd_CloseRaw(int32_t fd) __asm__("_close");
+int32_t zir_foreign_process_run_linux__CloseRaw(int32_t fd) __asm__("_close");
 #else
-int32_t zir_foreign_zir_f_eb6527159f8585fd_CloseRaw(int32_t fd) __asm__("close");
+int32_t zir_foreign_process_run_linux__CloseRaw(int32_t fd) __asm__("close");
 #endif
-static int32_t
-zir_f_eb6527159f8585fd_CloseRaw(int32_t fd)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_CloseRaw(fd);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_ReadRaw_bf7cf6fc
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_ReadRaw_bf7cf6fc
 #ifdef __APPLE__
-ptrdiff_t zir_foreign_zir_f_eb6527159f8585fd_ReadRaw(int32_t fd, uint8_t* output, size_t count) __asm__("_read");
+ptrdiff_t zir_foreign_process_run_linux__ReadRaw(int32_t fd, uint8_t* output, size_t count) __asm__("_read");
 #else
-ptrdiff_t zir_foreign_zir_f_eb6527159f8585fd_ReadRaw(int32_t fd, uint8_t* output, size_t count) __asm__("read");
+ptrdiff_t zir_foreign_process_run_linux__ReadRaw(int32_t fd, uint8_t* output, size_t count) __asm__("read");
 #endif
-static ptrdiff_t
-zir_f_eb6527159f8585fd_ReadRaw(int32_t fd, uint8_t* output, size_t count)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_ReadRaw(fd, output, count);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_WriteRaw_06f26813
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_WriteRaw_06f26813
 #ifdef __APPLE__
-ptrdiff_t zir_foreign_zir_f_eb6527159f8585fd_WriteRaw(int32_t fd, uint8_t* input, size_t count) __asm__("_write");
+ptrdiff_t zir_foreign_process_run_linux__WriteRaw(int32_t fd, uint8_t* input, size_t count) __asm__("_write");
 #else
-ptrdiff_t zir_foreign_zir_f_eb6527159f8585fd_WriteRaw(int32_t fd, uint8_t* input, size_t count) __asm__("write");
+ptrdiff_t zir_foreign_process_run_linux__WriteRaw(int32_t fd, uint8_t* input, size_t count) __asm__("write");
 #endif
-static ptrdiff_t
-zir_f_eb6527159f8585fd_WriteRaw(int32_t fd, uint8_t* input, size_t count)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_WriteRaw(fd, input, count);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_OpenRaw_e4db28c4
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_OpenRaw_e4db28c4
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_eb6527159f8585fd_OpenRaw(uint8_t* path, int32_t flags, ...) __asm__("_open");
+int32_t zir_foreign_process_run_linux__OpenRaw(uint8_t* path, int32_t flags, ...) __asm__("_open");
 #else
-int32_t zir_foreign_zir_f_eb6527159f8585fd_OpenRaw(uint8_t* path, int32_t flags, ...) __asm__("open");
+int32_t zir_foreign_process_run_linux__OpenRaw(uint8_t* path, int32_t flags, ...) __asm__("open");
 #endif
-#define zir_f_eb6527159f8585fd_OpenRaw zir_foreign_zir_f_eb6527159f8585fd_OpenRaw
-#endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_ExecRaw_efd664fc
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_ExecRaw_efd664fc
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_eb6527159f8585fd_ExecRaw(uint8_t* path, ProcessArgumentSlot* arguments) __asm__("_execvp");
+int32_t zir_foreign_process_run_linux__ExecRaw(uint8_t* path, ProcessArgumentSlot* arguments) __asm__("_execvp");
 #else
-int32_t zir_foreign_zir_f_eb6527159f8585fd_ExecRaw(uint8_t* path, ProcessArgumentSlot* arguments) __asm__("execvp");
+int32_t zir_foreign_process_run_linux__ExecRaw(uint8_t* path, ProcessArgumentSlot* arguments) __asm__("execvp");
 #endif
-static int32_t
-zir_f_eb6527159f8585fd_ExecRaw(uint8_t* path, ProcessArgumentSlot* arguments)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_ExecRaw(path, arguments);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_ExitRaw_da83199a
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_ExitRaw_da83199a
 #ifdef __APPLE__
-void zir_foreign_zir_f_eb6527159f8585fd_ExitRaw(int32_t code) __asm__("__exit");
+void zir_foreign_process_run_linux__ExitRaw(int32_t code) __asm__("__exit");
 #else
-void zir_foreign_zir_f_eb6527159f8585fd_ExitRaw(int32_t code) __asm__("_exit");
+void zir_foreign_process_run_linux__ExitRaw(int32_t code) __asm__("_exit");
 #endif
-static void
-zir_f_eb6527159f8585fd_ExitRaw(int32_t code)
-{
-    zir_foreign_zir_f_eb6527159f8585fd_ExitRaw(code);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_WaitRaw_0257cbb4
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_WaitRaw_0257cbb4
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_eb6527159f8585fd_WaitRaw(int32_t pid, int32_t* status, int32_t options) __asm__("_waitpid");
+int32_t zir_foreign_process_run_linux__WaitRaw(int32_t pid, int32_t* status, int32_t options) __asm__("_waitpid");
 #else
-int32_t zir_foreign_zir_f_eb6527159f8585fd_WaitRaw(int32_t pid, int32_t* status, int32_t options) __asm__("waitpid");
+int32_t zir_foreign_process_run_linux__WaitRaw(int32_t pid, int32_t* status, int32_t options) __asm__("waitpid");
 #endif
-static int32_t
-zir_f_eb6527159f8585fd_WaitRaw(int32_t pid, int32_t* status, int32_t options)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_WaitRaw(pid, status, options);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_KillRaw_34dcae82
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_KillRaw_34dcae82
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_eb6527159f8585fd_KillRaw(int32_t pid, int32_t signal_number) __asm__("_kill");
+int32_t zir_foreign_process_run_linux__KillRaw(int32_t pid, int32_t signal_number) __asm__("_kill");
 #else
-int32_t zir_foreign_zir_f_eb6527159f8585fd_KillRaw(int32_t pid, int32_t signal_number) __asm__("kill");
+int32_t zir_foreign_process_run_linux__KillRaw(int32_t pid, int32_t signal_number) __asm__("kill");
 #endif
-static int32_t
-zir_f_eb6527159f8585fd_KillRaw(int32_t pid, int32_t signal_number)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_KillRaw(pid, signal_number);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_ChangeDirectoryRaw_e9b0efc4
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_ChangeDirectoryRaw_e9b0efc4
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_eb6527159f8585fd_ChangeDirectoryRaw(uint8_t* path) __asm__("_chdir");
+int32_t zir_foreign_process_run_linux__ChangeDirectoryRaw(uint8_t* path) __asm__("_chdir");
 #else
-int32_t zir_foreign_zir_f_eb6527159f8585fd_ChangeDirectoryRaw(uint8_t* path) __asm__("chdir");
+int32_t zir_foreign_process_run_linux__ChangeDirectoryRaw(uint8_t* path) __asm__("chdir");
 #endif
-static int32_t
-zir_f_eb6527159f8585fd_ChangeDirectoryRaw(uint8_t* path)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_ChangeDirectoryRaw(path);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_SetEnvironmentRaw_24354f51
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_SetEnvironmentRaw_24354f51
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_eb6527159f8585fd_SetEnvironmentRaw(uint8_t* name, uint8_t* value, int32_t overwrite) __asm__("_setenv");
+int32_t zir_foreign_process_run_linux__SetEnvironmentRaw(uint8_t* name, uint8_t* value, int32_t overwrite) __asm__("_setenv");
 #else
-int32_t zir_foreign_zir_f_eb6527159f8585fd_SetEnvironmentRaw(uint8_t* name, uint8_t* value, int32_t overwrite) __asm__("setenv");
+int32_t zir_foreign_process_run_linux__SetEnvironmentRaw(uint8_t* name, uint8_t* value, int32_t overwrite) __asm__("setenv");
 #endif
-static int32_t
-zir_f_eb6527159f8585fd_SetEnvironmentRaw(uint8_t* name, uint8_t* value, int32_t overwrite)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_SetEnvironmentRaw(name, value, overwrite);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_UnsetEnvironmentRaw_01c4c37c
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_UnsetEnvironmentRaw_01c4c37c
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_eb6527159f8585fd_UnsetEnvironmentRaw(uint8_t* name) __asm__("_unsetenv");
+int32_t zir_foreign_process_run_linux__UnsetEnvironmentRaw(uint8_t* name) __asm__("_unsetenv");
 #else
-int32_t zir_foreign_zir_f_eb6527159f8585fd_UnsetEnvironmentRaw(uint8_t* name) __asm__("unsetenv");
+int32_t zir_foreign_process_run_linux__UnsetEnvironmentRaw(uint8_t* name) __asm__("unsetenv");
 #endif
-static int32_t
-zir_f_eb6527159f8585fd_UnsetEnvironmentRaw(uint8_t* name)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_UnsetEnvironmentRaw(name);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_SessionRaw_2cda1114
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_SessionRaw_2cda1114
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_eb6527159f8585fd_SessionRaw(void) __asm__("_setsid");
+int32_t zir_foreign_process_run_linux__SessionRaw(void) __asm__("_setsid");
 #else
-int32_t zir_foreign_zir_f_eb6527159f8585fd_SessionRaw(void) __asm__("setsid");
+int32_t zir_foreign_process_run_linux__SessionRaw(void) __asm__("setsid");
 #endif
-static int32_t
-zir_f_eb6527159f8585fd_SessionRaw(void)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_SessionRaw();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_SignalRaw_f23e3d88
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_SignalRaw_f23e3d88
 #ifdef __APPLE__
-SignalHandler zir_foreign_zir_f_eb6527159f8585fd_SignalRaw(int32_t signal_number, SignalHandler handler) __asm__("_signal");
+SignalHandler zir_foreign_process_run_linux__SignalRaw(int32_t signal_number, SignalHandler handler) __asm__("_signal");
 #else
-SignalHandler zir_foreign_zir_f_eb6527159f8585fd_SignalRaw(int32_t signal_number, SignalHandler handler) __asm__("signal");
+SignalHandler zir_foreign_process_run_linux__SignalRaw(int32_t signal_number, SignalHandler handler) __asm__("signal");
 #endif
-static SignalHandler
-zir_f_eb6527159f8585fd_SignalRaw(int32_t signal_number, SignalHandler handler)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_SignalRaw(signal_number, handler);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_PipeRaw_bab5570c
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_PipeRaw_bab5570c
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_eb6527159f8585fd_PipeRaw(int32_t* fds) __asm__("_pipe");
+int32_t zir_foreign_process_run_linux__PipeRaw(int32_t* fds) __asm__("_pipe");
 #else
-int32_t zir_foreign_zir_f_eb6527159f8585fd_PipeRaw(int32_t* fds) __asm__("pipe");
+int32_t zir_foreign_process_run_linux__PipeRaw(int32_t* fds) __asm__("pipe");
 #endif
-static int32_t
-zir_f_eb6527159f8585fd_PipeRaw(int32_t* fds)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_PipeRaw(fds);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_FcntlRaw_b27e2197
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_FcntlRaw_b27e2197
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_eb6527159f8585fd_FcntlRaw(int32_t fd, int32_t command, ...) __asm__("_fcntl");
+int32_t zir_foreign_process_run_linux__FcntlRaw(int32_t fd, int32_t command, ...) __asm__("_fcntl");
 #else
-int32_t zir_foreign_zir_f_eb6527159f8585fd_FcntlRaw(int32_t fd, int32_t command, ...) __asm__("fcntl");
+int32_t zir_foreign_process_run_linux__FcntlRaw(int32_t fd, int32_t command, ...) __asm__("fcntl");
 #endif
-#define zir_f_eb6527159f8585fd_FcntlRaw zir_foreign_zir_f_eb6527159f8585fd_FcntlRaw
-#endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_ErrnoRaw_a87bf2d8
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_ErrnoRaw_a87bf2d8
 #ifdef __APPLE__
-int32_t* zir_foreign_zir_f_eb6527159f8585fd_ErrnoRaw(void) __asm__("___error");
+int32_t* zir_foreign_process_run_linux__ErrnoRaw(void) __asm__("___error");
 #else
-int32_t* zir_foreign_zir_f_eb6527159f8585fd_ErrnoRaw(void) __asm__("__error");
-#endif
-static int32_t*
-zir_f_eb6527159f8585fd_ErrnoRaw(void)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_ErrnoRaw();
-}
+int32_t* zir_foreign_process_run_linux__ErrnoRaw(void) __asm__("__error");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -264,13 +128,13 @@ static int32_t
 process_run_linux_Pipe2Raw(int32_t* fds, int32_t flags)
 {
     (void)flags;
-    if (zir_f_eb6527159f8585fd_PipeRaw(fds) != 0) {
+    if (zir_foreign_process_run_linux__PipeRaw(fds) != 0) {
         return -1;
     }
     for (int64_t end = 0LL; end <= 1LL; end++) {
-        if (zir_f_eb6527159f8585fd_FcntlRaw(fds[end], 2, 1LL) != 0) {
-            zir_f_eb6527159f8585fd_CloseRaw(fds[0]);
-            zir_f_eb6527159f8585fd_CloseRaw(fds[1]);
+        if (zir_foreign_process_run_linux__FcntlRaw(fds[end], 2, 1LL) != 0) {
+            zir_foreign_process_run_linux__CloseRaw(fds[0]);
+            zir_foreign_process_run_linux__CloseRaw(fds[1]);
             return -1;
         }
     }
@@ -495,7 +359,7 @@ process_run_linux_Child(ProcessOptions options, Prepared* prepared, int32_t stat
 {
     bool failed = false;
     if (options.new_session) {
-        zir_f_eb6527159f8585fd_SessionRaw();
+        zir_foreign_process_run_linux__SessionRaw();
     }
     int64_t value_0 = prepared->input;
     if (value_0 >= 0LL) {
@@ -507,17 +371,17 @@ process_run_linux_Child(ProcessOptions options, Prepared* prepared, int32_t stat
             int64_t offset = value_2;
             value_3 = &(ZIRAN_VEC_INDEX((prepared->bytes).data, (prepared->bytes).count, offset));
         }
-        int32_t fd = zir_f_eb6527159f8585fd_OpenRaw(value_3, 0, 0LL);
+        int32_t fd = zir_foreign_process_run_linux__OpenRaw(value_3, 0, 0LL);
         bool value_5 = fd < 0;
-        if (value_5 || zir_f_eb6527159f8585fd_DupRaw(fd, 0) < 0) {
+        if (value_5 || zir_foreign_process_run_linux__DupRaw(fd, 0) < 0) {
             failed = true;
         }
         if (fd > 0) {
-            zir_f_eb6527159f8585fd_CloseRaw(fd);
+            zir_foreign_process_run_linux__CloseRaw(fd);
         }
     }
     if (!failed && capture >= 0) {
-        if (zir_f_eb6527159f8585fd_DupRaw(capture, 1) < 0) {
+        if (zir_foreign_process_run_linux__DupRaw(capture, 1) < 0) {
             failed = true;
         }
     } else {
@@ -542,15 +406,15 @@ process_run_linux_Child(ProcessOptions options, Prepared* prepared, int32_t stat
                 int64_t offset = value_10;
                 value_11 = &(ZIRAN_VEC_INDEX((prepared->bytes).data, (prepared->bytes).count, offset));
             }
-            int32_t fd = zir_f_eb6527159f8585fd_OpenRaw(value_11, (int32_t)((uint32_t)flags | 16777216u), 420LL);
+            int32_t fd = zir_foreign_process_run_linux__OpenRaw(value_11, (int32_t)((uint32_t)flags | 16777216u), 420LL);
             bool value_13 = fd < 0;
-            if (value_13 || zir_f_eb6527159f8585fd_DupRaw(fd, 1) < 0) {
+            if (value_13 || zir_foreign_process_run_linux__DupRaw(fd, 1) < 0) {
                 failed = true;
             }
         }
     }
     if (!failed && options.merge_error) {
-        if (zir_f_eb6527159f8585fd_DupRaw(1, 2) < 0) {
+        if (zir_foreign_process_run_linux__DupRaw(1, 2) < 0) {
             failed = true;
         }
     } else {
@@ -568,9 +432,9 @@ process_run_linux_Child(ProcessOptions options, Prepared* prepared, int32_t stat
                 int64_t offset = value_17;
                 value_18 = &(ZIRAN_VEC_INDEX((prepared->bytes).data, (prepared->bytes).count, offset));
             }
-            int32_t fd = zir_f_eb6527159f8585fd_OpenRaw(value_18, 16778753, 420LL);
+            int32_t fd = zir_foreign_process_run_linux__OpenRaw(value_18, 16778753, 420LL);
             bool value_20 = fd < 0;
-            if (value_20 || zir_f_eb6527159f8585fd_DupRaw(fd, 2) < 0) {
+            if (value_20 || zir_foreign_process_run_linux__DupRaw(fd, 2) < 0) {
                 failed = true;
             }
         }
@@ -591,7 +455,7 @@ process_run_linux_Child(ProcessOptions options, Prepared* prepared, int32_t stat
             int64_t offset = value_26;
             value_27 = &(ZIRAN_VEC_INDEX((prepared->bytes).data, (prepared->bytes).count, offset));
         }
-        bool value_29 = zir_f_eb6527159f8585fd_ChangeDirectoryRaw(value_27) != 0;
+        bool value_29 = zir_foreign_process_run_linux__ChangeDirectoryRaw(value_27) != 0;
         value_24 = value_29;
     }
     if (value_24) {
@@ -616,7 +480,7 @@ process_run_linux_Child(ProcessOptions options, Prepared* prepared, int32_t stat
         uint8_t* name = value_34;
         int64_t value_36 = (prepared->values).data[index];
         if (value_36 < 0LL) {
-            zir_f_eb6527159f8585fd_UnsetEnvironmentRaw(name);
+            zir_foreign_process_run_linux__UnsetEnvironmentRaw(name);
         } else {
             uint8_t* value_37 = name;
             Prepared* value_38 = prepared;
@@ -627,19 +491,19 @@ process_run_linux_Child(ProcessOptions options, Prepared* prepared, int32_t stat
                 int64_t offset = value_39;
                 value_40 = &(ZIRAN_VEC_INDEX((prepared->bytes).data, (prepared->bytes).count, offset));
             }
-            if (zir_f_eb6527159f8585fd_SetEnvironmentRaw(value_37, value_40, 1) != 0) {
+            if (zir_foreign_process_run_linux__SetEnvironmentRaw(value_37, value_40, 1) != 0) {
                 failed = true;
             }
         }
         index = (int64_t)((uint64_t)index + UINT64_C(1));
     }
     if (!failed) {
-        zir_f_eb6527159f8585fd_ExecRaw(((prepared->arguments).data[0]).value, &(ZIRAN_VEC_INDEX((prepared->arguments).data, (prepared->arguments).count, 0)));
+        zir_foreign_process_run_linux__ExecRaw(((prepared->arguments).data[0]).value, &(ZIRAN_VEC_INDEX((prepared->arguments).data, (prepared->arguments).count, 0)));
     }
-    int32_t* value_42 = zir_f_eb6527159f8585fd_ErrnoRaw();
+    int32_t* value_42 = zir_foreign_process_run_linux__ErrnoRaw();
     int32_t error = *(value_42);
-    zir_f_eb6527159f8585fd_WriteRaw(status, (uint8_t*)(&(error)), 4);
-    zir_f_eb6527159f8585fd_ExitRaw(127);
+    zir_foreign_process_run_linux__WriteRaw(status, (uint8_t*)(&(error)), 4);
+    zir_foreign_process_run_linux__ExitRaw(127);
 }
 
 static void
@@ -720,8 +584,8 @@ process_run_linux_Start(ProcessOptions options, ProcessRun* run, bool capture)
     }
     int32_t output[2] = {-1, -1};
     if (capture && process_run_linux_Pipe2Raw(&(output[0]), 16777216) != 0) {
-        zir_f_eb6527159f8585fd_CloseRaw((status)[0]);
-        zir_f_eb6527159f8585fd_CloseRaw((status)[1]);
+        zir_foreign_process_run_linux__CloseRaw((status)[0]);
+        zir_foreign_process_run_linux__CloseRaw((status)[1]);
         int32_t value_7 = -1;
         free((prepared).bytes.data);
         (prepared).bytes.data = NULL;
@@ -745,22 +609,22 @@ process_run_linux_Start(ProcessOptions options, ProcessRun* run, bool capture)
         (prepared).values.count = 0;
         return value_7;
     }
-    int32_t pid = zir_f_eb6527159f8585fd_ForkRaw();
+    int32_t pid = zir_foreign_process_run_linux__ForkRaw();
     if (pid == 0) {
-        zir_f_eb6527159f8585fd_CloseRaw((status)[0]);
+        zir_foreign_process_run_linux__CloseRaw((status)[0]);
         if (capture) {
-            zir_f_eb6527159f8585fd_CloseRaw((output)[0]);
+            zir_foreign_process_run_linux__CloseRaw((output)[0]);
         }
         process_run_linux_Child(options, &(prepared), (status)[1], (output)[1]);
     }
-    zir_f_eb6527159f8585fd_CloseRaw((status)[1]);
+    zir_foreign_process_run_linux__CloseRaw((status)[1]);
     if (capture) {
-        zir_f_eb6527159f8585fd_CloseRaw((output)[1]);
+        zir_foreign_process_run_linux__CloseRaw((output)[1]);
     }
     if (pid < 0) {
-        zir_f_eb6527159f8585fd_CloseRaw((status)[0]);
+        zir_foreign_process_run_linux__CloseRaw((status)[0]);
         if (capture) {
-            zir_f_eb6527159f8585fd_CloseRaw((output)[0]);
+            zir_foreign_process_run_linux__CloseRaw((output)[0]);
         }
         int32_t value_8 = -1;
         free((prepared).bytes.data);
@@ -790,25 +654,25 @@ process_run_linux_Start(ProcessOptions options, ProcessRun* run, bool capture)
     int32_t error = 0;
     int64_t count = -1LL;
     while (count < 0LL) {
-        ptrdiff_t value_10 = zir_f_eb6527159f8585fd_ReadRaw((status)[0], (uint8_t*)(&(error)), 4);
+        ptrdiff_t value_10 = zir_foreign_process_run_linux__ReadRaw((status)[0], (uint8_t*)(&(error)), 4);
         count = (int64_t)(value_10);
         bool value_11 = count < 0LL;
         if (value_11) {
-            int32_t* value_12 = zir_f_eb6527159f8585fd_ErrnoRaw();
+            int32_t* value_12 = zir_foreign_process_run_linux__ErrnoRaw();
             value_11 = (*(value_12) != 4);
         }
         if (value_11) {
             count = 0LL;
         }
     }
-    zir_f_eb6527159f8585fd_CloseRaw((status)[0]);
+    zir_foreign_process_run_linux__CloseRaw((status)[0]);
     if (count > 0LL) {
         int32_t child_status = 0;
         while (true) {
-            bool value_13 = zir_f_eb6527159f8585fd_WaitRaw(pid, &(child_status), 0) < 0;
+            bool value_13 = zir_foreign_process_run_linux__WaitRaw(pid, &(child_status), 0) < 0;
             bool value_14 = value_13;
             if (value_14) {
-                int32_t* value_15 = zir_f_eb6527159f8585fd_ErrnoRaw();
+                int32_t* value_15 = zir_foreign_process_run_linux__ErrnoRaw();
                 value_14 = (*(value_15) == 4);
             }
             if (!value_14) { break; }
@@ -818,7 +682,7 @@ process_run_linux_Start(ProcessOptions options, ProcessRun* run, bool capture)
         int32_t* value_17 = &(run->code);
         (*value_17) = 127;
         if (capture) {
-            zir_f_eb6527159f8585fd_CloseRaw((output)[0]);
+            zir_foreign_process_run_linux__CloseRaw((output)[0]);
         }
         int32_t value_18 = -1;
         free((prepared).bytes.data);
@@ -889,7 +753,7 @@ process_run_linux_PollProcess(ProcessRun* run)
         return true;
     }
     int32_t status = 0;
-    int32_t done = zir_f_eb6527159f8585fd_WaitRaw(run->pid, &(status), 1);
+    int32_t done = zir_foreign_process_run_linux__WaitRaw(run->pid, &(status), 1);
     if (done == run->pid) {
         ProcessRun* value_0 = run;
         int32_t value_1 = status;
@@ -909,7 +773,7 @@ process_run_linux_PollProcess(ProcessRun* run)
     }
     bool value_6 = done < 0;
     if (value_6) {
-        int32_t* value_7 = zir_f_eb6527159f8585fd_ErrnoRaw();
+        int32_t* value_7 = zir_foreign_process_run_linux__ErrnoRaw();
         value_6 = (*(value_7) != 4);
     }
     if (value_6) {
@@ -927,7 +791,7 @@ process_run_linux_WaitProcess(ProcessRun* run)
     }
     int32_t status = 0;
     while (true) {
-        int32_t done = zir_f_eb6527159f8585fd_WaitRaw(run->pid, &(status), 0);
+        int32_t done = zir_foreign_process_run_linux__WaitRaw(run->pid, &(status), 0);
         if (done == run->pid) {
             ProcessRun* value_0 = run;
             int32_t value_1 = status;
@@ -948,7 +812,7 @@ process_run_linux_WaitProcess(ProcessRun* run)
         }
         bool value_6 = done < 0;
         if (value_6) {
-            int32_t* value_7 = zir_f_eb6527159f8585fd_ErrnoRaw();
+            int32_t* value_7 = zir_foreign_process_run_linux__ErrnoRaw();
             value_6 = (*(value_7) != 4);
         }
         if (value_6) {
@@ -973,7 +837,7 @@ process_run_linux_SignalProcess(ProcessRun* run, int32_t signal_number, bool who
         value_0 = run->pid;
     }
     int32_t target = value_0;
-    return zir_f_eb6527159f8585fd_KillRaw(target, signal_number) == 0;
+    return zir_foreign_process_run_linux__KillRaw(target, signal_number) == 0;
 }
 
 bool
@@ -987,11 +851,11 @@ process_run_linux_RunProcess(ProcessOptions options, ProcessRun* run)
     if (capture) {
         uint8_t chunk[65536] = {0};
         while (true) {
-            ptrdiff_t value_0 = zir_f_eb6527159f8585fd_ReadRaw(fd, &(chunk[0]), 65536);
+            ptrdiff_t value_0 = zir_foreign_process_run_linux__ReadRaw(fd, &(chunk[0]), 65536);
             int64_t count = (int64_t)(value_0);
             bool value_1 = count < 0LL;
             if (value_1) {
-                int32_t* value_2 = zir_f_eb6527159f8585fd_ErrnoRaw();
+                int32_t* value_2 = zir_foreign_process_run_linux__ErrnoRaw();
                 value_1 = (*(value_2) == 4);
             }
             if (value_1) {
@@ -1014,7 +878,7 @@ process_run_linux_RunProcess(ProcessOptions options, ProcessRun* run)
                 index = (int64_t)((uint64_t)index + UINT64_C(1));
             }
         }
-        zir_f_eb6527159f8585fd_CloseRaw(fd);
+        zir_foreign_process_run_linux__CloseRaw(fd);
     }
     return process_run_linux_WaitProcess(run);
 }
@@ -1030,8 +894,8 @@ void
 process_run_linux_CatchTermination(void)
 {
     termination_requested = false;
-    zir_f_eb6527159f8585fd_SignalRaw(15, process_run_linux_Terminate);
-    zir_f_eb6527159f8585fd_SignalRaw(2, process_run_linux_Terminate);
+    zir_foreign_process_run_linux__SignalRaw(15, process_run_linux_Terminate);
+    zir_foreign_process_run_linux__SignalRaw(2, process_run_linux_Terminate);
 }
 
 bool

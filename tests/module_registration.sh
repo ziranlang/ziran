@@ -26,13 +26,13 @@ Call :: (value: s32) -> s32 {
 }
 ZI
 cat > "$work/heavy.zi" <<'ZI'
-Scale :: () -> s32 { return 2 }
+Scale :: (value: s32) -> s32 { return value * 2 }
 ZI
 cat > "$work/feature.zi" <<'ZI'
 Host :: #import "host";
 Heavy :: #import "heavy";
 
-Double :: (value: s32) -> s32 { return value * Heavy.Scale() }
+Double :: (value: s32) -> s32 { return Heavy.Scale(value) }
 
 registered: bool = Host.Register(Double);
 ZI

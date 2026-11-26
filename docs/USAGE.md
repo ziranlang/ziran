@@ -1542,6 +1542,20 @@ keep only the helpers some generated file calls. A library build, without
 `--exe` or a C `main`, keeps each header's whole public interface for the C
 code that hosts it.
 
+Closed native entry links also remove branches guarded by callbacks that are
+never registered or boolean globals that are never changed. Empty hooks and
+constant-result calls disappear only when dropping their arguments has no
+effects. Registration and escaped addresses keep those globals mutable.
+Each retained module keeps its own generated files.
+
+Generated procedure specializations name their original module, procedure
+and concrete type. Ambiguous readable names retain an identity suffix.
+Records with a shared short name use a module qualifier when that spelling
+is free; synthetic generic types keep their canonical identities.
+Foreign calls use readable module-qualified declarations bound directly to
+their linker symbols. They need no forwarding functions or per-binding
+preprocessor guards. Declarations preserve the platform's linker spelling.
+
 `#inline` after a procedure's result asks generated C to always inline it:
 `Mix :: (value: s64) -> s64 #inline { ... }`. GCC and Clang get
 `always_inline`, a public procedure's header copy is kept whatever its

@@ -395,6 +395,23 @@ BuiltinType :: (name: *u8) -> *IR.ZirType {
 }
 
 #scope_file
+SameGeneratedPath :: (left: *u8, right: *u8) -> bool {
+    a := left
+    b := right
+    while a[0] != 0 && b[0] != 0 {
+        if a[0] != b[0] { return false }
+        c := a[0]
+        a = cast(*u8)(cast(usize)a + 1)
+        b = cast(*u8)(cast(usize)b + 1)
+        if c == #char "/" {
+            while a[0] == #char "/" { a = cast(*u8)(cast(usize)a + 1) }
+            while b[0] == #char "/" { b = cast(*u8)(cast(usize)b + 1) }
+        }
+    }
+    return a[0] == b[0]
+}
+
+#scope_file
 same_file_bytes :: (left: *u8, right: *u8) -> s32 {
     buffers := cast(*SameFileBytesBuffers)ParserScratchTake(*same_file_scratch, size_of(SameFileBytesBuffers))
     defer ParserScratchRelease(*same_file_scratch, cast(*void)buffers)
@@ -429,7 +446,7 @@ prune_generated :: (directory_path: *u8, marker: *u8, depth: s32) -> s32 {
         outputs := context_outputs()
         written := false
         for i: 0..outputs.count-1 {
-            if strcmp(outputs.paths[i], *path[0]) == 0 { written = true; break }
+            if SameGeneratedPath(outputs.paths[i], *path[0]) { written = true; break }
         }
         if !written && starts_with_marker(*path[0], marker) != 0 && remove(*path[0]) != 0 { failed = true }
     }

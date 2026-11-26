@@ -40,7 +40,7 @@ compiler_c_range_callers_SplicedName(Callers* c, uint8_t* name)
             value_1 = 64;
         }
         int32_t cap = value_1;
-        uint8_t** grown = compiler_c_range_facts___zi_spec_72ce1a0d7fc61446(c->names, (int64_t)(cap));
+        uint8_t** grown = compiler_c_range_facts_compiler_c_range_facts_Grow_for__u8(c->names, (int64_t)(cap));
         if (grown == ((void *)0)) {
             return (void *)0;
         }
@@ -56,7 +56,7 @@ compiler_c_range_callers_SplicedName(Callers* c, uint8_t* name)
     }
     uint8_t* value_5 = &(copy[0]);
     (*value_5) = 1;
-    compiler_c_range_facts___zi_spec_9b28547ded648747(&(copy[1]), name, (int64_t)((uint64_t)length + UINT64_C(1)));
+    compiler_c_range_facts_compiler_c_range_facts_Copy_for_u8(&(copy[1]), name, (int64_t)((uint64_t)length + UINT64_C(1)));
     uint8_t** value_6 = &(c->names[c->name_count]);
     (*value_6) = copy;
     int32_t* value_7 = &(c->name_count);
@@ -309,10 +309,10 @@ compiler_c_range_callers_SpliceExprs(Callers* c, RangeFacts* f, ZirFunction* cal
 {
     ZirFunction* callee = f->fn;
     ZirFunction* copy = &(site->fn);
-    compiler_c_range_facts___zi_spec_262c8131ae5c049c(copy->exprs, caller->exprs, (int64_t)(caller->expr_count));
+    compiler_c_range_facts_compiler_c_range_facts_Copy_for_ZirExpr(copy->exprs, caller->exprs, (int64_t)(caller->expr_count));
     int32_t* value_0 = &(site->offset);
     (*value_0) = caller->expr_count;
-    compiler_c_range_facts___zi_spec_262c8131ae5c049c(&(copy->exprs[site->offset]), callee->exprs, (int64_t)(callee->expr_count));
+    compiler_c_range_facts_compiler_c_range_facts_Copy_for_ZirExpr(&(copy->exprs[site->offset]), callee->exprs, (int64_t)(callee->expr_count));
     {
         int32_t range_first_5 = 0;
         int32_t range_last_5 = (int32_t)((uint32_t)(callee->expr_count) - 1u);
@@ -645,11 +645,11 @@ compiler_c_range_callers_SpliceCall(Callers* c, RangeFacts* f, ZirModule* module
             }
         }
     }
-    compiler_c_range_facts___zi_spec_1c076b9130a22c09(argument);
-    compiler_c_range_facts___zi_spec_1c076b9130a22c09(alias);
+    compiler_c_range_facts_compiler_c_range_facts_Release_for_s32(argument);
+    compiler_c_range_facts_compiler_c_range_facts_Release_for_s32(alias);
     if (!ok) {
-        compiler_c_range_facts___zi_spec_4f7278c383bc71a4(copy->stmts);
-        compiler_c_range_facts___zi_spec_f25bf0ef6b818ab7(copy->exprs);
+        compiler_c_range_facts_compiler_c_range_facts_Release_for_ZirStmt(copy->stmts);
+        compiler_c_range_facts_compiler_c_range_facts_Release_for_ZirExpr(copy->exprs);
         CallSite* value_21 = &((*(site)));
         (*value_21) = (CallSite){0};
     }

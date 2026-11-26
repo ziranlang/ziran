@@ -478,7 +478,7 @@ compiler_c_range_poly_ReadsUnchanged(RangeFacts* f, int32_t root, int32_t from, 
         }
         x = compiler_c_range_facts_WalkNext(&(walk));
     }
-    compiler_c_range_facts___zi_spec_1c076b9130a22c09((int32_t*)walk.pending);
+    compiler_c_range_facts_compiler_c_range_facts_Release_for_s32((int32_t*)walk.pending);
     return unchanged;
 }
 
@@ -1075,8 +1075,8 @@ compiler_c_range_poly_ConditionFacts(RangeFacts* f, int32_t condition, bool trut
         void* value_24 = compiler_c_range_facts_Allocate(128LL, sizeof(Poly));
         (*value_23) = (Poly*)(value_24);
         if (facts->sides == ((void *)0) || facts->side == ((void *)0)) {
-            compiler_c_range_facts___zi_spec_1c076b9130a22c09(facts->sides);
-            compiler_c_range_facts___zi_spec_b4230299ea84c8b9(facts->side);
+            compiler_c_range_facts_compiler_c_range_facts_Release_for_s32(facts->sides);
+            compiler_c_range_facts_compiler_c_range_facts_Release_for_Poly(facts->side);
             int32_t** value_25 = &(facts->sides);
             (*value_25) = (void *)0;
             Poly** value_26 = &(facts->side);
@@ -2097,8 +2097,8 @@ compiler_c_range_poly_RelatedFacts(RangeFacts* f, Poly* q, Poly* limit, int32_t 
     void* value_1 = compiler_c_range_facts_Allocate((int64_t)((uint64_t)(count) + UINT64_C(1)), 1LL);
     uint8_t* keep = (uint8_t*)(value_1);
     if (mark == ((void *)0) || keep == ((void *)0)) {
-        compiler_c_range_facts___zi_spec_26cf6fa78d69a0a8(mark);
-        compiler_c_range_facts___zi_spec_26cf6fa78d69a0a8(keep);
+        compiler_c_range_facts_compiler_c_range_facts_Release_for_u8(mark);
+        compiler_c_range_facts_compiler_c_range_facts_Release_for_u8(keep);
         int32_t value_2 = 0;
         if (count < max) {
             value_2 = count;
@@ -2169,8 +2169,8 @@ compiler_c_range_poly_RelatedFacts(RangeFacts* f, Poly* q, Poly* limit, int32_t 
         }
         i = (int32_t)((uint32_t)i + 1u);
     }
-    compiler_c_range_facts___zi_spec_26cf6fa78d69a0a8(mark);
-    compiler_c_range_facts___zi_spec_26cf6fa78d69a0a8(keep);
+    compiler_c_range_facts_compiler_c_range_facts_Release_for_u8(mark);
+    compiler_c_range_facts_compiler_c_range_facts_Release_for_u8(keep);
     return kept;
 }
 
@@ -2204,6 +2204,6 @@ compiler_c_range_poly_PolyIndexBelow(RangeFacts* f, int32_t index, Poly* limit)
     bool value_6 = value_5 || compiler_c_range_poly_TermsNonnegative(f, &(q), at, facts, count);
     bool value_7 = value_6;
     bool proven = value_7 && compiler_c_range_poly_SubstituteBounds(f, &(q), at, facts, count, limit, 0, &(tries));
-    compiler_c_range_facts___zi_spec_b4230299ea84c8b9(facts);
+    compiler_c_range_facts_compiler_c_range_facts_Release_for_Poly(facts);
     return proven;
 }

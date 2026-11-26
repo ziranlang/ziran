@@ -29,344 +29,140 @@ static inline uint32_t ZiShl32(uint32_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_realloc_88719d39
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_realloc_88719d39
 #ifdef __APPLE__
-void* zir_foreign_zir_f_95c9517df3f32b71_realloc(void* memory, size_t size) __asm__("_realloc");
+void* zir_foreign_compiler_go_simd__realloc(void* memory, size_t size) __asm__("_realloc");
 #else
-void* zir_foreign_zir_f_95c9517df3f32b71_realloc(void* memory, size_t size) __asm__("realloc");
+void* zir_foreign_compiler_go_simd__realloc(void* memory, size_t size) __asm__("realloc");
 #endif
-static void*
-zir_f_95c9517df3f32b71_realloc(void* memory, size_t size)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_realloc(memory, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_free_c75930da
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_free_c75930da
 #ifdef __APPLE__
-void zir_foreign_zir_f_95c9517df3f32b71_free(void* memory) __asm__("_free");
+void zir_foreign_compiler_go_simd__free(void* memory) __asm__("_free");
 #else
-void zir_foreign_zir_f_95c9517df3f32b71_free(void* memory) __asm__("free");
+void zir_foreign_compiler_go_simd__free(void* memory) __asm__("free");
 #endif
-static void
-zir_f_95c9517df3f32b71_free(void* memory)
-{
-    zir_foreign_zir_f_95c9517df3f32b71_free(memory);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_exit_1120afe9
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_exit_1120afe9
 #ifdef __APPLE__
-void zir_foreign_zir_f_95c9517df3f32b71_exit(int32_t status) __asm__("_exit");
+void zir_foreign_compiler_go_simd__exit(int32_t status) __asm__("_exit");
 #else
-void zir_foreign_zir_f_95c9517df3f32b71_exit(int32_t status) __asm__("exit");
+void zir_foreign_compiler_go_simd__exit(int32_t status) __asm__("exit");
 #endif
-static void
-zir_f_95c9517df3f32b71_exit(int32_t status)
-{
-    zir_foreign_zir_f_95c9517df3f32b71_exit(status);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_memcpy_d3838e83
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_memcpy_d3838e83
 #ifdef __APPLE__
-void* zir_foreign_zir_f_95c9517df3f32b71_memcpy(void* dst, void* src, size_t count) __asm__("_memcpy");
+void* zir_foreign_compiler_go_simd__memcpy(void* dst, void* src, size_t count) __asm__("_memcpy");
 #else
-void* zir_foreign_zir_f_95c9517df3f32b71_memcpy(void* dst, void* src, size_t count) __asm__("memcpy");
+void* zir_foreign_compiler_go_simd__memcpy(void* dst, void* src, size_t count) __asm__("memcpy");
 #endif
-static void*
-zir_f_95c9517df3f32b71_memcpy(void* dst, void* src, size_t count)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_memcpy(dst, src, count);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_memset_0839e910
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_memset_0839e910
 #ifdef __APPLE__
-void* zir_foreign_zir_f_95c9517df3f32b71_memset(void* dst, int32_t value, size_t count) __asm__("_memset");
+void* zir_foreign_compiler_go_simd__memset(void* dst, int32_t value, size_t count) __asm__("_memset");
 #else
-void* zir_foreign_zir_f_95c9517df3f32b71_memset(void* dst, int32_t value, size_t count) __asm__("memset");
+void* zir_foreign_compiler_go_simd__memset(void* dst, int32_t value, size_t count) __asm__("memset");
 #endif
-static void*
-zir_f_95c9517df3f32b71_memset(void* dst, int32_t value, size_t count)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_memset(dst, value, count);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_memcmp_ce1296ae
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_memcmp_ce1296ae
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_95c9517df3f32b71_memcmp(void* a, void* b, size_t count) __asm__("_memcmp");
+int32_t zir_foreign_compiler_go_simd__memcmp(void* a, void* b, size_t count) __asm__("_memcmp");
 #else
-int32_t zir_foreign_zir_f_95c9517df3f32b71_memcmp(void* a, void* b, size_t count) __asm__("memcmp");
+int32_t zir_foreign_compiler_go_simd__memcmp(void* a, void* b, size_t count) __asm__("memcmp");
 #endif
-static int32_t
-zir_f_95c9517df3f32b71_memcmp(void* a, void* b, size_t count)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_memcmp(a, b, count);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_strlen_b24a2871
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_strlen_b24a2871
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_95c9517df3f32b71_strlen(uint8_t* s) __asm__("_strlen");
+size_t zir_foreign_compiler_go_simd__strlen(uint8_t* s) __asm__("_strlen");
 #else
-size_t zir_foreign_zir_f_95c9517df3f32b71_strlen(uint8_t* s) __asm__("strlen");
+size_t zir_foreign_compiler_go_simd__strlen(uint8_t* s) __asm__("strlen");
 #endif
-static size_t
-zir_f_95c9517df3f32b71_strlen(uint8_t* s)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_strlen(s);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_strcmp_b1a4f317
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_strcmp_b1a4f317
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_95c9517df3f32b71_strcmp(uint8_t* a, uint8_t* b) __asm__("_strcmp");
+int32_t zir_foreign_compiler_go_simd__strcmp(uint8_t* a, uint8_t* b) __asm__("_strcmp");
 #else
-int32_t zir_foreign_zir_f_95c9517df3f32b71_strcmp(uint8_t* a, uint8_t* b) __asm__("strcmp");
+int32_t zir_foreign_compiler_go_simd__strcmp(uint8_t* a, uint8_t* b) __asm__("strcmp");
 #endif
-static int32_t
-zir_f_95c9517df3f32b71_strcmp(uint8_t* a, uint8_t* b)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_strcmp(a, b);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_strncmp_5281c9d0
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_strncmp_5281c9d0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_95c9517df3f32b71_strncmp(uint8_t* a, uint8_t* b, size_t n) __asm__("_strncmp");
+int32_t zir_foreign_compiler_go_simd__strncmp(uint8_t* a, uint8_t* b, size_t n) __asm__("_strncmp");
 #else
-int32_t zir_foreign_zir_f_95c9517df3f32b71_strncmp(uint8_t* a, uint8_t* b, size_t n) __asm__("strncmp");
+int32_t zir_foreign_compiler_go_simd__strncmp(uint8_t* a, uint8_t* b, size_t n) __asm__("strncmp");
 #endif
-static int32_t
-zir_f_95c9517df3f32b71_strncmp(uint8_t* a, uint8_t* b, size_t n)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_strncmp(a, b, n);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_strstr_ae26e2fa
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_strstr_ae26e2fa
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_95c9517df3f32b71_strstr(uint8_t* haystack, uint8_t* needle) __asm__("_strstr");
+uint8_t* zir_foreign_compiler_go_simd__strstr(uint8_t* haystack, uint8_t* needle) __asm__("_strstr");
 #else
-uint8_t* zir_foreign_zir_f_95c9517df3f32b71_strstr(uint8_t* haystack, uint8_t* needle) __asm__("strstr");
+uint8_t* zir_foreign_compiler_go_simd__strstr(uint8_t* haystack, uint8_t* needle) __asm__("strstr");
 #endif
-static uint8_t*
-zir_f_95c9517df3f32b71_strstr(uint8_t* haystack, uint8_t* needle)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_strstr(haystack, needle);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_snprintf_7c8971c5
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_snprintf_7c8971c5
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_95c9517df3f32b71_snprintf(uint8_t* out, size_t size, uint8_t* fmt, ...) __asm__("_snprintf");
+int32_t zir_foreign_compiler_go_simd__snprintf(uint8_t* out, size_t size, uint8_t* fmt, ...) __asm__("_snprintf");
 #else
-int32_t zir_foreign_zir_f_95c9517df3f32b71_snprintf(uint8_t* out, size_t size, uint8_t* fmt, ...) __asm__("snprintf");
+int32_t zir_foreign_compiler_go_simd__snprintf(uint8_t* out, size_t size, uint8_t* fmt, ...) __asm__("snprintf");
 #endif
-#define zir_f_95c9517df3f32b71_snprintf zir_foreign_zir_f_95c9517df3f32b71_snprintf
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_fprintf_83feebb0
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_fprintf_83feebb0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_95c9517df3f32b71_fprintf(void* stream, uint8_t* fmt, ...) __asm__("_fprintf");
+int32_t zir_foreign_compiler_go_simd__fprintf(void* stream, uint8_t* fmt, ...) __asm__("_fprintf");
 #else
-int32_t zir_foreign_zir_f_95c9517df3f32b71_fprintf(void* stream, uint8_t* fmt, ...) __asm__("fprintf");
+int32_t zir_foreign_compiler_go_simd__fprintf(void* stream, uint8_t* fmt, ...) __asm__("fprintf");
 #endif
-#define zir_f_95c9517df3f32b71_fprintf zir_foreign_zir_f_95c9517df3f32b71_fprintf
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_fputs_28723a01
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_fputs_28723a01
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_95c9517df3f32b71_fputs(uint8_t* s, void* stream) __asm__("_fputs");
+int32_t zir_foreign_compiler_go_simd__fputs(uint8_t* s, void* stream) __asm__("_fputs");
 #else
-int32_t zir_foreign_zir_f_95c9517df3f32b71_fputs(uint8_t* s, void* stream) __asm__("fputs");
+int32_t zir_foreign_compiler_go_simd__fputs(uint8_t* s, void* stream) __asm__("fputs");
 #endif
-static int32_t
-zir_f_95c9517df3f32b71_fputs(uint8_t* s, void* stream)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_fputs(s, stream);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_ferror_384a3a69
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_ferror_384a3a69
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_95c9517df3f32b71_ferror(void* stream) __asm__("_ferror");
+int32_t zir_foreign_compiler_go_simd__ferror(void* stream) __asm__("_ferror");
 #else
-int32_t zir_foreign_zir_f_95c9517df3f32b71_ferror(void* stream) __asm__("ferror");
+int32_t zir_foreign_compiler_go_simd__ferror(void* stream) __asm__("ferror");
 #endif
-static int32_t
-zir_f_95c9517df3f32b71_ferror(void* stream)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_ferror(stream);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_fclose_2bb6893f
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_fclose_2bb6893f
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_95c9517df3f32b71_fclose(void* stream) __asm__("_fclose");
+int32_t zir_foreign_compiler_go_simd__fclose(void* stream) __asm__("_fclose");
 #else
-int32_t zir_foreign_zir_f_95c9517df3f32b71_fclose(void* stream) __asm__("fclose");
+int32_t zir_foreign_compiler_go_simd__fclose(void* stream) __asm__("fclose");
 #endif
-static int32_t
-zir_f_95c9517df3f32b71_fclose(void* stream)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_fclose(stream);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_remove_d044dcbc
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_remove_d044dcbc
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_95c9517df3f32b71_remove(uint8_t* path) __asm__("_remove");
+int32_t zir_foreign_compiler_go_simd__remove(uint8_t* path) __asm__("_remove");
 #else
-int32_t zir_foreign_zir_f_95c9517df3f32b71_remove(uint8_t* path) __asm__("remove");
+int32_t zir_foreign_compiler_go_simd__remove(uint8_t* path) __asm__("remove");
 #endif
-static int32_t
-zir_f_95c9517df3f32b71_remove(uint8_t* path)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_remove(path);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_AllocateOrExit_5810995e
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_AllocateOrExit_5810995e
 #ifdef __APPLE__
-void* zir_foreign_zir_f_95c9517df3f32b71_AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
+void* zir_foreign_compiler_go_simd__AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
 #else
-void* zir_foreign_zir_f_95c9517df3f32b71_AllocateOrExit(size_t size) __asm__("AllocateOrExit");
+void* zir_foreign_compiler_go_simd__AllocateOrExit(size_t size) __asm__("AllocateOrExit");
 #endif
-static void*
-zir_f_95c9517df3f32b71_AllocateOrExit(size_t size)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_AllocateOrExit(size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_Diagnostic_78ef33bb
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_Diagnostic_78ef33bb
 #ifdef __APPLE__
-void zir_foreign_zir_f_95c9517df3f32b71_Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* fmt, ...) __asm__("_Diagnostic");
+void zir_foreign_compiler_go_simd__Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* fmt, ...) __asm__("_Diagnostic");
 #else
-void zir_foreign_zir_f_95c9517df3f32b71_Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* fmt, ...) __asm__("Diagnostic");
+void zir_foreign_compiler_go_simd__Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* fmt, ...) __asm__("Diagnostic");
 #endif
-#define zir_f_95c9517df3f32b71_Diagnostic zir_foreign_zir_f_95c9517df3f32b71_Diagnostic
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_VectorType_7ae636da
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_VectorType_7ae636da
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_95c9517df3f32b71_VectorType(uint8_t* type, SimdVector* vector) __asm__("_VectorType");
+int32_t zir_foreign_compiler_go_simd__VectorType(uint8_t* type, SimdVector* vector) __asm__("_VectorType");
 #else
-int32_t zir_foreign_zir_f_95c9517df3f32b71_VectorType(uint8_t* type, SimdVector* vector) __asm__("VectorType");
+int32_t zir_foreign_compiler_go_simd__VectorType(uint8_t* type, SimdVector* vector) __asm__("VectorType");
 #endif
-static int32_t
-zir_f_95c9517df3f32b71_VectorType(uint8_t* type, SimdVector* vector)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_VectorType(type, vector);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_VectorTypeName_35dc2868
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_VectorTypeName_35dc2868
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_95c9517df3f32b71_VectorTypeName(uint8_t* lane, int32_t lanes) __asm__("_VectorTypeName");
+uint8_t* zir_foreign_compiler_go_simd__VectorTypeName(uint8_t* lane, int32_t lanes) __asm__("_VectorTypeName");
 #else
-uint8_t* zir_foreign_zir_f_95c9517df3f32b71_VectorTypeName(uint8_t* lane, int32_t lanes) __asm__("VectorTypeName");
+uint8_t* zir_foreign_compiler_go_simd__VectorTypeName(uint8_t* lane, int32_t lanes) __asm__("VectorTypeName");
 #endif
-static uint8_t*
-zir_f_95c9517df3f32b71_VectorTypeName(uint8_t* lane, int32_t lanes)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_VectorTypeName(lane, lanes);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_CTargetType_f1b23a6e
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_CTargetType_f1b23a6e
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_95c9517df3f32b71_CTargetType(uint8_t* type, ZirTarget target) __asm__("_TargetTypeZiran");
+uint8_t* zir_foreign_compiler_go_simd__CTargetType(uint8_t* type, ZirTarget target) __asm__("_TargetTypeZiran");
 #else
-uint8_t* zir_foreign_zir_f_95c9517df3f32b71_CTargetType(uint8_t* type, ZirTarget target) __asm__("TargetTypeZiran");
+uint8_t* zir_foreign_compiler_go_simd__CTargetType(uint8_t* type, ZirTarget target) __asm__("TargetTypeZiran");
 #endif
-static uint8_t*
-zir_f_95c9517df3f32b71_CTargetType(uint8_t* type, ZirTarget target)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_CTargetType(type, target);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_GeneratedOutputOpen_8fd20b6a
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_GeneratedOutputOpen_8fd20b6a
 #ifdef __APPLE__
-void* zir_foreign_zir_f_95c9517df3f32b71_GeneratedOutputOpen(uint8_t* path, uint8_t* temp, size_t temp_size) __asm__("_GeneratedOutputOpen");
+void* zir_foreign_compiler_go_simd__GeneratedOutputOpen(uint8_t* path, uint8_t* temp, size_t temp_size) __asm__("_GeneratedOutputOpen");
 #else
-void* zir_foreign_zir_f_95c9517df3f32b71_GeneratedOutputOpen(uint8_t* path, uint8_t* temp, size_t temp_size) __asm__("GeneratedOutputOpen");
+void* zir_foreign_compiler_go_simd__GeneratedOutputOpen(uint8_t* path, uint8_t* temp, size_t temp_size) __asm__("GeneratedOutputOpen");
 #endif
-static void*
-zir_f_95c9517df3f32b71_GeneratedOutputOpen(uint8_t* path, uint8_t* temp, size_t temp_size)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_GeneratedOutputOpen(path, temp, temp_size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_GeneratedOutputReplace_5a08bcf6
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_GeneratedOutputReplace_5a08bcf6
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_95c9517df3f32b71_GeneratedOutputReplace(uint8_t* temp, uint8_t* path) __asm__("_GeneratedOutputReplace");
+int32_t zir_foreign_compiler_go_simd__GeneratedOutputReplace(uint8_t* temp, uint8_t* path) __asm__("_GeneratedOutputReplace");
 #else
-int32_t zir_foreign_zir_f_95c9517df3f32b71_GeneratedOutputReplace(uint8_t* temp, uint8_t* path) __asm__("GeneratedOutputReplace");
+int32_t zir_foreign_compiler_go_simd__GeneratedOutputReplace(uint8_t* temp, uint8_t* path) __asm__("GeneratedOutputReplace");
 #endif
-static int32_t
-zir_f_95c9517df3f32b71_GeneratedOutputReplace(uint8_t* temp, uint8_t* path)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_GeneratedOutputReplace(temp, path);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_ZirGoSimdBodyCount_25a06c8c
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_ZirGoSimdBodyCount_25a06c8c
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_95c9517df3f32b71_ZirGoSimdBodyCount(void) __asm__("_ZirGoSimdBodyCount");
+size_t zir_foreign_compiler_go_simd__ZirGoSimdBodyCount(void) __asm__("_ZirGoSimdBodyCount");
 #else
-size_t zir_foreign_zir_f_95c9517df3f32b71_ZirGoSimdBodyCount(void) __asm__("ZirGoSimdBodyCount");
+size_t zir_foreign_compiler_go_simd__ZirGoSimdBodyCount(void) __asm__("ZirGoSimdBodyCount");
 #endif
-static size_t
-zir_f_95c9517df3f32b71_ZirGoSimdBodyCount(void)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_ZirGoSimdBodyCount();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_ZirGoSimdBodyAt_70e49d3b
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_ZirGoSimdBodyAt_70e49d3b
 #ifdef __APPLE__
-GoSimdText* zir_foreign_zir_f_95c9517df3f32b71_ZirGoSimdBodyAt(size_t i) __asm__("_ZirGoSimdBodyAt");
+GoSimdText* zir_foreign_compiler_go_simd__ZirGoSimdBodyAt(size_t i) __asm__("_ZirGoSimdBodyAt");
 #else
-GoSimdText* zir_foreign_zir_f_95c9517df3f32b71_ZirGoSimdBodyAt(size_t i) __asm__("ZirGoSimdBodyAt");
+GoSimdText* zir_foreign_compiler_go_simd__ZirGoSimdBodyAt(size_t i) __asm__("ZirGoSimdBodyAt");
 #endif
-static GoSimdText*
-zir_f_95c9517df3f32b71_ZirGoSimdBodyAt(size_t i)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_ZirGoSimdBodyAt(i);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_ZirGoSimdLaneCount_a4ddec5e
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_ZirGoSimdLaneCount_a4ddec5e
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_95c9517df3f32b71_ZirGoSimdLaneCount(void) __asm__("_ZirGoSimdLaneCount");
+size_t zir_foreign_compiler_go_simd__ZirGoSimdLaneCount(void) __asm__("_ZirGoSimdLaneCount");
 #else
-size_t zir_foreign_zir_f_95c9517df3f32b71_ZirGoSimdLaneCount(void) __asm__("ZirGoSimdLaneCount");
+size_t zir_foreign_compiler_go_simd__ZirGoSimdLaneCount(void) __asm__("ZirGoSimdLaneCount");
 #endif
-static size_t
-zir_f_95c9517df3f32b71_ZirGoSimdLaneCount(void)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_ZirGoSimdLaneCount();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_95c9517df3f32b71_ZirGoSimdLaneAt_dabf383d
-#define ZIR_FOREIGN_zir_f_95c9517df3f32b71_ZirGoSimdLaneAt_dabf383d
 #ifdef __APPLE__
-GoSimdText* zir_foreign_zir_f_95c9517df3f32b71_ZirGoSimdLaneAt(size_t i) __asm__("_ZirGoSimdLaneAt");
+GoSimdText* zir_foreign_compiler_go_simd__ZirGoSimdLaneAt(size_t i) __asm__("_ZirGoSimdLaneAt");
 #else
-GoSimdText* zir_foreign_zir_f_95c9517df3f32b71_ZirGoSimdLaneAt(size_t i) __asm__("ZirGoSimdLaneAt");
-#endif
-static GoSimdText*
-zir_f_95c9517df3f32b71_ZirGoSimdLaneAt(size_t i)
-{
-    return zir_foreign_zir_f_95c9517df3f32b71_ZirGoSimdLaneAt(i);
-}
+GoSimdText* zir_foreign_compiler_go_simd__ZirGoSimdLaneAt(size_t i) __asm__("ZirGoSimdLaneAt");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -404,7 +200,7 @@ static int32_t g_go_helper_capacity = 0;
 static uint8_t*
 compiler_go_simd_CStr(String s)
 {
-    return ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+    return ((compiler_go_simd_StaticText*)(&(s)))->data;
 }
 
 static uint8_t*
@@ -422,16 +218,16 @@ compiler_go_simd_CheckFormat(int32_t n, size_t size)
         uint8_t* value_1 = (void *)0;
         {
             String s = value_0;
-            value_1 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_1 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         String value_3 = StringLiteral("generated expression exceeds output limit");
         uint8_t* value_4 = (void *)0;
         {
             String s = value_3;
-            value_4 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_4 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
-        zir_f_95c9517df3f32b71_Diagnostic(span, value_1, value_4);
-        zir_f_95c9517df3f32b71_exit(1);
+        zir_foreign_compiler_go_simd__Diagnostic(span, value_1, value_4);
+        zir_foreign_compiler_go_simd__exit(1);
     }
     return n;
 }
@@ -450,14 +246,14 @@ GoSimdBegin(void)
         int32_t range_last_0 = (int32_t)((uint32_t)g_go_helper_count - 1u);
         int32_t i = range_first_0;
         if (i <= range_last_0) for (;;) {
-            zir_f_95c9517df3f32b71_free((void*)(g_go_helpers[i]));
+            zir_foreign_compiler_go_simd__free((void*)(g_go_helpers[i]));
             if (i == range_last_0) {
                 break;
             }
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    zir_f_95c9517df3f32b71_free((void*)(g_go_helpers));
+    zir_foreign_compiler_go_simd__free((void*)(g_go_helpers));
     g_go_helpers = (void *)0;
     g_go_helper_count = 0;
     g_go_helper_capacity = 0;
@@ -471,8 +267,8 @@ compiler_go_simd_Remember(uint8_t* start, size_t length)
         int32_t range_last_0 = (int32_t)((uint32_t)g_go_helper_count - 1u);
         int32_t i = range_first_0;
         if (i <= range_last_0) for (;;) {
-            bool value_0 = zir_f_95c9517df3f32b71_strlen(g_go_helpers[i]) == length;
-            if (value_0 && zir_f_95c9517df3f32b71_memcmp((void*)(g_go_helpers[i]), (void*)(start), length) == 0) {
+            bool value_0 = zir_foreign_compiler_go_simd__strlen(g_go_helpers[i]) == length;
+            if (value_0 && zir_foreign_compiler_go_simd__memcmp((void*)(g_go_helpers[i]), (void*)(start), length) == 0) {
                 return;
             }
             if (i == range_last_0) {
@@ -489,7 +285,7 @@ compiler_go_simd_Remember(uint8_t* start, size_t length)
             value_1 = 16;
         }
         g_go_helper_capacity = value_1;
-        void* value_2 = zir_f_95c9517df3f32b71_realloc((void*)(g_go_helpers), (size_t)(g_go_helper_capacity) * sizeof(void *));
+        void* value_2 = zir_foreign_compiler_go_simd__realloc((void*)(g_go_helpers), (size_t)(g_go_helper_capacity) * sizeof(void *));
         uint8_t** grown = (uint8_t**)(value_2);
         if (grown == ((void *)0)) {
             ZirSourceSpan span = {0};
@@ -497,22 +293,22 @@ compiler_go_simd_Remember(uint8_t* start, size_t length)
             uint8_t* value_4 = (void *)0;
             {
                 String s = value_3;
-                value_4 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_4 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             String value_6 = StringLiteral("zi2go: out of memory");
             uint8_t* value_7 = (void *)0;
             {
                 String s = value_6;
-                value_7 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_7 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            zir_f_95c9517df3f32b71_Diagnostic(span, value_4, value_7);
-            zir_f_95c9517df3f32b71_exit(1);
+            zir_foreign_compiler_go_simd__Diagnostic(span, value_4, value_7);
+            zir_foreign_compiler_go_simd__exit(1);
         }
         g_go_helpers = grown;
     }
-    void* value_9 = zir_f_95c9517df3f32b71_AllocateOrExit(length + 1);
+    void* value_9 = zir_foreign_compiler_go_simd__AllocateOrExit(length + 1);
     uint8_t* name = (uint8_t*)(value_9);
-    zir_f_95c9517df3f32b71_memcpy((void*)(name), (void*)(start), length);
+    zir_foreign_compiler_go_simd__memcpy((void*)(name), (void*)(start), length);
     uint8_t* value_10 = &(name[length]);
     (*value_10) = 0;
     uint8_t** value_11 = &(g_go_helpers[g_go_helper_count]);
@@ -527,28 +323,28 @@ compiler_go_simd_VectorComponent(uint8_t* start, size_t length, SimdVector* vect
     if (length == 0 || length >= 8) {
         return false;
     }
-    zir_f_95c9517df3f32b71_memcpy((void*)(&(name[0])), (void*)(start), length);
+    zir_foreign_compiler_go_simd__memcpy((void*)(&(name[0])), (void*)(start), length);
     uint8_t* value_0 = &(name[length]);
     (*value_0) = 0;
-    return zir_f_95c9517df3f32b71_VectorType(&(name[0]), vector) != 0;
+    return zir_foreign_compiler_go_simd__VectorType(&(name[0]), vector) != 0;
 }
 
 static bool
 compiler_go_simd_ParseHelper(uint8_t* name, GoHelper* helper)
 {
-    zir_f_95c9517df3f32b71_memset((void*)(helper), 0, sizeof(GoHelper));
+    zir_foreign_compiler_go_simd__memset((void*)(helper), 0, sizeof(GoHelper));
     uint8_t* value_0 = name;
     String value_1 = StringLiteral("zi_");
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
-        value_2 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_2 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
-    if (zir_f_95c9517df3f32b71_strncmp(value_0, value_2, 3) != 0) {
+    if (zir_foreign_compiler_go_simd__strncmp(value_0, value_2, 3) != 0) {
         return false;
     }
     uint8_t* value_4 = name;
-    size_t value_5 = zir_f_95c9517df3f32b71_strlen(name);
+    size_t value_5 = zir_foreign_compiler_go_simd__strlen(name);
     uint8_t* value_6 = (void *)0;
     {
         uint8_t* base = value_4;
@@ -635,7 +431,7 @@ compiler_go_simd_ParseHelper(uint8_t* name, GoHelper* helper)
     if (length == 0 || length >= 64 - 8) {
         return false;
     }
-    zir_f_95c9517df3f32b71_memcpy((void*)(&(snake[0])), (void*)(base3), length);
+    zir_foreign_compiler_go_simd__memcpy((void*)(&(snake[0])), (void*)(base3), length);
     uint8_t* value_26 = &(snake[length]);
     (*value_26) = 0;
     bool value_27 = length > 8;
@@ -653,9 +449,9 @@ compiler_go_simd_ParseHelper(uint8_t* name, GoHelper* helper)
         uint8_t* value_34 = (void *)0;
         {
             String s = value_33;
-            value_34 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_34 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
-        bool value_36 = zir_f_95c9517df3f32b71_strcmp(value_31, value_34) == 0;
+        bool value_36 = zir_foreign_compiler_go_simd__strcmp(value_31, value_34) == 0;
         value_28 = value_36;
     }
     if (value_28) {
@@ -680,9 +476,9 @@ compiler_go_simd_ParseHelper(uint8_t* name, GoHelper* helper)
         uint8_t* value_46 = (void *)0;
         {
             String s = value_45;
-            value_46 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_46 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
-        bool value_48 = zir_f_95c9517df3f32b71_strcmp(value_43, value_46) == 0;
+        bool value_48 = zir_foreign_compiler_go_simd__strcmp(value_43, value_46) == 0;
         value_40 = value_48;
     }
     if (value_40) {
@@ -707,9 +503,9 @@ compiler_go_simd_ParseHelper(uint8_t* name, GoHelper* helper)
         uint8_t* value_58 = (void *)0;
         {
             String s = value_57;
-            value_58 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_58 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
-        bool value_60 = zir_f_95c9517df3f32b71_strcmp(value_55, value_58) == 0;
+        bool value_60 = zir_foreign_compiler_go_simd__strcmp(value_55, value_58) == 0;
         value_52 = value_60;
     }
     if (value_52) {
@@ -724,9 +520,9 @@ compiler_go_simd_ParseHelper(uint8_t* name, GoHelper* helper)
     uint8_t* value_64 = (void *)0;
     {
         String s = value_63;
-        value_64 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_64 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
-    compiler_go_simd_CheckFormat(zir_f_95c9517df3f32b71_snprintf(&(checked[0]), 80, value_64, &(snake[0])), 80);
+    compiler_go_simd_CheckFormat(zir_foreign_compiler_go_simd__snprintf(&(checked[0]), 80, value_64, &(snake[0])), 80);
     SimdOp** value_66 = &(helper->op);
     SimdOp* value_67 = SimdOpChecked(&(checked[0]));
     (*value_66) = value_67;
@@ -744,9 +540,9 @@ compiler_go_simd_ParseHelper(uint8_t* name, GoHelper* helper)
             uint8_t* value_74 = (void *)0;
             {
                 String s = value_73;
-                value_74 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_74 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            bool value_76 = zir_f_95c9517df3f32b71_strcmp(value_72, value_74) != 0;
+            bool value_76 = zir_foreign_compiler_go_simd__strcmp(value_72, value_74) != 0;
             value_71 = value_76;
         }
         value_69 = value_71;
@@ -845,7 +641,7 @@ GoSimdCollect(uint8_t* text)
         if (p[0] != 40 || length >= 96) {
             continue;
         }
-        zir_f_95c9517df3f32b71_memcpy((void*)(&(name[0])), (void*)(start), length);
+        zir_foreign_compiler_go_simd__memcpy((void*)(&(name[0])), (void*)(start), length);
         uint8_t* value_20 = &(name[length]);
         (*value_20) = 0;
         if (compiler_go_simd_ParseHelper(&(name[0]), &(helper))) {
@@ -863,7 +659,7 @@ compiler_go_simd_LaneName(SimdVector* vector)
         uint8_t* value_1 = (void *)0;
         {
             String s = value_0;
-            value_1 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_1 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_1;
     }
@@ -872,7 +668,7 @@ compiler_go_simd_LaneName(SimdVector* vector)
         uint8_t* value_4 = (void *)0;
         {
             String s = value_3;
-            value_4 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_4 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_4;
     }
@@ -881,7 +677,7 @@ compiler_go_simd_LaneName(SimdVector* vector)
         uint8_t* value_7 = (void *)0;
         {
             String s = value_6;
-            value_7 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_7 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_7;
     }
@@ -890,7 +686,7 @@ compiler_go_simd_LaneName(SimdVector* vector)
         uint8_t* value_10 = (void *)0;
         {
             String s = value_9;
-            value_10 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_10 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_10;
     }
@@ -899,7 +695,7 @@ compiler_go_simd_LaneName(SimdVector* vector)
         uint8_t* value_13 = (void *)0;
         {
             String s = value_12;
-            value_13 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_13 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_13;
     }
@@ -908,7 +704,7 @@ compiler_go_simd_LaneName(SimdVector* vector)
         uint8_t* value_16 = (void *)0;
         {
             String s = value_15;
-            value_16 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_16 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_16;
     }
@@ -917,7 +713,7 @@ compiler_go_simd_LaneName(SimdVector* vector)
         uint8_t* value_19 = (void *)0;
         {
             String s = value_18;
-            value_19 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_19 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_19;
     }
@@ -926,7 +722,7 @@ compiler_go_simd_LaneName(SimdVector* vector)
         uint8_t* value_22 = (void *)0;
         {
             String s = value_21;
-            value_22 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_22 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_22;
     }
@@ -935,7 +731,7 @@ compiler_go_simd_LaneName(SimdVector* vector)
         uint8_t* value_25 = (void *)0;
         {
             String s = value_24;
-            value_25 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_25 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_25;
     }
@@ -943,7 +739,7 @@ compiler_go_simd_LaneName(SimdVector* vector)
     uint8_t* value_28 = (void *)0;
     {
         String s = value_27;
-        value_28 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_28 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
     return value_28;
 }
@@ -951,7 +747,7 @@ compiler_go_simd_LaneName(SimdVector* vector)
 static uint8_t*
 compiler_go_simd_GoType(uint8_t* type)
 {
-    return zir_f_95c9517df3f32b71_CTargetType(type, (ZirTarget)(1));
+    return zir_foreign_compiler_go_simd__CTargetType(type, (ZirTarget)(1));
 }
 
 static uint8_t*
@@ -962,7 +758,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_1 = (void *)0;
         {
             String s = value_0;
-            value_1 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_1 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_1;
     }
@@ -971,7 +767,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_4 = (void *)0;
         {
             String s = value_3;
-            value_4 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_4 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_4;
     }
@@ -980,7 +776,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_7 = (void *)0;
         {
             String s = value_6;
-            value_7 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_7 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_7;
     }
@@ -989,7 +785,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_10 = (void *)0;
         {
             String s = value_9;
-            value_10 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_10 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_10;
     }
@@ -998,7 +794,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_13 = (void *)0;
         {
             String s = value_12;
-            value_13 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_13 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_13;
     }
@@ -1007,7 +803,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_16 = (void *)0;
         {
             String s = value_15;
-            value_16 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_16 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_16;
     }
@@ -1016,7 +812,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_19 = (void *)0;
         {
             String s = value_18;
-            value_19 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_19 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_19;
     }
@@ -1025,7 +821,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_22 = (void *)0;
         {
             String s = value_21;
-            value_22 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_22 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_22;
     }
@@ -1034,7 +830,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_25 = (void *)0;
         {
             String s = value_24;
-            value_25 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_25 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_25;
     }
@@ -1043,7 +839,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_28 = (void *)0;
         {
             String s = value_27;
-            value_28 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_28 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_28;
     }
@@ -1052,7 +848,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_31 = (void *)0;
         {
             String s = value_30;
-            value_31 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_31 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_31;
     }
@@ -1061,7 +857,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_34 = (void *)0;
         {
             String s = value_33;
-            value_34 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_34 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_34;
     }
@@ -1070,7 +866,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_37 = (void *)0;
         {
             String s = value_36;
-            value_37 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_37 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_37;
     }
@@ -1079,7 +875,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_40 = (void *)0;
         {
             String s = value_39;
-            value_40 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_40 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_40;
     }
@@ -1088,7 +884,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_43 = (void *)0;
         {
             String s = value_42;
-            value_43 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_43 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_43;
     }
@@ -1097,7 +893,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_46 = (void *)0;
         {
             String s = value_45;
-            value_46 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_46 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_46;
     }
@@ -1106,7 +902,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_49 = (void *)0;
         {
             String s = value_48;
-            value_49 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_49 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_49;
     }
@@ -1115,7 +911,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_52 = (void *)0;
         {
             String s = value_51;
-            value_52 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_52 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_52;
     }
@@ -1124,7 +920,7 @@ compiler_go_simd_GoVectorName(int32_t i)
         uint8_t* value_55 = (void *)0;
         {
             String s = value_54;
-            value_55 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_55 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         return value_55;
     }
@@ -1132,7 +928,7 @@ compiler_go_simd_GoVectorName(int32_t i)
     uint8_t* value_58 = (void *)0;
     {
         String s = value_57;
-        value_58 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_58 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
     return value_58;
 }
@@ -1144,39 +940,39 @@ compiler_go_simd_WriteLaneConv(void* out, String lname, String gtype, String to_
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
     uint8_t* value_3 = (void *)0;
     {
         String s = lname;
-        value_3 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_3 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
     uint8_t* value_5 = (void *)0;
     {
         String s = gtype;
-        value_5 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_5 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
     uint8_t* value_7 = (void *)0;
     {
         String s = to_bits;
-        value_7 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_7 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
     uint8_t* value_9 = (void *)0;
     {
         String s = lname;
-        value_9 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_9 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
     uint8_t* value_11 = (void *)0;
     {
         String s = gtype;
-        value_11 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_11 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
     uint8_t* value_13 = (void *)0;
     {
         String s = from_bits;
-        value_13 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_13 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
-    zir_f_95c9517df3f32b71_fprintf(out, value_1, value_3, value_5, value_7, value_9, value_11, value_13);
+    zir_foreign_compiler_go_simd__fprintf(out, value_1, value_3, value_5, value_7, value_9, value_11, value_13);
 }
 
 static void
@@ -1199,16 +995,16 @@ compiler_go_simd_WriteConversions(void* out)
         if (i <= range_last_10) for (;;) {
             uint8_t* name = compiler_go_simd_GoVectorName(i);
             SimdVector vector = {0};
-            zir_f_95c9517df3f32b71_VectorType(name, &(vector));
+            zir_foreign_compiler_go_simd__VectorType(name, &(vector));
             uint8_t* lane = compiler_go_simd_LaneName(&(vector));
             uint8_t* gt = compiler_go_simd_GoType(name);
             String value_0 = StringLiteral("\nfunc zi_simd_in_%s(x *zi_lanes, v %s) {\n\tfor i := range v {\n\t\tx[i] = zi_simd_bits_%s(v[i])\n\t}\n}\n\nfunc zi_simd_out_%s(x *zi_lanes) (v %s) {\n\tfor i := range v {\n\t\tv[i] = zi_simd_lane_%s(x[i])\n\t}\n\treturn v\n}\n");
             uint8_t* value_1 = (void *)0;
             {
                 String s = value_0;
-                value_1 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_1 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            zir_f_95c9517df3f32b71_fprintf(out, value_1, name, gt, lane, name, gt, lane);
+            zir_foreign_compiler_go_simd__fprintf(out, value_1, name, gt, lane, name, gt, lane);
             if (i == range_last_10) {
                 break;
             }
@@ -1261,17 +1057,17 @@ compiler_go_simd_WriteMemory(void* out, uint8_t* name, GoHelper* helper)
         uint8_t* value_2 = (void *)0;
         {
             String s = value_1;
-            value_2 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_2 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
-        compiler_go_simd_CheckFormat(zir_f_95c9517df3f32b71_snprintf(&(view[0]), 160, value_2, lt, v->lane_bits / 8, lanes), 160);
+        compiler_go_simd_CheckFormat(zir_foreign_compiler_go_simd__snprintf(&(view[0]), 160, value_2, lt, v->lane_bits / 8, lanes), 160);
     } else {
         String value_4 = StringLiteral("m[i:i+%d]");
         uint8_t* value_5 = (void *)0;
         {
             String s = value_4;
-            value_5 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_5 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
-        compiler_go_simd_CheckFormat(zir_f_95c9517df3f32b71_snprintf(&(view[0]), 160, value_5, lanes), 160);
+        compiler_go_simd_CheckFormat(zir_foreign_compiler_go_simd__snprintf(&(view[0]), 160, value_5, lanes), 160);
     }
     uint8_t* value_7 = (void *)0;
     if (helper->pointer != 0) {
@@ -1279,7 +1075,7 @@ compiler_go_simd_WriteMemory(void* out, uint8_t* name, GoHelper* helper)
         uint8_t* value_9 = (void *)0;
         {
             String s = value_8;
-            value_9 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_9 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         value_7 = value_9;
     } else {
@@ -1287,7 +1083,7 @@ compiler_go_simd_WriteMemory(void* out, uint8_t* name, GoHelper* helper)
         uint8_t* value_12 = (void *)0;
         {
             String s = value_11;
-            value_12 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_12 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         value_7 = value_12;
     }
@@ -1298,27 +1094,27 @@ compiler_go_simd_WriteMemory(void* out, uint8_t* name, GoHelper* helper)
         uint8_t* value_16 = (void *)0;
         {
             String s = value_15;
-            value_16 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_16 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
-        zir_f_95c9517df3f32b71_fprintf(value_14, value_16, name, memory, lt, vt);
+        zir_foreign_compiler_go_simd__fprintf(value_14, value_16, name, memory, lt, vt);
         if (helper->checked != 0) {
             void* value_18 = out;
             String value_19 = StringLiteral("\tzi_simd_check(int64(len(m)), i, %d)\n");
             uint8_t* value_20 = (void *)0;
             {
                 String s = value_19;
-                value_20 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_20 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            zir_f_95c9517df3f32b71_fprintf(value_18, value_20, lanes);
+            zir_foreign_compiler_go_simd__fprintf(value_18, value_20, lanes);
         }
         void* value_22 = out;
         String value_23 = StringLiteral("\tcopy(%s, v[:%d])\n}\n");
         uint8_t* value_24 = (void *)0;
         {
             String s = value_23;
-            value_24 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_24 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
-        zir_f_95c9517df3f32b71_fprintf(value_22, value_24, &(view[0]), lanes);
+        zir_foreign_compiler_go_simd__fprintf(value_22, value_24, &(view[0]), lanes);
         return;
     }
     uint8_t* value_26 = (void *)0;
@@ -1327,7 +1123,7 @@ compiler_go_simd_WriteMemory(void* out, uint8_t* name, GoHelper* helper)
         uint8_t* value_28 = (void *)0;
         {
             String s = value_27;
-            value_28 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_28 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         value_26 = value_28;
     } else {
@@ -1340,7 +1136,7 @@ compiler_go_simd_WriteMemory(void* out, uint8_t* name, GoHelper* helper)
         uint8_t* value_32 = (void *)0;
         {
             String s = value_31;
-            value_32 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_32 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         value_30 = value_32;
     } else {
@@ -1352,27 +1148,27 @@ compiler_go_simd_WriteMemory(void* out, uint8_t* name, GoHelper* helper)
     uint8_t* value_36 = (void *)0;
     {
         String s = value_35;
-        value_36 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_36 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
-    zir_f_95c9517df3f32b71_fprintf(value_34, value_36, name, m_pre, m_typ, vt);
+    zir_foreign_compiler_go_simd__fprintf(value_34, value_36, name, m_pre, m_typ, vt);
     if (helper->checked != 0) {
         void* value_38 = out;
         String value_39 = StringLiteral("\tzi_simd_check(int64(len(m)), i, %d)\n");
         uint8_t* value_40 = (void *)0;
         {
             String s = value_39;
-            value_40 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_40 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
-        zir_f_95c9517df3f32b71_fprintf(value_38, value_40, lanes);
+        zir_foreign_compiler_go_simd__fprintf(value_38, value_40, lanes);
     }
     void* value_42 = out;
     String value_43 = StringLiteral("\tcopy(v[:%d], %s)\n\treturn v\n}\n");
     uint8_t* value_44 = (void *)0;
     {
         String s = value_43;
-        value_44 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_44 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
-    zir_f_95c9517df3f32b71_fprintf(value_42, value_44, lanes, &(view[0]));
+    zir_foreign_compiler_go_simd__fprintf(value_42, value_44, lanes, &(view[0]));
 }
 
 static void
@@ -1387,7 +1183,7 @@ compiler_go_simd_WriteGather(void* out, uint8_t* name, GoHelper* helper)
         uint8_t* value_2 = (void *)0;
         {
             String s = value_1;
-            value_2 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_2 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         value_0 = value_2;
     } else {
@@ -1395,7 +1191,7 @@ compiler_go_simd_WriteGather(void* out, uint8_t* name, GoHelper* helper)
         uint8_t* value_5 = (void *)0;
         {
             String s = value_4;
-            value_5 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_5 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         value_0 = value_5;
     }
@@ -1406,13 +1202,13 @@ compiler_go_simd_WriteGather(void* out, uint8_t* name, GoHelper* helper)
         uint8_t* value_9 = (void *)0;
         {
             String s = value_8;
-            value_9 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_9 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         uint8_t* value_11 = name;
         uint8_t* value_12 = lt;
         uint8_t* value_13 = compiler_go_simd_GoType(index->name);
         uint8_t* value_14 = compiler_go_simd_GoType(result->name);
-        zir_f_95c9517df3f32b71_fprintf(value_7, value_9, value_11, value_12, value_13, value_14, lt, read, result->lane_bits / 8);
+        zir_foreign_compiler_go_simd__fprintf(value_7, value_9, value_11, value_12, value_13, value_14, lt, read, result->lane_bits / 8);
         return;
     }
     void* value_15 = out;
@@ -1420,41 +1216,41 @@ compiler_go_simd_WriteGather(void* out, uint8_t* name, GoHelper* helper)
     uint8_t* value_17 = (void *)0;
     {
         String s = value_16;
-        value_17 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_17 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
     uint8_t* value_19 = name;
     uint8_t* value_20 = lt;
     uint8_t* value_21 = compiler_go_simd_GoType(index->name);
-    zir_f_95c9517df3f32b71_fprintf(value_15, value_17, value_19, value_20, value_21, compiler_go_simd_GoType(result->name));
+    zir_foreign_compiler_go_simd__fprintf(value_15, value_17, value_19, value_20, value_21, compiler_go_simd_GoType(result->name));
     if (helper->checked != 0) {
         void* value_22 = out;
         String value_23 = StringLiteral("\tfor l := range idx {\n\t\tzi_simd_gather_check(%s, int64(len(t)))\n\t}\n");
         uint8_t* value_24 = (void *)0;
         {
             String s = value_23;
-            value_24 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_24 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
-        zir_f_95c9517df3f32b71_fprintf(value_22, value_24, read);
+        zir_foreign_compiler_go_simd__fprintf(value_22, value_24, read);
     }
     void* value_26 = out;
     String value_27 = StringLiteral("\tfor l := range v {\n\t\tv[l] = t[%s]\n\t}\n\treturn v\n}\n");
     uint8_t* value_28 = (void *)0;
     {
         String s = value_27;
-        value_28 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_28 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
-    zir_f_95c9517df3f32b71_fprintf(value_26, value_28, read);
+    zir_foreign_compiler_go_simd__fprintf(value_26, value_28, read);
 }
 
 static GoSimdText*
 compiler_go_simd_TypedBody(uint8_t* name)
 {
     size_t low = 0;
-    size_t high = zir_f_95c9517df3f32b71_ZirGoSimdBodyCount();
+    size_t high = zir_foreign_compiler_go_simd__ZirGoSimdBodyCount();
     while (low < high) {
         size_t middle = low + ((high - low) / 2);
-        GoSimdText* entry = zir_f_95c9517df3f32b71_ZirGoSimdBodyAt(middle);
-        int32_t order = zir_f_95c9517df3f32b71_strcmp(name, entry->name);
+        GoSimdText* entry = zir_foreign_compiler_go_simd__ZirGoSimdBodyAt(middle);
+        int32_t order = zir_foreign_compiler_go_simd__strcmp(name, entry->name);
         if (order == 0) {
             return entry;
         }
@@ -1470,14 +1266,14 @@ compiler_go_simd_TypedBody(uint8_t* name)
 static void
 compiler_go_simd_AppendVectorParam(GoValue* value, uint8_t** types, int32_t* count, int32_t* vectors, uint8_t* param, uint8_t* type)
 {
-    size_t pu = zir_f_95c9517df3f32b71_strlen(&(value->params[0]));
+    size_t pu = zir_foreign_compiler_go_simd__strlen(&(value->params[0]));
     uint8_t* value_0 = (void *)0;
     if (*(count) != 0) {
         String value_1 = StringLiteral(", ");
         uint8_t* value_2 = (void *)0;
         {
             String s = value_1;
-            value_2 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_2 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         value_0 = value_2;
     } else {
@@ -1485,7 +1281,7 @@ compiler_go_simd_AppendVectorParam(GoValue* value, uint8_t** types, int32_t* cou
         uint8_t* value_5 = (void *)0;
         {
             String s = value_4;
-            value_5 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_5 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         value_0 = value_5;
     }
@@ -1502,13 +1298,13 @@ compiler_go_simd_AppendVectorParam(GoValue* value, uint8_t** types, int32_t* cou
     uint8_t* value_12 = (void *)0;
     {
         String s = value_11;
-        value_12 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_12 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
     uint8_t* value_14 = sep;
     uint8_t* value_15 = param;
-    int32_t value_16 = zir_f_95c9517df3f32b71_snprintf(value_8, value_10, value_12, value_14, value_15, compiler_go_simd_GoType(type));
+    int32_t value_16 = zir_foreign_compiler_go_simd__snprintf(value_8, value_10, value_12, value_14, value_15, compiler_go_simd_GoType(type));
     compiler_go_simd_CheckFormat(value_16, 2048 - pu);
-    size_t bu = zir_f_95c9517df3f32b71_strlen(&(value->body[0]));
+    size_t bu = zir_foreign_compiler_go_simd__strlen(&(value->body[0]));
     int32_t reg = 120;
     if (*(vectors) == 1) {
         reg = 121;
@@ -1529,9 +1325,9 @@ compiler_go_simd_AppendVectorParam(GoValue* value, uint8_t** types, int32_t* cou
     uint8_t* value_23 = (void *)0;
     {
         String s = value_22;
-        value_23 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_23 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
-    int32_t value_25 = zir_f_95c9517df3f32b71_snprintf(value_19, value_21, value_23, type, reg, param);
+    int32_t value_25 = zir_foreign_compiler_go_simd__snprintf(value_19, value_21, value_23, type, reg, param);
     compiler_go_simd_CheckFormat(value_25, 4096 - bu);
     uint8_t** value_26 = &(types[*(count)]);
     (*value_26) = type;
@@ -1561,7 +1357,7 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
         uint8_t* value_7 = (void *)0;
         {
             String s = value_6;
-            value_7 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_7 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         compiler_go_simd_AppendVectorParam(value_5, &(types[0]), &(count), &(vectors), value_7, v->name);
     } else {
@@ -1574,7 +1370,7 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_14 = (void *)0;
             {
                 String s = value_13;
-                value_14 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_14 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             compiler_go_simd_AppendVectorParam(value_12, &(types[0]), &(count), &(vectors), value_14, v->name);
             GoValue* value_16 = value;
@@ -1582,7 +1378,7 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_18 = (void *)0;
             {
                 String s = value_17;
-                value_18 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_18 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             compiler_go_simd_AppendVectorParam(value_16, &(types[0]), &(count), &(vectors), value_18, v->name);
         } else if (((SimdShape)(op->shape)) == ((SimdShape)(21))) {
@@ -1591,7 +1387,7 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_22 = (void *)0;
             {
                 String s = value_21;
-                value_22 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_22 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             compiler_go_simd_AppendVectorParam(value_20, &(types[0]), &(count), &(vectors), value_22, v->name);
             GoValue* value_24 = value;
@@ -1599,22 +1395,22 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_26 = (void *)0;
             {
                 String s = value_25;
-                value_26 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_26 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             String value_28 = StringLiteral("s8");
             uint8_t* value_29 = (void *)0;
             {
                 String s = value_28;
-                value_29 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_29 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            compiler_go_simd_AppendVectorParam(value_24, &(types[0]), &(count), &(vectors), value_26, zir_f_95c9517df3f32b71_VectorTypeName(value_29, v->lanes));
+            compiler_go_simd_AppendVectorParam(value_24, &(types[0]), &(count), &(vectors), value_26, zir_foreign_compiler_go_simd__VectorTypeName(value_29, v->lanes));
         } else if (((SimdShape)(op->shape)) == ((SimdShape)(26))) {
             GoValue* value_31 = value;
             String value_32 = StringLiteral("a");
             uint8_t* value_33 = (void *)0;
             {
                 String s = value_32;
-                value_33 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_33 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             compiler_go_simd_AppendVectorParam(value_31, &(types[0]), &(count), &(vectors), value_33, v->name);
             GoValue* value_35 = value;
@@ -1622,37 +1418,37 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_37 = (void *)0;
             {
                 String s = value_36;
-                value_37 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_37 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             String value_39 = StringLiteral("u8");
             uint8_t* value_40 = (void *)0;
             {
                 String s = value_39;
-                value_40 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_40 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            compiler_go_simd_AppendVectorParam(value_35, &(types[0]), &(count), &(vectors), value_37, zir_f_95c9517df3f32b71_VectorTypeName(value_40, v->lanes));
+            compiler_go_simd_AppendVectorParam(value_35, &(types[0]), &(count), &(vectors), value_37, zir_foreign_compiler_go_simd__VectorTypeName(value_40, v->lanes));
         } else if (((SimdShape)(op->shape)) == ((SimdShape)(3))) {
             String value_42 = StringLiteral("u%d");
             uint8_t* value_43 = (void *)0;
             {
                 String s = value_42;
-                value_43 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_43 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            compiler_go_simd_CheckFormat(zir_f_95c9517df3f32b71_snprintf(&(lane[0]), 8, value_43, v->lane_bits), 8);
+            compiler_go_simd_CheckFormat(zir_foreign_compiler_go_simd__snprintf(&(lane[0]), 8, value_43, v->lane_bits), 8);
             GoValue* value_45 = value;
             String value_46 = StringLiteral("m");
             uint8_t* value_47 = (void *)0;
             {
                 String s = value_46;
-                value_47 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_47 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            compiler_go_simd_AppendVectorParam(value_45, &(types[0]), &(count), &(vectors), value_47, zir_f_95c9517df3f32b71_VectorTypeName(&(lane[0]), v->lanes));
+            compiler_go_simd_AppendVectorParam(value_45, &(types[0]), &(count), &(vectors), value_47, zir_foreign_compiler_go_simd__VectorTypeName(&(lane[0]), v->lanes));
             GoValue* value_49 = value;
             String value_50 = StringLiteral("a");
             uint8_t* value_51 = (void *)0;
             {
                 String s = value_50;
-                value_51 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_51 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             compiler_go_simd_AppendVectorParam(value_49, &(types[0]), &(count), &(vectors), value_51, v->name);
             GoValue* value_53 = value;
@@ -1660,7 +1456,7 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_55 = (void *)0;
             {
                 String s = value_54;
-                value_55 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_55 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             compiler_go_simd_AppendVectorParam(value_53, &(types[0]), &(count), &(vectors), value_55, v->name);
         } else if (((SimdShape)(op->shape)) == ((SimdShape)(4))) {
@@ -1669,10 +1465,10 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_59 = (void *)0;
             {
                 String s = value_58;
-                value_59 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_59 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             compiler_go_simd_AppendVectorParam(value_57, &(types[0]), &(count), &(vectors), value_59, v->name);
-            size_t pu = zir_f_95c9517df3f32b71_strlen(&(value->params[0]));
+            size_t pu = zir_foreign_compiler_go_simd__strlen(&(value->params[0]));
             uint8_t* value_61 = &(value->params[0]);
             uint8_t* value_62 = (void *)0;
             {
@@ -1685,11 +1481,11 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_66 = (void *)0;
             {
                 String s = value_65;
-                value_66 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_66 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            int32_t value_68 = zir_f_95c9517df3f32b71_snprintf(value_62, value_64, value_66);
+            int32_t value_68 = zir_foreign_compiler_go_simd__snprintf(value_62, value_64, value_66);
             compiler_go_simd_CheckFormat(value_68, 2048 - pu);
-            size_t bu = zir_f_95c9517df3f32b71_strlen(&(value->body[0]));
+            size_t bu = zir_foreign_compiler_go_simd__strlen(&(value->body[0]));
             uint8_t* value_69 = &(value->body[0]);
             uint8_t* value_70 = (void *)0;
             {
@@ -1702,16 +1498,16 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_74 = (void *)0;
             {
                 String s = value_73;
-                value_74 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_74 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            int32_t value_76 = zir_f_95c9517df3f32b71_snprintf(value_70, value_72, value_74);
+            int32_t value_76 = zir_foreign_compiler_go_simd__snprintf(value_70, value_72, value_74);
             compiler_go_simd_CheckFormat(value_76, 4096 - bu);
             uint8_t** value_77 = &(types[count]);
             String value_78 = StringLiteral("u64");
             uint8_t* value_79 = (void *)0;
             {
                 String s = value_78;
-                value_79 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_79 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             (*value_77) = value_79;
             count = (int32_t)((uint32_t)count + 1u);
@@ -1721,10 +1517,10 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_83 = (void *)0;
             {
                 String s = value_82;
-                value_83 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_83 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             compiler_go_simd_AppendVectorParam(value_81, &(types[0]), &(count), &(vectors), value_83, v->name);
-            size_t pu = zir_f_95c9517df3f32b71_strlen(&(value->params[0]));
+            size_t pu = zir_foreign_compiler_go_simd__strlen(&(value->params[0]));
             uint8_t* value_85 = &(value->params[0]);
             uint8_t* value_86 = (void *)0;
             {
@@ -1737,11 +1533,11 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_90 = (void *)0;
             {
                 String s = value_89;
-                value_90 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_90 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            int32_t value_92 = zir_f_95c9517df3f32b71_snprintf(value_86, value_88, value_90);
+            int32_t value_92 = zir_foreign_compiler_go_simd__snprintf(value_86, value_88, value_90);
             compiler_go_simd_CheckFormat(value_92, 2048 - pu);
-            size_t bu = zir_f_95c9517df3f32b71_strlen(&(value->body[0]));
+            size_t bu = zir_foreign_compiler_go_simd__strlen(&(value->body[0]));
             uint8_t* value_93 = &(value->body[0]);
             uint8_t* value_94 = (void *)0;
             {
@@ -1754,16 +1550,16 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_98 = (void *)0;
             {
                 String s = value_97;
-                value_98 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_98 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            int32_t value_100 = zir_f_95c9517df3f32b71_snprintf(value_94, value_96, value_98);
+            int32_t value_100 = zir_foreign_compiler_go_simd__snprintf(value_94, value_96, value_98);
             compiler_go_simd_CheckFormat(value_100, 4096 - bu);
             uint8_t** value_101 = &(types[count]);
             String value_102 = StringLiteral("integer");
             uint8_t* value_103 = (void *)0;
             {
                 String s = value_102;
-                value_103 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_103 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             (*value_101) = value_103;
             count = (int32_t)((uint32_t)count + 1u);
@@ -1773,7 +1569,7 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_107 = (void *)0;
             {
                 String s = value_106;
-                value_107 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_107 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             compiler_go_simd_AppendVectorParam(value_105, &(types[0]), &(count), &(vectors), value_107, v->name);
             GoValue* value_109 = value;
@@ -1781,10 +1577,10 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_111 = (void *)0;
             {
                 String s = value_110;
-                value_111 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_111 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             compiler_go_simd_AppendVectorParam(value_109, &(types[0]), &(count), &(vectors), value_111, v->name);
-            size_t pu = zir_f_95c9517df3f32b71_strlen(&(value->params[0]));
+            size_t pu = zir_foreign_compiler_go_simd__strlen(&(value->params[0]));
             uint8_t* value_113 = &(value->params[0]);
             uint8_t* value_114 = (void *)0;
             {
@@ -1797,11 +1593,11 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_118 = (void *)0;
             {
                 String s = value_117;
-                value_118 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_118 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            int32_t value_120 = zir_f_95c9517df3f32b71_snprintf(value_114, value_116, value_118);
+            int32_t value_120 = zir_foreign_compiler_go_simd__snprintf(value_114, value_116, value_118);
             compiler_go_simd_CheckFormat(value_120, 2048 - pu);
-            size_t bu = zir_f_95c9517df3f32b71_strlen(&(value->body[0]));
+            size_t bu = zir_foreign_compiler_go_simd__strlen(&(value->body[0]));
             uint8_t* value_121 = &(value->body[0]);
             uint8_t* value_122 = (void *)0;
             {
@@ -1814,16 +1610,16 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_126 = (void *)0;
             {
                 String s = value_125;
-                value_126 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_126 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            int32_t value_128 = zir_f_95c9517df3f32b71_snprintf(value_122, value_124, value_126);
+            int32_t value_128 = zir_foreign_compiler_go_simd__snprintf(value_122, value_124, value_126);
             compiler_go_simd_CheckFormat(value_128, 4096 - bu);
             uint8_t** value_129 = &(types[count]);
             String value_130 = StringLiteral("integer");
             uint8_t* value_131 = (void *)0;
             {
                 String s = value_130;
-                value_131 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_131 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             (*value_129) = value_131;
             count = (int32_t)((uint32_t)count + 1u);
@@ -1833,10 +1629,10 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_135 = (void *)0;
             {
                 String s = value_134;
-                value_135 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_135 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             compiler_go_simd_AppendVectorParam(value_133, &(types[0]), &(count), &(vectors), value_135, v->name);
-            size_t pu = zir_f_95c9517df3f32b71_strlen(&(value->params[0]));
+            size_t pu = zir_foreign_compiler_go_simd__strlen(&(value->params[0]));
             uint8_t* value_137 = &(value->params[0]);
             uint8_t* value_138 = (void *)0;
             {
@@ -1849,11 +1645,11 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_142 = (void *)0;
             {
                 String s = value_141;
-                value_142 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_142 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            int32_t value_144 = zir_f_95c9517df3f32b71_snprintf(value_138, value_140, value_142);
+            int32_t value_144 = zir_foreign_compiler_go_simd__snprintf(value_138, value_140, value_142);
             compiler_go_simd_CheckFormat(value_144, 2048 - pu);
-            size_t bu = zir_f_95c9517df3f32b71_strlen(&(value->body[0]));
+            size_t bu = zir_foreign_compiler_go_simd__strlen(&(value->body[0]));
             uint8_t* value_145 = &(value->body[0]);
             uint8_t* value_146 = (void *)0;
             {
@@ -1866,16 +1662,16 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_150 = (void *)0;
             {
                 String s = value_149;
-                value_150 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_150 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            int32_t value_152 = zir_f_95c9517df3f32b71_snprintf(value_146, value_148, value_150);
+            int32_t value_152 = zir_foreign_compiler_go_simd__snprintf(value_146, value_148, value_150);
             compiler_go_simd_CheckFormat(value_152, 4096 - bu);
             uint8_t** value_153 = &(types[count]);
             String value_154 = StringLiteral("integer");
             uint8_t* value_155 = (void *)0;
             {
                 String s = value_154;
-                value_155 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_155 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             (*value_153) = value_155;
             count = (int32_t)((uint32_t)count + 1u);
@@ -1885,10 +1681,10 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_159 = (void *)0;
             {
                 String s = value_158;
-                value_159 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_159 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             compiler_go_simd_AppendVectorParam(value_157, &(types[0]), &(count), &(vectors), value_159, v->name);
-            size_t pu = zir_f_95c9517df3f32b71_strlen(&(value->params[0]));
+            size_t pu = zir_foreign_compiler_go_simd__strlen(&(value->params[0]));
             uint8_t* value_161 = &(value->params[0]);
             uint8_t* value_162 = (void *)0;
             {
@@ -1901,11 +1697,11 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_166 = (void *)0;
             {
                 String s = value_165;
-                value_166 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_166 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            int32_t value_168 = zir_f_95c9517df3f32b71_snprintf(value_162, value_164, value_166, compiler_go_simd_GoType(v->lane));
+            int32_t value_168 = zir_foreign_compiler_go_simd__snprintf(value_162, value_164, value_166, compiler_go_simd_GoType(v->lane));
             compiler_go_simd_CheckFormat(value_168, 2048 - pu);
-            size_t bu = zir_f_95c9517df3f32b71_strlen(&(value->body[0]));
+            size_t bu = zir_foreign_compiler_go_simd__strlen(&(value->body[0]));
             uint8_t* value_169 = &(value->body[0]);
             uint8_t* value_170 = (void *)0;
             {
@@ -1918,16 +1714,16 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_174 = (void *)0;
             {
                 String s = value_173;
-                value_174 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_174 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            int32_t value_176 = zir_f_95c9517df3f32b71_snprintf(value_170, value_172, value_174, compiler_go_simd_LaneName(v));
+            int32_t value_176 = zir_foreign_compiler_go_simd__snprintf(value_170, value_172, value_174, compiler_go_simd_LaneName(v));
             compiler_go_simd_CheckFormat(value_176, 4096 - bu);
             uint8_t** value_177 = &(types[count]);
             String value_178 = StringLiteral("integer");
             uint8_t* value_179 = (void *)0;
             {
                 String s = value_178;
-                value_179 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_179 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             (*value_177) = value_179;
             count = (int32_t)((uint32_t)count + 1u);
@@ -1940,7 +1736,7 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_184 = (void *)0;
             {
                 String s = value_183;
-                value_184 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_184 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             compiler_go_simd_AppendVectorParam(value_182, &(types[0]), &(count), &(vectors), value_184, v->name);
             int32_t bl = SimdBlockLanes(v);
@@ -1949,7 +1745,7 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
                 int32_t range_last_80 = (int32_t)((uint32_t)bl - 1u);
                 int32_t i = range_first_80;
                 if (i <= range_last_80) for (;;) {
-                    size_t pu = zir_f_95c9517df3f32b71_strlen(&(value->params[0]));
+                    size_t pu = zir_foreign_compiler_go_simd__strlen(&(value->params[0]));
                     uint8_t* value_186 = &(value->params[0]);
                     uint8_t* value_187 = (void *)0;
                     {
@@ -1962,11 +1758,11 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
                     uint8_t* value_191 = (void *)0;
                     {
                         String s = value_190;
-                        value_191 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                        value_191 = ((compiler_go_simd_StaticText*)(&(s)))->data;
                     }
-                    int32_t value_193 = zir_f_95c9517df3f32b71_snprintf(value_187, value_189, value_191, i);
+                    int32_t value_193 = zir_foreign_compiler_go_simd__snprintf(value_187, value_189, value_191, i);
                     compiler_go_simd_CheckFormat(value_193, 2048 - pu);
-                    size_t bu = zir_f_95c9517df3f32b71_strlen(&(value->body[0]));
+                    size_t bu = zir_foreign_compiler_go_simd__strlen(&(value->body[0]));
                     uint8_t* value_194 = &(value->body[0]);
                     uint8_t* value_195 = (void *)0;
                     {
@@ -1979,16 +1775,16 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
                     uint8_t* value_199 = (void *)0;
                     {
                         String s = value_198;
-                        value_199 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                        value_199 = ((compiler_go_simd_StaticText*)(&(s)))->data;
                     }
-                    int32_t value_201 = zir_f_95c9517df3f32b71_snprintf(value_195, value_197, value_199, i, i);
+                    int32_t value_201 = zir_foreign_compiler_go_simd__snprintf(value_195, value_197, value_199, i, i);
                     compiler_go_simd_CheckFormat(value_201, 4096 - bu);
                     uint8_t** value_202 = &(types[count]);
                     String value_203 = StringLiteral("integer");
                     uint8_t* value_204 = (void *)0;
                     {
                         String s = value_203;
-                        value_204 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                        value_204 = ((compiler_go_simd_StaticText*)(&(s)))->data;
                     }
                     (*value_202) = value_204;
                     count = (int32_t)((uint32_t)count + 1u);
@@ -2004,14 +1800,14 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
                 int32_t range_last_90 = (int32_t)((uint32_t)(v->lanes) - 1u);
                 int32_t i = range_first_90;
                 if (i <= range_last_90) for (;;) {
-                    size_t pu = zir_f_95c9517df3f32b71_strlen(&(value->params[0]));
+                    size_t pu = zir_foreign_compiler_go_simd__strlen(&(value->params[0]));
                     uint8_t* value_206 = (void *)0;
                     if (i != 0) {
                         String value_207 = StringLiteral(", ");
                         uint8_t* value_208 = (void *)0;
                         {
                             String s = value_207;
-                            value_208 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                            value_208 = ((compiler_go_simd_StaticText*)(&(s)))->data;
                         }
                         value_206 = value_208;
                     } else {
@@ -2019,7 +1815,7 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
                         uint8_t* value_211 = (void *)0;
                         {
                             String s = value_210;
-                            value_211 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                            value_211 = ((compiler_go_simd_StaticText*)(&(s)))->data;
                         }
                         value_206 = value_211;
                     }
@@ -2036,13 +1832,13 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
                     uint8_t* value_218 = (void *)0;
                     {
                         String s = value_217;
-                        value_218 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                        value_218 = ((compiler_go_simd_StaticText*)(&(s)))->data;
                     }
                     uint8_t* value_220 = sep;
                     int32_t value_221 = i;
-                    int32_t value_222 = zir_f_95c9517df3f32b71_snprintf(value_214, value_216, value_218, value_220, value_221, compiler_go_simd_GoType(v->lane));
+                    int32_t value_222 = zir_foreign_compiler_go_simd__snprintf(value_214, value_216, value_218, value_220, value_221, compiler_go_simd_GoType(v->lane));
                     compiler_go_simd_CheckFormat(value_222, 2048 - pu);
-                    size_t bu = zir_f_95c9517df3f32b71_strlen(&(value->body[0]));
+                    size_t bu = zir_foreign_compiler_go_simd__strlen(&(value->body[0]));
                     uint8_t* value_223 = &(value->body[0]);
                     uint8_t* value_224 = (void *)0;
                     {
@@ -2055,11 +1851,11 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
                     uint8_t* value_228 = (void *)0;
                     {
                         String s = value_227;
-                        value_228 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                        value_228 = ((compiler_go_simd_StaticText*)(&(s)))->data;
                     }
                     int32_t value_230 = i;
                     uint8_t* value_231 = compiler_go_simd_LaneName(v);
-                    int32_t value_232 = zir_f_95c9517df3f32b71_snprintf(value_224, value_226, value_228, value_230, value_231, i);
+                    int32_t value_232 = zir_foreign_compiler_go_simd__snprintf(value_224, value_226, value_228, value_230, value_231, i);
                     compiler_go_simd_CheckFormat(value_232, 4096 - bu);
                     uint8_t** value_233 = &(types[count]);
                     (*value_233) = v->lane;
@@ -2071,7 +1867,7 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
                 }
             }
         } else if (((SimdShape)(op->shape)) == ((SimdShape)(9))) {
-            size_t pu = zir_f_95c9517df3f32b71_strlen(&(value->params[0]));
+            size_t pu = zir_foreign_compiler_go_simd__strlen(&(value->params[0]));
             uint8_t* value_234 = &(value->params[0]);
             uint8_t* value_235 = (void *)0;
             {
@@ -2084,11 +1880,11 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_239 = (void *)0;
             {
                 String s = value_238;
-                value_239 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_239 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            int32_t value_241 = zir_f_95c9517df3f32b71_snprintf(value_235, value_237, value_239, compiler_go_simd_GoType(v->lane));
+            int32_t value_241 = zir_foreign_compiler_go_simd__snprintf(value_235, value_237, value_239, compiler_go_simd_GoType(v->lane));
             compiler_go_simd_CheckFormat(value_241, 2048 - pu);
-            size_t bu = zir_f_95c9517df3f32b71_strlen(&(value->body[0]));
+            size_t bu = zir_foreign_compiler_go_simd__strlen(&(value->body[0]));
             uint8_t* value_242 = &(value->body[0]);
             uint8_t* value_243 = (void *)0;
             {
@@ -2101,9 +1897,9 @@ compiler_go_simd_ValueSignature(GoHelper* helper, GoValue* value)
             uint8_t* value_247 = (void *)0;
             {
                 String s = value_246;
-                value_247 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_247 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            int32_t value_249 = zir_f_95c9517df3f32b71_snprintf(value_243, value_245, value_247, compiler_go_simd_LaneName(v));
+            int32_t value_249 = zir_foreign_compiler_go_simd__snprintf(value_243, value_245, value_247, compiler_go_simd_LaneName(v));
             compiler_go_simd_CheckFormat(value_249, 4096 - bu);
             uint8_t** value_250 = &(types[count]);
             (*value_250) = v->lane;
@@ -2124,22 +1920,22 @@ compiler_go_simd_WriteValue(void* out, uint8_t* name, uint8_t* suffix, GoHelper*
 {
     SimdOp* op = helper->op;
     SimdVector* v = &(helper->first);
-    void* value_0 = zir_f_95c9517df3f32b71_AllocateOrExit(sizeof(GoValue));
+    void* value_0 = zir_foreign_compiler_go_simd__AllocateOrExit(sizeof(GoValue));
     GoValue* value = (GoValue*)(value_0);
     bool value_1 = compiler_go_simd_ValueSignature(helper, value);
     if (!value_1) {
-        zir_f_95c9517df3f32b71_free((void*)(value));
+        zir_foreign_compiler_go_simd__free((void*)(value));
         return false;
     }
     uint8_t* result = value->result;
     SimdVector r = {0};
-    bool vector_result = zir_f_95c9517df3f32b71_VectorType(result, &(r)) != 0;
+    bool vector_result = zir_foreign_compiler_go_simd__VectorType(result, &(r)) != 0;
     int32_t value_2 = 0;
     if (vector_result) {
         int32_t value_3 = SimdLaneKind(&(r));
         value_2 = value_3;
     } else {
-        bool value_4 = zir_f_95c9517df3f32b71_strcmp(result, v->lane) == 0;
+        bool value_4 = zir_foreign_compiler_go_simd__strcmp(result, v->lane) == 0;
         int32_t value_5 = 0;
         if (value_4) {
             int32_t value_6 = SimdLaneKind(v);
@@ -2166,20 +1962,20 @@ compiler_go_simd_WriteValue(void* out, uint8_t* name, uint8_t* suffix, GoHelper*
     }
     uint8_t* a_type = value_9;
     SimdVector a = {0};
-    zir_f_95c9517df3f32b71_VectorType(a_type, &(a));
+    zir_foreign_compiler_go_simd__VectorType(a_type, &(a));
     if (typed != ((void *)0)) {
         void* value_10 = out;
         String value_11 = StringLiteral("\nfunc %s%s(%s) %s {\n%s}\n");
         uint8_t* value_12 = (void *)0;
         {
             String s = value_11;
-            value_12 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_12 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         uint8_t* value_14 = name;
         uint8_t* value_15 = suffix;
         uint8_t* value_16 = compiler_go_simd_GoType(result);
-        zir_f_95c9517df3f32b71_fprintf(value_10, value_12, value_14, value_15, &(value->params[0]), value_16, typed->text);
-        zir_f_95c9517df3f32b71_free((void*)(value));
+        zir_foreign_compiler_go_simd__fprintf(value_10, value_12, value_14, value_15, &(value->params[0]), value_16, typed->text);
+        zir_foreign_compiler_go_simd__free((void*)(value));
         return true;
     }
     void* value_17 = out;
@@ -2187,68 +1983,68 @@ compiler_go_simd_WriteValue(void* out, uint8_t* name, uint8_t* suffix, GoHelper*
     uint8_t* value_19 = (void *)0;
     {
         String s = value_18;
-        value_19 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_19 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
     uint8_t* value_21 = name;
     uint8_t* value_22 = suffix;
-    zir_f_95c9517df3f32b71_fprintf(value_17, value_19, value_21, value_22, &(value->params[0]), compiler_go_simd_GoType(result), &(value->body[0]));
+    zir_foreign_compiler_go_simd__fprintf(value_17, value_19, value_21, value_22, &(value->params[0]), compiler_go_simd_GoType(result), &(value->body[0]));
     void* value_23 = out;
     String value_24 = StringLiteral("\tzi_simd_ref(%d, %d, %d, %d, %d, &x, &y, &z, &k, &o)\n");
     uint8_t* value_25 = (void *)0;
     {
         String s = value_24;
-        value_25 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_25 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
     int32_t value_27 = op->id;
     int32_t value_28 = r_kind;
     int32_t value_29 = r_lanes;
     int32_t value_30 = SimdLaneKind(&(a));
-    zir_f_95c9517df3f32b71_fprintf(value_23, value_25, value_27, value_28, value_29, value_30, a.lanes);
+    zir_foreign_compiler_go_simd__fprintf(value_23, value_25, value_27, value_28, value_29, value_30, a.lanes);
     if (vector_result) {
         void* value_31 = out;
         String value_32 = StringLiteral("\treturn zi_simd_out_%s(&o)\n}\n");
         uint8_t* value_33 = (void *)0;
         {
             String s = value_32;
-            value_33 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_33 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
-        zir_f_95c9517df3f32b71_fprintf(value_31, value_33, result);
+        zir_foreign_compiler_go_simd__fprintf(value_31, value_33, result);
     } else {
         uint8_t* value_35 = result;
         String value_36 = StringLiteral("bool");
         uint8_t* value_37 = (void *)0;
         {
             String s = value_36;
-            value_37 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_37 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
-        if (zir_f_95c9517df3f32b71_strcmp(value_35, value_37) == 0) {
+        if (zir_foreign_compiler_go_simd__strcmp(value_35, value_37) == 0) {
             String value_39 = StringLiteral("\treturn o[0] != 0\n}\n");
             uint8_t* value_40 = (void *)0;
             {
                 String s = value_39;
-                value_40 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_40 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            zir_f_95c9517df3f32b71_fputs(value_40, out);
-        } else if (zir_f_95c9517df3f32b71_strcmp(result, v->lane) == 0) {
+            zir_foreign_compiler_go_simd__fputs(value_40, out);
+        } else if (zir_foreign_compiler_go_simd__strcmp(result, v->lane) == 0) {
             void* value_42 = out;
             String value_43 = StringLiteral("\treturn zi_simd_lane_%s(o[0])\n}\n");
             uint8_t* value_44 = (void *)0;
             {
                 String s = value_43;
-                value_44 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_44 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            zir_f_95c9517df3f32b71_fprintf(value_42, value_44, compiler_go_simd_LaneName(v));
+            zir_foreign_compiler_go_simd__fprintf(value_42, value_44, compiler_go_simd_LaneName(v));
         } else {
             String value_46 = StringLiteral("\treturn int64(o[0])\n}\n");
             uint8_t* value_47 = (void *)0;
             {
                 String s = value_46;
-                value_47 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_47 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            zir_f_95c9517df3f32b71_fputs(value_47, out);
+            zir_foreign_compiler_go_simd__fputs(value_47, out);
         }
     }
-    zir_f_95c9517df3f32b71_free((void*)(value));
+    zir_foreign_compiler_go_simd__free((void*)(value));
     return true;
 }
 
@@ -2259,7 +2055,7 @@ compiler_go_simd_SortHelpers(void)
     while (i < g_go_helper_count) {
         uint8_t* key = g_go_helpers[i];
         int32_t j = (int32_t)((uint32_t)i - 1u);
-        while (j >= 0 && zir_f_95c9517df3f32b71_strcmp(g_go_helpers[j], key) > 0) {
+        while (j >= 0 && zir_foreign_compiler_go_simd__strcmp(g_go_helpers[j], key) > 0) {
             uint8_t** value_0 = &(g_go_helpers[((int32_t)((uint32_t)j + 1u))]);
             (*value_0) = g_go_helpers[j];
             j = (int32_t)((uint32_t)j - 1u);
@@ -2273,8 +2069,8 @@ compiler_go_simd_SortHelpers(void)
 static bool
 compiler_go_simd_Calls(uint8_t* text, uint8_t* name)
 {
-    size_t length = zir_f_95c9517df3f32b71_strlen(name);
-    uint8_t* p = zir_f_95c9517df3f32b71_strstr(text, name);
+    size_t length = zir_foreign_compiler_go_simd__strlen(name);
+    uint8_t* p = zir_foreign_compiler_go_simd__strstr(text, name);
     while (p != ((void *)0)) {
         bool value_0 = p[length] == 40;
         bool value_1 = value_0;
@@ -2318,7 +2114,7 @@ compiler_go_simd_Calls(uint8_t* text, uint8_t* name)
             size_t offset = 1;
             value_13 = (uint8_t*)(((size_t)(base) + offset));
         }
-        p = zir_f_95c9517df3f32b71_strstr(value_13, name);
+        p = zir_foreign_compiler_go_simd__strstr(value_13, name);
     }
     return false;
 }
@@ -2330,10 +2126,10 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
     int32_t pointer = 0;
     int32_t checks = 0;
     int32_t math_imp = check;
-    size_t lane_count = zir_f_95c9517df3f32b71_ZirGoSimdLaneCount();
-    void* value_0 = zir_f_95c9517df3f32b71_AllocateOrExit(lane_count + 1);
+    size_t lane_count = zir_foreign_compiler_go_simd__ZirGoSimdLaneCount();
+    void* value_0 = zir_foreign_compiler_go_simd__AllocateOrExit(lane_count + 1);
     uint8_t* lane_used = (uint8_t*)(value_0);
-    zir_f_95c9517df3f32b71_memset((void*)(lane_used), 0, lane_count + 1);
+    zir_foreign_compiler_go_simd__memset((void*)(lane_used), 0, lane_count + 1);
     {
         int32_t range_first_7 = 0;
         int32_t range_last_7 = (int32_t)((uint32_t)g_go_helper_count - 1u);
@@ -2372,16 +2168,16 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
                 uint8_t* value_3 = (void *)0;
                 {
                     String s = value_2;
-                    value_3 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                    value_3 = ((compiler_go_simd_StaticText*)(&(s)))->data;
                 }
                 String value_5 = StringLiteral("no typed Go body for %s");
                 uint8_t* value_6 = (void *)0;
                 {
                     String s = value_5;
-                    value_6 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                    value_6 = ((compiler_go_simd_StaticText*)(&(s)))->data;
                 }
-                zir_f_95c9517df3f32b71_Diagnostic(span, value_3, value_6, g_go_helpers[i]);
-                zir_f_95c9517df3f32b71_free((void*)(lane_used));
+                zir_foreign_compiler_go_simd__Diagnostic(span, value_3, value_6, g_go_helpers[i]);
+                zir_foreign_compiler_go_simd__free((void*)(lane_used));
                 return 1;
             }
             uint8_t* value_8 = typed->text;
@@ -2389,15 +2185,15 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
             uint8_t* value_10 = (void *)0;
             {
                 String s = value_9;
-                value_10 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_10 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            uint8_t* value_12 = zir_f_95c9517df3f32b71_strstr(value_8, value_10);
+            uint8_t* value_12 = zir_foreign_compiler_go_simd__strstr(value_8, value_10);
             if (value_12 != ((void *)0)) {
                 math_imp = 1;
             }
             size_t f = 0;
             while (f < lane_count) {
-                GoSimdText* lf = zir_f_95c9517df3f32b71_ZirGoSimdLaneAt(f);
+                GoSimdText* lf = zir_foreign_compiler_go_simd__ZirGoSimdLaneAt(f);
                 bool value_13 = lane_used[f] == 0;
                 if (value_13 && compiler_go_simd_Calls(typed->text, lf->name)) {
                     uint8_t* value_14 = &(lane_used[f]);
@@ -2407,9 +2203,9 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
                     uint8_t* value_17 = (void *)0;
                     {
                         String s = value_16;
-                        value_17 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                        value_17 = ((compiler_go_simd_StaticText*)(&(s)))->data;
                     }
-                    uint8_t* value_19 = zir_f_95c9517df3f32b71_strstr(value_15, value_17);
+                    uint8_t* value_19 = zir_foreign_compiler_go_simd__strstr(value_15, value_17);
                     if (value_19 != ((void *)0)) {
                         math_imp = 1;
                     }
@@ -2428,35 +2224,35 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
     uint8_t* value_21 = (void *)0;
     {
         String s = value_20;
-        value_21 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_21 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
-    compiler_go_simd_CheckFormat(zir_f_95c9517df3f32b71_snprintf(&(path[0]), 1024, value_21, out_dir), 1024);
-    void* out = zir_f_95c9517df3f32b71_GeneratedOutputOpen(&(path[0]), &(temp[0]), 1024);
+    compiler_go_simd_CheckFormat(zir_foreign_compiler_go_simd__snprintf(&(path[0]), 1024, value_21, out_dir), 1024);
+    void* out = zir_foreign_compiler_go_simd__GeneratedOutputOpen(&(path[0]), &(temp[0]), 1024);
     if (out == ((void *)0)) {
         ZirSourceSpan span = {0};
         String value_23 = StringLiteral("zir_go.global");
         uint8_t* value_24 = (void *)0;
         {
             String s = value_23;
-            value_24 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_24 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
         String value_26 = StringLiteral("cannot create Go output: %s");
         uint8_t* value_27 = (void *)0;
         {
             String s = value_26;
-            value_27 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_27 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
-        zir_f_95c9517df3f32b71_Diagnostic(span, value_24, value_27, &(path[0]));
-        zir_f_95c9517df3f32b71_free((void*)(lane_used));
+        zir_foreign_compiler_go_simd__Diagnostic(span, value_24, value_27, &(path[0]));
+        zir_foreign_compiler_go_simd__free((void*)(lane_used));
         return 1;
     }
     String value_29 = StringLiteral("// Code generated by zi2go from std/simd. DO NOT EDIT.\npackage %s\n");
     uint8_t* value_30 = (void *)0;
     {
         String s = value_29;
-        value_30 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+        value_30 = ((compiler_go_simd_StaticText*)(&(s)))->data;
     }
-    zir_f_95c9517df3f32b71_fprintf(out, value_30, pkg);
+    zir_foreign_compiler_go_simd__fprintf(out, value_30, pkg);
     if (math_imp != 0 || checks != 0 || pointer != 0) {
         uint8_t* value_32 = (void *)0;
         if (math_imp != 0) {
@@ -2464,7 +2260,7 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
             uint8_t* value_34 = (void *)0;
             {
                 String s = value_33;
-                value_34 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_34 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             value_32 = value_34;
         } else {
@@ -2472,7 +2268,7 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
             uint8_t* value_37 = (void *)0;
             {
                 String s = value_36;
-                value_37 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_37 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             value_32 = value_37;
         }
@@ -2483,7 +2279,7 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
             uint8_t* value_41 = (void *)0;
             {
                 String s = value_40;
-                value_41 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_41 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             value_39 = value_41;
         } else {
@@ -2491,7 +2287,7 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
             uint8_t* value_44 = (void *)0;
             {
                 String s = value_43;
-                value_44 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_44 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             value_39 = value_44;
         }
@@ -2502,7 +2298,7 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
             uint8_t* value_48 = (void *)0;
             {
                 String s = value_47;
-                value_48 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_48 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             value_46 = value_48;
         } else {
@@ -2510,7 +2306,7 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
             uint8_t* value_51 = (void *)0;
             {
                 String s = value_50;
-                value_51 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_51 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             value_46 = value_51;
         }
@@ -2519,9 +2315,9 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
         uint8_t* value_54 = (void *)0;
         {
             String s = value_53;
-            value_54 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_54 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
-        zir_f_95c9517df3f32b71_fprintf(out, value_54, m_s, c_s, p_s);
+        zir_foreign_compiler_go_simd__fprintf(out, value_54, m_s, c_s, p_s);
     }
     int32_t failed = 0;
     {
@@ -2544,7 +2340,7 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
                 uint8_t* value_57 = (void *)0;
                 {
                     String s = value_56;
-                    value_57 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                    value_57 = ((compiler_go_simd_StaticText*)(&(s)))->data;
                 }
                 bool value_59 = compiler_go_simd_WriteValue(out, name, value_57, &(helper), compiler_go_simd_TypedBody(name));
                 bool value_60 = !value_59;
@@ -2555,7 +2351,7 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
                         uint8_t* value_63 = (void *)0;
                         {
                             String s = value_62;
-                            value_63 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                            value_63 = ((compiler_go_simd_StaticText*)(&(s)))->data;
                         }
                         bool value_65 = compiler_go_simd_WriteValue(out, name, value_63, &(helper), (void *)0);
                         value_61 = !value_65;
@@ -2568,15 +2364,15 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
                     uint8_t* value_67 = (void *)0;
                     {
                         String s = value_66;
-                        value_67 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                        value_67 = ((compiler_go_simd_StaticText*)(&(s)))->data;
                     }
                     String value_69 = StringLiteral("no Go helper for %s");
                     uint8_t* value_70 = (void *)0;
                     {
                         String s = value_69;
-                        value_70 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                        value_70 = ((compiler_go_simd_StaticText*)(&(s)))->data;
                     }
-                    zir_f_95c9517df3f32b71_Diagnostic(span, value_67, value_70, name);
+                    zir_foreign_compiler_go_simd__Diagnostic(span, value_67, value_70, name);
                     failed = 1;
                 }
             }
@@ -2589,26 +2385,26 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
     size_t f_idx = 0;
     while (f_idx < lane_count) {
         if (lane_used[f_idx] != 0) {
-            GoSimdText* lf = zir_f_95c9517df3f32b71_ZirGoSimdLaneAt(f_idx);
+            GoSimdText* lf = zir_foreign_compiler_go_simd__ZirGoSimdLaneAt(f_idx);
             String value_72 = StringLiteral("\n%s");
             uint8_t* value_73 = (void *)0;
             {
                 String s = value_72;
-                value_73 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_73 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            zir_f_95c9517df3f32b71_fprintf(out, value_73, lf->text);
+            zir_foreign_compiler_go_simd__fprintf(out, value_73, lf->text);
         }
         f_idx = f_idx + 1;
     }
-    zir_f_95c9517df3f32b71_free((void*)(lane_used));
+    zir_foreign_compiler_go_simd__free((void*)(lane_used));
     if (checks != 0) {
         String value_75 = StringLiteral("\nfunc zi_simd_check(length, index int64, count int) {\n\tif index < 0 || index > length-int64(count) {\n\t\tpanic(\"ziran: SIMD access of \" + strconv.Itoa(count) + \" lanes at \" +\n\t\t\tstrconv.FormatInt(index, 10) + \" out of bounds (length \" +\n\t\t\tstrconv.FormatInt(length, 10) + \")\")\n\t}\n}\n\nfunc zi_simd_gather_check(index, length int64) {\n\tif index < 0 || index >= length {\n\t\tpanic(\"ziran: gather index \" + strconv.FormatInt(index, 10) +\n\t\t\t\" out of bounds (length \" + strconv.FormatInt(length, 10) + \")\")\n\t}\n}\n");
         uint8_t* value_76 = (void *)0;
         {
             String s = value_75;
-            value_76 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_76 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
-        zir_f_95c9517df3f32b71_fputs(value_76, out);
+        zir_foreign_compiler_go_simd__fputs(value_76, out);
     }
     if (check != 0) {
         compiler_go_simd_WriteConversions(out);
@@ -2616,9 +2412,9 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
         uint8_t* value_79 = (void *)0;
         {
             String s = value_78;
-            value_79 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_79 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
-        zir_f_95c9517df3f32b71_fputs(value_79, out);
+        zir_foreign_compiler_go_simd__fputs(value_79, out);
         {
             int32_t range_first_95 = 0;
             int32_t range_last_95 = (int32_t)((uint32_t)g_go_helper_count - 1u);
@@ -2628,9 +2424,9 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
                 uint8_t* value_82 = (void *)0;
                 {
                     String s = value_81;
-                    value_82 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                    value_82 = ((compiler_go_simd_StaticText*)(&(s)))->data;
                 }
-                zir_f_95c9517df3f32b71_fprintf(out, value_82, g_go_helpers[i], g_go_helpers[i], g_go_helpers[i]);
+                zir_foreign_compiler_go_simd__fprintf(out, value_82, g_go_helpers[i], g_go_helpers[i], g_go_helpers[i]);
                 if (i == range_last_95) {
                     break;
                 }
@@ -2641,34 +2437,34 @@ compiler_go_simd_WriteHelpers(uint8_t* out_dir, uint8_t* pkg, int32_t check)
         uint8_t* value_85 = (void *)0;
         {
             String s = value_84;
-            value_85 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+            value_85 = ((compiler_go_simd_StaticText*)(&(s)))->data;
         }
-        zir_f_95c9517df3f32b71_fputs(value_85, out);
+        zir_foreign_compiler_go_simd__fputs(value_85, out);
     }
-    if (zir_f_95c9517df3f32b71_ferror(out) != 0) {
+    if (zir_foreign_compiler_go_simd__ferror(out) != 0) {
         failed = 1;
     }
-    if (zir_f_95c9517df3f32b71_fclose(out) != 0) {
+    if (zir_foreign_compiler_go_simd__fclose(out) != 0) {
         failed = 1;
     }
-    if (failed != 0 || zir_f_95c9517df3f32b71_GeneratedOutputReplace(&(temp[0]), &(path[0])) != 0) {
+    if (failed != 0 || zir_foreign_compiler_go_simd__GeneratedOutputReplace(&(temp[0]), &(path[0])) != 0) {
         if (failed == 0) {
             ZirSourceSpan span = {0};
             String value_87 = StringLiteral("zir_go.global");
             uint8_t* value_88 = (void *)0;
             {
                 String s = value_87;
-                value_88 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_88 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
             String value_90 = StringLiteral("cannot finish Go output: %s");
             uint8_t* value_91 = (void *)0;
             {
                 String s = value_90;
-                value_91 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                value_91 = ((compiler_go_simd_StaticText*)(&(s)))->data;
             }
-            zir_f_95c9517df3f32b71_Diagnostic(span, value_88, value_91, &(path[0]));
+            zir_foreign_compiler_go_simd__Diagnostic(span, value_88, value_91, &(path[0]));
         }
-        zir_f_95c9517df3f32b71_remove(&(temp[0]));
+        zir_foreign_compiler_go_simd__remove(&(temp[0]));
         return 1;
     }
     return 0;
@@ -2688,7 +2484,7 @@ GoSimdWriteCheck(uint8_t* out_dir, uint8_t* pkg)
 {
     GoSimdBegin();
     int32_t missing = 0;
-    void* value_0 = zir_f_95c9517df3f32b71_AllocateOrExit(sizeof(GoValue));
+    void* value_0 = zir_foreign_compiler_go_simd__AllocateOrExit(sizeof(GoValue));
     GoValue* value = (GoValue*)(value_0);
     int32_t o = 0;
     while (true) {
@@ -2724,20 +2520,20 @@ GoSimdWriteCheck(uint8_t* out_dir, uint8_t* pkg)
                             uint8_t* value_3 = (void *)0;
                             {
                                 String s = value_2;
-                                value_3 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                                value_3 = ((compiler_go_simd_StaticText*)(&(s)))->data;
                             }
                             uint8_t* value_5 = (uint8_t*)op->snake;
                             uint8_t* value_6 = compiler_go_simd_GoVectorName(i);
-                            compiler_go_simd_CheckFormat(zir_f_95c9517df3f32b71_snprintf(&(name[0]), 96, value_3, value_5, value_6, compiler_go_simd_GoVectorName(j)), 96);
+                            compiler_go_simd_CheckFormat(zir_foreign_compiler_go_simd__snprintf(&(name[0]), 96, value_3, value_5, value_6, compiler_go_simd_GoVectorName(j)), 96);
                         } else {
                             String value_7 = StringLiteral("zi_%s_%s");
                             uint8_t* value_8 = (void *)0;
                             {
                                 String s = value_7;
-                                value_8 = ((zir_6245d7f785f9ace2_StaticText*)(&(s)))->data;
+                                value_8 = ((compiler_go_simd_StaticText*)(&(s)))->data;
                             }
                             uint8_t* value_10 = (uint8_t*)op->snake;
-                            compiler_go_simd_CheckFormat(zir_f_95c9517df3f32b71_snprintf(&(name[0]), 96, value_8, value_10, compiler_go_simd_GoVectorName(i)), 96);
+                            compiler_go_simd_CheckFormat(zir_foreign_compiler_go_simd__snprintf(&(name[0]), 96, value_8, value_10, compiler_go_simd_GoVectorName(i)), 96);
                         }
                         GoHelper helper = {0};
                         bool value_11 = compiler_go_simd_ParseHelper(&(name[0]), &(helper));
@@ -2753,7 +2549,7 @@ GoSimdWriteCheck(uint8_t* out_dir, uint8_t* pkg)
                             j = (int32_t)((uint32_t)j + 1u);
                             continue;
                         }
-                        compiler_go_simd_Remember(&(name[0]), zir_f_95c9517df3f32b71_strlen(&(name[0])));
+                        compiler_go_simd_Remember(&(name[0]), zir_foreign_compiler_go_simd__strlen(&(name[0])));
                         GoSimdText* value_14 = compiler_go_simd_TypedBody(&(name[0]));
                         if (value_14 == ((void *)0)) {
                             missing = 1;
@@ -2771,7 +2567,7 @@ GoSimdWriteCheck(uint8_t* out_dir, uint8_t* pkg)
             }
         }
     }
-    zir_f_95c9517df3f32b71_free((void*)(value));
+    zir_foreign_compiler_go_simd__free((void*)(value));
     int32_t failed = compiler_go_simd_WriteHelpers(out_dir, pkg, 1);
     GoSimdBegin();
     int32_t value_15 = 0;

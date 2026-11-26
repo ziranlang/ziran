@@ -44,7 +44,7 @@ typedef struct RangeParameter RangeParameter;
 typedef struct RangeParameters RangeParameters;
 #endif
 #ifdef ZIRAN_COMPILER_C_RANGE_FACTS_H_PRIVATE
-typedef struct zir_8e9ab5d4dd15b8ae_TextDescriptor zir_8e9ab5d4dd15b8ae_TextDescriptor;
+typedef struct compiler_c_range_facts_TextDescriptor compiler_c_range_facts_TextDescriptor;
 #endif
 #ifdef ZIRAN_COMPILER_C_RANGE_FACTS_H_PRIVATE
 typedef struct ScopeEntry ScopeEntry;
@@ -186,7 +186,7 @@ struct RangeParameters {
 #endif
 #ifdef ZIRAN_COMPILER_C_RANGE_FACTS_H_PRIVATE
 
-struct zir_8e9ab5d4dd15b8ae_TextDescriptor {
+struct compiler_c_range_facts_TextDescriptor {
     uint8_t* data;
     size_t length;
 };
@@ -243,22 +243,22 @@ bool compiler_c_range_facts_StatementHasAssembly(ZirStmt* st);
 void compiler_c_range_facts_RangeFactsFree(RangeFacts* f);
 void compiler_c_range_facts_CallersFree(Callers* c);
 RangeFacts* compiler_c_range_facts_RangeFactsBuild(ZirFunction* fn);
-void compiler_c_range_facts___zi_spec_1c076b9130a22c09(int32_t* memory);
-void compiler_c_range_facts___zi_spec_26cf6fa78d69a0a8(uint8_t* memory);
-void compiler_c_range_facts___zi_spec_d6c77b4b19ad9ddc(int64_t* memory);
-void compiler_c_range_facts___zi_spec_36badaf37b490cb8(uint8_t** memory);
-void compiler_c_range_facts___zi_spec_1cfa5bbe8c743fa4(RangeMemo* memory);
-void compiler_c_range_facts___zi_spec_d22218a307c20f46(Range* memory);
-void compiler_c_range_facts___zi_spec_b63787f70acafcb6(CallRange* memory);
-void compiler_c_range_facts___zi_spec_b4230299ea84c8b9(Poly* memory);
-void compiler_c_range_facts___zi_spec_dedcdc5a2bfcb83b(GuardFacts* memory);
-void compiler_c_range_facts___zi_spec_5950ee889da3ded3(RangeFacts* memory);
-void compiler_c_range_facts___zi_spec_4f7278c383bc71a4(ZirStmt* memory);
-void compiler_c_range_facts___zi_spec_f25bf0ef6b818ab7(ZirExpr* memory);
-void compiler_c_range_facts___zi_spec_dc8095db15498499(Callers* memory);
-uint8_t** compiler_c_range_facts___zi_spec_72ce1a0d7fc61446(uint8_t** memory, int64_t count);
-void compiler_c_range_facts___zi_spec_9b28547ded648747(uint8_t* destination, uint8_t* source, int64_t count);
-void compiler_c_range_facts___zi_spec_262c8131ae5c049c(ZirExpr* destination, ZirExpr* source, int64_t count);
+void compiler_c_range_facts_compiler_c_range_facts_Release_for_s32(int32_t* memory);
+void compiler_c_range_facts_compiler_c_range_facts_Release_for_u8(uint8_t* memory);
+void compiler_c_range_facts_compiler_c_range_facts_Release_for_s64(int64_t* memory);
+void compiler_c_range_facts_compiler_c_range_facts_Release_for__u8(uint8_t** memory);
+void compiler_c_range_facts_compiler_c_range_facts_Release_for_RangeMemo(RangeMemo* memory);
+void compiler_c_range_facts_compiler_c_range_facts_Release_for_Range(Range* memory);
+void compiler_c_range_facts_compiler_c_range_facts_Release_for_CallRange(CallRange* memory);
+void compiler_c_range_facts_compiler_c_range_facts_Release_for_Poly(Poly* memory);
+void compiler_c_range_facts_compiler_c_range_facts_Release_for_GuardFacts(GuardFacts* memory);
+void compiler_c_range_facts_compiler_c_range_facts_Release_for_RangeFacts(RangeFacts* memory);
+void compiler_c_range_facts_compiler_c_range_facts_Release_for_ZirStmt(ZirStmt* memory);
+void compiler_c_range_facts_compiler_c_range_facts_Release_for_ZirExpr(ZirExpr* memory);
+void compiler_c_range_facts_compiler_c_range_facts_Release_for_Callers(Callers* memory);
+uint8_t** compiler_c_range_facts_compiler_c_range_facts_Grow_for__u8(uint8_t** memory, int64_t count);
+void compiler_c_range_facts_compiler_c_range_facts_Copy_for_u8(uint8_t* destination, uint8_t* source, int64_t count);
+void compiler_c_range_facts_compiler_c_range_facts_Copy_for_ZirExpr(ZirExpr* destination, ZirExpr* source, int64_t count);
 
 /* Small procedures other modules inline; compiler_c_range_facts.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_C_RANGE_FACTS_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
@@ -282,38 +282,38 @@ static inline bool compiler_c_range_facts_StatementHasAssembly_ziran_inline(ZirS
 #define compiler_c_range_facts_StatementHasAssembly(...) compiler_c_range_facts_StatementHasAssembly_ziran_inline(__VA_ARGS__)
 static inline void compiler_c_range_facts_CallersFree_ziran_inline(Callers* c);
 #define compiler_c_range_facts_CallersFree(...) compiler_c_range_facts_CallersFree_ziran_inline(__VA_ARGS__)
-static inline void compiler_c_range_facts___zi_spec_1c076b9130a22c09_ziran_inline(int32_t* memory);
-#define compiler_c_range_facts___zi_spec_1c076b9130a22c09(...) compiler_c_range_facts___zi_spec_1c076b9130a22c09_ziran_inline(__VA_ARGS__)
-static inline void compiler_c_range_facts___zi_spec_26cf6fa78d69a0a8_ziran_inline(uint8_t* memory);
-#define compiler_c_range_facts___zi_spec_26cf6fa78d69a0a8(...) compiler_c_range_facts___zi_spec_26cf6fa78d69a0a8_ziran_inline(__VA_ARGS__)
-static inline void compiler_c_range_facts___zi_spec_d6c77b4b19ad9ddc_ziran_inline(int64_t* memory);
-#define compiler_c_range_facts___zi_spec_d6c77b4b19ad9ddc(...) compiler_c_range_facts___zi_spec_d6c77b4b19ad9ddc_ziran_inline(__VA_ARGS__)
-static inline void compiler_c_range_facts___zi_spec_36badaf37b490cb8_ziran_inline(uint8_t** memory);
-#define compiler_c_range_facts___zi_spec_36badaf37b490cb8(...) compiler_c_range_facts___zi_spec_36badaf37b490cb8_ziran_inline(__VA_ARGS__)
-static inline void compiler_c_range_facts___zi_spec_1cfa5bbe8c743fa4_ziran_inline(RangeMemo* memory);
-#define compiler_c_range_facts___zi_spec_1cfa5bbe8c743fa4(...) compiler_c_range_facts___zi_spec_1cfa5bbe8c743fa4_ziran_inline(__VA_ARGS__)
-static inline void compiler_c_range_facts___zi_spec_d22218a307c20f46_ziran_inline(Range* memory);
-#define compiler_c_range_facts___zi_spec_d22218a307c20f46(...) compiler_c_range_facts___zi_spec_d22218a307c20f46_ziran_inline(__VA_ARGS__)
-static inline void compiler_c_range_facts___zi_spec_b63787f70acafcb6_ziran_inline(CallRange* memory);
-#define compiler_c_range_facts___zi_spec_b63787f70acafcb6(...) compiler_c_range_facts___zi_spec_b63787f70acafcb6_ziran_inline(__VA_ARGS__)
-static inline void compiler_c_range_facts___zi_spec_b4230299ea84c8b9_ziran_inline(Poly* memory);
-#define compiler_c_range_facts___zi_spec_b4230299ea84c8b9(...) compiler_c_range_facts___zi_spec_b4230299ea84c8b9_ziran_inline(__VA_ARGS__)
-static inline void compiler_c_range_facts___zi_spec_dedcdc5a2bfcb83b_ziran_inline(GuardFacts* memory);
-#define compiler_c_range_facts___zi_spec_dedcdc5a2bfcb83b(...) compiler_c_range_facts___zi_spec_dedcdc5a2bfcb83b_ziran_inline(__VA_ARGS__)
-static inline void compiler_c_range_facts___zi_spec_5950ee889da3ded3_ziran_inline(RangeFacts* memory);
-#define compiler_c_range_facts___zi_spec_5950ee889da3ded3(...) compiler_c_range_facts___zi_spec_5950ee889da3ded3_ziran_inline(__VA_ARGS__)
-static inline void compiler_c_range_facts___zi_spec_4f7278c383bc71a4_ziran_inline(ZirStmt* memory);
-#define compiler_c_range_facts___zi_spec_4f7278c383bc71a4(...) compiler_c_range_facts___zi_spec_4f7278c383bc71a4_ziran_inline(__VA_ARGS__)
-static inline void compiler_c_range_facts___zi_spec_f25bf0ef6b818ab7_ziran_inline(ZirExpr* memory);
-#define compiler_c_range_facts___zi_spec_f25bf0ef6b818ab7(...) compiler_c_range_facts___zi_spec_f25bf0ef6b818ab7_ziran_inline(__VA_ARGS__)
-static inline void compiler_c_range_facts___zi_spec_dc8095db15498499_ziran_inline(Callers* memory);
-#define compiler_c_range_facts___zi_spec_dc8095db15498499(...) compiler_c_range_facts___zi_spec_dc8095db15498499_ziran_inline(__VA_ARGS__)
-static inline uint8_t** compiler_c_range_facts___zi_spec_72ce1a0d7fc61446_ziran_inline(uint8_t** memory, int64_t count);
-#define compiler_c_range_facts___zi_spec_72ce1a0d7fc61446(...) compiler_c_range_facts___zi_spec_72ce1a0d7fc61446_ziran_inline(__VA_ARGS__)
-static inline void compiler_c_range_facts___zi_spec_9b28547ded648747_ziran_inline(uint8_t* destination, uint8_t* source, int64_t count);
-#define compiler_c_range_facts___zi_spec_9b28547ded648747(...) compiler_c_range_facts___zi_spec_9b28547ded648747_ziran_inline(__VA_ARGS__)
-static inline void compiler_c_range_facts___zi_spec_262c8131ae5c049c_ziran_inline(ZirExpr* destination, ZirExpr* source, int64_t count);
-#define compiler_c_range_facts___zi_spec_262c8131ae5c049c(...) compiler_c_range_facts___zi_spec_262c8131ae5c049c_ziran_inline(__VA_ARGS__)
+static inline void compiler_c_range_facts_compiler_c_range_facts_Release_for_s32_ziran_inline(int32_t* memory);
+#define compiler_c_range_facts_compiler_c_range_facts_Release_for_s32(...) compiler_c_range_facts_compiler_c_range_facts_Release_for_s32_ziran_inline(__VA_ARGS__)
+static inline void compiler_c_range_facts_compiler_c_range_facts_Release_for_u8_ziran_inline(uint8_t* memory);
+#define compiler_c_range_facts_compiler_c_range_facts_Release_for_u8(...) compiler_c_range_facts_compiler_c_range_facts_Release_for_u8_ziran_inline(__VA_ARGS__)
+static inline void compiler_c_range_facts_compiler_c_range_facts_Release_for_s64_ziran_inline(int64_t* memory);
+#define compiler_c_range_facts_compiler_c_range_facts_Release_for_s64(...) compiler_c_range_facts_compiler_c_range_facts_Release_for_s64_ziran_inline(__VA_ARGS__)
+static inline void compiler_c_range_facts_compiler_c_range_facts_Release_for__u8_ziran_inline(uint8_t** memory);
+#define compiler_c_range_facts_compiler_c_range_facts_Release_for__u8(...) compiler_c_range_facts_compiler_c_range_facts_Release_for__u8_ziran_inline(__VA_ARGS__)
+static inline void compiler_c_range_facts_compiler_c_range_facts_Release_for_RangeMemo_ziran_inline(RangeMemo* memory);
+#define compiler_c_range_facts_compiler_c_range_facts_Release_for_RangeMemo(...) compiler_c_range_facts_compiler_c_range_facts_Release_for_RangeMemo_ziran_inline(__VA_ARGS__)
+static inline void compiler_c_range_facts_compiler_c_range_facts_Release_for_Range_ziran_inline(Range* memory);
+#define compiler_c_range_facts_compiler_c_range_facts_Release_for_Range(...) compiler_c_range_facts_compiler_c_range_facts_Release_for_Range_ziran_inline(__VA_ARGS__)
+static inline void compiler_c_range_facts_compiler_c_range_facts_Release_for_CallRange_ziran_inline(CallRange* memory);
+#define compiler_c_range_facts_compiler_c_range_facts_Release_for_CallRange(...) compiler_c_range_facts_compiler_c_range_facts_Release_for_CallRange_ziran_inline(__VA_ARGS__)
+static inline void compiler_c_range_facts_compiler_c_range_facts_Release_for_Poly_ziran_inline(Poly* memory);
+#define compiler_c_range_facts_compiler_c_range_facts_Release_for_Poly(...) compiler_c_range_facts_compiler_c_range_facts_Release_for_Poly_ziran_inline(__VA_ARGS__)
+static inline void compiler_c_range_facts_compiler_c_range_facts_Release_for_GuardFacts_ziran_inline(GuardFacts* memory);
+#define compiler_c_range_facts_compiler_c_range_facts_Release_for_GuardFacts(...) compiler_c_range_facts_compiler_c_range_facts_Release_for_GuardFacts_ziran_inline(__VA_ARGS__)
+static inline void compiler_c_range_facts_compiler_c_range_facts_Release_for_RangeFacts_ziran_inline(RangeFacts* memory);
+#define compiler_c_range_facts_compiler_c_range_facts_Release_for_RangeFacts(...) compiler_c_range_facts_compiler_c_range_facts_Release_for_RangeFacts_ziran_inline(__VA_ARGS__)
+static inline void compiler_c_range_facts_compiler_c_range_facts_Release_for_ZirStmt_ziran_inline(ZirStmt* memory);
+#define compiler_c_range_facts_compiler_c_range_facts_Release_for_ZirStmt(...) compiler_c_range_facts_compiler_c_range_facts_Release_for_ZirStmt_ziran_inline(__VA_ARGS__)
+static inline void compiler_c_range_facts_compiler_c_range_facts_Release_for_ZirExpr_ziran_inline(ZirExpr* memory);
+#define compiler_c_range_facts_compiler_c_range_facts_Release_for_ZirExpr(...) compiler_c_range_facts_compiler_c_range_facts_Release_for_ZirExpr_ziran_inline(__VA_ARGS__)
+static inline void compiler_c_range_facts_compiler_c_range_facts_Release_for_Callers_ziran_inline(Callers* memory);
+#define compiler_c_range_facts_compiler_c_range_facts_Release_for_Callers(...) compiler_c_range_facts_compiler_c_range_facts_Release_for_Callers_ziran_inline(__VA_ARGS__)
+static inline uint8_t** compiler_c_range_facts_compiler_c_range_facts_Grow_for__u8_ziran_inline(uint8_t** memory, int64_t count);
+#define compiler_c_range_facts_compiler_c_range_facts_Grow_for__u8(...) compiler_c_range_facts_compiler_c_range_facts_Grow_for__u8_ziran_inline(__VA_ARGS__)
+static inline void compiler_c_range_facts_compiler_c_range_facts_Copy_for_u8_ziran_inline(uint8_t* destination, uint8_t* source, int64_t count);
+#define compiler_c_range_facts_compiler_c_range_facts_Copy_for_u8(...) compiler_c_range_facts_compiler_c_range_facts_Copy_for_u8_ziran_inline(__VA_ARGS__)
+static inline void compiler_c_range_facts_compiler_c_range_facts_Copy_for_ZirExpr_ziran_inline(ZirExpr* destination, ZirExpr* source, int64_t count);
+#define compiler_c_range_facts_compiler_c_range_facts_Copy_for_ZirExpr(...) compiler_c_range_facts_compiler_c_range_facts_Copy_for_ZirExpr_ziran_inline(__VA_ARGS__)
 
 static inline bool
 compiler_c_range_facts_Is_ziran_inline(uint8_t* text, String want)
@@ -594,98 +594,98 @@ compiler_c_range_facts_CallersFree_ziran_inline(Callers* c)
 }
 
 static inline void
-compiler_c_range_facts___zi_spec_1c076b9130a22c09_ziran_inline(int32_t* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_s32_ziran_inline(int32_t* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 static inline void
-compiler_c_range_facts___zi_spec_26cf6fa78d69a0a8_ziran_inline(uint8_t* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_u8_ziran_inline(uint8_t* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 static inline void
-compiler_c_range_facts___zi_spec_d6c77b4b19ad9ddc_ziran_inline(int64_t* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_s64_ziran_inline(int64_t* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 static inline void
-compiler_c_range_facts___zi_spec_36badaf37b490cb8_ziran_inline(uint8_t** memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for__u8_ziran_inline(uint8_t** memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 static inline void
-compiler_c_range_facts___zi_spec_1cfa5bbe8c743fa4_ziran_inline(RangeMemo* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_RangeMemo_ziran_inline(RangeMemo* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 static inline void
-compiler_c_range_facts___zi_spec_d22218a307c20f46_ziran_inline(Range* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_Range_ziran_inline(Range* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 static inline void
-compiler_c_range_facts___zi_spec_b63787f70acafcb6_ziran_inline(CallRange* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_CallRange_ziran_inline(CallRange* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 static inline void
-compiler_c_range_facts___zi_spec_b4230299ea84c8b9_ziran_inline(Poly* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_Poly_ziran_inline(Poly* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 static inline void
-compiler_c_range_facts___zi_spec_dedcdc5a2bfcb83b_ziran_inline(GuardFacts* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_GuardFacts_ziran_inline(GuardFacts* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 static inline void
-compiler_c_range_facts___zi_spec_5950ee889da3ded3_ziran_inline(RangeFacts* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_RangeFacts_ziran_inline(RangeFacts* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 static inline void
-compiler_c_range_facts___zi_spec_4f7278c383bc71a4_ziran_inline(ZirStmt* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_ZirStmt_ziran_inline(ZirStmt* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 static inline void
-compiler_c_range_facts___zi_spec_f25bf0ef6b818ab7_ziran_inline(ZirExpr* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_ZirExpr_ziran_inline(ZirExpr* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 static inline void
-compiler_c_range_facts___zi_spec_dc8095db15498499_ziran_inline(Callers* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_Callers_ziran_inline(Callers* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 static inline uint8_t**
-compiler_c_range_facts___zi_spec_72ce1a0d7fc61446_ziran_inline(uint8_t** memory, int64_t count)
+compiler_c_range_facts_compiler_c_range_facts_Grow_for__u8_ziran_inline(uint8_t** memory, int64_t count)
 {
     void* value_0 = compiler_c_range_facts_GrowMemory((void*)(memory), (int64_t)((uint64_t)count * (uint64_t)(sizeof(void *))));
     return (uint8_t**)(value_0);
 }
 
 static inline void
-compiler_c_range_facts___zi_spec_9b28547ded648747_ziran_inline(uint8_t* destination, uint8_t* source, int64_t count)
+compiler_c_range_facts_compiler_c_range_facts_Copy_for_u8_ziran_inline(uint8_t* destination, uint8_t* source, int64_t count)
 {
     compiler_c_range_facts_CopyMemory((void*)(destination), (void*)(source), (int64_t)((uint64_t)count * (uint64_t)(sizeof(uint8_t))));
 }
 
 static inline void
-compiler_c_range_facts___zi_spec_262c8131ae5c049c_ziran_inline(ZirExpr* destination, ZirExpr* source, int64_t count)
+compiler_c_range_facts_compiler_c_range_facts_Copy_for_ZirExpr_ziran_inline(ZirExpr* destination, ZirExpr* source, int64_t count)
 {
     compiler_c_range_facts_CopyMemory((void*)(destination), (void*)(source), (int64_t)((uint64_t)count * (uint64_t)(sizeof(ZirExpr))));
 }

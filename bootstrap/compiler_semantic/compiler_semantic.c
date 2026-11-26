@@ -15,105 +15,45 @@ static inline int32_t ZiShrS32(int32_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-#ifndef ZIR_FOREIGN_zir_f_9239ea5ecaf81eed_OperatorOfProcedure_62944286
-#define ZIR_FOREIGN_zir_f_9239ea5ecaf81eed_OperatorOfProcedure_62944286
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_9239ea5ecaf81eed_OperatorOfProcedure(uint8_t* name) __asm__("_OperatorOfProcedure");
+uint8_t* zir_foreign_compiler_semantic__OperatorOfProcedure(uint8_t* name) __asm__("_OperatorOfProcedure");
 #else
-uint8_t* zir_foreign_zir_f_9239ea5ecaf81eed_OperatorOfProcedure(uint8_t* name) __asm__("OperatorOfProcedure");
+uint8_t* zir_foreign_compiler_semantic__OperatorOfProcedure(uint8_t* name) __asm__("OperatorOfProcedure");
 #endif
-static uint8_t*
-zir_f_9239ea5ecaf81eed_OperatorOfProcedure(uint8_t* name)
-{
-    return zir_foreign_zir_f_9239ea5ecaf81eed_OperatorOfProcedure(name);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_9239ea5ecaf81eed_Sha256Add_73d03b41
-#define ZIR_FOREIGN_zir_f_9239ea5ecaf81eed_Sha256Add_73d03b41
 #ifdef __APPLE__
-void zir_foreign_zir_f_9239ea5ecaf81eed_Sha256Add(Sha256* hash, void* data, size_t size) __asm__("_Sha256Add");
+void zir_foreign_compiler_semantic__Sha256Add(Sha256* hash, void* data, size_t size) __asm__("_Sha256Add");
 #else
-void zir_foreign_zir_f_9239ea5ecaf81eed_Sha256Add(Sha256* hash, void* data, size_t size) __asm__("Sha256Add");
+void zir_foreign_compiler_semantic__Sha256Add(Sha256* hash, void* data, size_t size) __asm__("Sha256Add");
 #endif
-static void
-zir_f_9239ea5ecaf81eed_Sha256Add(Sha256* hash, void* data, size_t size)
-{
-    zir_foreign_zir_f_9239ea5ecaf81eed_Sha256Add(hash, data, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_9239ea5ecaf81eed_Sha256Begin_cc62c7b3
-#define ZIR_FOREIGN_zir_f_9239ea5ecaf81eed_Sha256Begin_cc62c7b3
 #ifdef __APPLE__
-void zir_foreign_zir_f_9239ea5ecaf81eed_Sha256Begin(Sha256* hash) __asm__("_Sha256Begin");
+void zir_foreign_compiler_semantic__Sha256Begin(Sha256* hash) __asm__("_Sha256Begin");
 #else
-void zir_foreign_zir_f_9239ea5ecaf81eed_Sha256Begin(Sha256* hash) __asm__("Sha256Begin");
+void zir_foreign_compiler_semantic__Sha256Begin(Sha256* hash) __asm__("Sha256Begin");
 #endif
-static void
-zir_f_9239ea5ecaf81eed_Sha256Begin(Sha256* hash)
-{
-    zir_foreign_zir_f_9239ea5ecaf81eed_Sha256Begin(hash);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_9239ea5ecaf81eed_Sha256End_b997278d
-#define ZIR_FOREIGN_zir_f_9239ea5ecaf81eed_Sha256End_b997278d
 #ifdef __APPLE__
-void zir_foreign_zir_f_9239ea5ecaf81eed_Sha256End(Sha256* hash, uint8_t* digest) __asm__("_Sha256End");
+void zir_foreign_compiler_semantic__Sha256End(Sha256* hash, uint8_t* digest) __asm__("_Sha256End");
 #else
-void zir_foreign_zir_f_9239ea5ecaf81eed_Sha256End(Sha256* hash, uint8_t* digest) __asm__("Sha256End");
+void zir_foreign_compiler_semantic__Sha256End(Sha256* hash, uint8_t* digest) __asm__("Sha256End");
 #endif
-static void
-zir_f_9239ea5ecaf81eed_Sha256End(Sha256* hash, uint8_t* digest)
-{
-    zir_foreign_zir_f_9239ea5ecaf81eed_Sha256End(hash, digest);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_9239ea5ecaf81eed_memcpy_d3838e83
-#define ZIR_FOREIGN_zir_f_9239ea5ecaf81eed_memcpy_d3838e83
 #ifdef __APPLE__
-void* zir_foreign_zir_f_9239ea5ecaf81eed_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("_memcpy");
+void* zir_foreign_compiler_semantic__memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("_memcpy");
 #else
-void* zir_foreign_zir_f_9239ea5ecaf81eed_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("memcpy");
+void* zir_foreign_compiler_semantic__memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("memcpy");
 #endif
-static void*
-zir_f_9239ea5ecaf81eed_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_9239ea5ecaf81eed_memcpy(ziran_keyword___dest_0, ziran_keyword___src_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_9239ea5ecaf81eed_snprintf_7c8971c5
-#define ZIR_FOREIGN_zir_f_9239ea5ecaf81eed_snprintf_7c8971c5
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_9239ea5ecaf81eed_snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_snprintf");
+int32_t zir_foreign_compiler_semantic__snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_snprintf");
 #else
-int32_t zir_foreign_zir_f_9239ea5ecaf81eed_snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("snprintf");
+int32_t zir_foreign_compiler_semantic__snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("snprintf");
 #endif
-#define zir_f_9239ea5ecaf81eed_snprintf zir_foreign_zir_f_9239ea5ecaf81eed_snprintf
-#endif
-#ifndef ZIR_FOREIGN_zir_f_9239ea5ecaf81eed_strlen_b24a2871
-#define ZIR_FOREIGN_zir_f_9239ea5ecaf81eed_strlen_b24a2871
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_9239ea5ecaf81eed_strlen(uint8_t* ziran_keyword___s_0) __asm__("_strlen");
+size_t zir_foreign_compiler_semantic__strlen(uint8_t* ziran_keyword___s_0) __asm__("_strlen");
 #else
-size_t zir_foreign_zir_f_9239ea5ecaf81eed_strlen(uint8_t* ziran_keyword___s_0) __asm__("strlen");
+size_t zir_foreign_compiler_semantic__strlen(uint8_t* ziran_keyword___s_0) __asm__("strlen");
 #endif
-static size_t
-zir_f_9239ea5ecaf81eed_strlen(uint8_t* ziran_keyword___s_0)
-{
-    return zir_foreign_zir_f_9239ea5ecaf81eed_strlen(ziran_keyword___s_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_9239ea5ecaf81eed_CompilerStandardError_3c6e87fb
-#define ZIR_FOREIGN_zir_f_9239ea5ecaf81eed_CompilerStandardError_3c6e87fb
 #ifdef __APPLE__
-void* zir_foreign_zir_f_9239ea5ecaf81eed_CompilerStandardError(void) __asm__("_CompilerStandardError");
+void* zir_foreign_compiler_semantic__CompilerStandardError(void) __asm__("_CompilerStandardError");
 #else
-void* zir_foreign_zir_f_9239ea5ecaf81eed_CompilerStandardError(void) __asm__("CompilerStandardError");
-#endif
-static void*
-zir_f_9239ea5ecaf81eed_CompilerStandardError(void)
-{
-    return zir_foreign_zir_f_9239ea5ecaf81eed_CompilerStandardError();
-}
+void* zir_foreign_compiler_semantic__CompilerStandardError(void) __asm__("CompilerStandardError");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -141,7 +81,7 @@ SemanticId(ZirModule* module, uint8_t* kind, uint8_t* name, uint8_t* signature, 
     value_1[5] = result;
     memmove(value_0.items, value_1, sizeof(value_0.items));
     ParserArray6__u8 parts = value_0;
-    zir_f_9239ea5ecaf81eed_Sha256Begin(&(hash));
+    zir_foreign_compiler_semantic__Sha256Begin(&(hash));
     {
         size_t i = (size_t)(0LL);
         while (true) {
@@ -164,14 +104,14 @@ SemanticId(ZirModule* module, uint8_t* kind, uint8_t* name, uint8_t* signature, 
                 uint8_t* value_7 = compiler_parse_types_ParserCString(StringLiteral(""));
                 value_6 = value_7;
             }
-            zir_f_9239ea5ecaf81eed_Sha256Add(&(hash), value_5, zir_f_9239ea5ecaf81eed_strlen(value_6) + (size_t)(1LL));
+            zir_foreign_compiler_semantic__Sha256Add(&(hash), value_5, zir_foreign_compiler_semantic__strlen(value_6) + (size_t)(1LL));
             compiler_context_types_S15SupportPost4(&(i));
         }
     }
-    zir_f_9239ea5ecaf81eed_Sha256End(&(hash), (uint8_t*)(&(bytes.items)));
+    zir_foreign_compiler_semantic__Sha256End(&(hash), (uint8_t*)(&(bytes.items)));
     void* value_8 = (void*)(id);
     uint8_t* value_9 = compiler_parse_types_ParserCString(StringLiteral("zi:"));
-    zir_f_9239ea5ecaf81eed_memcpy(value_8, (void*)(value_9), (size_t)(3LL));
+    zir_foreign_compiler_semantic__memcpy(value_8, (void*)(value_9), (size_t)(3LL));
     {
         size_t i = (size_t)(0LL);
         while (true) {
@@ -201,10 +141,10 @@ FunctionSemanticId(ZirModule* module, ZirFunction* function, uint8_t* id)
         value_0 = (uint8_t*)(&(function->name));
     }
     uint8_t* name = value_0;
-    uint8_t* operator_local = zir_f_9239ea5ecaf81eed_OperatorOfProcedure(name);
+    uint8_t* operator_local = zir_foreign_compiler_semantic__OperatorOfProcedure(name);
     if (operator_local != ((void *)0)) {
         uint8_t* value_1 = compiler_parse_types_ParserCString(StringLiteral("operator %s"));
-        zir_f_9239ea5ecaf81eed_snprintf((uint8_t*)(&(normalized.items)), (size_t)(sizeof(ParserArray32_u8)), value_1, operator_local);
+        zir_foreign_compiler_semantic__snprintf((uint8_t*)(&(normalized.items)), (size_t)(sizeof(ParserArray32_u8)), value_1, operator_local);
         name = (uint8_t*)(&(normalized.items));
     }
     ZirModule* value_2 = module;

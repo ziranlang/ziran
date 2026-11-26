@@ -277,7 +277,7 @@ extern "C" {
 #define ASSEMBLY_CONSTANT_ARRAY_MINIMUM 64
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-#define INT64_MIN -9223372036854775807 - 1
+#define ziran_keyword_INT64_MIN_0 -9223372036854775807 - 1
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
 #define DispatchModule "__zx_module_dispatch"

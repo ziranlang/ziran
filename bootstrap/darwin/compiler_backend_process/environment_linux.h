@@ -71,18 +71,10 @@ struct __type_4289a23f77d76d0a {
     ArgumentFailure error;
 };
 #endif
-#ifndef ZIR_FOREIGN_zir_f_65e9ad6d46228d2f_EnvironmentValueRaw_40be1ae7
-#define ZIR_FOREIGN_zir_f_65e9ad6d46228d2f_EnvironmentValueRaw_40be1ae7
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_65e9ad6d46228d2f_EnvironmentValueRaw(uint8_t* name) __asm__("_getenv");
+uint8_t* zir_foreign_environment_linux__EnvironmentValueRaw(uint8_t* name) __asm__("_getenv");
 #else
-uint8_t* zir_foreign_zir_f_65e9ad6d46228d2f_EnvironmentValueRaw(uint8_t* name) __asm__("getenv");
-#endif
-static uint8_t*
-zir_f_65e9ad6d46228d2f_EnvironmentValueRaw(uint8_t* name)
-{
-    return zir_foreign_zir_f_65e9ad6d46228d2f_EnvironmentValueRaw(name);
-}
+uint8_t* zir_foreign_environment_linux__EnvironmentValueRaw(uint8_t* name) __asm__("getenv");
 #endif
 __type_6c5c09809af9b2be environment_linux_BoundedHostText(uint8_t* value, Slice output);
 __type_6c5c09809af9b2be EnvironmentRead(String name, Slice output);

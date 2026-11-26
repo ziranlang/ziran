@@ -250,12 +250,12 @@ ReadFileIntoCapped(String path, int64_t maximum, __type_838711075b90279a* bytes)
     return result;
 }
 
-zir_970088bc989040e5_Results__string__bool
+file_Results__string__bool
 file_ReadEntireFile(String path)
 {
     FileHandle file = OpenRead(path);
     if (!file.valid) {
-        return (zir_970088bc989040e5_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        return (file_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
     }
     __type_838711075b90279a bytes = {0};
     __type_838711075b90279a* value_2 = &bytes;
@@ -270,7 +270,7 @@ file_ReadEntireFile(String path)
             (bytes).data = NULL;
             bytes.capacity = 0;
             bytes.count = 0;
-            zir_970088bc989040e5_Results__string__bool value_4 = (zir_970088bc989040e5_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+            file_Results__string__bool value_4 = (file_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
             free((*value_2).data);
             (*value_2).data = NULL;
             (*value_2).capacity = 0;
@@ -296,7 +296,7 @@ file_ReadEntireFile(String path)
         offset = (int64_t)((uint64_t)offset + (uint64_t)count);
     }
     CloseFile(file);
-    zir_970088bc989040e5_Results__string__bool value_8 = {0};
+    file_Results__string__bool value_8 = {0};
     String value_9 = {NULL, 0};
     value_9.data = (bytes).count > 0 ? (const char *)(bytes).data : "";
     value_9.length = (size_t)(bytes).count;
@@ -306,7 +306,7 @@ file_ReadEntireFile(String path)
     bytes.count = 0;
     value_8.value_0 = value_9;
     value_8.value_1 = true;
-    zir_970088bc989040e5_Results__string__bool value_10 = value_8;
+    file_Results__string__bool value_10 = value_8;
     free((*value_2).data);
     (*value_2).data = NULL;
     (*value_2).capacity = 0;

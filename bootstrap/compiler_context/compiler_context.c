@@ -3,122 +3,50 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "compiler_context.h"
-#ifndef ZIR_FOREIGN_zir_f_2ca801d72b039088_CompilerThreadStateAddress_9b349a24
-#define ZIR_FOREIGN_zir_f_2ca801d72b039088_CompilerThreadStateAddress_9b349a24
 #ifdef __APPLE__
-CompilerThread* zir_foreign_zir_f_2ca801d72b039088_CompilerThreadStateAddress(void) __asm__("_CompilerThreadStateAddress");
+CompilerThread* zir_foreign_compiler_context__CompilerThreadStateAddress(void) __asm__("_CompilerThreadStateAddress");
 #else
-CompilerThread* zir_foreign_zir_f_2ca801d72b039088_CompilerThreadStateAddress(void) __asm__("CompilerThreadStateAddress");
+CompilerThread* zir_foreign_compiler_context__CompilerThreadStateAddress(void) __asm__("CompilerThreadStateAddress");
 #endif
-static CompilerThread*
-zir_f_2ca801d72b039088_CompilerThreadStateAddress(void)
-{
-    return zir_foreign_zir_f_2ca801d72b039088_CompilerThreadStateAddress();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2ca801d72b039088_S15FlagClear_67ee695e
-#define ZIR_FOREIGN_zir_f_2ca801d72b039088_S15FlagClear_67ee695e
 #ifdef __APPLE__
-void zir_foreign_zir_f_2ca801d72b039088_S15FlagClear(void* arg0) __asm__("_S15FlagClear");
+void zir_foreign_compiler_context__S15FlagClear(void* arg0) __asm__("_S15FlagClear");
 #else
-void zir_foreign_zir_f_2ca801d72b039088_S15FlagClear(void* arg0) __asm__("S15FlagClear");
+void zir_foreign_compiler_context__S15FlagClear(void* arg0) __asm__("S15FlagClear");
 #endif
-static void
-zir_f_2ca801d72b039088_S15FlagClear(void* arg0)
-{
-    zir_foreign_zir_f_2ca801d72b039088_S15FlagClear(arg0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2ca801d72b039088_S15FlagTake_31d4ffc1
-#define ZIR_FOREIGN_zir_f_2ca801d72b039088_S15FlagTake_31d4ffc1
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_2ca801d72b039088_S15FlagTake(void* arg0) __asm__("_S15FlagTake");
+int32_t zir_foreign_compiler_context__S15FlagTake(void* arg0) __asm__("_S15FlagTake");
 #else
-int32_t zir_foreign_zir_f_2ca801d72b039088_S15FlagTake(void* arg0) __asm__("S15FlagTake");
+int32_t zir_foreign_compiler_context__S15FlagTake(void* arg0) __asm__("S15FlagTake");
 #endif
-static int32_t
-zir_f_2ca801d72b039088_S15FlagTake(void* arg0)
-{
-    return zir_foreign_zir_f_2ca801d72b039088_S15FlagTake(arg0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2ca801d72b039088_S15SizeAdd_0ffa816c
-#define ZIR_FOREIGN_zir_f_2ca801d72b039088_S15SizeAdd_0ffa816c
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_2ca801d72b039088_S15SizeAdd(void* arg0, size_t arg1) __asm__("_S15SizeAdd");
+size_t zir_foreign_compiler_context__S15SizeAdd(void* arg0, size_t arg1) __asm__("_S15SizeAdd");
 #else
-size_t zir_foreign_zir_f_2ca801d72b039088_S15SizeAdd(void* arg0, size_t arg1) __asm__("S15SizeAdd");
+size_t zir_foreign_compiler_context__S15SizeAdd(void* arg0, size_t arg1) __asm__("S15SizeAdd");
 #endif
-static size_t
-zir_f_2ca801d72b039088_S15SizeAdd(void* arg0, size_t arg1)
-{
-    return zir_foreign_zir_f_2ca801d72b039088_S15SizeAdd(arg0, arg1);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2ca801d72b039088_S15SizeLoad_408916bc
-#define ZIR_FOREIGN_zir_f_2ca801d72b039088_S15SizeLoad_408916bc
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_2ca801d72b039088_S15SizeLoad(void* arg0) __asm__("_S15SizeLoad");
+size_t zir_foreign_compiler_context__S15SizeLoad(void* arg0) __asm__("_S15SizeLoad");
 #else
-size_t zir_foreign_zir_f_2ca801d72b039088_S15SizeLoad(void* arg0) __asm__("S15SizeLoad");
+size_t zir_foreign_compiler_context__S15SizeLoad(void* arg0) __asm__("S15SizeLoad");
 #endif
-static size_t
-zir_f_2ca801d72b039088_S15SizeLoad(void* arg0)
-{
-    return zir_foreign_zir_f_2ca801d72b039088_S15SizeLoad(arg0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2ca801d72b039088_abort_9317fd2f
-#define ZIR_FOREIGN_zir_f_2ca801d72b039088_abort_9317fd2f
 #ifdef __APPLE__
-void zir_foreign_zir_f_2ca801d72b039088_abort(void) __asm__("_abort");
+void zir_foreign_compiler_context__abort(void) __asm__("_abort");
 #else
-void zir_foreign_zir_f_2ca801d72b039088_abort(void) __asm__("abort");
+void zir_foreign_compiler_context__abort(void) __asm__("abort");
 #endif
-static void
-zir_f_2ca801d72b039088_abort(void)
-{
-    zir_foreign_zir_f_2ca801d72b039088_abort();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2ca801d72b039088_calloc_0c09ffff
-#define ZIR_FOREIGN_zir_f_2ca801d72b039088_calloc_0c09ffff
 #ifdef __APPLE__
-void* zir_foreign_zir_f_2ca801d72b039088_calloc(size_t ziran_keyword___nmemb_0, size_t ziran_keyword___size_0) __asm__("_calloc");
+void* zir_foreign_compiler_context__calloc(size_t ziran_keyword___nmemb_0, size_t ziran_keyword___size_0) __asm__("_calloc");
 #else
-void* zir_foreign_zir_f_2ca801d72b039088_calloc(size_t ziran_keyword___nmemb_0, size_t ziran_keyword___size_0) __asm__("calloc");
+void* zir_foreign_compiler_context__calloc(size_t ziran_keyword___nmemb_0, size_t ziran_keyword___size_0) __asm__("calloc");
 #endif
-static void*
-zir_f_2ca801d72b039088_calloc(size_t ziran_keyword___nmemb_0, size_t ziran_keyword___size_0)
-{
-    return zir_foreign_zir_f_2ca801d72b039088_calloc(ziran_keyword___nmemb_0, ziran_keyword___size_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2ca801d72b039088_free_c75930da
-#define ZIR_FOREIGN_zir_f_2ca801d72b039088_free_c75930da
 #ifdef __APPLE__
-void zir_foreign_zir_f_2ca801d72b039088_free(void* ziran_keyword___ptr_0) __asm__("_free");
+void zir_foreign_compiler_context__free(void* ziran_keyword___ptr_0) __asm__("_free");
 #else
-void zir_foreign_zir_f_2ca801d72b039088_free(void* ziran_keyword___ptr_0) __asm__("free");
+void zir_foreign_compiler_context__free(void* ziran_keyword___ptr_0) __asm__("free");
 #endif
-static void
-zir_f_2ca801d72b039088_free(void* ziran_keyword___ptr_0)
-{
-    zir_foreign_zir_f_2ca801d72b039088_free(ziran_keyword___ptr_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2ca801d72b039088_CompilerStandardError_3c6e87fb
-#define ZIR_FOREIGN_zir_f_2ca801d72b039088_CompilerStandardError_3c6e87fb
 #ifdef __APPLE__
-void* zir_foreign_zir_f_2ca801d72b039088_CompilerStandardError(void) __asm__("_CompilerStandardError");
+void* zir_foreign_compiler_context__CompilerStandardError(void) __asm__("_CompilerStandardError");
 #else
-void* zir_foreign_zir_f_2ca801d72b039088_CompilerStandardError(void) __asm__("CompilerStandardError");
-#endif
-static void*
-zir_f_2ca801d72b039088_CompilerStandardError(void)
-{
-    return zir_foreign_zir_f_2ca801d72b039088_CompilerStandardError();
-}
+void* zir_foreign_compiler_context__CompilerStandardError(void) __asm__("CompilerStandardError");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -137,14 +65,14 @@ static uint8_t context_identity_lock = {0};
 CompilerContext*
 CompilerContextCurrent(void)
 {
-    CompilerThread* value_0 = zir_f_2ca801d72b039088_CompilerThreadStateAddress();
+    CompilerThread* value_0 = zir_foreign_compiler_context__CompilerThreadStateAddress();
     return value_0->context_local;
 }
 
 CompilerContext*
 CompilerContextSelect(CompilerContext* context_local)
 {
-    CompilerThread* thread = zir_f_2ca801d72b039088_CompilerThreadStateAddress();
+    CompilerThread* thread = zir_foreign_compiler_context__CompilerThreadStateAddress();
     CompilerContext* previous = thread->context_local;
     CompilerContext** value_0 = &(thread->context_local);
     (*value_0) = context_local;
@@ -166,23 +94,23 @@ CompilerThreadIdentity(CompilerThread* thread)
 uint64_t
 CompilerContextIdentity(void)
 {
-    return CompilerThreadIdentity(zir_f_2ca801d72b039088_CompilerThreadStateAddress());
+    return CompilerThreadIdentity(zir_foreign_compiler_context__CompilerThreadStateAddress());
 }
 
 CompilerContext*
 CompilerContextOpen(void)
 {
-    void* value_0 = zir_f_2ca801d72b039088_calloc((size_t)(1LL), (size_t)(sizeof(CompilerContext)));
+    void* value_0 = zir_foreign_compiler_context__calloc((size_t)(1LL), (size_t)(sizeof(CompilerContext)));
     CompilerContext* context_local = (CompilerContext*)(value_0);
     if (context_local != ((void *)0)) {
-        zir_f_2ca801d72b039088_S15FlagClear((void*)(&(context_local->lock)));
+        zir_foreign_compiler_context__S15FlagClear((void*)(&(context_local->lock)));
         compiler_context_types_S15SupportSet0(&(context_local->references), (size_t)(1LL));
-        while (zir_f_2ca801d72b039088_S15FlagTake((void*)(&(context_identity_lock))) != 0) {
+        while (zir_foreign_compiler_context__S15FlagTake((void*)(&(context_identity_lock))) != 0) {
         }
         uint64_t* value_1 = &(context_local->identity);
         (*value_1) = context_next_identity;
         context_next_identity = (uint64_t)((uint64_t)context_next_identity + UINT64_C(1));
-        zir_f_2ca801d72b039088_S15FlagClear((void*)(&(context_identity_lock)));
+        zir_foreign_compiler_context__S15FlagClear((void*)(&(context_identity_lock)));
     }
     return context_local;
 }
@@ -191,7 +119,7 @@ void
 CompilerContextRetain(CompilerContext* context_local)
 {
     if (context_local != ((void *)0)) {
-        zir_f_2ca801d72b039088_S15SizeAdd((void*)(&(context_local->references)), (size_t)(1LL));
+        zir_foreign_compiler_context__S15SizeAdd((void*)(&(context_local->references)), (size_t)(1LL));
     }
 }
 
@@ -199,7 +127,7 @@ void
 CompilerContextRelease(CompilerContext* context_local)
 {
     bool value_0 = context_local != ((void *)0);
-    if (value_0 && zir_f_2ca801d72b039088_S15SizeAdd((void*)(&(context_local->references)), (size_t)(-1LL)) == (size_t)(1LL)) {
+    if (value_0 && zir_foreign_compiler_context__S15SizeAdd((void*)(&(context_local->references)), (size_t)(-1LL)) == (size_t)(1LL)) {
         compiler_context_destroy_context(context_local);
     }
 }
@@ -238,7 +166,7 @@ compiler_context_storage_in(CompilerThread* thread, CompilerContext* context_loc
         return (thread->storage_hints.items)[key];
     }
     while (true) {
-        bool check_loop_2 = zir_f_2ca801d72b039088_S15FlagTake((void*)(&(context_local->lock))) != 0;
+        bool check_loop_2 = zir_foreign_compiler_context__S15FlagTake((void*)(&(context_local->lock))) != 0;
         if (!check_loop_2) {
             break;
         }
@@ -246,15 +174,15 @@ compiler_context_storage_in(CompilerThread* thread, CompilerContext* context_loc
     Storage* slot = (Storage*)(((size_t)((Storage*)(&(context_local->storage.items))) + ((size_t)(key) * sizeof(Storage))));
     if (!(slot->value != ((void *)0))) {
         void** value_4 = &(slot->value);
-        void* value_5 = zir_f_2ca801d72b039088_calloc((size_t)(1LL), size);
+        void* value_5 = zir_foreign_compiler_context__calloc((size_t)(1LL), size);
         (*value_4) = value_5;
         S15Callback0* value_6 = &(slot->destroy);
         (*value_6) = destroy;
     }
     void* value = slot->value;
-    zir_f_2ca801d72b039088_S15FlagClear((void*)(&(context_local->lock)));
+    zir_foreign_compiler_context__S15FlagClear((void*)(&(context_local->lock)));
     if (!(value != ((void *)0))) {
-        zir_f_2ca801d72b039088_abort();
+        zir_foreign_compiler_context__abort();
     }
     void** value_7 = &(thread->storage_hints.items[key]);
     (*value_7) = value;
@@ -264,7 +192,7 @@ compiler_context_storage_in(CompilerThread* thread, CompilerContext* context_loc
 void*
 CompilerContextStorage(CompilerContext* context_local, int32_t key, size_t size, S15Callback0 destroy)
 {
-    return compiler_context_storage_in(zir_f_2ca801d72b039088_CompilerThreadStateAddress(), context_local, key, size, destroy);
+    return compiler_context_storage_in(zir_foreign_compiler_context__CompilerThreadStateAddress(), context_local, key, size, destroy);
 }
 
 void*
@@ -276,15 +204,15 @@ CompilerThreadStorage(CompilerThread* thread, int32_t key, size_t size, S15Callb
 void*
 CompilerCurrentStorage(int32_t key, size_t size, S15Callback0 destroy)
 {
-    return CompilerThreadStorage(zir_f_2ca801d72b039088_CompilerThreadStateAddress(), key, size, destroy);
+    return CompilerThreadStorage(zir_foreign_compiler_context__CompilerThreadStateAddress(), key, size, destroy);
 }
 
 static void
 compiler_context_destroy_context(CompilerContext* context_local)
 {
-    CompilerThread* value_0 = zir_f_2ca801d72b039088_CompilerThreadStateAddress();
+    CompilerThread* value_0 = zir_foreign_compiler_context__CompilerThreadStateAddress();
     if (value_0->context_local == context_local) {
-        CompilerThread* value_1 = zir_f_2ca801d72b039088_CompilerThreadStateAddress();
+        CompilerThread* value_1 = zir_foreign_compiler_context__CompilerThreadStateAddress();
         CompilerContext** value_2 = &(value_1->context_local);
         (*value_2) = (void *)0;
     }
@@ -301,12 +229,12 @@ compiler_context_destroy_context(CompilerContext* context_local)
                     S15Callback0 value_3 = slot->destroy;
                     value_3(slot->value);
                 }
-                zir_f_2ca801d72b039088_free(slot->value);
+                zir_foreign_compiler_context__free(slot->value);
             }
             compiler_context_types_S15SupportPost2(&(i));
         }
     }
-    zir_f_2ca801d72b039088_free((void*)(context_local));
+    zir_foreign_compiler_context__free((void*)(context_local));
 }
 
 int32_t
@@ -316,11 +244,11 @@ CompilerContextClose(CompilerContext* context_local)
     bool value_1 = value_0;
     if (!value_1) {
         CompilerContext* value_2 = context_local;
-        CompilerThread* value_3 = zir_f_2ca801d72b039088_CompilerThreadStateAddress();
+        CompilerThread* value_3 = zir_foreign_compiler_context__CompilerThreadStateAddress();
         value_1 = (value_2 == value_3->context_local);
     }
     bool value_4 = value_1;
-    if (value_4 || zir_f_2ca801d72b039088_S15SizeLoad((void*)(&(context_local->references))) != (size_t)(1LL)) {
+    if (value_4 || zir_foreign_compiler_context__S15SizeLoad((void*)(&(context_local->references))) != (size_t)(1LL)) {
         return 0;
     }
     CompilerContextRelease(context_local);
@@ -355,7 +283,7 @@ compiler_context_free_scratch_pools(void* value)
                     int32_t value_2 = compiler_context_types_S15SupportPre3(&(pool->count));
                     value_1((pool->items.items)[value_2]);
                 }
-                zir_f_2ca801d72b039088_free((void*)(pool));
+                zir_foreign_compiler_context__free((void*)(pool));
             }
             compiler_context_types_S15SupportPost1(&(b));
         }
@@ -368,7 +296,7 @@ CompilerContextScratch(void* key, S15Callback0 destroy)
     void* value_0 = CompilerCurrentStorage(11, (size_t)(sizeof(ScratchPools)), compiler_context_free_scratch_pools);
     ScratchPools* pools = (ScratchPools*)(value_0);
     while (true) {
-        bool check_loop_7 = zir_f_2ca801d72b039088_S15FlagTake((void*)(&(pools->lock))) != 0;
+        bool check_loop_7 = zir_foreign_compiler_context__S15FlagTake((void*)(&(pools->lock))) != 0;
         if (!check_loop_7) {
             break;
         }
@@ -383,22 +311,22 @@ CompilerContextScratch(void* key, S15Callback0 destroy)
         pool = pool->next;
     }
     if (!(pool != ((void *)0))) {
-        void* value_1 = zir_f_2ca801d72b039088_calloc((size_t)(1LL), (size_t)(sizeof(CompilerScratch)));
+        void* value_1 = zir_foreign_compiler_context__calloc((size_t)(1LL), (size_t)(sizeof(CompilerScratch)));
         pool = (CompilerScratch*)(value_1);
         if (!(pool != ((void *)0))) {
-            zir_f_2ca801d72b039088_abort();
+            zir_foreign_compiler_context__abort();
         }
         void** value_2 = &(pool->key);
         (*value_2) = key;
         S15Callback0* value_3 = &(pool->destroy);
         (*value_3) = destroy;
-        zir_f_2ca801d72b039088_S15FlagClear((void*)(&(pool->lock)));
+        zir_foreign_compiler_context__S15FlagClear((void*)(&(pool->lock)));
         CompilerScratch** value_4 = &(pool->next);
         (*value_4) = (pools->buckets.items)[hash];
         CompilerScratch** value_5 = &(pools->buckets.items[hash]);
         (*value_5) = pool;
     }
-    zir_f_2ca801d72b039088_S15FlagClear((void*)(&(pools->lock)));
+    zir_foreign_compiler_context__S15FlagClear((void*)(&(pools->lock)));
     return pool;
 }
 
@@ -421,7 +349,7 @@ void*
 CompilerScratchTake(CompilerScratch* scratch)
 {
     while (true) {
-        bool check_loop_9 = zir_f_2ca801d72b039088_S15FlagTake((void*)(&(scratch->lock))) != 0;
+        bool check_loop_9 = zir_foreign_compiler_context__S15FlagTake((void*)(&(scratch->lock))) != 0;
         if (!check_loop_9) {
             break;
         }
@@ -434,7 +362,7 @@ CompilerScratchTake(CompilerScratch* scratch)
         value_0 = (void *)0;
     }
     void* value = value_0;
-    zir_f_2ca801d72b039088_S15FlagClear((void*)(&(scratch->lock)));
+    zir_foreign_compiler_context__S15FlagClear((void*)(&(scratch->lock)));
     return value;
 }
 
@@ -442,7 +370,7 @@ int32_t
 CompilerScratchPut(CompilerScratch* scratch, void* value)
 {
     while (true) {
-        bool check_loop_10 = zir_f_2ca801d72b039088_S15FlagTake((void*)(&(scratch->lock))) != 0;
+        bool check_loop_10 = zir_foreign_compiler_context__S15FlagTake((void*)(&(scratch->lock))) != 0;
         if (!check_loop_10) {
             break;
         }
@@ -457,6 +385,6 @@ CompilerScratchPut(CompilerScratch* scratch, void* value)
         void** value_2 = &(scratch->items.items[value_1]);
         (*value_2) = value;
     }
-    zir_f_2ca801d72b039088_S15FlagClear((void*)(&(scratch->lock)));
+    zir_foreign_compiler_context__S15FlagClear((void*)(&(scratch->lock)));
     return accepted;
 }

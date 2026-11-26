@@ -22,7 +22,7 @@ typedef struct Parameter Parameter;
 typedef struct Parameters Parameters;
 #endif
 #ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
-typedef struct zir_2185da006c396622_StaticText zir_2185da006c396622_StaticText;
+typedef struct compiler_portable_body_StaticText compiler_portable_body_StaticText;
 #endif
 #ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
 typedef struct TypePath TypePath;
@@ -69,7 +69,7 @@ struct Parameters {
 #endif
 #ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
 
-struct zir_2185da006c396622_StaticText {
+struct compiler_portable_body_StaticText {
     uint8_t* data;
     size_t length;
 };

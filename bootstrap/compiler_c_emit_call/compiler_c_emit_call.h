@@ -19,7 +19,7 @@ extern "C" {
 typedef struct PrintPiece PrintPiece;
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_CALL_H_PRIVATE
-typedef struct zir_37c2751cee1902eb_StaticText zir_37c2751cee1902eb_StaticText;
+typedef struct compiler_c_emit_call_StaticText compiler_c_emit_call_StaticText;
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_CALL_H_PRIVATE
 typedef struct GlobalLiteralEmit GlobalLiteralEmit;
@@ -39,7 +39,7 @@ struct PrintPiece {
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_CALL_H_PRIVATE
 
-struct zir_37c2751cee1902eb_StaticText {
+struct compiler_c_emit_call_StaticText {
     uint8_t* data;
     size_t length;
 };

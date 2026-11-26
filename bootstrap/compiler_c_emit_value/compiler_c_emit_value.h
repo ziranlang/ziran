@@ -17,7 +17,7 @@ extern "C" {
 typedef struct Local Local;
 typedef struct Emitter Emitter;
 #ifdef ZIRAN_COMPILER_C_EMIT_VALUE_H_PRIVATE
-typedef struct zir_5b2832b83162e726_StaticText zir_5b2832b83162e726_StaticText;
+typedef struct compiler_c_emit_value_StaticText compiler_c_emit_value_StaticText;
 #endif
 typedef int32_t (*ZirAssemblyBlockEmitter)(void*, ZirModule*, ZirFunction*, int32_t, void*);
 
@@ -69,7 +69,7 @@ struct Emitter {
 };
 #ifdef ZIRAN_COMPILER_C_EMIT_VALUE_H_PRIVATE
 
-struct zir_5b2832b83162e726_StaticText {
+struct compiler_c_emit_value_StaticText {
     uint8_t* data;
     size_t length;
 };

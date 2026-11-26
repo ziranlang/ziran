@@ -20,7 +20,7 @@ typedef struct ZirParameter ZirParameter;
 typedef struct ZirParameters ZirParameters;
 #endif
 #ifdef ZIRAN_COMPILER_GO_ASM_H_PRIVATE
-typedef struct zir_f8bc5b4fcc2609a6_StaticText zir_f8bc5b4fcc2609a6_StaticText;
+typedef struct compiler_go_asm_StaticText compiler_go_asm_StaticText;
 #endif
 typedef void (*GoAssemblyOperandResolver)(void*, int32_t, uint8_t*, size_t);
 
@@ -61,7 +61,7 @@ struct ZirParameters {
 #endif
 #ifdef ZIRAN_COMPILER_GO_ASM_H_PRIVATE
 
-struct zir_f8bc5b4fcc2609a6_StaticText {
+struct compiler_go_asm_StaticText {
     uint8_t* data;
     size_t length;
 };

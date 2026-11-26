@@ -109,7 +109,7 @@ typedef struct ZirParameters ZirParameters;
 typedef struct ZirCPruneModule ZirCPruneModule;
 #endif
 #ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
-typedef struct zir_f3a2a78778e6e736_StaticText zir_f3a2a78778e6e736_StaticText;
+typedef struct compiler_c_backend_StaticText compiler_c_backend_StaticText;
 #endif
 #ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
 typedef struct BodySymbols BodySymbols;
@@ -201,7 +201,7 @@ struct ZirCPruneModule {
 #endif
 #ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
 
-struct zir_f3a2a78778e6e736_StaticText {
+struct compiler_c_backend_StaticText {
     uint8_t* data;
     size_t length;
 };
@@ -221,9 +221,7 @@ struct EmitExternPrototypeBuffers {
     uint8_t cargs[4096];
     uint8_t abi_args[4096];
     uint8_t conv[4096];
-    uint8_t binding_args[4096];
     ZirFunction abi;
-    uint8_t call[4096];
 };
 #endif
 #ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE

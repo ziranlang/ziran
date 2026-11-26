@@ -16,122 +16,50 @@ static inline uint64_t ZiShrU64(uint64_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-#ifndef ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_RuntimeHeaderCountForeign_98631b8e
-#define ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_RuntimeHeaderCountForeign_98631b8e
 #ifdef __APPLE__
-int64_t zir_foreign_zir_f_a87e346e42fbd6c3_RuntimeHeaderCountForeign(void) __asm__("_CompilerRuntimeHeaderCount");
+int64_t zir_foreign_compiler_runtime_emit__RuntimeHeaderCountForeign(void) __asm__("_CompilerRuntimeHeaderCount");
 #else
-int64_t zir_foreign_zir_f_a87e346e42fbd6c3_RuntimeHeaderCountForeign(void) __asm__("CompilerRuntimeHeaderCount");
+int64_t zir_foreign_compiler_runtime_emit__RuntimeHeaderCountForeign(void) __asm__("CompilerRuntimeHeaderCount");
 #endif
-static int64_t
-zir_f_a87e346e42fbd6c3_RuntimeHeaderCountForeign(void)
-{
-    return zir_foreign_zir_f_a87e346e42fbd6c3_RuntimeHeaderCountForeign();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_RuntimeHeaderAtForeign_800aae4c
-#define ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_RuntimeHeaderAtForeign_800aae4c
 #ifdef __APPLE__
-RuntimeHeader* zir_foreign_zir_f_a87e346e42fbd6c3_RuntimeHeaderAtForeign(int64_t index) __asm__("_CompilerRuntimeHeaderAt");
+RuntimeHeader* zir_foreign_compiler_runtime_emit__RuntimeHeaderAtForeign(int64_t index) __asm__("_CompilerRuntimeHeaderAt");
 #else
-RuntimeHeader* zir_foreign_zir_f_a87e346e42fbd6c3_RuntimeHeaderAtForeign(int64_t index) __asm__("CompilerRuntimeHeaderAt");
+RuntimeHeader* zir_foreign_compiler_runtime_emit__RuntimeHeaderAtForeign(int64_t index) __asm__("CompilerRuntimeHeaderAt");
 #endif
-static RuntimeHeader*
-zir_f_a87e346e42fbd6c3_RuntimeHeaderAtForeign(int64_t index)
-{
-    return zir_foreign_zir_f_a87e346e42fbd6c3_RuntimeHeaderAtForeign(index);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_SimdNamesFind_123dd4ec
-#define ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_SimdNamesFind_123dd4ec
 #ifdef __APPLE__
-int64_t zir_foreign_zir_f_a87e346e42fbd6c3_SimdNamesFind(SimdNames* names, uint8_t* name, size_t length, int32_t add) __asm__("_SimdNamesFind");
+int64_t zir_foreign_compiler_runtime_emit__SimdNamesFind(SimdNames* names, uint8_t* name, size_t length, int32_t add) __asm__("_SimdNamesFind");
 #else
-int64_t zir_foreign_zir_f_a87e346e42fbd6c3_SimdNamesFind(SimdNames* names, uint8_t* name, size_t length, int32_t add) __asm__("SimdNamesFind");
+int64_t zir_foreign_compiler_runtime_emit__SimdNamesFind(SimdNames* names, uint8_t* name, size_t length, int32_t add) __asm__("SimdNamesFind");
 #endif
-static int64_t
-zir_f_a87e346e42fbd6c3_SimdNamesFind(SimdNames* names, uint8_t* name, size_t length, int32_t add)
-{
-    return zir_foreign_zir_f_a87e346e42fbd6c3_SimdNamesFind(names, name, length, add);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_SimdNamesFree_0b044a3e
-#define ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_SimdNamesFree_0b044a3e
 #ifdef __APPLE__
-void zir_foreign_zir_f_a87e346e42fbd6c3_SimdNamesFree(SimdNames* names) __asm__("_SimdNamesFree");
+void zir_foreign_compiler_runtime_emit__SimdNamesFree(SimdNames* names) __asm__("_SimdNamesFree");
 #else
-void zir_foreign_zir_f_a87e346e42fbd6c3_SimdNamesFree(SimdNames* names) __asm__("SimdNamesFree");
+void zir_foreign_compiler_runtime_emit__SimdNamesFree(SimdNames* names) __asm__("SimdNamesFree");
 #endif
-static void
-zir_f_a87e346e42fbd6c3_SimdNamesFree(SimdNames* names)
-{
-    zir_foreign_zir_f_a87e346e42fbd6c3_SimdNamesFree(names);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_SimdHelperWord_c5e0fce6
-#define ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_SimdHelperWord_c5e0fce6
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_a87e346e42fbd6c3_SimdHelperWord(uint8_t** word, size_t* length) __asm__("_SimdHelperWord");
+int32_t zir_foreign_compiler_runtime_emit__SimdHelperWord(uint8_t** word, size_t* length) __asm__("_SimdHelperWord");
 #else
-int32_t zir_foreign_zir_f_a87e346e42fbd6c3_SimdHelperWord(uint8_t** word, size_t* length) __asm__("SimdHelperWord");
+int32_t zir_foreign_compiler_runtime_emit__SimdHelperWord(uint8_t** word, size_t* length) __asm__("SimdHelperWord");
 #endif
-static int32_t
-zir_f_a87e346e42fbd6c3_SimdHelperWord(uint8_t** word, size_t* length)
-{
-    return zir_foreign_zir_f_a87e346e42fbd6c3_SimdHelperWord(word, length);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_GeneratedOutputRecord_ea447a8a
-#define ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_GeneratedOutputRecord_ea447a8a
 #ifdef __APPLE__
-void zir_foreign_zir_f_a87e346e42fbd6c3_GeneratedOutputRecord(uint8_t* path) __asm__("_GeneratedOutputRecord");
+void zir_foreign_compiler_runtime_emit__GeneratedOutputRecord(uint8_t* path) __asm__("_GeneratedOutputRecord");
 #else
-void zir_foreign_zir_f_a87e346e42fbd6c3_GeneratedOutputRecord(uint8_t* path) __asm__("GeneratedOutputRecord");
+void zir_foreign_compiler_runtime_emit__GeneratedOutputRecord(uint8_t* path) __asm__("GeneratedOutputRecord");
 #endif
-static void
-zir_f_a87e346e42fbd6c3_GeneratedOutputRecord(uint8_t* path)
-{
-    zir_foreign_zir_f_a87e346e42fbd6c3_GeneratedOutputRecord(path);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_GeneratedOutputPath_de1b771f
-#define ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_GeneratedOutputPath_de1b771f
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_a87e346e42fbd6c3_GeneratedOutputPath(int32_t index) __asm__("_GeneratedOutputPath");
+uint8_t* zir_foreign_compiler_runtime_emit__GeneratedOutputPath(int32_t index) __asm__("_GeneratedOutputPath");
 #else
-uint8_t* zir_foreign_zir_f_a87e346e42fbd6c3_GeneratedOutputPath(int32_t index) __asm__("GeneratedOutputPath");
+uint8_t* zir_foreign_compiler_runtime_emit__GeneratedOutputPath(int32_t index) __asm__("GeneratedOutputPath");
 #endif
-static uint8_t*
-zir_f_a87e346e42fbd6c3_GeneratedOutputPath(int32_t index)
-{
-    return zir_foreign_zir_f_a87e346e42fbd6c3_GeneratedOutputPath(index);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_ProcessId_bd88b581
-#define ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_ProcessId_bd88b581
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_a87e346e42fbd6c3_ProcessId(void) __asm__("_getpid");
+int32_t zir_foreign_compiler_runtime_emit__ProcessId(void) __asm__("_getpid");
 #else
-int32_t zir_foreign_zir_f_a87e346e42fbd6c3_ProcessId(void) __asm__("getpid");
+int32_t zir_foreign_compiler_runtime_emit__ProcessId(void) __asm__("getpid");
 #endif
-static int32_t
-zir_f_a87e346e42fbd6c3_ProcessId(void)
-{
-    return zir_foreign_zir_f_a87e346e42fbd6c3_ProcessId();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_FreeRaw_c75930da
-#define ZIR_FOREIGN_zir_f_a87e346e42fbd6c3_FreeRaw_c75930da
 #ifdef __APPLE__
-void zir_foreign_zir_f_a87e346e42fbd6c3_FreeRaw(void* memory) __asm__("_free");
+void zir_foreign_compiler_runtime_emit__FreeRaw(void* memory) __asm__("_free");
 #else
-void zir_foreign_zir_f_a87e346e42fbd6c3_FreeRaw(void* memory) __asm__("free");
-#endif
-static void
-zir_f_a87e346e42fbd6c3_FreeRaw(void* memory)
-{
-    zir_foreign_zir_f_a87e346e42fbd6c3_FreeRaw(memory);
-}
+void zir_foreign_compiler_runtime_emit__FreeRaw(void* memory) __asm__("free");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -144,9 +72,9 @@ static void compiler_runtime_emit_ReleaseOwnedText(String value) ZIRAN_MAYBE_UNU
 static String compiler_runtime_emit_CText(uint8_t* value) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_runtime_emit_CPointer(String value) ZIRAN_MAYBE_UNUSED;
 static bool compiler_runtime_emit_TextHasPrefix(String value, String prefix) ZIRAN_MAYBE_UNUSED;
-static zir_8e7ef9a1e6f28a8e_Results__string__bool compiler_runtime_emit_JoinPath(String directory, String name) ZIRAN_MAYBE_UNUSED;
+static compiler_runtime_emit_Results__string__bool compiler_runtime_emit_JoinPath(String directory, String name) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_runtime_emit_DecimalCount(int64_t value) ZIRAN_MAYBE_UNUSED;
-static zir_8e7ef9a1e6f28a8e_Results__string__bool compiler_runtime_emit_JoinTemporary(String path, int32_t process_id) ZIRAN_MAYBE_UNUSED;
+static compiler_runtime_emit_Results__string__bool compiler_runtime_emit_JoinTemporary(String path, int32_t process_id) ZIRAN_MAYBE_UNUSED;
 static bool compiler_runtime_emit_SameBytes(String left, String right) ZIRAN_MAYBE_UNUSED;
 static bool compiler_runtime_emit_WriteGenerated(String path, String text) ZIRAN_MAYBE_UNUSED;
 static Slice compiler_runtime_emit_BytesFromText(String value) ZIRAN_MAYBE_UNUSED;
@@ -254,7 +182,7 @@ compiler_runtime_emit_RecordPath(String path)
         value_15 = descriptor->data;
     value_16: ;
     }
-    zir_f_a87e346e42fbd6c3_GeneratedOutputRecord(value_15);
+    zir_foreign_compiler_runtime_emit__GeneratedOutputRecord(value_15);
     bool value_17 = true;
     free((*value_2).data);
     (*value_2).data = NULL;
@@ -274,7 +202,7 @@ compiler_runtime_emit_GeneratedPathCount(void)
 {
     int64_t count = 0LL;
     while (true) {
-        uint8_t* value_0 = zir_f_a87e346e42fbd6c3_GeneratedOutputPath((int32_t)(count));
+        uint8_t* value_0 = zir_foreign_compiler_runtime_emit__GeneratedOutputPath((int32_t)(count));
         if (!(value_0 != ((void *)0))) { break; }
         count = (int64_t)((uint64_t)count + UINT64_C(1));
     }
@@ -287,16 +215,16 @@ compiler_runtime_emit_GeneratedPath(int64_t index)
     if (index < 0LL || index > 2147483647LL) {
         return (void *)0;
     }
-    return zir_f_a87e346e42fbd6c3_GeneratedOutputPath((int32_t)(index));
+    return zir_foreign_compiler_runtime_emit__GeneratedOutputPath((int32_t)(index));
 }
 
 bool
 compiler_runtime_emit_IsRuntimeHeader(String name)
 {
-    int64_t count = zir_f_a87e346e42fbd6c3_RuntimeHeaderCountForeign();
+    int64_t count = zir_foreign_compiler_runtime_emit__RuntimeHeaderCountForeign();
     int64_t index = 0LL;
     while (index < count) {
-        RuntimeHeader* header = zir_f_a87e346e42fbd6c3_RuntimeHeaderAtForeign(index);
+        RuntimeHeader* header = zir_foreign_compiler_runtime_emit__RuntimeHeaderAtForeign(index);
         bool value_0 = header != ((void *)0);
         if (value_0 && StringEqual(compiler_runtime_emit_CText((uint8_t*)header->name), name)) {
             return true;
@@ -327,7 +255,7 @@ compiler_runtime_emit_EmitRuntimeHeaders(String out_dir, String generated_path, 
     Slice value_4 = {(generated_bytes).data, (generated_bytes).count};
     Slice value_5 = SliceRangeAt(value_4, 0LL, generated_bytes.count, sizeof(*(generated_bytes).data));
     String generated = StringView((const char *)(value_5).data, (size_t)(value_5).length);
-    int64_t count = zir_f_a87e346e42fbd6c3_RuntimeHeaderCountForeign();
+    int64_t count = zir_foreign_compiler_runtime_emit__RuntimeHeaderCountForeign();
     __type_9626e91dad9499a3 needed = {0};
     __type_9626e91dad9499a3* value_6 = &needed;
     int64_t value_8 = count;
@@ -397,7 +325,7 @@ compiler_runtime_emit_EmitRuntimeHeaders(String out_dir, String generated_path, 
         if (value_15) {
             int64_t index = 0LL;
             while (index < count) {
-                RuntimeHeader* header = zir_f_a87e346e42fbd6c3_RuntimeHeaderAtForeign(index);
+                RuntimeHeader* header = zir_foreign_compiler_runtime_emit__RuntimeHeaderAtForeign(index);
                 String name = compiler_runtime_emit_CText((uint8_t*)header->name);
                 int64_t value_17 = (int64_t)(line).length;
                 int64_t value_18 = (int64_t)(((uint64_t)((int64_t)(StringLiteral("#include \"")).length) + (uint64_t)((int64_t)(name).length)) + UINT64_C(1));
@@ -436,7 +364,7 @@ compiler_runtime_emit_EmitRuntimeHeaders(String out_dir, String generated_path, 
                     index = (int64_t)((uint64_t)index + UINT64_C(1));
                     continue;
                 }
-                RuntimeHeader* value_25 = zir_f_a87e346e42fbd6c3_RuntimeHeaderAtForeign(index);
+                RuntimeHeader* value_25 = zir_foreign_compiler_runtime_emit__RuntimeHeaderAtForeign(index);
                 uint64_t bits = (uint64_t)(value_25->includes);
                 int64_t other = 0LL;
                 while (other < count) {
@@ -472,7 +400,7 @@ compiler_runtime_emit_EmitRuntimeHeaders(String out_dir, String generated_path, 
                 index = (int64_t)((uint64_t)index + UINT64_C(1));
                 continue;
             }
-            RuntimeHeader* header = zir_f_a87e346e42fbd6c3_RuntimeHeaderAtForeign(index);
+            RuntimeHeader* header = zir_foreign_compiler_runtime_emit__RuntimeHeaderAtForeign(index);
             String header_name = compiler_runtime_emit_CText((uint8_t*)header->name);
             if (simd != ((void *)0) && StringEqual(header_name, StringLiteral("ziran_simd_ops.h"))) {
                 int32_t* value_29 = &(simd->header);
@@ -504,7 +432,7 @@ compiler_runtime_emit_EmitRuntimeHeaders(String out_dir, String generated_path, 
             } else {
                 built = compiler_runtime_emit_KeptSegments(text, used, &(kept));
             }
-            zir_8e7ef9a1e6f28a8e_Results__string__bool results_1_ = compiler_runtime_emit_JoinPath(out_dir, header_name);
+            compiler_runtime_emit_Results__string__bool results_1_ = compiler_runtime_emit_JoinPath(out_dir, header_name);
             String path = results_1_.value_0;
             bool made = results_1_.value_1;
             bool value_33 = built && made;
@@ -571,10 +499,10 @@ bool
 compiler_runtime_emit_EmitSimdOps(String out_dir, ZirSimdUses* uses)
 {
     RuntimeHeader* full_header = (void *)0;
-    int64_t header_count = zir_f_a87e346e42fbd6c3_RuntimeHeaderCountForeign();
+    int64_t header_count = zir_foreign_compiler_runtime_emit__RuntimeHeaderCountForeign();
     int64_t index = 0LL;
     while (index < header_count) {
-        RuntimeHeader* header = zir_f_a87e346e42fbd6c3_RuntimeHeaderAtForeign(index);
+        RuntimeHeader* header = zir_foreign_compiler_runtime_emit__RuntimeHeaderAtForeign(index);
         if (StringEqual(compiler_runtime_emit_CText((uint8_t*)header->name), StringLiteral("ziran_simd_ops.h"))) {
             full_header = header;
         }
@@ -635,7 +563,7 @@ compiler_runtime_emit_EmitSimdOps(String out_dir, ZirSimdUses* uses)
                     value_12 = descriptor->data;
                 value_13: ;
                 }
-                helper = zir_f_a87e346e42fbd6c3_SimdNamesFind(&(helpers), value_12, (size_t)(name_length), 1);
+                helper = zir_foreign_compiler_runtime_emit__SimdNamesFind(&(helpers), value_12, (size_t)(name_length), 1);
             }
             Segment value_14 = (Segment){.helper = helper, .start = after, .length = 0LL, .next = 0LL};
             bool value_15 = false;
@@ -855,7 +783,7 @@ compiler_runtime_emit_EmitSimdOps(String out_dir, ZirSimdUses* uses)
                 value_52 = descriptor->data;
             value_53: ;
             }
-            int64_t helper = zir_f_a87e346e42fbd6c3_SimdNamesFind(&(helpers), value_52, (size_t)((int64_t)(name).length), 0);
+            int64_t helper = zir_foreign_compiler_runtime_emit__SimdNamesFind(&(helpers), value_52, (size_t)((int64_t)(name).length), 0);
             compiler_runtime_emit_NeedHelper(helper, &(needed), &(work));
             if (use_index == range_last_74) {
                 break;
@@ -933,7 +861,7 @@ compiler_runtime_emit_EmitSimdOps(String out_dir, ZirSimdUses* uses)
             segment_index = (int64_t)((uint64_t)segment_index + UINT64_C(1));
         }
     }
-    zir_8e7ef9a1e6f28a8e_Results__string__bool results_2_ = compiler_runtime_emit_JoinPath(out_dir, StringLiteral("ziran_simd_ops.h"));
+    compiler_runtime_emit_Results__string__bool results_2_ = compiler_runtime_emit_JoinPath(out_dir, StringLiteral("ziran_simd_ops.h"));
     String path = results_2_.value_0;
     bool made = results_2_.value_1;
     bool ok = false;
@@ -978,7 +906,7 @@ compiler_runtime_emit_ReleaseOwnedText(String value)
         return;
     }
     TextDescriptor* descriptor = (TextDescriptor*)(&(value));
-    zir_f_a87e346e42fbd6c3_FreeRaw((void*)(descriptor->data));
+    zir_foreign_compiler_runtime_emit__FreeRaw((void*)(descriptor->data));
 }
 
 static String
@@ -1019,7 +947,7 @@ compiler_runtime_emit_TextHasPrefix(String value, String prefix)
     return StringEqual(StringRangeAt(value, (int64_t)0LL, (int64_t)(int64_t)(prefix).length), prefix);
 }
 
-static zir_8e7ef9a1e6f28a8e_Results__string__bool
+static compiler_runtime_emit_Results__string__bool
 compiler_runtime_emit_JoinPath(String directory, String name)
 {
     __type_838711075b90279a bytes = {0};
@@ -1037,7 +965,7 @@ compiler_runtime_emit_JoinPath(String directory, String name)
         }
     }
     if (!value_3) {
-        zir_8e7ef9a1e6f28a8e_Results__string__bool value_5 = (zir_8e7ef9a1e6f28a8e_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        compiler_runtime_emit_Results__string__bool value_5 = (compiler_runtime_emit_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -1057,7 +985,7 @@ compiler_runtime_emit_JoinPath(String directory, String name)
         (bytes).data = NULL;
         bytes.capacity = 0;
         bytes.count = 0;
-        zir_8e7ef9a1e6f28a8e_Results__string__bool value_9 = (zir_8e7ef9a1e6f28a8e_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        compiler_runtime_emit_Results__string__bool value_9 = (compiler_runtime_emit_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -1081,7 +1009,7 @@ compiler_runtime_emit_JoinPath(String directory, String name)
         (bytes).data = NULL;
         bytes.capacity = 0;
         bytes.count = 0;
-        zir_8e7ef9a1e6f28a8e_Results__string__bool value_12 = (zir_8e7ef9a1e6f28a8e_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        compiler_runtime_emit_Results__string__bool value_12 = (compiler_runtime_emit_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -1095,7 +1023,7 @@ compiler_runtime_emit_JoinPath(String directory, String name)
     (bytes).data = NULL;
     bytes.capacity = 0;
     bytes.count = 0;
-    zir_8e7ef9a1e6f28a8e_Results__string__bool value_15 = (zir_8e7ef9a1e6f28a8e_Results__string__bool){.value_0 = result, .value_1 = true};
+    compiler_runtime_emit_Results__string__bool value_15 = (compiler_runtime_emit_Results__string__bool){.value_0 = result, .value_1 = true};
     free((*value_2).data);
     (*value_2).data = NULL;
     (*value_2).capacity = 0;
@@ -1115,7 +1043,7 @@ compiler_runtime_emit_DecimalCount(int64_t value)
     return count;
 }
 
-static zir_8e7ef9a1e6f28a8e_Results__string__bool
+static compiler_runtime_emit_Results__string__bool
 compiler_runtime_emit_JoinTemporary(String path, int32_t process_id)
 {
     int64_t digits = compiler_runtime_emit_DecimalCount((int64_t)(process_id));
@@ -1150,7 +1078,7 @@ compiler_runtime_emit_JoinTemporary(String path, int32_t process_id)
         (bytes).data = NULL;
         bytes.capacity = 0;
         bytes.count = 0;
-        zir_8e7ef9a1e6f28a8e_Results__string__bool value_9 = (zir_8e7ef9a1e6f28a8e_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        compiler_runtime_emit_Results__string__bool value_9 = (compiler_runtime_emit_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -1176,7 +1104,7 @@ compiler_runtime_emit_JoinTemporary(String path, int32_t process_id)
         (bytes).data = NULL;
         bytes.capacity = 0;
         bytes.count = 0;
-        zir_8e7ef9a1e6f28a8e_Results__string__bool value_15 = (zir_8e7ef9a1e6f28a8e_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        compiler_runtime_emit_Results__string__bool value_15 = (compiler_runtime_emit_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -1211,7 +1139,7 @@ compiler_runtime_emit_JoinTemporary(String path, int32_t process_id)
         (bytes).data = NULL;
         bytes.capacity = 0;
         bytes.count = 0;
-        zir_8e7ef9a1e6f28a8e_Results__string__bool value_19 = (zir_8e7ef9a1e6f28a8e_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        compiler_runtime_emit_Results__string__bool value_19 = (compiler_runtime_emit_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -1225,7 +1153,7 @@ compiler_runtime_emit_JoinTemporary(String path, int32_t process_id)
     (bytes).data = NULL;
     bytes.capacity = 0;
     bytes.count = 0;
-    zir_8e7ef9a1e6f28a8e_Results__string__bool value_22 = (zir_8e7ef9a1e6f28a8e_Results__string__bool){.value_0 = result, .value_1 = true};
+    compiler_runtime_emit_Results__string__bool value_22 = (compiler_runtime_emit_Results__string__bool){.value_0 = result, .value_1 = true};
     free((*value_2).data);
     (*value_2).data = NULL;
     (*value_2).capacity = 0;
@@ -1275,7 +1203,7 @@ compiler_runtime_emit_WriteGenerated(String path, String text)
         (*value_3).count = 0;
         return value_10;
     }
-    zir_8e7ef9a1e6f28a8e_Results__string__bool results_3_ = compiler_runtime_emit_JoinTemporary(path, zir_f_a87e346e42fbd6c3_ProcessId());
+    compiler_runtime_emit_Results__string__bool results_3_ = compiler_runtime_emit_JoinTemporary(path, zir_foreign_compiler_runtime_emit__ProcessId());
     String temporary = results_3_.value_0;
     bool made = results_3_.value_1;
     if (!made) {
@@ -1428,7 +1356,7 @@ compiler_runtime_emit_SegmentNamed(String names, SimdNames* used)
                 value_2 = descriptor->data;
             value_3: ;
             }
-            int64_t value_4 = zir_f_a87e346e42fbd6c3_SimdNamesFind(used, value_2, (size_t)(((int64_t)((uint64_t)end - (uint64_t)start))), 0);
+            int64_t value_4 = zir_foreign_compiler_runtime_emit__SimdNamesFind(used, value_2, (size_t)(((int64_t)((uint64_t)end - (uint64_t)start))), 0);
             value_0 = (value_4 >= 0LL);
         }
         if (value_0) {
@@ -1536,7 +1464,7 @@ compiler_runtime_emit_NeedCalls(SimdNames* helpers, Segment segment, String full
                 value_12 = descriptor->data;
             value_13: ;
             }
-            int64_t helper = zir_f_a87e346e42fbd6c3_SimdNamesFind(helpers, value_12, (size_t)((int64_t)(name).length), 0);
+            int64_t helper = zir_foreign_compiler_runtime_emit__SimdNamesFind(helpers, value_12, (size_t)((int64_t)(name).length), 0);
             compiler_runtime_emit_NeedHelper(helper, needed, work);
         } else if ((uint8_t)word.data[0] == 122) {
             uint8_t* value_14 = (void *)0;
@@ -1552,8 +1480,8 @@ compiler_runtime_emit_NeedCalls(SimdNames* helpers, Segment segment, String full
             }
             uint8_t* word_pointer = value_14;
             size_t word_length = (size_t)((int64_t)(word).length);
-            if (zir_f_a87e346e42fbd6c3_SimdHelperWord(&(word_pointer), &(word_length)) == 1) {
-                int64_t helper = zir_f_a87e346e42fbd6c3_SimdNamesFind(helpers, word_pointer, word_length, 0);
+            if (zir_foreign_compiler_runtime_emit__SimdHelperWord(&(word_pointer), &(word_length)) == 1) {
+                int64_t helper = zir_foreign_compiler_runtime_emit__SimdNamesFind(helpers, word_pointer, word_length, 0);
                 compiler_runtime_emit_NeedHelper(helper, needed, work);
             }
         }
@@ -1563,7 +1491,7 @@ compiler_runtime_emit_NeedCalls(SimdNames* helpers, Segment segment, String full
 static bool
 compiler_runtime_emit_Cleanup(SimdNames* helpers, __type_2f893a38d978b828* segments, __type_1f00ef809eed7c2e* last, __type_1f00ef809eed7c2e* first, __type_1f00ef809eed7c2e* needed, __type_1f00ef809eed7c2e* work, __type_838711075b90279a* output, bool result)
 {
-    zir_f_a87e346e42fbd6c3_SimdNamesFree(helpers);
+    zir_foreign_compiler_runtime_emit__SimdNamesFree(helpers);
     free(((*(segments))).data);
     ((*(segments))).data = NULL;
     (*(segments)).capacity = 0;

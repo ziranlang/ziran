@@ -64,6 +64,7 @@ CSlotNativeType :: (source: *u8, target: Native.ZirTarget, out: *u8, size: usize
 CSlotTypeAtUse :: (source: *u8, target: Native.ZirTarget, resolve_type: CEmit.ZirResolveTarget,
                    context: *void, out: *u8, size: usize) #foreign compiler "zir_emit_slot_type_at_use";
 CEnumType :: (module: *IR.ZirModule, type: *u8) -> s32 #foreign compiler "zir_emit_enum_type";
+CNativeFunctionName :: (module: *IR.ZirModule, fn: *IR.ZirFunction, out: *u8, size: usize) #foreign compiler "NativeCFunctionName";
 CNumberPrefix :: (module: *IR.ZirModule, out: *u8, size: usize) #foreign compiler "zir_emit_number_prefix";
 CTargetFieldName :: (record: *IR.ZirType, target: Native.ZirTarget, name: *u8, out: *u8, size: usize) #foreign compiler "TargetFieldName";
 CNativeGoType :: (module: *IR.ZirModule, type: *u8, dst: *u8, dst_size: usize) -> s32 #foreign compiler "NativeGoType";
@@ -697,10 +698,9 @@ EmitCall :: (e: *Emitter, expr: *IR.ZirExpr, array_result: *u8, out: *u8, size: 
 #scope_file
 
 SlotWrapperName :: (module: *IR.ZirModule, fn: *IR.ZirFunction, index: s32, out: *u8, size: usize) {
-    prefix: [256]u8
-    CNumberPrefix(module, *prefix[0], 256)
-    offset := cast(s64)(cast(usize)fn - cast(usize)module.functions) / cast(s64)size_of(IR.ZirFunction)
-    CheckFormat(snprintf(out, size, CStr("%s_slot_%lld_%d"), *prefix[0], offset, index), size)
+    caller: [256]u8
+    CNativeFunctionName(module, fn, *caller[0], 256)
+    CheckFormat(snprintf(out, size, CStr("%s_callback_%d"), *caller[0], index), size)
 }
 
 #scope_export

@@ -45,7 +45,7 @@ HashState
 compiler_backend_cache_HashNew(void)
 {
     HashState result = {0};
-    zir_f_36a3c20ab8e249b6_ShaBegin((void*)(&(result)));
+    zir_foreign_compiler_backend_cache__ShaBegin((void*)(&(result)));
     return result;
 }
 
@@ -53,7 +53,7 @@ void
 compiler_backend_cache_HashByte(HashState* hash, uint8_t value)
 {
     uint8_t byte = value;
-    zir_f_36a3c20ab8e249b6_ShaAdd((void*)(hash), (uint8_t*)(&(byte)), 1);
+    zir_foreign_compiler_backend_cache__ShaAdd((void*)(hash), (uint8_t*)(&(byte)), 1);
 }
 
 void
@@ -92,7 +92,7 @@ compiler_backend_cache_HashText(HashState* hash, String value)
 void
 compiler_backend_cache_HashFinish(HashState* hash, Digest* output)
 {
-    zir_f_36a3c20ab8e249b6_ShaEnd((void*)(hash), output->bytes);
+    zir_foreign_compiler_backend_cache__ShaEnd((void*)(hash), output->bytes);
 }
 
 void
@@ -100,7 +100,7 @@ compiler_backend_cache_ProfileCount(String name)
 {
     uint8_t* pointer = compiler_backend_cache_ProfileName(name);
     if (pointer != ((void *)0)) {
-        zir_f_36a3c20ab8e249b6_ProfileCountForeign(pointer);
+        zir_foreign_compiler_backend_cache__ProfileCountForeign(pointer);
     }
 }
 
@@ -114,14 +114,14 @@ compiler_backend_cache_ProfileName(String name)
             return descriptor->data;
         }
     }
-    void* value = zir_f_36a3c20ab8e249b6_AllocateRaw(1, (size_t)(((int64_t)((uint64_t)((int64_t)(name).length) + UINT64_C(1)))));
+    void* value = zir_foreign_compiler_backend_cache__AllocateRaw(1, (size_t)(((int64_t)((uint64_t)((int64_t)(name).length) + UINT64_C(1)))));
     if (value == ((void *)0)) {
         return (void *)0;
     }
     uint8_t* pointer = (uint8_t*)(value);
     bool value_0 = CopyCString(name, compiler_backend_cache_BytesFromPointer(pointer, (uint64_t)(((int64_t)((uint64_t)((int64_t)(name).length) + UINT64_C(1))))));
     if (!value_0) {
-        zir_f_36a3c20ab8e249b6_FreeOwned(value);
+        zir_foreign_compiler_backend_cache__FreeOwned(value);
         return (void *)0;
     }
     String stored = StringLiteral("");
@@ -139,7 +139,7 @@ compiler_backend_cache_ProfileName(String name)
         value_4 = true;
     }
     if (!value_4) {
-        zir_f_36a3c20ab8e249b6_FreeOwned(value);
+        zir_foreign_compiler_backend_cache__FreeOwned(value);
         return (void *)0;
     }
     return pointer;
@@ -173,7 +173,7 @@ compiler_backend_cache_Release(String value)
         return;
     }
     View* descriptor = (View*)(&(value));
-    zir_f_36a3c20ab8e249b6_FreeOwned((void*)(descriptor->data));
+    zir_foreign_compiler_backend_cache__FreeOwned((void*)(descriptor->data));
 }
 
 bool
@@ -2257,7 +2257,7 @@ compiler_backend_cache_Open(Slice arguments, String output, String executable)
         value_10 = text_tools_TextContains(value, piece);
     }
     bool piped = !value_10;
-    void* value_12 = zir_f_36a3c20ab8e249b6_AllocateRaw(1, sizeof(BuildCache));
+    void* value_12 = zir_foreign_compiler_backend_cache__AllocateRaw(1, sizeof(BuildCache));
     BuildCache* cache = (BuildCache*)(value_12);
     if (cache == ((void *)0)) {
         compiler_backend_cache_Release(compiler);
@@ -2283,7 +2283,7 @@ compiler_backend_cache_Open(Slice arguments, String output, String executable)
         compiler_backend_cache_Release(compiler);
         return (void *)0;
     }
-    if (zir_f_36a3c20ab8e249b6_ClockRaw(0, &(clock)) != 0) {
+    if (zir_foreign_compiler_backend_cache__ClockRaw(0, &(clock)) != 0) {
         compiler_backend_cache_Close(cache);
         compiler_backend_cache_Release(compiler);
         return (void *)0;
@@ -2302,7 +2302,7 @@ compiler_backend_cache_Open(Slice arguments, String output, String executable)
     }
     compiler_backend_cache_HashInteger(&(hash), value_20);
     uint8_t directory[4096] = {0};
-    uint8_t* working_pointer = zir_f_36a3c20ab8e249b6_CurrentDirectory(&(directory[0]), 4096);
+    uint8_t* working_pointer = zir_foreign_compiler_backend_cache__CurrentDirectory(&(directory[0]), 4096);
     int64_t working_length = 0LL;
     if (working_pointer != ((void *)0)) {
         while ((directory)[working_length] != 0) {
@@ -3815,7 +3815,7 @@ compiler_backend_cache_Record(BuildCache* cache, String object, String source)
         FileHandle file = {0};
         while (attempt < 128LL) {
             attempt = (int64_t)((uint64_t)attempt + UINT64_C(1));
-            int32_t value_75 = (int32_t)((uint32_t)(zir_f_36a3c20ab8e249b6_OwnProcessId()) * 128u);
+            int32_t value_75 = (int32_t)((uint32_t)(zir_foreign_compiler_backend_cache__OwnProcessId()) * 128u);
             temporary = compiler_backend_cache_TemporaryInputPath(object, (int64_t)((uint64_t)(value_75) + (uint64_t)attempt));
             if ((int64_t)(temporary).length == 0LL) {
                 break;
@@ -3922,5 +3922,5 @@ compiler_backend_cache_Close(BuildCache* cache)
     compiler_backend_cache_Release(cache->executable);
     compiler_backend_cache_ReleaseFingerprints(&(cache->files));
     compiler_backend_cache_ReleaseFingerprints(&(cache->candidates));
-    zir_f_36a3c20ab8e249b6_FreeOwned((void*)(cache));
+    zir_foreign_compiler_backend_cache__FreeOwned((void*)(cache));
 }

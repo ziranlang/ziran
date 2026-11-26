@@ -10,55 +10,38 @@
 extern "C" {
 #endif
 #define MONOTONIC_CLOCK 1
-typedef struct zir_9339a8296a493286_ClockValue zir_9339a8296a493286_ClockValue;
+typedef struct timer_linux_ClockValue timer_linux_ClockValue;
 
-struct zir_9339a8296a493286_ClockValue {
+struct timer_linux_ClockValue {
     ptrdiff_t seconds;
     ptrdiff_t nanoseconds;
 };
-#ifndef ZIR_FOREIGN_zir_f_9bb5b5b3425765c7_ClockGetTimeRaw_a884510c
-#define ZIR_FOREIGN_zir_f_9bb5b5b3425765c7_ClockGetTimeRaw_a884510c
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_9bb5b5b3425765c7_ClockGetTimeRaw(int32_t clock, zir_9339a8296a493286_ClockValue* value) __asm__("_clock_gettime");
+int32_t zir_foreign_timer_linux__ClockGetTimeRaw(int32_t clock, timer_linux_ClockValue* value) __asm__("_clock_gettime");
 #else
-int32_t zir_foreign_zir_f_9bb5b5b3425765c7_ClockGetTimeRaw(int32_t clock, zir_9339a8296a493286_ClockValue* value) __asm__("clock_gettime");
+int32_t zir_foreign_timer_linux__ClockGetTimeRaw(int32_t clock, timer_linux_ClockValue* value) __asm__("clock_gettime");
 #endif
-static int32_t
-zir_f_9bb5b5b3425765c7_ClockGetTimeRaw(int32_t clock, zir_9339a8296a493286_ClockValue* value)
-{
-    return zir_foreign_zir_f_9bb5b5b3425765c7_ClockGetTimeRaw(clock, value);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_9bb5b5b3425765c7_ClockSleepRaw_86fa7920
-#define ZIR_FOREIGN_zir_f_9bb5b5b3425765c7_ClockSleepRaw_86fa7920
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_9bb5b5b3425765c7_ClockSleepRaw(int32_t clock, int32_t flags, zir_9339a8296a493286_ClockValue* request, zir_9339a8296a493286_ClockValue* remaining) __asm__("_clock_nanosleep");
+int32_t zir_foreign_timer_linux__ClockSleepRaw(int32_t clock, int32_t flags, timer_linux_ClockValue* request, timer_linux_ClockValue* remaining) __asm__("_clock_nanosleep");
 #else
-int32_t zir_foreign_zir_f_9bb5b5b3425765c7_ClockSleepRaw(int32_t clock, int32_t flags, zir_9339a8296a493286_ClockValue* request, zir_9339a8296a493286_ClockValue* remaining) __asm__("clock_nanosleep");
-#endif
-static int32_t
-zir_f_9bb5b5b3425765c7_ClockSleepRaw(int32_t clock, int32_t flags, zir_9339a8296a493286_ClockValue* request, zir_9339a8296a493286_ClockValue* remaining)
-{
-    return zir_foreign_zir_f_9bb5b5b3425765c7_ClockSleepRaw(clock, flags, request, 
-remaining);
-}
+int32_t zir_foreign_timer_linux__ClockSleepRaw(int32_t clock, int32_t flags, timer_linux_ClockValue* request, timer_linux_ClockValue* remaining) __asm__("clock_nanosleep");
 #endif
 int64_t MonotonicNanoseconds(void);
 int64_t MonotonicMilliseconds(void);
-zir_9339a8296a493286_ClockValue timer_linux_MakeClockValue(int64_t milliseconds);
+timer_linux_ClockValue timer_linux_MakeClockValue(int64_t milliseconds);
 bool SleepMilliseconds(int64_t milliseconds);
 
 /* Small procedures other modules inline; timer_linux.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_TIMER_LINUX_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include <stdint.h>
 #include <stddef.h>
-static inline zir_9339a8296a493286_ClockValue timer_linux_MakeClockValue_ziran_inline(int64_t milliseconds);
+static inline timer_linux_ClockValue timer_linux_MakeClockValue_ziran_inline(int64_t milliseconds);
 #define timer_linux_MakeClockValue(...) timer_linux_MakeClockValue_ziran_inline(__VA_ARGS__)
 
-static inline zir_9339a8296a493286_ClockValue
+static inline timer_linux_ClockValue
 timer_linux_MakeClockValue_ziran_inline(int64_t milliseconds)
 {
-    zir_9339a8296a493286_ClockValue value = {0};
+    timer_linux_ClockValue value = {0};
     if (milliseconds < 0LL) {
         return value;
     }

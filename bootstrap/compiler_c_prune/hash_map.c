@@ -56,9 +56,9 @@ hash_map_HashKey__overload_4(uint32_t key)
 }
 
 bool
-hash_map___zi_spec_23e963c184ddc8df(__type_85ffe259200e6bb1* map, String key, int64_t* value)
+hash_map_hash_map_HashMapGet_for_string_s64(__type_85ffe259200e6bb1* map, String key, int64_t* value)
 {
-    int64_t slot = hash_map___zi_spec_af9585169f62289c(map, key);
+    int64_t slot = hash_map_hash_map_HashMapFind_for_string_s64(map, key);
     if (slot < 0LL) {
         return false;
     }
@@ -68,7 +68,7 @@ hash_map___zi_spec_23e963c184ddc8df(__type_85ffe259200e6bb1* map, String key, in
 }
 
 void
-hash_map___zi_spec_90efdf9e469b09ec(__type_85ffe259200e6bb1* map, String key, int64_t value)
+hash_map_hash_map_HashMapSet_for_string_s64(__type_85ffe259200e6bb1* map, String key, int64_t value)
 {
     int64_t value_0 = (int64_t)(((uint64_t)(map->count) + UINT64_C(1)) * UINT64_C(2));
     int64_t value_1 = map->states.count;
@@ -80,7 +80,7 @@ hash_map___zi_spec_90efdf9e469b09ec(__type_85ffe259200e6bb1* map, String key, in
             if (capacity < 8LL) {
                 capacity = 8LL;
             }
-            hash_map___zi_spec_f0f383db5d7335ae(map, capacity);
+            hash_map_hash_map_HashMapRehash_for_string_s64(map, capacity);
         }
     } else {
         int64_t value_4 = map->removed;
@@ -92,7 +92,7 @@ hash_map___zi_spec_90efdf9e469b09ec(__type_85ffe259200e6bb1* map, String key, in
             value_6 = (value_7 >= value_8);
         }
         if (value_6) {
-            hash_map___zi_spec_f0f383db5d7335ae(map, map->states.count);
+            hash_map_hash_map_HashMapRehash_for_string_s64(map, map->states.count);
         }
     }
     int64_t mask = (int64_t)((uint64_t)(map->states.count) - UINT64_C(1));
@@ -134,7 +134,7 @@ hash_map___zi_spec_90efdf9e469b09ec(__type_85ffe259200e6bb1* map, String key, in
 }
 
 int64_t
-hash_map___zi_spec_af9585169f62289c(__type_85ffe259200e6bb1* map, String key)
+hash_map_hash_map_HashMapFind_for_string_s64(__type_85ffe259200e6bb1* map, String key)
 {
     int64_t value_0 = map->states.count;
     if (value_0 == 0LL) {
@@ -161,17 +161,17 @@ hash_map___zi_spec_af9585169f62289c(__type_85ffe259200e6bb1* map, String key)
 }
 
 void
-hash_map___zi_spec_a11f9e576bfe3ee9(__type_85ffe259200e6bb1* map)
+hash_map_hash_map_HashMapGrow_for_string_s64(__type_85ffe259200e6bb1* map)
 {
     int64_t capacity = (int64_t)((uint64_t)(map->states.count) * UINT64_C(2));
     if (capacity < 8LL) {
         capacity = 8LL;
     }
-    hash_map___zi_spec_f0f383db5d7335ae(map, capacity);
+    hash_map_hash_map_HashMapRehash_for_string_s64(map, capacity);
 }
 
 void
-hash_map___zi_spec_f0f383db5d7335ae(__type_85ffe259200e6bb1* map, int64_t capacity)
+hash_map_hash_map_HashMapRehash_for_string_s64(__type_85ffe259200e6bb1* map, int64_t capacity)
 {
     __type_c53c2d7c4913dc02 old_keys = {0};
     __type_c53c2d7c4913dc02* value_0 = &old_keys;
@@ -228,7 +228,7 @@ hash_map___zi_spec_f0f383db5d7335ae(__type_85ffe259200e6bb1* map, int64_t capaci
     i = 0LL;
     while (i < old_states.count) {
         if ((old_states).data[i] == 1) {
-            hash_map___zi_spec_90efdf9e469b09ec(map, (old_keys).data[i], (old_values).data[i]);
+            hash_map_hash_map_HashMapSet_for_string_s64(map, (old_keys).data[i], (old_values).data[i]);
         }
         i = (int64_t)((uint64_t)i + UINT64_C(1));
     }

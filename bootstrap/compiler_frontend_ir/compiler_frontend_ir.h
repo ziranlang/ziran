@@ -88,7 +88,7 @@ typedef struct CoreArray32__IR_ZirModule CoreArray32__IR_ZirModule;
 typedef struct TypeSearch TypeSearch;
 #endif
 #ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct zir_21ab3782f2ff75d0_ZirVector zir_21ab3782f2ff75d0_ZirVector;
+typedef struct compiler_frontend_ir_ZirVector compiler_frontend_ir_ZirVector;
 #endif
 #ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
 typedef struct CoreArray128_u8 CoreArray128_u8;
@@ -338,7 +338,7 @@ struct TypeSearch {
 #endif
 #ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
 
-struct zir_21ab3782f2ff75d0_ZirVector {
+struct compiler_frontend_ir_ZirVector {
     uint8_t* name;
     uint8_t* lane;
     int32_t lanes;
@@ -473,7 +473,7 @@ size_t ScalarByteWidth(uint8_t* type);
 int32_t UnionScalarFields(ZirModule* module, ZirType* record);
 int32_t ArrayTypeAlias(uint8_t* value);
 int32_t ArrayElementType(uint8_t* type, uint8_t* element, size_t element_size, int32_t* capacity);
-int32_t VectorType(uint8_t* type, zir_21ab3782f2ff75d0_ZirVector* vector);
+int32_t VectorType(uint8_t* type, compiler_frontend_ir_ZirVector* vector);
 uint8_t* VectorTypeName(uint8_t* lane, int32_t lanes);
 uint8_t* NativeVectorName(uint8_t* lane);
 int32_t HoldsNativeVector(uint8_t* type);
@@ -491,8 +491,8 @@ int32_t TypeFindField(ZirType* record, uint8_t* name, ZirTypeField* field);
 int32_t TypeHasOnlyPrimitiveFields(ZirType* record);
 int32_t ArrayValueType(uint8_t* type);
 int32_t EnumMemberValue(ZirType* type, uint8_t* wanted, int64_t* value);
-Slice compiler_frontend_ir___zi_spec_957717307b902c01(uint8_t* data, int64_t count);
-Slice compiler_frontend_ir___zi_spec_e8f570eea7636cb9(Entry* data, int64_t count);
+Slice compiler_frontend_ir_compiler_frontend_ir_CoreSlice_for_u8(uint8_t* data, int64_t count);
+Slice compiler_frontend_ir_compiler_frontend_ir_CoreSlice_for_EnumPolicy_Entry(Entry* data, int64_t count);
 
 #ifdef __cplusplus
 }

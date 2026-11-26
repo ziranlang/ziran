@@ -15,378 +15,150 @@ static inline int64_t ZiDivS64(int64_t a, int64_t b, int64_t min) {
 }
 #endif
 #endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_AllocateOrExit_5810995e
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_AllocateOrExit_5810995e
 #ifdef __APPLE__
-void* zir_foreign_zir_f_fdddeaaf3d14b33d_AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
+void* zir_foreign_compiler_check_simd__AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
 #else
-void* zir_foreign_zir_f_fdddeaaf3d14b33d_AllocateOrExit(size_t size) __asm__("AllocateOrExit");
+void* zir_foreign_compiler_check_simd__AllocateOrExit(size_t size) __asm__("AllocateOrExit");
 #endif
-static void*
-zir_f_fdddeaaf3d14b33d_AllocateOrExit(size_t size)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_AllocateOrExit(size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_ArrayElementType_7810fd9e
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_ArrayElementType_7810fd9e
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_ArrayElementType(uint8_t* type, uint8_t* element, size_t element_size, int32_t* capacity) __asm__("_ArrayElementType");
+int32_t zir_foreign_compiler_check_simd__ArrayElementType(uint8_t* type, uint8_t* element, size_t element_size, int32_t* capacity) __asm__("_ArrayElementType");
 #else
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_ArrayElementType(uint8_t* type, uint8_t* element, size_t element_size, int32_t* capacity) __asm__("ArrayElementType");
+int32_t zir_foreign_compiler_check_simd__ArrayElementType(uint8_t* type, uint8_t* element, size_t element_size, int32_t* capacity) __asm__("ArrayElementType");
 #endif
-static int32_t
-zir_f_fdddeaaf3d14b33d_ArrayElementType(uint8_t* type, uint8_t* element, size_t element_size, int32_t* capacity)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_ArrayElementType(type, element, element_size, capacity);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_BuiltinTypeName_aa02fa62
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_BuiltinTypeName_aa02fa62
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_BuiltinTypeName(uint8_t* name) __asm__("_BuiltinTypeName");
+int32_t zir_foreign_compiler_check_simd__BuiltinTypeName(uint8_t* name) __asm__("_BuiltinTypeName");
 #else
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_BuiltinTypeName(uint8_t* name) __asm__("BuiltinTypeName");
+int32_t zir_foreign_compiler_check_simd__BuiltinTypeName(uint8_t* name) __asm__("BuiltinTypeName");
 #endif
-static int32_t
-zir_f_fdddeaaf3d14b33d_BuiltinTypeName(uint8_t* name)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_BuiltinTypeName(name);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_CompilerFree_544d5753
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_CompilerFree_544d5753
 #ifdef __APPLE__
-void zir_foreign_zir_f_fdddeaaf3d14b33d_CompilerFree(void* pointer) __asm__("_CompilerFree");
+void zir_foreign_compiler_check_simd__CompilerFree(void* pointer) __asm__("_CompilerFree");
 #else
-void zir_foreign_zir_f_fdddeaaf3d14b33d_CompilerFree(void* pointer) __asm__("CompilerFree");
+void zir_foreign_compiler_check_simd__CompilerFree(void* pointer) __asm__("CompilerFree");
 #endif
-static void
-zir_f_fdddeaaf3d14b33d_CompilerFree(void* pointer)
-{
-    zir_foreign_zir_f_fdddeaaf3d14b33d_CompilerFree(pointer);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_FindType_2a8e44a3
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_FindType_2a8e44a3
 #ifdef __APPLE__
-ZirType* zir_foreign_zir_f_fdddeaaf3d14b33d_FindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("_FindType");
+ZirType* zir_foreign_compiler_check_simd__FindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("_FindType");
 #else
-ZirType* zir_foreign_zir_f_fdddeaaf3d14b33d_FindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("FindType");
+ZirType* zir_foreign_compiler_check_simd__FindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("FindType");
 #endif
-static ZirType*
-zir_f_fdddeaaf3d14b33d_FindType(ZirModule* module, uint8_t* name, ZirModule** owner)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_FindType(module, name, owner);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_HoldsNativeVector_7d3df8dc
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_HoldsNativeVector_7d3df8dc
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_HoldsNativeVector(uint8_t* type) __asm__("_HoldsNativeVector");
+int32_t zir_foreign_compiler_check_simd__HoldsNativeVector(uint8_t* type) __asm__("_HoldsNativeVector");
 #else
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_HoldsNativeVector(uint8_t* type) __asm__("HoldsNativeVector");
+int32_t zir_foreign_compiler_check_simd__HoldsNativeVector(uint8_t* type) __asm__("HoldsNativeVector");
 #endif
-static int32_t
-zir_f_fdddeaaf3d14b33d_HoldsNativeVector(uint8_t* type)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_HoldsNativeVector(type);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_KeepName_d1dcd97c
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_KeepName_d1dcd97c
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_fdddeaaf3d14b33d_KeepName(uint8_t* text) __asm__("_KeepName");
+uint8_t* zir_foreign_compiler_check_simd__KeepName(uint8_t* text) __asm__("_KeepName");
 #else
-uint8_t* zir_foreign_zir_f_fdddeaaf3d14b33d_KeepName(uint8_t* text) __asm__("KeepName");
+uint8_t* zir_foreign_compiler_check_simd__KeepName(uint8_t* text) __asm__("KeepName");
 #endif
-static uint8_t*
-zir_f_fdddeaaf3d14b33d_KeepName(uint8_t* text)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_KeepName(text);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_KeepText_81a33958
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_KeepText_81a33958
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_fdddeaaf3d14b33d_KeepText(uint8_t* text) __asm__("_KeepText");
+uint8_t* zir_foreign_compiler_check_simd__KeepText(uint8_t* text) __asm__("_KeepText");
 #else
-uint8_t* zir_foreign_zir_f_fdddeaaf3d14b33d_KeepText(uint8_t* text) __asm__("KeepText");
+uint8_t* zir_foreign_compiler_check_simd__KeepText(uint8_t* text) __asm__("KeepText");
 #endif
-static uint8_t*
-zir_f_fdddeaaf3d14b33d_KeepText(uint8_t* text)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_KeepText(text);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_ParametersOf_ebcb53a7
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_ParametersOf_ebcb53a7
 #ifdef __APPLE__
-ZirParameters* zir_foreign_zir_f_fdddeaaf3d14b33d_ParametersOf(uint8_t* text) __asm__("_ParametersOf");
+ZirParameters* zir_foreign_compiler_check_simd__ParametersOf(uint8_t* text) __asm__("_ParametersOf");
 #else
-ZirParameters* zir_foreign_zir_f_fdddeaaf3d14b33d_ParametersOf(uint8_t* text) __asm__("ParametersOf");
+ZirParameters* zir_foreign_compiler_check_simd__ParametersOf(uint8_t* text) __asm__("ParametersOf");
 #endif
-static ZirParameters*
-zir_f_fdddeaaf3d14b33d_ParametersOf(uint8_t* text)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_ParametersOf(text);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_ScalarType_9055c366
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_ScalarType_9055c366
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_fdddeaaf3d14b33d_ScalarType(uint8_t* type) __asm__("_ScalarType");
+uint8_t* zir_foreign_compiler_check_simd__ScalarType(uint8_t* type) __asm__("_ScalarType");
 #else
-uint8_t* zir_foreign_zir_f_fdddeaaf3d14b33d_ScalarType(uint8_t* type) __asm__("ScalarType");
+uint8_t* zir_foreign_compiler_check_simd__ScalarType(uint8_t* type) __asm__("ScalarType");
 #endif
-static uint8_t*
-zir_f_fdddeaaf3d14b33d_ScalarType(uint8_t* type)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_ScalarType(type);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_SimdModule_effa0def
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_SimdModule_effa0def
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_SimdModule(ZirModule* module) __asm__("_SimdModule");
+int32_t zir_foreign_compiler_check_simd__SimdModule(ZirModule* module) __asm__("_SimdModule");
 #else
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_SimdModule(ZirModule* module) __asm__("SimdModule");
+int32_t zir_foreign_compiler_check_simd__SimdModule(ZirModule* module) __asm__("SimdModule");
 #endif
-static int32_t
-zir_f_fdddeaaf3d14b33d_SimdModule(ZirModule* module)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_SimdModule(module);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_SimdOpChecked_8005de6e
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_SimdOpChecked_8005de6e
 #ifdef __APPLE__
-SimdOp* zir_foreign_zir_f_fdddeaaf3d14b33d_SimdOpChecked(uint8_t* name) __asm__("_SimdOpChecked");
+SimdOp* zir_foreign_compiler_check_simd__SimdOpChecked(uint8_t* name) __asm__("_SimdOpChecked");
 #else
-SimdOp* zir_foreign_zir_f_fdddeaaf3d14b33d_SimdOpChecked(uint8_t* name) __asm__("SimdOpChecked");
+SimdOp* zir_foreign_compiler_check_simd__SimdOpChecked(uint8_t* name) __asm__("SimdOpChecked");
 #endif
-static SimdOp*
-zir_f_fdddeaaf3d14b33d_SimdOpChecked(uint8_t* name)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_SimdOpChecked(name);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_SimdOpNamed_38217d4e
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_SimdOpNamed_38217d4e
 #ifdef __APPLE__
-SimdOp* zir_foreign_zir_f_fdddeaaf3d14b33d_SimdOpNamed(uint8_t* name) __asm__("_SimdOpNamed");
+SimdOp* zir_foreign_compiler_check_simd__SimdOpNamed(uint8_t* name) __asm__("_SimdOpNamed");
 #else
-SimdOp* zir_foreign_zir_f_fdddeaaf3d14b33d_SimdOpNamed(uint8_t* name) __asm__("SimdOpNamed");
+SimdOp* zir_foreign_compiler_check_simd__SimdOpNamed(uint8_t* name) __asm__("SimdOpNamed");
 #endif
-static SimdOp*
-zir_f_fdddeaaf3d14b33d_SimdOpNamed(uint8_t* name)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_SimdOpNamed(name);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_SimdSignature_508ce505
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_SimdSignature_508ce505
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_fdddeaaf3d14b33d_SimdSignature(SimdOp* op, uint8_t* result, SimdOperand* operands, int32_t count, uint8_t** message) __asm__("_SimdSignature");
+uint8_t* zir_foreign_compiler_check_simd__SimdSignature(SimdOp* op, uint8_t* result, SimdOperand* operands, int32_t count, uint8_t** message) __asm__("_SimdSignature");
 #else
-uint8_t* zir_foreign_zir_f_fdddeaaf3d14b33d_SimdSignature(SimdOp* op, uint8_t* result, SimdOperand* operands, int32_t count, uint8_t** message) __asm__("SimdSignature");
+uint8_t* zir_foreign_compiler_check_simd__SimdSignature(SimdOp* op, uint8_t* result, SimdOperand* operands, int32_t count, uint8_t** message) __asm__("SimdSignature");
 #endif
-static uint8_t*
-zir_f_fdddeaaf3d14b33d_SimdSignature(SimdOp* op, uint8_t* result, SimdOperand* operands, int32_t count, uint8_t** message)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_SimdSignature(op, result, operands, count, message);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_TypeNextFieldShared_39950d23
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_TypeNextFieldShared_39950d23
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_TypeNextFieldShared(ZirType* record, size_t* offset, ZirTypeField** field) __asm__("_TypeNextFieldShared");
+int32_t zir_foreign_compiler_check_simd__TypeNextFieldShared(ZirType* record, size_t* offset, ZirTypeField** field) __asm__("_TypeNextFieldShared");
 #else
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_TypeNextFieldShared(ZirType* record, size_t* offset, ZirTypeField** field) __asm__("TypeNextFieldShared");
+int32_t zir_foreign_compiler_check_simd__TypeNextFieldShared(ZirType* record, size_t* offset, ZirTypeField** field) __asm__("TypeNextFieldShared");
 #endif
-static int32_t
-zir_f_fdddeaaf3d14b33d_TypeNextFieldShared(ZirType* record, size_t* offset, ZirTypeField** field)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_TypeNextFieldShared(record, offset, field);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_VectorType_cf827fdc
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_VectorType_cf827fdc
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_VectorType(uint8_t* type, ZirVector* vector) __asm__("_VectorType");
+int32_t zir_foreign_compiler_check_simd__VectorType(uint8_t* type, ZirVector* vector) __asm__("_VectorType");
 #else
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_VectorType(uint8_t* type, ZirVector* vector) __asm__("VectorType");
+int32_t zir_foreign_compiler_check_simd__VectorType(uint8_t* type, ZirVector* vector) __asm__("VectorType");
 #endif
-static int32_t
-zir_f_fdddeaaf3d14b33d_VectorType(uint8_t* type, ZirVector* vector)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_VectorType(type, vector);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_bound_expression_c88af755
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_bound_expression_c88af755
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_bound_expression(ZirModule* module, ZirFunction* expression, int32_t index, int32_t depth, int64_t* value) __asm__("_private_check_bound_expression");
+int32_t zir_foreign_compiler_check_simd__bound_expression(ZirModule* module, ZirFunction* expression, int32_t index, int32_t depth, int64_t* value) __asm__("_private_check_bound_expression");
 #else
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_bound_expression(ZirModule* module, ZirFunction* expression, int32_t index, int32_t depth, int64_t* value) __asm__("private_check_bound_expression");
+int32_t zir_foreign_compiler_check_simd__bound_expression(ZirModule* module, ZirFunction* expression, int32_t index, int32_t depth, int64_t* value) __asm__("private_check_bound_expression");
 #endif
-static int32_t
-zir_f_fdddeaaf3d14b33d_bound_expression(ZirModule* module, ZirFunction* expression, int32_t index, int32_t depth, int64_t* value)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_bound_expression(module, expression, index, depth, value);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_copy_text_833bb3c1
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_copy_text_833bb3c1
 #ifdef __APPLE__
-void zir_foreign_zir_f_fdddeaaf3d14b33d_copy_text(uint8_t* dst, size_t dst_size, uint8_t* src) __asm__("_copy_text");
+void zir_foreign_compiler_check_simd__copy_text(uint8_t* dst, size_t dst_size, uint8_t* src) __asm__("_copy_text");
 #else
-void zir_foreign_zir_f_fdddeaaf3d14b33d_copy_text(uint8_t* dst, size_t dst_size, uint8_t* src) __asm__("copy_text");
+void zir_foreign_compiler_check_simd__copy_text(uint8_t* dst, size_t dst_size, uint8_t* src) __asm__("copy_text");
 #endif
-static void
-zir_f_fdddeaaf3d14b33d_copy_text(uint8_t* dst, size_t dst_size, uint8_t* src)
-{
-    zir_foreign_zir_f_fdddeaaf3d14b33d_copy_text(dst, dst_size, src);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_error_988abc5d
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_error_988abc5d
 #ifdef __APPLE__
-void zir_foreign_zir_f_fdddeaaf3d14b33d_error(Checker* c, ZirSourceSpan span, uint8_t* message, uint8_t* detail) __asm__("_private_check_error");
+void zir_foreign_compiler_check_simd__error(Checker* c, ZirSourceSpan span, uint8_t* message, uint8_t* detail) __asm__("_private_check_error");
 #else
-void zir_foreign_zir_f_fdddeaaf3d14b33d_error(Checker* c, ZirSourceSpan span, uint8_t* message, uint8_t* detail) __asm__("private_check_error");
+void zir_foreign_compiler_check_simd__error(Checker* c, ZirSourceSpan span, uint8_t* message, uint8_t* detail) __asm__("private_check_error");
 #endif
-static void
-zir_f_fdddeaaf3d14b33d_error(Checker* c, ZirSourceSpan span, uint8_t* message, uint8_t* detail)
-{
-    zir_foreign_zir_f_fdddeaaf3d14b33d_error(c, span, message, detail);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_expression_type_e415ded6
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_expression_type_e415ded6
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_fdddeaaf3d14b33d_expression_type(Checker* c, int32_t index) __asm__("_private_check_expression_type");
+uint8_t* zir_foreign_compiler_check_simd__expression_type(Checker* c, int32_t index) __asm__("_private_check_expression_type");
 #else
-uint8_t* zir_foreign_zir_f_fdddeaaf3d14b33d_expression_type(Checker* c, int32_t index) __asm__("private_check_expression_type");
+uint8_t* zir_foreign_compiler_check_simd__expression_type(Checker* c, int32_t index) __asm__("private_check_expression_type");
 #endif
-static uint8_t*
-zir_f_fdddeaaf3d14b33d_expression_type(Checker* c, int32_t index)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_expression_type(c, index);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_in_lookup_file_31f7bd77
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_in_lookup_file_31f7bd77
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_in_lookup_file(ZirModule* module, int32_t is_file_private, ZirSourceSpan span) __asm__("_private_check_in_lookup_file");
+int32_t zir_foreign_compiler_check_simd__in_lookup_file(ZirModule* module, int32_t is_file_private, ZirSourceSpan span) __asm__("_private_check_in_lookup_file");
 #else
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_in_lookup_file(ZirModule* module, int32_t is_file_private, ZirSourceSpan span) __asm__("private_check_in_lookup_file");
+int32_t zir_foreign_compiler_check_simd__in_lookup_file(ZirModule* module, int32_t is_file_private, ZirSourceSpan span) __asm__("private_check_in_lookup_file");
 #endif
-static int32_t
-zir_f_fdddeaaf3d14b33d_in_lookup_file(ZirModule* module, int32_t is_file_private, ZirSourceSpan span)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_in_lookup_file(module, is_file_private, span);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_lookup_lexical_9fc33788
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_lookup_lexical_9fc33788
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_fdddeaaf3d14b33d_lookup_lexical(Checker* c, uint8_t* name) __asm__("_private_check_lookup_lexical");
+uint8_t* zir_foreign_compiler_check_simd__lookup_lexical(Checker* c, uint8_t* name) __asm__("_private_check_lookup_lexical");
 #else
-uint8_t* zir_foreign_zir_f_fdddeaaf3d14b33d_lookup_lexical(Checker* c, uint8_t* name) __asm__("private_check_lookup_lexical");
+uint8_t* zir_foreign_compiler_check_simd__lookup_lexical(Checker* c, uint8_t* name) __asm__("private_check_lookup_lexical");
 #endif
-static uint8_t*
-zir_f_fdddeaaf3d14b33d_lookup_lexical(Checker* c, uint8_t* name)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_lookup_lexical(c, name);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_memcpy_d3838e83
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_memcpy_d3838e83
 #ifdef __APPLE__
-void* zir_foreign_zir_f_fdddeaaf3d14b33d_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("_memcpy");
+void* zir_foreign_compiler_check_simd__memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("_memcpy");
 #else
-void* zir_foreign_zir_f_fdddeaaf3d14b33d_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("memcpy");
+void* zir_foreign_compiler_check_simd__memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("memcpy");
 #endif
-static void*
-zir_f_fdddeaaf3d14b33d_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_memcpy(ziran_keyword___dest_0, ziran_keyword___src_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_memset_0839e910
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_memset_0839e910
 #ifdef __APPLE__
-void* zir_foreign_zir_f_fdddeaaf3d14b33d_memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("_memset");
+void* zir_foreign_compiler_check_simd__memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("_memset");
 #else
-void* zir_foreign_zir_f_fdddeaaf3d14b33d_memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("memset");
+void* zir_foreign_compiler_check_simd__memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("memset");
 #endif
-static void*
-zir_f_fdddeaaf3d14b33d_memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_memset(ziran_keyword___s_0, ziran_keyword___c_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_snprintf_7c8971c5
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_snprintf_7c8971c5
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_snprintf");
+int32_t zir_foreign_compiler_check_simd__snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_snprintf");
 #else
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("snprintf");
+int32_t zir_foreign_compiler_check_simd__snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("snprintf");
 #endif
-#define zir_f_fdddeaaf3d14b33d_snprintf zir_foreign_zir_f_fdddeaaf3d14b33d_snprintf
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_strchr_35c1c732
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_strchr_35c1c732
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_fdddeaaf3d14b33d_strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("_strchr");
+uint8_t* zir_foreign_compiler_check_simd__strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("_strchr");
 #else
-uint8_t* zir_foreign_zir_f_fdddeaaf3d14b33d_strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strchr");
+uint8_t* zir_foreign_compiler_check_simd__strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strchr");
 #endif
-static uint8_t*
-zir_f_fdddeaaf3d14b33d_strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_strchr(ziran_keyword___s_0, ziran_keyword___c_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_strcmp_b1a4f317
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_strcmp_b1a4f317
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("_strcmp");
+int32_t zir_foreign_compiler_check_simd__strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("_strcmp");
 #else
-int32_t zir_foreign_zir_f_fdddeaaf3d14b33d_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("strcmp");
+int32_t zir_foreign_compiler_check_simd__strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("strcmp");
 #endif
-static int32_t
-zir_f_fdddeaaf3d14b33d_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_strcmp(ziran_keyword___s1_0, ziran_keyword___s2_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_strtoll_e47f702f
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_strtoll_e47f702f
 #ifdef __APPLE__
-int64_t zir_foreign_zir_f_fdddeaaf3d14b33d_strtoll(uint8_t* ziran_keyword___nptr_0, uint8_t** ziran_keyword___endptr_0, int32_t ziran_keyword___base_0) __asm__("_strtoll");
+int64_t zir_foreign_compiler_check_simd__strtoll(uint8_t* ziran_keyword___nptr_0, uint8_t** ziran_keyword___endptr_0, int32_t ziran_keyword___base_0) __asm__("_strtoll");
 #else
-int64_t zir_foreign_zir_f_fdddeaaf3d14b33d_strtoll(uint8_t* ziran_keyword___nptr_0, uint8_t** ziran_keyword___endptr_0, int32_t ziran_keyword___base_0) __asm__("strtoll");
+int64_t zir_foreign_compiler_check_simd__strtoll(uint8_t* ziran_keyword___nptr_0, uint8_t** ziran_keyword___endptr_0, int32_t ziran_keyword___base_0) __asm__("strtoll");
 #endif
-static int64_t
-zir_f_fdddeaaf3d14b33d_strtoll(uint8_t* ziran_keyword___nptr_0, uint8_t** ziran_keyword___endptr_0, int32_t ziran_keyword___base_0)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_strtoll(ziran_keyword___nptr_0, ziran_keyword___endptr_0, ziran_keyword___base_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_widen_expression_6d12628d
-#define ZIR_FOREIGN_zir_f_fdddeaaf3d14b33d_widen_expression_6d12628d
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_fdddeaaf3d14b33d_widen_expression(Checker* c, int32_t index, uint8_t* to) __asm__("_private_check_widen_expression");
+uint8_t* zir_foreign_compiler_check_simd__widen_expression(Checker* c, int32_t index, uint8_t* to) __asm__("_private_check_widen_expression");
 #else
-uint8_t* zir_foreign_zir_f_fdddeaaf3d14b33d_widen_expression(Checker* c, int32_t index, uint8_t* to) __asm__("private_check_widen_expression");
-#endif
-static uint8_t*
-zir_f_fdddeaaf3d14b33d_widen_expression(Checker* c, int32_t index, uint8_t* to)
-{
-    return zir_foreign_zir_f_fdddeaaf3d14b33d_widen_expression(c, index, to);
-}
+uint8_t* zir_foreign_compiler_check_simd__widen_expression(Checker* c, int32_t index, uint8_t* to) __asm__("private_check_widen_expression");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -418,7 +190,7 @@ compiler_check_simd_declares(ZirModule* module, uint8_t* name)
             if (!check_loop_183) {
                 break;
             }
-            bool value_0 = zir_f_fdddeaaf3d14b33d_strcmp((uint8_t*)(&((module->functions[i]).name)), name) != 0;
+            bool value_0 = zir_foreign_compiler_check_simd__strcmp((uint8_t*)(&((module->functions[i]).name)), name) != 0;
             if (!value_0) {
                 return 1;
             }
@@ -431,17 +203,17 @@ compiler_check_simd_declares(ZirModule* module, uint8_t* name)
 static SimdOp*
 compiler_check_simd_named_operation(Checker* c, uint8_t* name)
 {
-    uint8_t* dot = zir_f_fdddeaaf3d14b33d_strchr(name, 46);
+    uint8_t* dot = zir_foreign_compiler_check_simd__strchr(name, 46);
     ZirModule* module = (void *)0;
     uint8_t* member = name;
     if (dot == (uint8_t*)(((void *)0))) {
-        if (zir_f_fdddeaaf3d14b33d_SimdModule((ZirModule*)(c->module)) != 0) {
+        if (zir_foreign_compiler_check_simd__SimdModule((ZirModule*)(c->module)) != 0) {
             module = c->module;
         }
     } else {
-        void* value_0 = zir_f_fdddeaaf3d14b33d_AllocateOrExit(sizeof(S12Array128_u8));
+        void* value_0 = zir_foreign_compiler_check_simd__AllocateOrExit(sizeof(S12Array128_u8));
         S12Array128_u8* alias_storage_0 = (S12Array128_u8*)(value_0);
-        zir_f_fdddeaaf3d14b33d_memset((void*)(alias_storage_0), 0, sizeof(S12Array128_u8));
+        zir_foreign_compiler_check_simd__memset((void*)(alias_storage_0), 0, sizeof(S12Array128_u8));
         size_t length = (size_t)((ZiDivS64((int64_t)((ptrdiff_t)(((size_t)(dot) - (size_t)(name)))), sizeof(uint8_t), INT64_MIN)));
         bool value_1 = length == (size_t)(0LL);
         if (!value_1) {
@@ -452,21 +224,21 @@ compiler_check_simd_named_operation(Checker* c, uint8_t* name)
         bool value_4 = value_1;
         bool value_5 = value_4;
         if (!value_5) {
-            uint8_t* value_6 = zir_f_fdddeaaf3d14b33d_strchr((uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t)))), 46);
+            uint8_t* value_6 = zir_foreign_compiler_check_simd__strchr((uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t)))), 46);
             value_5 = (value_6 != ((void *)0));
         }
         if (value_5) {
             SimdOp* cleanup_return_0 = (void *)0;
-            zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(alias_storage_0));
+            zir_foreign_compiler_check_simd__CompilerFree((void*)(alias_storage_0));
             return cleanup_return_0;
         }
-        zir_f_fdddeaaf3d14b33d_memcpy((void*)((uint8_t*)(&((alias_storage_0[0]).items))), (void*)(name), length);
+        zir_foreign_compiler_check_simd__memcpy((void*)((uint8_t*)(&((alias_storage_0[0]).items))), (void*)(name), length);
         uint8_t* value_7 = &(((alias_storage_0[0]).items)[length]);
         (*value_7) = 0;
-        uint8_t* value_8 = zir_f_fdddeaaf3d14b33d_lookup_lexical(c, (uint8_t*)(&((alias_storage_0[0]).items)));
+        uint8_t* value_8 = zir_foreign_compiler_check_simd__lookup_lexical(c, (uint8_t*)(&((alias_storage_0[0]).items)));
         if (value_8[0] != 0) {
             SimdOp* cleanup_return_1 = (void *)0;
-            zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(alias_storage_0));
+            zir_foreign_compiler_check_simd__CompilerFree((void*)(alias_storage_0));
             return cleanup_return_1;
         }
         {
@@ -480,26 +252,26 @@ compiler_check_simd_named_operation(Checker* c, uint8_t* name)
                 bool value_9 = (int32_t)(((ZirImportKind)(import_local->kind))) == 2;
                 bool value_10 = value_9;
                 if (value_10) {
-                    bool value_11 = zir_f_fdddeaaf3d14b33d_strcmp((uint8_t*)(&(import_local->name)), (uint8_t*)(&((alias_storage_0[0]).items))) != 0;
+                    bool value_11 = zir_foreign_compiler_check_simd__strcmp((uint8_t*)(&(import_local->name)), (uint8_t*)(&((alias_storage_0[0]).items))) != 0;
                     value_10 = !value_11;
                 }
                 bool value_12 = value_10;
-                bool value_13 = value_12 && zir_f_fdddeaaf3d14b33d_in_lookup_file(c->module, import_local->is_file_private, import_local->span) != 0;
+                bool value_13 = value_12 && zir_foreign_compiler_check_simd__in_lookup_file(c->module, import_local->is_file_private, import_local->span) != 0;
                 bool value_14 = value_13;
-                if (value_14 && zir_f_fdddeaaf3d14b33d_SimdModule((ZirModule*)(((ZirModule*)import_local->resolved_module))) != 0) {
+                if (value_14 && zir_foreign_compiler_check_simd__SimdModule((ZirModule*)(((ZirModule*)import_local->resolved_module))) != 0) {
                     module = (ZirModule*)import_local->resolved_module;
                 }
                 compiler_check_s12_types_S12Post2(&(i));
             }
         }
         member = (uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t))));
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(alias_storage_0));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(alias_storage_0));
     }
     bool value_15 = module == (ZirModule*)(((void *)0));
     if (value_15 || compiler_check_simd_declares(module, member) != 0) {
         return (void *)0;
     }
-    return zir_f_fdddeaaf3d14b33d_SimdOpNamed((uint8_t*)(member));
+    return zir_foreign_compiler_check_simd__SimdOpNamed((uint8_t*)(member));
 }
 
 static int32_t
@@ -571,23 +343,23 @@ compiler_check_simd_lane_position(SimdOp* op, int32_t position)
 static int32_t
 compiler_check_simd_settle_lane(Checker* c, int32_t child, uint8_t* type, uint8_t* lane)
 {
-    bool value_0 = zir_f_fdddeaaf3d14b33d_strcmp(type, compiler_check_types_CheckCString(StringLiteral("integer"))) != 0;
+    bool value_0 = zir_foreign_compiler_check_simd__strcmp(type, compiler_check_types_CheckCString(StringLiteral("integer"))) != 0;
     bool value_1 = !value_0;
     if (!value_1) {
-        bool value_2 = zir_f_fdddeaaf3d14b33d_strcmp(type, compiler_check_types_CheckCString(StringLiteral("real"))) != 0;
+        bool value_2 = zir_foreign_compiler_check_simd__strcmp(type, compiler_check_types_CheckCString(StringLiteral("real"))) != 0;
         value_1 = !value_2;
     }
     if (value_1) {
         const char ** value_3 = &((c->fn->exprs[child]).type);
-        uint8_t* value_4 = zir_f_fdddeaaf3d14b33d_KeepName(lane);
+        uint8_t* value_4 = zir_foreign_compiler_check_simd__KeepName(lane);
         (*value_3) = (const char *)(value_4);
         return 1;
     }
-    bool value_5 = zir_f_fdddeaaf3d14b33d_strcmp(zir_f_fdddeaaf3d14b33d_ScalarType(type), lane) != 0;
+    bool value_5 = zir_foreign_compiler_check_simd__strcmp(zir_foreign_compiler_check_simd__ScalarType(type), lane) != 0;
     if (!value_5) {
         return 1;
     }
-    uint8_t* value_6 = zir_f_fdddeaaf3d14b33d_widen_expression(c, child, lane);
+    uint8_t* value_6 = zir_foreign_compiler_check_simd__widen_expression(c, child, lane);
     int32_t value_7 = 0;
     if (value_6 != (uint8_t*)(((void *)0))) {
         value_7 = 1;
@@ -599,11 +371,11 @@ static void
 compiler_check_simd_fold_constant(Checker* c, int32_t child, int64_t value)
 {
     ZirExpr* operand = (ZirExpr*)(((size_t)(c->fn->exprs) + ((size_t)(child) * sizeof(ZirExpr))));
-    void* value_0 = zir_f_fdddeaaf3d14b33d_AllocateOrExit(sizeof(S12Array32_u8));
+    void* value_0 = zir_foreign_compiler_check_simd__AllocateOrExit(sizeof(S12Array32_u8));
     S12Array32_u8* digits_storage_0 = (S12Array32_u8*)(value_0);
-    zir_f_fdddeaaf3d14b33d_memset((void*)(digits_storage_0), 0, sizeof(S12Array32_u8));
+    zir_foreign_compiler_check_simd__memset((void*)(digits_storage_0), 0, sizeof(S12Array32_u8));
     uint8_t* value_1 = compiler_check_types_CheckCString(StringLiteral("%lld"));
-    zir_f_fdddeaaf3d14b33d_snprintf((uint8_t*)(&((digits_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(S12Array32_u8))), value_1, value);
+    zir_foreign_compiler_check_simd__snprintf((uint8_t*)(&((digits_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(S12Array32_u8))), value_1, value);
     if ((int32_t)(((ZirExprKind)(operand->kind))) != 2) {
         int32_t* value_2 = &(c->conversions_applied);
         (*value_2) = 1;
@@ -614,15 +386,15 @@ compiler_check_simd_fold_constant(Checker* c, int32_t child, int64_t value)
     uint8_t* value_5 = compiler_check_types_CheckCString(StringLiteral(""));
     (*value_4) = (const char *)(value_5);
     const char ** value_6 = &(operand->text);
-    uint8_t* value_7 = zir_f_fdddeaaf3d14b33d_KeepText((uint8_t*)(&((digits_storage_0[0]).items)));
+    uint8_t* value_7 = zir_foreign_compiler_check_simd__KeepText((uint8_t*)(&((digits_storage_0[0]).items)));
     (*value_6) = (const char *)(value_7);
     int32_t* value_8 = &(operand->left);
     int32_t value_9 = compiler_check_s12_types_S12Set9(&(operand->right), compiler_check_s12_types_S12Set9(&(operand->third), compiler_check_s12_types_S12Set9(&(operand->first_child), -1)));
     (*value_8) = value_9;
     const char ** value_10 = &(operand->type);
-    uint8_t* value_11 = zir_f_fdddeaaf3d14b33d_KeepName(compiler_check_types_CheckCString(StringLiteral("s64")));
+    uint8_t* value_11 = zir_foreign_compiler_check_simd__KeepName(compiler_check_types_CheckCString(StringLiteral("s64")));
     (*value_10) = (const char *)(value_11);
-    zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(digits_storage_0));
+    zir_foreign_compiler_check_simd__CompilerFree((void*)(digits_storage_0));
 }
 
 static int32_t
@@ -630,9 +402,9 @@ compiler_check_simd_check_simd_count(Checker* c, int32_t index, SimdOp* op, int3
 {
     ZirExpr* e = (ZirExpr*)(((size_t)(c->fn->exprs) + ((size_t)(index) * sizeof(ZirExpr))));
     if (checked != 0) {
-        void* value_0 = zir_f_fdddeaaf3d14b33d_AllocateOrExit(sizeof(SimdOperand));
+        void* value_0 = zir_foreign_compiler_check_simd__AllocateOrExit(sizeof(SimdOperand));
         SimdOperand* operand_storage_0 = (SimdOperand*)(value_0);
-        zir_f_fdddeaaf3d14b33d_memset((void*)(operand_storage_0), 0, sizeof(SimdOperand));
+        zir_foreign_compiler_check_simd__memset((void*)(operand_storage_0), 0, sizeof(SimdOperand));
         SimdOperand* value_1 = &(operand_storage_0[0]);
         SimdOperand value_2 = {0};
         uint8_t* value_3 = compiler_check_types_CheckCString(StringLiteral("s64"));
@@ -649,7 +421,7 @@ compiler_check_simd_check_simd_count(Checker* c, int32_t index, SimdOp* op, int3
             int32_t* value_5 = &((operand_storage_0[0]).is_constant);
             (*value_5) = 1;
             int64_t* value_6 = &((operand_storage_0[0]).value);
-            int64_t value_7 = zir_f_fdddeaaf3d14b33d_strtoll((uint8_t*)lanes->text, (void *)0, 10);
+            int64_t value_7 = zir_foreign_compiler_check_simd__strtoll((uint8_t*)lanes->text, (void *)0, 10);
             (*value_6) = value_7;
         }
         uint8_t* message = compiler_check_types_CheckCString(StringLiteral(""));
@@ -659,19 +431,19 @@ compiler_check_simd_check_simd_count(Checker* c, int32_t index, SimdOp* op, int3
         bool value_11 = value_10;
         if (!value_11) {
             uint8_t* value_12 = (uint8_t*)e->type;
-            bool value_13 = zir_f_fdddeaaf3d14b33d_strcmp(value_12, compiler_check_types_CheckCString(StringLiteral("s64"))) != 0;
+            bool value_13 = zir_foreign_compiler_check_simd__strcmp(value_12, compiler_check_types_CheckCString(StringLiteral("s64"))) != 0;
             value_11 = value_13;
         }
         if (value_11) {
             ZirSourceSpan value_14 = e->span;
-            zir_f_fdddeaaf3d14b33d_error(c, value_14, compiler_check_types_CheckCString(StringLiteral("invalid SIMD operation")), display);
+            zir_foreign_compiler_check_simd__error(c, value_14, compiler_check_types_CheckCString(StringLiteral("invalid SIMD operation")), display);
             int32_t cleanup_return_0 = 1;
-            zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(operand_storage_0));
+            zir_foreign_compiler_check_simd__CompilerFree((void*)(operand_storage_0));
             return cleanup_return_0;
         }
         compiler_check_s12_types_S12Set10(result_type, (uint8_t*)e->type);
         int32_t cleanup_return_1 = 1;
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(operand_storage_0));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(operand_storage_0));
         return cleanup_return_1;
     }
     ZirVector vector = {0};
@@ -685,18 +457,18 @@ compiler_check_simd_check_simd_count(Checker* c, int32_t index, SimdOp* op, int3
     bool value_16 = named == (ZirExpr*)(((void *)0)) || (int32_t)(((ZirExprKind)(named->kind))) != 1;
     bool value_17 = value_16;
     if (!value_17) {
-        uint8_t* value_18 = zir_f_fdddeaaf3d14b33d_lookup_lexical(c, (uint8_t*)named->name);
+        uint8_t* value_18 = zir_foreign_compiler_check_simd__lookup_lexical(c, (uint8_t*)named->name);
         value_17 = (value_18[0] != 0);
     }
     bool value_19 = value_17;
     bool value_20 = value_19;
     if (!value_20) {
-        bool value_21 = zir_f_fdddeaaf3d14b33d_VectorType((uint8_t*)named->name, &(vector)) != 0;
+        bool value_21 = zir_foreign_compiler_check_simd__VectorType((uint8_t*)named->name, &(vector)) != 0;
         value_20 = !value_21;
     }
     if (value_20) {
         ZirSourceSpan value_22 = e->span;
-        zir_f_fdddeaaf3d14b33d_error(c, value_22, compiler_check_types_CheckCString(StringLiteral("takes one vector type, such as s16xN")), display);
+        zir_foreign_compiler_check_simd__error(c, value_22, compiler_check_types_CheckCString(StringLiteral("takes one vector type, such as s16xN")), display);
         return 1;
     }
     if (!(c->inference_only != 0)) {
@@ -719,12 +491,12 @@ compiler_check_simd_check_simd_count(Checker* c, int32_t index, SimdOp* op, int3
         e = (ZirExpr*)(((size_t)(c->fn->exprs) + ((size_t)(index) * sizeof(ZirExpr))));
         if (vector.is_native != 0) {
             const char ** value_25 = &(e->name);
-            uint8_t* value_26 = zir_f_fdddeaaf3d14b33d_KeepName(op->checked);
+            uint8_t* value_26 = zir_foreign_compiler_check_simd__KeepName(op->checked);
             (*value_25) = (const char *)(value_26);
         }
     }
     const char ** value_27 = &(e->type);
-    uint8_t* value_28 = zir_f_fdddeaaf3d14b33d_KeepName(compiler_check_types_CheckCString(StringLiteral("s64")));
+    uint8_t* value_28 = zir_foreign_compiler_check_simd__KeepName(compiler_check_types_CheckCString(StringLiteral("s64")));
     (*value_27) = (const char *)(value_28);
     compiler_check_s12_types_S12Set10(result_type, (uint8_t*)e->type);
     return 1;
@@ -734,7 +506,7 @@ int32_t
 private_check_check_simd_call(Checker* c, int32_t index, uint8_t** result_type)
 {
     ZirExpr* e = (ZirExpr*)(((size_t)(c->fn->exprs) + ((size_t)(index) * sizeof(ZirExpr))));
-    SimdOp* op = zir_f_fdddeaaf3d14b33d_SimdOpChecked((uint8_t*)(((uint8_t*)e->name)));
+    SimdOp* op = zir_foreign_compiler_check_simd__SimdOpChecked((uint8_t*)(((uint8_t*)e->name)));
     int32_t value_0 = 0;
     if (op != (SimdOp*)(((void *)0))) {
         value_0 = 1;
@@ -748,15 +520,15 @@ private_check_check_simd_call(Checker* c, int32_t index, uint8_t** result_type)
     if (value_1) {
         return 0;
     }
-    void* value_3 = zir_f_fdddeaaf3d14b33d_AllocateOrExit(sizeof(S12Array136_u8));
+    void* value_3 = zir_foreign_compiler_check_simd__AllocateOrExit(sizeof(S12Array136_u8));
     S12Array136_u8* display_storage_0 = (S12Array136_u8*)(value_3);
-    zir_f_fdddeaaf3d14b33d_memset((void*)(display_storage_0), 0, sizeof(S12Array136_u8));
+    zir_foreign_compiler_check_simd__memset((void*)(display_storage_0), 0, sizeof(S12Array136_u8));
     uint8_t* value_4 = compiler_check_types_CheckCString(StringLiteral("Simd.%s"));
-    zir_f_fdddeaaf3d14b33d_snprintf((uint8_t*)(&((display_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(S12Array136_u8))), value_4, op->name);
+    zir_foreign_compiler_check_simd__snprintf((uint8_t*)(&((display_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(S12Array136_u8))), value_4, op->name);
     compiler_check_s12_types_S12Set10(result_type, compiler_check_types_CheckCString(StringLiteral("")));
-    void* value_5 = zir_f_fdddeaaf3d14b33d_AllocateOrExit(sizeof(S12Array34_s32));
+    void* value_5 = zir_foreign_compiler_check_simd__AllocateOrExit(sizeof(S12Array34_s32));
     S12Array34_s32* children_storage_1 = (S12Array34_s32*)(value_5);
-    zir_f_fdddeaaf3d14b33d_memset((void*)(children_storage_1), 0, sizeof(S12Array34_s32));
+    zir_foreign_compiler_check_simd__memset((void*)(children_storage_1), 0, sizeof(S12Array34_s32));
     int32_t count = 0;
     {
         int32_t child = e->first_child;
@@ -767,18 +539,18 @@ private_check_check_simd_call(Checker* c, int32_t index, uint8_t** result_type)
             }
             if (count == 34) {
                 ZirSourceSpan value_6 = e->span;
-                zir_f_fdddeaaf3d14b33d_error(c, value_6, compiler_check_types_CheckCString(StringLiteral("too many operands")), (uint8_t*)(&((display_storage_0[0]).items)));
+                zir_foreign_compiler_check_simd__error(c, value_6, compiler_check_types_CheckCString(StringLiteral("too many operands")), (uint8_t*)(&((display_storage_0[0]).items)));
                 int32_t cleanup_return_0 = 1;
-                zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(children_storage_1));
-                zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(display_storage_0));
+                zir_foreign_compiler_check_simd__CompilerFree((void*)(children_storage_1));
+                zir_foreign_compiler_check_simd__CompilerFree((void*)(display_storage_0));
                 return cleanup_return_0;
             }
             if (((uint8_t*)(c->fn->exprs[child]).argument_name)[0] != 0) {
                 ZirSourceSpan value_7 = (c->fn->exprs[child]).span;
-                zir_f_fdddeaaf3d14b33d_error(c, value_7, compiler_check_types_CheckCString(StringLiteral("SIMD operations have no named parameters")), (uint8_t*)(&((display_storage_0[0]).items)));
+                zir_foreign_compiler_check_simd__error(c, value_7, compiler_check_types_CheckCString(StringLiteral("SIMD operations have no named parameters")), (uint8_t*)(&((display_storage_0[0]).items)));
                 int32_t cleanup_return_1 = 1;
-                zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(children_storage_1));
-                zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(display_storage_0));
+                zir_foreign_compiler_check_simd__CompilerFree((void*)(children_storage_1));
+                zir_foreign_compiler_check_simd__CompilerFree((void*)(display_storage_0));
                 return cleanup_return_1;
             }
             int32_t value_8 = compiler_check_s12_types_S12Post2(&(count));
@@ -789,18 +561,18 @@ private_check_check_simd_call(Checker* c, int32_t index, uint8_t** result_type)
     }
     if (op->shape == 32) {
         int32_t cleanup_return_2 = compiler_check_simd_check_simd_count(c, index, op, (int32_t*)(&((children_storage_1[0]).items)), count, checked, (uint8_t*)(&((display_storage_0[0]).items)), result_type);
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(children_storage_1));
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(display_storage_0));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(children_storage_1));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(display_storage_0));
         return cleanup_return_2;
     }
-    void* value_10 = zir_f_fdddeaaf3d14b33d_AllocateOrExit(sizeof(S12Array128_u8));
+    void* value_10 = zir_foreign_compiler_check_simd__AllocateOrExit(sizeof(S12Array128_u8));
     S12Array128_u8* result_storage_2 = (S12Array128_u8*)(value_10);
-    zir_f_fdddeaaf3d14b33d_memset((void*)(result_storage_2), 0, sizeof(S12Array128_u8));
+    zir_foreign_compiler_check_simd__memset((void*)(result_storage_2), 0, sizeof(S12Array128_u8));
     uint8_t* value_11 = (uint8_t*)(result_storage_2);
-    zir_f_fdddeaaf3d14b33d_copy_text(value_11, sizeof(S12Array128_u8), compiler_check_types_CheckCString(StringLiteral("")));
+    zir_foreign_compiler_check_simd__copy_text(value_11, sizeof(S12Array128_u8), compiler_check_types_CheckCString(StringLiteral("")));
     int32_t first = 0;
     if (checked != 0) {
-        zir_f_fdddeaaf3d14b33d_copy_text((uint8_t*)(&((result_storage_2[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), (uint8_t*)e->type);
+        zir_foreign_compiler_check_simd__copy_text((uint8_t*)(&((result_storage_2[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), (uint8_t*)e->type);
     } else {
         if (op->type_argument != 0) {
             ZirVector vector = {0};
@@ -815,44 +587,44 @@ private_check_check_simd_call(Checker* c, int32_t index, uint8_t** result_type)
             bool value_14 = named == (ZirExpr*)(((void *)0)) || (int32_t)(((ZirExprKind)(named->kind))) != 1;
             bool value_15 = value_14;
             if (!value_15) {
-                uint8_t* value_16 = zir_f_fdddeaaf3d14b33d_lookup_lexical(c, (uint8_t*)named->name);
+                uint8_t* value_16 = zir_foreign_compiler_check_simd__lookup_lexical(c, (uint8_t*)named->name);
                 value_15 = (value_16[0] != 0);
             }
             bool value_17 = value_15;
             bool value_18 = value_17;
             if (!value_18) {
-                bool value_19 = zir_f_fdddeaaf3d14b33d_VectorType((uint8_t*)named->name, &(vector)) != 0;
+                bool value_19 = zir_foreign_compiler_check_simd__VectorType((uint8_t*)named->name, &(vector)) != 0;
                 value_18 = !value_19;
             }
             if (value_18) {
                 ZirSourceSpan value_20 = e->span;
-                zir_f_fdddeaaf3d14b33d_error(c, value_20, compiler_check_types_CheckCString(StringLiteral("takes a vector type first, such as s16x8")), (uint8_t*)(&((display_storage_0[0]).items)));
+                zir_foreign_compiler_check_simd__error(c, value_20, compiler_check_types_CheckCString(StringLiteral("takes a vector type first, such as s16x8")), (uint8_t*)(&((display_storage_0[0]).items)));
                 int32_t cleanup_return_3 = 1;
-                zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(result_storage_2));
-                zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(children_storage_1));
-                zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(display_storage_0));
+                zir_foreign_compiler_check_simd__CompilerFree((void*)(result_storage_2));
+                zir_foreign_compiler_check_simd__CompilerFree((void*)(children_storage_1));
+                zir_foreign_compiler_check_simd__CompilerFree((void*)(display_storage_0));
                 return cleanup_return_3;
             }
-            zir_f_fdddeaaf3d14b33d_copy_text((uint8_t*)(&((result_storage_2[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), vector.name);
+            zir_foreign_compiler_check_simd__copy_text((uint8_t*)(&((result_storage_2[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), vector.name);
             first = 1;
         }
     }
-    void* value_21 = zir_f_fdddeaaf3d14b33d_AllocateOrExit(sizeof(S12Array33_S12Array128_u8));
+    void* value_21 = zir_foreign_compiler_check_simd__AllocateOrExit(sizeof(S12Array33_S12Array128_u8));
     S12Array33_S12Array128_u8* types_storage_3 = (S12Array33_S12Array128_u8*)(value_21);
-    zir_f_fdddeaaf3d14b33d_memset((void*)(types_storage_3), 0, sizeof(S12Array33_S12Array128_u8));
-    void* value_22 = zir_f_fdddeaaf3d14b33d_AllocateOrExit(sizeof(S12Array33_SimdOperand));
+    zir_foreign_compiler_check_simd__memset((void*)(types_storage_3), 0, sizeof(S12Array33_S12Array128_u8));
+    void* value_22 = zir_foreign_compiler_check_simd__AllocateOrExit(sizeof(S12Array33_SimdOperand));
     S12Array33_SimdOperand* operands_storage_4 = (S12Array33_SimdOperand*)(value_22);
-    zir_f_fdddeaaf3d14b33d_memset((void*)(operands_storage_4), 0, sizeof(S12Array33_SimdOperand));
+    zir_foreign_compiler_check_simd__memset((void*)(operands_storage_4), 0, sizeof(S12Array33_SimdOperand));
     int32_t operand_count = (int32_t)((uint32_t)count - (uint32_t)first);
     if (operand_count > 33) {
         ZirSourceSpan value_23 = e->span;
-        zir_f_fdddeaaf3d14b33d_error(c, value_23, compiler_check_types_CheckCString(StringLiteral("too many operands")), (uint8_t*)(&((display_storage_0[0]).items)));
+        zir_foreign_compiler_check_simd__error(c, value_23, compiler_check_types_CheckCString(StringLiteral("too many operands")), (uint8_t*)(&((display_storage_0[0]).items)));
         int32_t cleanup_return_4 = 1;
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(operands_storage_4));
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(types_storage_3));
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(result_storage_2));
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(children_storage_1));
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(display_storage_0));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(operands_storage_4));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(types_storage_3));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(result_storage_2));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(children_storage_1));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(display_storage_0));
         return cleanup_return_4;
     }
     {
@@ -863,22 +635,22 @@ private_check_check_simd_call(Checker* c, int32_t index, uint8_t** result_type)
                 break;
             }
             int32_t child = ((children_storage_1[0]).items)[((int32_t)((uint32_t)first + (uint32_t)i))];
-            uint8_t* type = zir_f_fdddeaaf3d14b33d_expression_type(c, child);
+            uint8_t* type = zir_foreign_compiler_check_simd__expression_type(c, child);
             if (!(type[0] != 0)) {
                 int32_t cleanup_return_5 = 1;
-                zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(operands_storage_4));
-                zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(types_storage_3));
-                zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(result_storage_2));
-                zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(children_storage_1));
-                zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(display_storage_0));
+                zir_foreign_compiler_check_simd__CompilerFree((void*)(operands_storage_4));
+                zir_foreign_compiler_check_simd__CompilerFree((void*)(types_storage_3));
+                zir_foreign_compiler_check_simd__CompilerFree((void*)(result_storage_2));
+                zir_foreign_compiler_check_simd__CompilerFree((void*)(children_storage_1));
+                zir_foreign_compiler_check_simd__CompilerFree((void*)(display_storage_0));
                 return cleanup_return_5;
             }
-            zir_f_fdddeaaf3d14b33d_copy_text((uint8_t*)(&((((types_storage_3[0]).items)[i]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), type);
+            zir_foreign_compiler_check_simd__copy_text((uint8_t*)(&((((types_storage_3[0]).items)[i]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), type);
             int64_t value = 0LL;
             uint8_t** value_24 = &((((operands_storage_4[0]).items)[i]).type);
             (*value_24) = (uint8_t*)(&((((types_storage_3[0]).items)[i]).items));
             int32_t* value_25 = &((((operands_storage_4[0]).items)[i]).is_constant);
-            bool value_26 = zir_f_fdddeaaf3d14b33d_bound_expression(c->module, c->fn, child, 0, &(value)) == 1;
+            bool value_26 = zir_foreign_compiler_check_simd__bound_expression(c->module, c->fn, child, 0, &(value)) == 1;
             int32_t value_27 = 0;
             if (value_26) {
                 value_27 = 1;
@@ -899,31 +671,31 @@ private_check_check_simd_call(Checker* c, int32_t index, uint8_t** result_type)
     }
     uint8_t* signature = compiler_check_simd_SimdCheckedSignature(op, value_29, (SimdOperand*)(&((operands_storage_4[0]).items)), operand_count, &(message));
     if (signature == (uint8_t*)(((void *)0))) {
-        void* value_30 = zir_f_fdddeaaf3d14b33d_AllocateOrExit(sizeof(S12Array256_u8));
+        void* value_30 = zir_foreign_compiler_check_simd__AllocateOrExit(sizeof(S12Array256_u8));
         S12Array256_u8* detail_storage_5 = (S12Array256_u8*)(value_30);
-        zir_f_fdddeaaf3d14b33d_memset((void*)(detail_storage_5), 0, sizeof(S12Array256_u8));
+        zir_foreign_compiler_check_simd__memset((void*)(detail_storage_5), 0, sizeof(S12Array256_u8));
         uint8_t* value_31 = compiler_check_types_CheckCString(StringLiteral("%s %s"));
-        zir_f_fdddeaaf3d14b33d_snprintf((uint8_t*)(&((detail_storage_5[0]).items)), (size_t)((uint64_t)(sizeof(S12Array256_u8))), value_31, (uint8_t*)(&((display_storage_0[0]).items)), message);
+        zir_foreign_compiler_check_simd__snprintf((uint8_t*)(&((detail_storage_5[0]).items)), (size_t)((uint64_t)(sizeof(S12Array256_u8))), value_31, (uint8_t*)(&((display_storage_0[0]).items)), message);
         ZirSourceSpan value_32 = e->span;
-        zir_f_fdddeaaf3d14b33d_error(c, value_32, compiler_check_types_CheckCString(StringLiteral("invalid SIMD operation")), (uint8_t*)(&((detail_storage_5[0]).items)));
+        zir_foreign_compiler_check_simd__error(c, value_32, compiler_check_types_CheckCString(StringLiteral("invalid SIMD operation")), (uint8_t*)(&((detail_storage_5[0]).items)));
         int32_t cleanup_return_6 = 1;
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(detail_storage_5));
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(operands_storage_4));
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(types_storage_3));
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(result_storage_2));
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(children_storage_1));
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(display_storage_0));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(detail_storage_5));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(operands_storage_4));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(types_storage_3));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(result_storage_2));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(children_storage_1));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(display_storage_0));
         return cleanup_return_6;
     }
-    if (checked != 0 && zir_f_fdddeaaf3d14b33d_strcmp(signature, (uint8_t*)e->type) != 0) {
+    if (checked != 0 && zir_foreign_compiler_check_simd__strcmp(signature, (uint8_t*)e->type) != 0) {
         ZirSourceSpan value_33 = e->span;
-        zir_f_fdddeaaf3d14b33d_error(c, value_33, compiler_check_types_CheckCString(StringLiteral("SIMD operation has the wrong checked type")), (uint8_t*)(&((display_storage_0[0]).items)));
+        zir_foreign_compiler_check_simd__error(c, value_33, compiler_check_types_CheckCString(StringLiteral("SIMD operation has the wrong checked type")), (uint8_t*)(&((display_storage_0[0]).items)));
         int32_t cleanup_return_7 = 1;
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(operands_storage_4));
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(types_storage_3));
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(result_storage_2));
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(children_storage_1));
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(display_storage_0));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(operands_storage_4));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(types_storage_3));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(result_storage_2));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(children_storage_1));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(display_storage_0));
         return cleanup_return_7;
     }
     ZirVector vector = {0};
@@ -934,10 +706,10 @@ private_check_check_simd_call(Checker* c, int32_t index, uint8_t** result_type)
     } else {
         value_34 = signature;
     }
-    if (zir_f_fdddeaaf3d14b33d_VectorType(value_34, &(vector)) != 0) {
+    if (zir_foreign_compiler_check_simd__VectorType(value_34, &(vector)) != 0) {
         lane = vector.lane;
     }
-    bool value_35 = operand_count > 0 && zir_f_fdddeaaf3d14b33d_VectorType((uint8_t*)(&((((types_storage_3[0]).items)[0]).items)), &(vector)) != 0;
+    bool value_35 = operand_count > 0 && zir_foreign_compiler_check_simd__VectorType((uint8_t*)(&((((types_storage_3[0]).items)[0]).items)), &(vector)) != 0;
     if (value_35 && op->shape == 12) {
         lane = vector.lane;
     }
@@ -953,7 +725,7 @@ private_check_check_simd_call(Checker* c, int32_t index, uint8_t** result_type)
             (*value_36) = i;
             if (compiler_check_simd_constant_position(op, i) != 0) {
                 bool value_37 = (int32_t)(((ZirExprKind)((c->fn->exprs[child]).kind))) != 2;
-                if (value_37 || zir_f_fdddeaaf3d14b33d_strcmp((uint8_t*)(&((((types_storage_3[0]).items)[i]).items)), compiler_check_types_CheckCString(StringLiteral("s64"))) != 0) {
+                if (value_37 || zir_foreign_compiler_check_simd__strcmp((uint8_t*)(&((((types_storage_3[0]).items)[i]).items)), compiler_check_types_CheckCString(StringLiteral("s64"))) != 0) {
                     compiler_check_simd_fold_constant(c, child, (((operands_storage_4[0]).items)[i]).value);
                 }
             } else {
@@ -963,18 +735,18 @@ private_check_check_simd_call(Checker* c, int32_t index, uint8_t** result_type)
                         int32_t* value_39 = &(c->failed);
                         (*value_39) = 1;
                         int32_t cleanup_return_8 = 1;
-                        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(operands_storage_4));
-                        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(types_storage_3));
-                        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(result_storage_2));
-                        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(children_storage_1));
-                        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(display_storage_0));
+                        zir_foreign_compiler_check_simd__CompilerFree((void*)(operands_storage_4));
+                        zir_foreign_compiler_check_simd__CompilerFree((void*)(types_storage_3));
+                        zir_foreign_compiler_check_simd__CompilerFree((void*)(result_storage_2));
+                        zir_foreign_compiler_check_simd__CompilerFree((void*)(children_storage_1));
+                        zir_foreign_compiler_check_simd__CompilerFree((void*)(display_storage_0));
                         return cleanup_return_8;
                     }
                 } else {
-                    bool value_40 = zir_f_fdddeaaf3d14b33d_strcmp((uint8_t*)(&((((types_storage_3[0]).items)[i]).items)), compiler_check_types_CheckCString(StringLiteral("integer"))) != 0;
+                    bool value_40 = zir_foreign_compiler_check_simd__strcmp((uint8_t*)(&((((types_storage_3[0]).items)[i]).items)), compiler_check_types_CheckCString(StringLiteral("integer"))) != 0;
                     if (!value_40) {
                         const char ** value_41 = &((c->fn->exprs[child]).type);
-                        uint8_t* value_42 = zir_f_fdddeaaf3d14b33d_KeepName(compiler_check_types_CheckCString(StringLiteral("s64")));
+                        uint8_t* value_42 = zir_foreign_compiler_check_simd__KeepName(compiler_check_types_CheckCString(StringLiteral("s64")));
                         (*value_41) = (const char *)(value_42);
                     }
                 }
@@ -985,7 +757,7 @@ private_check_check_simd_call(Checker* c, int32_t index, uint8_t** result_type)
     e = (ZirExpr*)(((size_t)(c->fn->exprs) + ((size_t)(index) * sizeof(ZirExpr))));
     if (!(c->inference_only != 0)) {
         const char ** value_43 = &(e->name);
-        uint8_t* value_44 = zir_f_fdddeaaf3d14b33d_KeepName(op->checked);
+        uint8_t* value_44 = zir_foreign_compiler_check_simd__KeepName(op->checked);
         (*value_43) = (const char *)(value_44);
         if (first != 0) {
             int32_t* value_45 = &(e->first_child);
@@ -999,15 +771,15 @@ private_check_check_simd_call(Checker* c, int32_t index, uint8_t** result_type)
         }
     }
     const char ** value_47 = &(e->type);
-    uint8_t* value_48 = zir_f_fdddeaaf3d14b33d_KeepName(signature);
+    uint8_t* value_48 = zir_foreign_compiler_check_simd__KeepName(signature);
     (*value_47) = (const char *)(value_48);
     compiler_check_s12_types_S12Set10(result_type, (uint8_t*)e->type);
     int32_t cleanup_return_9 = 1;
-    zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(operands_storage_4));
-    zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(types_storage_3));
-    zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(result_storage_2));
-    zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(children_storage_1));
-    zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(display_storage_0));
+    zir_foreign_compiler_check_simd__CompilerFree((void*)(operands_storage_4));
+    zir_foreign_compiler_check_simd__CompilerFree((void*)(types_storage_3));
+    zir_foreign_compiler_check_simd__CompilerFree((void*)(result_storage_2));
+    zir_foreign_compiler_check_simd__CompilerFree((void*)(children_storage_1));
+    zir_foreign_compiler_check_simd__CompilerFree((void*)(display_storage_0));
     return cleanup_return_9;
 }
 
@@ -1018,36 +790,36 @@ compiler_check_simd_holds_wide_vector(ZirModule* module, uint8_t* type, int32_t 
     if (depth > 32 || type == (uint8_t*)(((void *)0)) || !(type[0] != 0) || (int32_t)((int8_t)(type[0])) == 42) {
         return 0;
     }
-    if (zir_f_fdddeaaf3d14b33d_VectorType(type, &(vector)) != 0) {
+    if (zir_foreign_compiler_check_simd__VectorType(type, &(vector)) != 0) {
         int32_t value_0 = 0;
         if ((int32_t)((uint32_t)(vector.lanes) * (uint32_t)(vector.lane_bits)) == 256) {
             value_0 = 1;
         }
         return value_0;
     }
-    if (zir_f_fdddeaaf3d14b33d_BuiltinTypeName(type) != 0) {
+    if (zir_foreign_compiler_check_simd__BuiltinTypeName(type) != 0) {
         return 0;
     }
-    void* value_1 = zir_f_fdddeaaf3d14b33d_AllocateOrExit(sizeof(S12Array128_u8));
+    void* value_1 = zir_foreign_compiler_check_simd__AllocateOrExit(sizeof(S12Array128_u8));
     S12Array128_u8* element_storage_0 = (S12Array128_u8*)(value_1);
-    zir_f_fdddeaaf3d14b33d_memset((void*)(element_storage_0), 0, sizeof(S12Array128_u8));
-    if (zir_f_fdddeaaf3d14b33d_ArrayElementType(type, (uint8_t*)(&((element_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), (void *)0) != 0) {
+    zir_foreign_compiler_check_simd__memset((void*)(element_storage_0), 0, sizeof(S12Array128_u8));
+    if (zir_foreign_compiler_check_simd__ArrayElementType(type, (uint8_t*)(&((element_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), (void *)0) != 0) {
         int32_t cleanup_return_0 = compiler_check_simd_holds_wide_vector(module, (uint8_t*)(&((element_storage_0[0]).items)), (int32_t)((uint32_t)depth + 1u));
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(element_storage_0));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(element_storage_0));
         return cleanup_return_0;
     }
     ZirModule* owner = (void *)0;
-    ZirType* record = zir_f_fdddeaaf3d14b33d_FindType(module, type, &(owner));
+    ZirType* record = zir_foreign_compiler_check_simd__FindType(module, type, &(owner));
     bool value_2 = record == (ZirType*)(((void *)0)) || record->is_enum != 0 || record->is_procedure_type != 0 || record->is_record_template != 0;
     if (value_2 || record->is_extern != 0) {
         int32_t cleanup_return_1 = 0;
-        zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(element_storage_0));
+        zir_foreign_compiler_check_simd__CompilerFree((void*)(element_storage_0));
         return cleanup_return_1;
     }
     size_t offset = (size_t)(0LL);
     ZirTypeField* field = (void *)0;
     while (true) {
-        bool check_loop_190 = zir_f_fdddeaaf3d14b33d_TypeNextFieldShared(record, &(offset), &(field)) == 1;
+        bool check_loop_190 = zir_foreign_compiler_check_simd__TypeNextFieldShared(record, &(offset), &(field)) == 1;
         if (!check_loop_190) {
             break;
         }
@@ -1059,12 +831,12 @@ compiler_check_simd_holds_wide_vector(ZirModule* module, uint8_t* type, int32_t 
         }
         if (compiler_check_simd_holds_wide_vector(value_3, (uint8_t*)(&(field->type)), (int32_t)((uint32_t)depth + 1u)) != 0) {
             int32_t cleanup_return_2 = 1;
-            zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(element_storage_0));
+            zir_foreign_compiler_check_simd__CompilerFree((void*)(element_storage_0));
             return cleanup_return_2;
         }
     }
     int32_t cleanup_return_3 = 0;
-    zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(element_storage_0));
+    zir_foreign_compiler_check_simd__CompilerFree((void*)(element_storage_0));
     return cleanup_return_3;
 }
 
@@ -1073,7 +845,7 @@ compiler_check_simd_native_vector(uint8_t* type)
 {
     ZirVector vector = {0};
     bool value_0 = type != (uint8_t*)(((void *)0));
-    bool value_1 = value_0 && zir_f_fdddeaaf3d14b33d_VectorType(type, &(vector)) != 0;
+    bool value_1 = value_0 && zir_foreign_compiler_check_simd__VectorType(type, &(vector)) != 0;
     int32_t value_2 = 0;
     if (value_1 && vector.is_native != 0) {
         value_2 = 1;
@@ -1084,18 +856,18 @@ compiler_check_simd_native_vector(uint8_t* type)
 static void
 compiler_check_simd_check_native_vectors(Checker* c, ZirFunction* fn)
 {
-    void* value_0 = zir_f_fdddeaaf3d14b33d_AllocateOrExit(sizeof(S12Array122_u8));
+    void* value_0 = zir_foreign_compiler_check_simd__AllocateOrExit(sizeof(S12Array122_u8));
     S12Array122_u8* inside_storage_0 = (S12Array122_u8*)(value_0);
-    zir_f_fdddeaaf3d14b33d_memset((void*)(inside_storage_0), 0, sizeof(S12Array122_u8));
+    zir_foreign_compiler_check_simd__memset((void*)(inside_storage_0), 0, sizeof(S12Array122_u8));
     uint8_t* value_1 = (uint8_t*)(inside_storage_0);
     String value_2 = StringLiteral("a native vector, such as s16xN, is a plain value: it cannot be part of an array, record, pointer, slice or procedure type");
-    zir_f_fdddeaaf3d14b33d_copy_text(value_1, sizeof(S12Array122_u8), compiler_check_types_CheckCString(value_2));
+    zir_foreign_compiler_check_simd__copy_text(value_1, sizeof(S12Array122_u8), compiler_check_types_CheckCString(value_2));
     int32_t value_3 = 0;
     if (fn->is_extern != 0 || fn->exported != 0 || fn->simd_target != 0) {
         value_3 = 1;
     }
     int32_t boundary = value_3;
-    ZirParameters* parameters = zir_f_fdddeaaf3d14b33d_ParametersOf(compiler_check_simd_FunctionArgs(fn));
+    ZirParameters* parameters = zir_foreign_compiler_check_simd__ParametersOf(compiler_check_simd_FunctionArgs(fn));
     {
         int32_t i = 0;
         while (true) {
@@ -1104,8 +876,8 @@ compiler_check_simd_check_native_vectors(Checker* c, ZirFunction* fn)
                 break;
             }
             uint8_t* type = (parameters->items.items[i]).type;
-            if (zir_f_fdddeaaf3d14b33d_HoldsNativeVector(type) != 0) {
-                zir_f_fdddeaaf3d14b33d_error(c, fn->span, (uint8_t*)(&((inside_storage_0[0]).items)), type);
+            if (zir_foreign_compiler_check_simd__HoldsNativeVector(type) != 0) {
+                zir_foreign_compiler_check_simd__error(c, fn->span, (uint8_t*)(&((inside_storage_0[0]).items)), type);
             } else {
                 bool value_4 = boundary != 0;
                 if (value_4 && compiler_check_simd_native_vector(type) != 0) {
@@ -1119,14 +891,14 @@ compiler_check_simd_check_native_vectors(Checker* c, ZirFunction* fn)
                         uint8_t* value_9 = compiler_check_types_CheckCString(StringLiteral("a #foreign or #program_export procedure cannot take a native vector"));
                         value_7 = value_9;
                     }
-                    zir_f_fdddeaaf3d14b33d_error(value_5, value_6, value_7, (parameters->items.items[i]).name);
+                    zir_foreign_compiler_check_simd__error(value_5, value_6, value_7, (parameters->items.items[i]).name);
                 }
             }
             compiler_check_s12_types_S12Post2(&(i));
         }
     }
-    if (zir_f_fdddeaaf3d14b33d_HoldsNativeVector((uint8_t*)(&(fn->return_type))) != 0) {
-        zir_f_fdddeaaf3d14b33d_error(c, fn->span, (uint8_t*)(&((inside_storage_0[0]).items)), (uint8_t*)(&(fn->return_type)));
+    if (zir_foreign_compiler_check_simd__HoldsNativeVector((uint8_t*)(&(fn->return_type))) != 0) {
+        zir_foreign_compiler_check_simd__error(c, fn->span, (uint8_t*)(&((inside_storage_0[0]).items)), (uint8_t*)(&(fn->return_type)));
     } else {
         bool value_10 = boundary != 0;
         if (value_10 && compiler_check_simd_native_vector((uint8_t*)(&(fn->return_type))) != 0) {
@@ -1140,7 +912,7 @@ compiler_check_simd_check_native_vectors(Checker* c, ZirFunction* fn)
                 uint8_t* value_15 = compiler_check_types_CheckCString(StringLiteral("a #foreign or #program_export procedure cannot return a native vector"));
                 value_13 = value_15;
             }
-            zir_f_fdddeaaf3d14b33d_error(value_11, value_12, value_13, (uint8_t*)(&(fn->name)));
+            zir_foreign_compiler_check_simd__error(value_11, value_12, value_13, (uint8_t*)(&(fn->name)));
         }
     }
     {
@@ -1150,9 +922,9 @@ compiler_check_simd_check_native_vectors(Checker* c, ZirFunction* fn)
             if (!check_loop_192) {
                 break;
             }
-            if (zir_f_fdddeaaf3d14b33d_HoldsNativeVector((uint8_t*)(fn->stmts[i]).type) != 0) {
-                zir_f_fdddeaaf3d14b33d_error(c, (fn->stmts[i]).span, (uint8_t*)(&((inside_storage_0[0]).items)), (uint8_t*)(fn->stmts[i]).type);
-                zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(inside_storage_0));
+            if (zir_foreign_compiler_check_simd__HoldsNativeVector((uint8_t*)(fn->stmts[i]).type) != 0) {
+                zir_foreign_compiler_check_simd__error(c, (fn->stmts[i]).span, (uint8_t*)(&((inside_storage_0[0]).items)), (uint8_t*)(fn->stmts[i]).type);
+                zir_foreign_compiler_check_simd__CompilerFree((void*)(inside_storage_0));
                 return;
             }
             compiler_check_s12_types_S12Post2(&(i));
@@ -1165,15 +937,15 @@ compiler_check_simd_check_native_vectors(Checker* c, ZirFunction* fn)
             if (!check_loop_193) {
                 break;
             }
-            if (zir_f_fdddeaaf3d14b33d_HoldsNativeVector((uint8_t*)(fn->exprs[x]).type) != 0) {
-                zir_f_fdddeaaf3d14b33d_error(c, (fn->exprs[x]).span, (uint8_t*)(&((inside_storage_0[0]).items)), (uint8_t*)(fn->exprs[x]).type);
-                zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(inside_storage_0));
+            if (zir_foreign_compiler_check_simd__HoldsNativeVector((uint8_t*)(fn->exprs[x]).type) != 0) {
+                zir_foreign_compiler_check_simd__error(c, (fn->exprs[x]).span, (uint8_t*)(&((inside_storage_0[0]).items)), (uint8_t*)(fn->exprs[x]).type);
+                zir_foreign_compiler_check_simd__CompilerFree((void*)(inside_storage_0));
                 return;
             }
             compiler_check_s12_types_S12Post2(&(x));
         }
     }
-    zir_f_fdddeaaf3d14b33d_CompilerFree((void*)(inside_storage_0));
+    zir_foreign_compiler_check_simd__CompilerFree((void*)(inside_storage_0));
 }
 
 void
@@ -1186,14 +958,14 @@ private_check_check_simd_procedure(Checker* c, ZirFunction* fn)
     if (fn->inlining == 1) {
         Checker* value_0 = c;
         ZirSourceSpan value_1 = fn->span;
-        zir_f_fdddeaaf3d14b33d_error(value_0, value_1, compiler_check_types_CheckCString(StringLiteral("a #target procedure cannot be #inline")), (uint8_t*)(&(fn->name)));
+        zir_foreign_compiler_check_simd__error(value_0, value_1, compiler_check_types_CheckCString(StringLiteral("a #target procedure cannot be #inline")), (uint8_t*)(&(fn->name)));
     }
     if (((uint8_t*)fn->assembly_text) != ((void *)0) && fn->assembly_text[0] != 0) {
         Checker* value_2 = c;
         ZirSourceSpan value_3 = fn->span;
-        zir_f_fdddeaaf3d14b33d_error(value_2, value_3, compiler_check_types_CheckCString(StringLiteral("a #target procedure cannot hold #asm variants")), (uint8_t*)(&(fn->name)));
+        zir_foreign_compiler_check_simd__error(value_2, value_3, compiler_check_types_CheckCString(StringLiteral("a #target procedure cannot hold #asm variants")), (uint8_t*)(&(fn->name)));
     }
-    ZirParameters* parameters = zir_f_fdddeaaf3d14b33d_ParametersOf(compiler_check_simd_FunctionArgs(fn));
+    ZirParameters* parameters = zir_foreign_compiler_check_simd__ParametersOf(compiler_check_simd_FunctionArgs(fn));
     {
         int32_t i = 0;
         while (true) {
@@ -1205,13 +977,13 @@ private_check_check_simd_procedure(Checker* c, ZirFunction* fn)
             if (type != (uint8_t*)(((void *)0)) && (int32_t)((int8_t)(type[0])) == 46 && (int32_t)((int8_t)(type[1])) == 46) {
                 Checker* value_4 = c;
                 ZirSourceSpan value_5 = fn->span;
-                zir_f_fdddeaaf3d14b33d_error(value_4, value_5, compiler_check_types_CheckCString(StringLiteral("a #target procedure cannot take variadic arguments")), (uint8_t*)(&(fn->name)));
+                zir_foreign_compiler_check_simd__error(value_4, value_5, compiler_check_types_CheckCString(StringLiteral("a #target procedure cannot take variadic arguments")), (uint8_t*)(&(fn->name)));
             } else {
                 if (compiler_check_simd_holds_wide_vector(c->module, type, 0) != 0) {
                     Checker* value_6 = c;
                     ZirSourceSpan value_7 = fn->span;
                     uint8_t* value_8 = compiler_check_types_CheckCString(StringLiteral("a #target procedure cannot take a 256-bit vector by value; pass it in an array or through a pointer"));
-                    zir_f_fdddeaaf3d14b33d_error(value_6, value_7, value_8, (parameters->items.items[i]).name);
+                    zir_foreign_compiler_check_simd__error(value_6, value_7, value_8, (parameters->items.items[i]).name);
                 }
             }
             compiler_check_s12_types_S12Post2(&(i));
@@ -1221,7 +993,7 @@ private_check_check_simd_procedure(Checker* c, ZirFunction* fn)
         Checker* value_9 = c;
         ZirSourceSpan value_10 = fn->span;
         uint8_t* value_11 = compiler_check_types_CheckCString(StringLiteral("a #target procedure cannot return a 256-bit vector by value; store it through a pointer"));
-        zir_f_fdddeaaf3d14b33d_error(value_9, value_10, value_11, (uint8_t*)(&(fn->name)));
+        zir_foreign_compiler_check_simd__error(value_9, value_10, value_11, (uint8_t*)(&(fn->name)));
     }
     {
         int32_t x = 0;
@@ -1235,7 +1007,7 @@ private_check_check_simd_procedure(Checker* c, ZirFunction* fn)
                 bool value_12 = (int32_t)(((ZirExprKind)(call->kind))) != 5 || ((uint8_t*)call->name) == (uint8_t*)(((void *)0));
                 bool value_13 = value_12;
                 if (!value_13) {
-                    SimdOp* value_14 = zir_f_fdddeaaf3d14b33d_SimdOpChecked((uint8_t*)(((uint8_t*)call->name)));
+                    SimdOp* value_14 = zir_foreign_compiler_check_simd__SimdOpChecked((uint8_t*)(((uint8_t*)call->name)));
                     value_13 = (value_14 != (SimdOp*)(((void *)0)));
                 }
                 if (value_13) {
@@ -1260,14 +1032,14 @@ private_check_check_simd_procedure(Checker* c, ZirFunction* fn)
                     Checker* value_15 = c;
                     ZirSourceSpan value_16 = call->span;
                     uint8_t* value_17 = compiler_check_types_CheckCString(StringLiteral("a #target procedure cannot pass a 256-bit vector by value to another procedure"));
-                    zir_f_fdddeaaf3d14b33d_error(value_15, value_16, value_17, (uint8_t*)call->name);
+                    zir_foreign_compiler_check_simd__error(value_15, value_16, value_17, (uint8_t*)call->name);
                 } else {
                     if (native != 0) {
                         Checker* value_18 = c;
                         ZirSourceSpan value_19 = call->span;
                         String value_20 = StringLiteral("a #target procedure cannot pass a native vector to another procedure, which holds fewer blocks than its AVX2 clone");
                         uint8_t* value_21 = compiler_check_types_CheckCString(value_20);
-                        zir_f_fdddeaaf3d14b33d_error(value_18, value_19, value_21, (uint8_t*)call->name);
+                        zir_foreign_compiler_check_simd__error(value_18, value_19, value_21, (uint8_t*)call->name);
                     }
                 }
                 compiler_check_s12_types_S12Post2(&(x));
@@ -1282,7 +1054,7 @@ static uint8_t*
 compiler_check_simd_SimdCheckedSignature(SimdOp* op, uint8_t* result, SimdOperand* operands, int32_t count, uint8_t** message)
 {
     uint8_t* detail = (void *)0;
-    uint8_t* type = zir_f_fdddeaaf3d14b33d_SimdSignature((SimdOp*)(op), (uint8_t*)(result), operands, count, &(detail));
+    uint8_t* type = zir_foreign_compiler_check_simd__SimdSignature((SimdOp*)(op), (uint8_t*)(result), operands, count, &(detail));
     compiler_check_s12_types_S12Set10(message, (uint8_t*)(detail));
     return (uint8_t*)(type);
 }

@@ -68,7 +68,7 @@ compiler_host_api_ReleaseOwnedStateValue(HostValue* value, int32_t depth)
             compiler_host_api_ReleaseOwnedStateValue(value_1, (int32_t)((uint32_t)depth + 1u));
             i = i + 1;
         }
-        zir_f_4e8972c89764e104_free((uint8_t*)(value->elements));
+        zir_foreign_compiler_host_api__free((uint8_t*)(value->elements));
         HostValue** value_3 = &(value->elements);
         (*value_3) = (void *)0;
     } else if (((HostKind)(value->kind)) == HostKind_Record && value->fields != ((void *)0)) {
@@ -95,18 +95,18 @@ compiler_host_api_ReleaseOwnedStateValue(HostValue* value, int32_t depth)
                 value_8 = (HostField*)(((size_t)(fields) + (index * sizeof(HostField))));
             }
             HostField* field = value_8;
-            zir_f_4e8972c89764e104_free(field->name);
+            zir_foreign_compiler_host_api__free(field->name);
             i = i + 1;
         }
-        zir_f_4e8972c89764e104_free((uint8_t*)(value->fields));
+        zir_foreign_compiler_host_api__free((uint8_t*)(value->fields));
         HostField** value_10 = &(value->fields);
         (*value_10) = (void *)0;
     } else if (((HostKind)(value->kind)) == HostKind_String) {
-        zir_f_4e8972c89764e104_free(value->data);
+        zir_foreign_compiler_host_api__free(value->data);
     }
     uint8_t** value_11 = &(value->data);
     (*value_11) = (void *)0;
-    zir_f_4e8972c89764e104_free(value->type);
+    zir_foreign_compiler_host_api__free(value->type);
     uint8_t** value_12 = &(value->type);
     (*value_12) = (void *)0;
 }
@@ -115,7 +115,7 @@ bool
 compiler_host_api_StateTypePortable(uint8_t* type)
 {
     bool value_0 = type != ((void *)0) && type[0] != 42;
-    return value_0 && zir_f_4e8972c89764e104_SliceElementType(type, (void *)0, 0) == 0;
+    return value_0 && zir_foreign_compiler_host_api__SliceElementType(type, (void *)0, 0) == 0;
 }
 
 uint8_t*
@@ -124,7 +124,7 @@ compiler_host_api_CloneStateName(uint8_t* name, StateBudget* budget)
     if (name == ((void *)0)) {
         return (void *)0;
     }
-    size_t length = zir_f_4e8972c89764e104_strlen(name);
+    size_t length = zir_foreign_compiler_host_api__strlen(name);
     size_t value_0 = 0;
     {
         size_t zero = 0;
@@ -151,11 +151,11 @@ compiler_host_api_CloneStateName(uint8_t* name, StateBudget* budget)
             return (void *)0;
         }
     }
-    uint8_t* copied = zir_f_4e8972c89764e104_malloc(length + 1);
+    uint8_t* copied = zir_foreign_compiler_host_api__malloc(length + 1);
     if (copied == ((void *)0)) {
         return (void *)0;
     }
-    zir_f_4e8972c89764e104_memcpy(copied, name, length + 1);
+    zir_foreign_compiler_host_api__memcpy(copied, name, length + 1);
     return copied;
 }
 
@@ -266,11 +266,11 @@ compiler_host_api_CloneStateString(HostValue* input, HostValue* output, StateBud
     if (budget->failed) {
         return false;
     }
-    uint8_t* data = zir_f_4e8972c89764e104_malloc(input->length + 1);
+    uint8_t* data = zir_foreign_compiler_host_api__malloc(input->length + 1);
     if (data == ((void *)0)) {
         return false;
     }
-    zir_f_4e8972c89764e104_memcpy(data, input->data, input->length);
+    zir_foreign_compiler_host_api__memcpy(data, input->data, input->length);
     uint8_t* value_9 = &(data[input->length]);
     (*value_9) = 0;
     uint8_t** value_10 = &(output->data);
@@ -317,7 +317,7 @@ compiler_host_api_CloneStateArray(HostValue* input, HostValue* output, int32_t d
         return false;
     }
     HostValue** value_11 = &(output->elements);
-    uint8_t* value_12 = zir_f_4e8972c89764e104_calloc(input->length, sizeof(HostValue));
+    uint8_t* value_12 = zir_foreign_compiler_host_api__calloc(input->length, sizeof(HostValue));
     (*value_11) = (HostValue*)(value_12);
     if (output->elements == ((void *)0)) {
         return false;
@@ -386,7 +386,7 @@ compiler_host_api_CloneStateRecord(HostValue* input, HostValue* output, int32_t 
         return false;
     }
     HostField** value_11 = &(output->fields);
-    uint8_t* value_12 = zir_f_4e8972c89764e104_calloc(input->field_count, sizeof(HostField));
+    uint8_t* value_12 = zir_foreign_compiler_host_api__calloc(input->field_count, sizeof(HostField));
     (*value_11) = (HostField*)(value_12);
     if (output->fields == ((void *)0)) {
         return false;
@@ -494,7 +494,7 @@ void
 BundleFreeHostValue(HostValue* value)
 {
     compiler_host_api_ReleaseOwnedStateValue(value, 0);
-    zir_f_4e8972c89764e104_memset((uint8_t*)(value), 0, sizeof(HostValue));
+    zir_foreign_compiler_host_api__memset((uint8_t*)(value), 0, sizeof(HostValue));
 }
 
 void
@@ -514,13 +514,13 @@ compiler_host_api_StateClose(BundleState* state)
         }
         BundleStateValue* entry = value_1;
         compiler_host_api_ReleaseOwnedStateValue(&(entry->value), 0);
-        zir_f_4e8972c89764e104_free(entry->module);
-        zir_f_4e8972c89764e104_free(entry->name);
-        zir_f_4e8972c89764e104_free(entry->type);
+        zir_foreign_compiler_host_api__free(entry->module);
+        zir_foreign_compiler_host_api__free(entry->name);
+        zir_foreign_compiler_host_api__free(entry->type);
         i = i + 1;
     }
-    zir_f_4e8972c89764e104_free((uint8_t*)(state->values));
-    zir_f_4e8972c89764e104_free((uint8_t*)(state));
+    zir_foreign_compiler_host_api__free((uint8_t*)(state->values));
+    zir_foreign_compiler_host_api__free((uint8_t*)(state));
 }
 
 bool
@@ -530,9 +530,9 @@ compiler_host_api_CloneStateMetadata(BundleStateValue* value, StateBudget* budge
     uint8_t* name = compiler_host_api_CloneStateName(value->name, budget);
     uint8_t* type = compiler_host_api_CloneStateName(value->type, budget);
     if (module == ((void *)0) || name == ((void *)0) || type == ((void *)0)) {
-        zir_f_4e8972c89764e104_free(module);
-        zir_f_4e8972c89764e104_free(name);
-        zir_f_4e8972c89764e104_free(type);
+        zir_foreign_compiler_host_api__free(module);
+        zir_foreign_compiler_host_api__free(name);
+        zir_foreign_compiler_host_api__free(type);
         compiler_host_api_ReleaseOwnedStateValue(&(value->value), 0);
         return false;
     }
@@ -549,12 +549,12 @@ size_t
 compiler_host_api_StateCount(BundleInstance* instance)
 {
     if (instance->native != ((void *)0)) {
-        return zir_f_4e8972c89764e104_NativeInstanceStateCount(instance->native);
+        return zir_foreign_compiler_host_api__NativeInstanceStateCount(instance->native);
     }
     if (instance->wasm != ((void *)0)) {
-        return zir_f_4e8972c89764e104_ZxWasmStateCount(instance->wasm);
+        return zir_foreign_compiler_host_api__ZxWasmStateCount(instance->wasm);
     }
-    return zir_f_4e8972c89764e104_ExecInstanceStateCount(instance->exec);
+    return zir_foreign_compiler_host_api__ExecInstanceStateCount(instance->exec);
 }
 
 bool
@@ -562,11 +562,11 @@ compiler_host_api_StateAt(BundleInstance* instance, size_t index, uint8_t** modu
 {
     int32_t found = 0;
     if (instance->native != ((void *)0)) {
-        found = zir_f_4e8972c89764e104_NativeInstanceStateAt(instance->native, index, module, name, type, value);
+        found = zir_foreign_compiler_host_api__NativeInstanceStateAt(instance->native, index, module, name, type, value);
     } else if (instance->wasm != ((void *)0)) {
-        found = zir_f_4e8972c89764e104_ZxWasmStateAt(instance->wasm, index, module, name, type, value);
+        found = zir_foreign_compiler_host_api__ZxWasmStateAt(instance->wasm, index, module, name, type, value);
     } else {
-        found = zir_f_4e8972c89764e104_ExecInstanceStateAt(instance->exec, index, module, name, type, value);
+        found = zir_foreign_compiler_host_api__ExecInstanceStateAt(instance->exec, index, module, name, type, value);
     }
     return found != 0;
 }
@@ -576,11 +576,11 @@ compiler_host_api_StateStore(BundleInstance* instance, HostValue** values)
 {
     int32_t stored = 0;
     if (instance->native != ((void *)0)) {
-        stored = zir_f_4e8972c89764e104_NativeInstanceStateStore(instance->native, values);
+        stored = zir_foreign_compiler_host_api__NativeInstanceStateStore(instance->native, values);
     } else if (instance->wasm != ((void *)0)) {
-        stored = zir_f_4e8972c89764e104_ZxWasmStateStore(instance->wasm, values);
+        stored = zir_foreign_compiler_host_api__ZxWasmStateStore(instance->wasm, values);
     } else {
-        stored = zir_f_4e8972c89764e104_ExecInstanceStateStore(instance->exec, values);
+        stored = zir_foreign_compiler_host_api__ExecInstanceStateStore(instance->exec, values);
     }
     return stored != 0;
 }
@@ -597,7 +597,7 @@ BundleInstanceExportState(BundleInstance* instance, BundleState** state)
         return 0;
     }
     size_t count = compiler_host_api_StateCount(instance);
-    uint8_t* value_1 = zir_f_4e8972c89764e104_calloc(1, sizeof(BundleState));
+    uint8_t* value_1 = zir_foreign_compiler_host_api__calloc(1, sizeof(BundleState));
     BundleState* exported = (BundleState*)(value_1);
     if (exported == ((void *)0)) {
         return 0;
@@ -609,10 +609,10 @@ BundleInstanceExportState(BundleInstance* instance, BundleState** state)
     } else {
         value_3 = 1;
     }
-    uint8_t* value_4 = zir_f_4e8972c89764e104_calloc(value_3, sizeof(BundleStateValue));
+    uint8_t* value_4 = zir_foreign_compiler_host_api__calloc(value_3, sizeof(BundleStateValue));
     (*value_2) = (BundleStateValue*)(value_4);
     if (exported->values == ((void *)0)) {
-        zir_f_4e8972c89764e104_free((uint8_t*)(exported));
+        zir_foreign_compiler_host_api__free((uint8_t*)(exported));
         return 0;
     }
     StateBudget budget = {0};
@@ -644,7 +644,7 @@ BundleInstanceExportState(BundleInstance* instance, BundleState** state)
         }
         uint8_t* type = value_14;
         HostValue borrowed = {0};
-        zir_f_4e8972c89764e104_memset((uint8_t*)(&(borrowed)), 0, sizeof(HostValue));
+        zir_foreign_compiler_host_api__memset((uint8_t*)(&(borrowed)), 0, sizeof(HostValue));
         bool value_16 = compiler_host_api_StateAt(instance, i, &(module), &(name), &(type), &(borrowed));
         bool value_17 = !value_16;
         if (!value_17) {
@@ -670,7 +670,7 @@ BundleInstanceExportState(BundleInstance* instance, BundleState** state)
                 String s = value_25;
                 value_26 = ((StaticText*)(&(s)))->data;
             }
-            zir_f_4e8972c89764e104_Diagnostic(value_21, value_23, value_26, module, name);
+            zir_foreign_compiler_host_api__Diagnostic(value_21, value_23, value_26, module, name);
             compiler_host_api_StateClose(exported);
             return 0;
         }
@@ -696,7 +696,7 @@ BundleInstanceExportState(BundleInstance* instance, BundleState** state)
                 String s = value_36;
                 value_37 = ((StaticText*)(&(s)))->data;
             }
-            zir_f_4e8972c89764e104_Diagnostic(value_32, value_34, value_37, module, name);
+            zir_foreign_compiler_host_api__Diagnostic(value_32, value_34, value_37, module, name);
             compiler_host_api_StateClose(exported);
             return 0;
         }
@@ -757,7 +757,7 @@ BundleInstanceImportState(BundleInstance* instance, BundleState* state)
     } else {
         value_0 = 1;
     }
-    uint8_t* value_1 = zir_f_4e8972c89764e104_calloc(value_0, sizeof(void *));
+    uint8_t* value_1 = zir_foreign_compiler_host_api__calloc(value_0, sizeof(void *));
     HostValue** values = (HostValue**)(value_1);
     if (values == ((void *)0)) {
         return 0;
@@ -819,8 +819,8 @@ BundleInstanceImportState(BundleInstance* instance, BundleState* state)
                 String s = value_22;
                 value_23 = ((StaticText*)(&(s)))->data;
             }
-            zir_f_4e8972c89764e104_Diagnostic(value_21, value_23, message, value->module, value->name);
-            zir_f_4e8972c89764e104_free((uint8_t*)(values));
+            zir_foreign_compiler_host_api__Diagnostic(value_21, value_23, message, value->module, value->name);
+            zir_foreign_compiler_host_api__free((uint8_t*)(values));
             return 0;
         }
         HostValue** value_25 = &(values[slot]);
@@ -828,7 +828,7 @@ BundleInstanceImportState(BundleInstance* instance, BundleState* state)
         i = i + 1;
     }
     bool stored = compiler_host_api_StateStore(instance, values);
-    zir_f_4e8972c89764e104_free((uint8_t*)(values));
+    zir_foreign_compiler_host_api__free((uint8_t*)(values));
     if (!stored) {
         ZirSourceSpan value_26 = compiler_host_api_HostSpan();
         String value_27 = StringLiteral("zx.state");
@@ -843,7 +843,7 @@ BundleInstanceImportState(BundleInstance* instance, BundleState* state)
             String s = value_30;
             value_31 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_4e8972c89764e104_Diagnostic(value_26, value_28, value_31);
+        zir_foreign_compiler_host_api__Diagnostic(value_26, value_28, value_31);
     }
     int32_t value_33 = 0;
     if (stored) {
@@ -1144,15 +1144,15 @@ BundleStateSetString(BundleState* state, size_t index, uint8_t* data, size_t len
     }
     uint8_t* copied = (void *)0;
     if (length != 0) {
-        copied = zir_f_4e8972c89764e104_malloc(length + 1);
+        copied = zir_foreign_compiler_host_api__malloc(length + 1);
         if (copied == ((void *)0)) {
             return 0;
         }
-        zir_f_4e8972c89764e104_memcpy(copied, data, length);
+        zir_foreign_compiler_host_api__memcpy(copied, data, length);
         uint8_t* value_13 = &(copied[length]);
         (*value_13) = 0;
     }
-    zir_f_4e8972c89764e104_free(target->data);
+    zir_foreign_compiler_host_api__free(target->data);
     uint8_t** value_14 = &(target->data);
     (*value_14) = copied;
     size_t* value_15 = &(target->length);
@@ -1175,7 +1175,7 @@ compiler_host_api_ComponentRelease(BundleComponent* component)
     size_t* value_0 = &(component->references);
     (*value_0) = (*value_0) - 1;
     if (component->references == 0) {
-        zir_f_4e8972c89764e104_free((uint8_t*)(component));
+        zir_foreign_compiler_host_api__free((uint8_t*)(component));
     }
 }
 
@@ -1198,7 +1198,7 @@ BundleComponentOpen(Bundle* bundle, HostBinding* bindings, size_t binding_count,
     }
     size_t* value_5 = &(bundle->references);
     (*value_5) = (*value_5) + 1;
-    uint8_t* value_6 = zir_f_4e8972c89764e104_calloc(1, sizeof(BundleComponent));
+    uint8_t* value_6 = zir_foreign_compiler_host_api__calloc(1, sizeof(BundleComponent));
     BundleComponent* component = (BundleComponent*)(value_6);
     if (component == ((void *)0)) {
         BundleClose(bundle);
@@ -1227,7 +1227,7 @@ BundleComponentOpen(Bundle* bundle, HostBinding* bindings, size_t binding_count,
     (*value_10) = value_15;
     if (component->instance == ((void *)0)) {
         BundleClose(bundle);
-        zir_f_4e8972c89764e104_free((uint8_t*)(component));
+        zir_foreign_compiler_host_api__free((uint8_t*)(component));
         return (void *)0;
     }
     return component;
@@ -1252,7 +1252,7 @@ BundleComponentAcquire(BundleComponent* component)
     }
     size_t* value_5 = &(component->references);
     (*value_5) = (*value_5) + 1;
-    uint8_t* value_6 = zir_f_4e8972c89764e104_malloc(sizeof(BundleComponentHandle));
+    uint8_t* value_6 = zir_foreign_compiler_host_api__malloc(sizeof(BundleComponentHandle));
     BundleComponentHandle* handle = (BundleComponentHandle*)(value_6);
     if (handle == ((void *)0)) {
         compiler_host_api_ComponentRelease(component);
@@ -1353,7 +1353,7 @@ BundleComponentReplace(BundleComponent* component, Bundle* replacement, BundleSt
     }
     BundleComponentHandle* handle = (void *)0;
     if (new_handle != ((void *)0)) {
-        uint8_t* value_5 = zir_f_4e8972c89764e104_malloc(sizeof(BundleComponentHandle));
+        uint8_t* value_5 = zir_foreign_compiler_host_api__malloc(sizeof(BundleComponentHandle));
         handle = (BundleComponentHandle*)(value_5);
         if (handle == ((void *)0)) {
             return 0;
@@ -1404,7 +1404,7 @@ BundleComponentReplace(BundleComponent* component, Bundle* replacement, BundleSt
     }
     BundleStateClose(old_state);
     BundleStateClose(new_state);
-    zir_f_4e8972c89764e104_free((uint8_t*)(handle));
+    zir_foreign_compiler_host_api__free((uint8_t*)(handle));
     int32_t value_19 = 0;
     if (ok) {
         value_19 = 1;
@@ -1422,12 +1422,12 @@ BundleComponentLiveValueBytes(BundleComponent* component)
     }
     BundleInstance* instance = component->instance;
     if (instance->wasm != ((void *)0)) {
-        return zir_f_4e8972c89764e104_ZxWasmLiveBytes(instance->wasm);
+        return zir_foreign_compiler_host_api__ZxWasmLiveBytes(instance->wasm);
     }
     if (instance->native != ((void *)0)) {
-        return zir_f_4e8972c89764e104_NativeInstanceLiveBytes(instance->native);
+        return zir_foreign_compiler_host_api__NativeInstanceLiveBytes(instance->native);
     }
-    return zir_f_4e8972c89764e104_ExecInstanceLiveBytes(instance->exec);
+    return zir_foreign_compiler_host_api__ExecInstanceLiveBytes(instance->exec);
 }
 
 void
@@ -1454,7 +1454,7 @@ BundleComponentHandleClose(BundleComponentHandle* handle)
         return;
     }
     compiler_host_api_ComponentRelease(handle->component);
-    zir_f_4e8972c89764e104_free((uint8_t*)(handle));
+    zir_foreign_compiler_host_api__free((uint8_t*)(handle));
 }
 
 String
@@ -1523,7 +1523,7 @@ int32_t
 compiler_host_api_Problem(ZxModuleLoader* loader, uint8_t* format, uint8_t* a, uint8_t* b, uint8_t* c, uint8_t* d)
 {
     if (loader != ((void *)0)) {
-        zir_f_4e8972c89764e104_snprintf(&(loader->error[0]), 512, format, a, b, c, d);
+        zir_foreign_compiler_host_api__snprintf(&(loader->error[0]), 512, format, a, b, c, d);
     }
     return 0;
 }
@@ -1563,7 +1563,7 @@ compiler_host_api_Grow(void* items, size_t* capacity, size_t size)
     if (value_2) {
         return (void *)0;
     }
-    uint8_t* grown = zir_f_4e8972c89764e104_realloc((uint8_t*)(items), next * size);
+    uint8_t* grown = zir_foreign_compiler_host_api__realloc((uint8_t*)(items), next * size);
     if (grown != ((void *)0)) {
         size_t* value_5 = &((*(capacity)));
         (*value_5) = next;
@@ -1654,14 +1654,14 @@ compiler_host_api_ImageClear(ModuleImage* image)
             size_t index = i;
             value_1 = &(image->exports[index]);
         }
-        zir_f_4e8972c89764e104_free((uint8_t*)(value_1->parameters));
+        zir_foreign_compiler_host_api__free((uint8_t*)(value_1->parameters));
         i = i + 1;
     }
-    zir_f_4e8972c89764e104_free((uint8_t*)(image->exports));
-    zir_f_4e8972c89764e104_free((uint8_t*)(image->requires));
-    zir_f_4e8972c89764e104_free((uint8_t*)(image->imports));
-    zir_f_4e8972c89764e104_free((uint8_t*)(image->plans));
-    zir_f_4e8972c89764e104_free(image->text);
+    zir_foreign_compiler_host_api__free((uint8_t*)(image->exports));
+    zir_foreign_compiler_host_api__free((uint8_t*)(image->requires));
+    zir_foreign_compiler_host_api__free((uint8_t*)(image->imports));
+    zir_foreign_compiler_host_api__free((uint8_t*)(image->plans));
+    zir_foreign_compiler_host_api__free(image->text);
 }
 
 ModuleRequirement*
@@ -1678,7 +1678,7 @@ compiler_host_api_FindRequirement(ModuleImage* image, uint8_t* interface)
             size_t index = mid;
             value_1 = &(image->requires[index]);
         }
-        int32_t order = zir_f_4e8972c89764e104_strcmp(interface, value_1->interface);
+        int32_t order = zir_foreign_compiler_host_api__strcmp(interface, value_1->interface);
         if (order == 0) {
             ModuleImage* value_3 = image;
             ModuleRequirement* value_4 = (void *)0;
@@ -1712,7 +1712,7 @@ compiler_host_api_FindExport(ModuleImage* image, uint8_t* name)
             size_t index = mid;
             value_1 = &(image->exports[index]);
         }
-        int32_t order = zir_f_4e8972c89764e104_strcmp(name, value_1->name);
+        int32_t order = zir_foreign_compiler_host_api__strcmp(name, value_1->name);
         if (order == 0) {
             return mid;
         }
@@ -1744,7 +1744,7 @@ compiler_host_api_InvalidLinkage(ZxModuleLoader* loader, size_t line_number)
             String s = value_0;
             value_1 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_4e8972c89764e104_snprintf(&(loader->error[0]), 512, value_1, line_number + 1);
+        zir_foreign_compiler_host_api__snprintf(&(loader->error[0]), 512, value_1, line_number + 1);
     }
     return 0;
 }
@@ -1797,7 +1797,7 @@ compiler_host_api_LinkageFields(uint8_t* line, uint8_t** field)
     uint8_t** value_0 = &(field[0]);
     (*value_0) = line;
     int32_t count = 1;
-    uint8_t* tab = zir_f_4e8972c89764e104_strchr(line, 9);
+    uint8_t* tab = zir_foreign_compiler_host_api__strchr(line, 9);
     while (tab != ((void *)0)) {
         if (count == 5) {
             return 0;
@@ -1819,7 +1819,7 @@ compiler_host_api_LinkageFields(uint8_t* line, uint8_t** field)
             size_t count = 1;
             value_5 = (uint8_t*)(((size_t)(text) + count));
         }
-        tab = zir_f_4e8972c89764e104_strchr(value_5, 9);
+        tab = zir_foreign_compiler_host_api__strchr(value_5, 9);
     }
     return count;
 }
@@ -1828,11 +1828,11 @@ int32_t
 compiler_host_api_ReadLinkage(ZxModuleLoader* loader, ModuleImage* image)
 {
     size_t length = 0;
-    uint8_t* linkage = zir_f_4e8972c89764e104_ExecBundleModuleLinkage(image->exec, &(length));
+    uint8_t* linkage = zir_foreign_compiler_host_api__ExecBundleModuleLinkage(image->exec, &(length));
     if (length == 0) {
         return 1;
     }
-    uint8_t* value_0 = zir_f_4e8972c89764e104_memchr(linkage, 0, length);
+    uint8_t* value_0 = zir_foreign_compiler_host_api__memchr(linkage, 0, length);
     if (value_0 != ((void *)0)) {
         String value_1 = StringLiteral("invalid ZX module linkage: embedded NUL");
         uint8_t* value_2 = (void *)0;
@@ -1843,7 +1843,7 @@ compiler_host_api_ReadLinkage(ZxModuleLoader* loader, ModuleImage* image)
         return compiler_host_api_Problem(loader, value_2, (void *)0, (void *)0, (void *)0, (void *)0);
     }
     uint8_t** value_4 = &(image->text);
-    uint8_t* value_5 = zir_f_4e8972c89764e104_malloc(length + 1);
+    uint8_t* value_5 = zir_foreign_compiler_host_api__malloc(length + 1);
     (*value_4) = value_5;
     if (image->text == ((void *)0)) {
         ZxModuleLoader* value_6 = loader;
@@ -1860,14 +1860,14 @@ compiler_host_api_ReadLinkage(ZxModuleLoader* loader, ModuleImage* image)
         }
         return value_7;
     }
-    zir_f_4e8972c89764e104_memcpy(image->text, linkage, length);
+    zir_foreign_compiler_host_api__memcpy(image->text, linkage, length);
     uint8_t* value_12 = &(image->text[length]);
     (*value_12) = 0;
     uint32_t group = 0;
     size_t line_number = 0;
     uint8_t* line = image->text;
     while (line[0] != 0) {
-        uint8_t* end = zir_f_4e8972c89764e104_strchr(line, 10);
+        uint8_t* end = zir_foreign_compiler_host_api__strchr(line, 10);
         if (end == ((void *)0)) {
             return compiler_host_api_InvalidLinkage(loader, line_number);
         }
@@ -1932,7 +1932,7 @@ compiler_host_api_ReadLinkage(ZxModuleLoader* loader, ModuleImage* image)
                             size_t index = value_36;
                             value_37 = &(image->exports[index]);
                         }
-                        bool value_39 = zir_f_4e8972c89764e104_strcmp(value_37->name, (field)[1]) >= 0;
+                        bool value_39 = zir_foreign_compiler_host_api__strcmp(value_37->name, (field)[1]) >= 0;
                         value_34 = value_39;
                     }
                     value_33 = value_34;
@@ -2036,7 +2036,7 @@ compiler_host_api_ReadLinkage(ZxModuleLoader* loader, ModuleImage* image)
                                 size_t index = value_75;
                                 value_76 = &(image->requires[index]);
                             }
-                            bool value_78 = zir_f_4e8972c89764e104_strcmp(value_76->interface, (field)[1]) >= 0;
+                            bool value_78 = zir_foreign_compiler_host_api__strcmp(value_76->interface, (field)[1]) >= 0;
                             value_73 = value_78;
                         }
                         value_72 = value_73;
@@ -2127,8 +2127,8 @@ compiler_host_api_ReadLinkage(ZxModuleLoader* loader, ModuleImage* image)
                                 value_105 = &(image->imports[index]);
                             }
                             ModuleImport* last = value_105;
-                            int32_t order = zir_f_4e8972c89764e104_strcmp(last->module, (field)[1]);
-                            if (order > 0 || (order == 0 && zir_f_4e8972c89764e104_strcmp(last->function, (field)[2]) >= 0)) {
+                            int32_t order = zir_foreign_compiler_host_api__strcmp(last->module, (field)[1]);
+                            if (order > 0 || (order == 0 && zir_foreign_compiler_host_api__strcmp(last->function, (field)[2]) >= 0)) {
                                 return compiler_host_api_InvalidLinkage(loader, line_number);
                             }
                         }
@@ -2236,7 +2236,7 @@ compiler_host_api_ModuleServiceFor(uint8_t* module, uint8_t* name)
 bool
 compiler_host_api_HasType(ModuleImage* image, size_t cap, int32_t parameter, uint8_t* expected)
 {
-    uint8_t* type = zir_f_4e8972c89764e104_ExecBundleModuleType(image->exec, cap, parameter);
+    uint8_t* type = zir_foreign_compiler_host_api__ExecBundleModuleType(image->exec, cap, parameter);
     bool value_0 = type != ((void *)0);
     return value_0 && compiler_host_api_Same(type, expected);
 }
@@ -2309,13 +2309,13 @@ compiler_host_api_ReadDispatch(ModuleImage* image, size_t cap, uint8_t* name)
     bool value_0 = image->name == ((void *)0);
     bool value_1 = value_0;
     if (!value_1) {
-        uint8_t* value_2 = zir_f_4e8972c89764e104_ExecBundleModuleType(image->exec, cap, -1);
+        uint8_t* value_2 = zir_foreign_compiler_host_api__ExecBundleModuleType(image->exec, cap, -1);
         value_1 = (value_2 == ((void *)0));
     }
     if (value_1) {
         return false;
     }
-    int32_t arity = zir_f_4e8972c89764e104_ExecBundleModuleParameterCount(image->exec, cap);
+    int32_t arity = zir_foreign_compiler_host_api__ExecBundleModuleParameterCount(image->exec, cap);
     String value_3 = StringLiteral("select");
     uint8_t* value_4 = (void *)0;
     {
@@ -2355,7 +2355,7 @@ compiler_host_api_ReadDispatch(ModuleImage* image, size_t cap, uint8_t* name)
         String s = value_15;
         value_16 = ((StaticText*)(&(s)))->data;
     }
-    bool argument = zir_f_4e8972c89764e104_strncmp(name, value_16, 4) == 0;
+    bool argument = zir_foreign_compiler_host_api__strncmp(name, value_16, 4) == 0;
     bool value_18 = !argument;
     if (value_18) {
         String value_19 = StringLiteral("result_");
@@ -2364,7 +2364,7 @@ compiler_host_api_ReadDispatch(ModuleImage* image, size_t cap, uint8_t* name)
             String s = value_19;
             value_20 = ((StaticText*)(&(s)))->data;
         }
-        bool value_22 = zir_f_4e8972c89764e104_strncmp(name, value_20, 7) != 0;
+        bool value_22 = zir_foreign_compiler_host_api__strncmp(name, value_20, 7) != 0;
         value_18 = value_22;
     }
     if (value_18) {
@@ -2459,7 +2459,7 @@ compiler_host_api_ReadDispatch(ModuleImage* image, size_t cap, uint8_t* name)
         if (!value_54) {
             bool value_55 = arity == 1;
             if (value_55) {
-                uint8_t* value_56 = zir_f_4e8972c89764e104_ExecBundleModuleType(image->exec, cap, 0);
+                uint8_t* value_56 = zir_foreign_compiler_host_api__ExecBundleModuleType(image->exec, cap, 0);
                 value_55 = (value_56 == ((void *)0));
             }
             value_54 = value_55;
@@ -2564,7 +2564,7 @@ compiler_host_api_ReadService(ZxModuleLoader* loader, ModuleImage* image, size_t
     bool value_8 = value_7;
     if (value_8) {
         int32_t value_9 = service->arity;
-        bool value_10 = value_9 == zir_f_4e8972c89764e104_ExecBundleModuleParameterCount(image->exec, cap);
+        bool value_10 = value_9 == zir_foreign_compiler_host_api__ExecBundleModuleParameterCount(image->exec, cap);
         value_8 = value_10;
     }
     bool valid = value_8;
@@ -2630,7 +2630,7 @@ compiler_host_api_ImageRead(ZxModuleLoader* loader, ModuleImage* image, Bundle* 
     if (value_3 || compiler_host_api_ReadLinkage(loader, image) == 0) {
         return 0;
     }
-    bool value_4 = zir_f_4e8972c89764e104_ExecBundleModuleEntry(image->exec) != 0;
+    bool value_4 = zir_foreign_compiler_host_api__ExecBundleModuleEntry(image->exec) != 0;
     if (value_4 != (image->name != ((void *)0)) || (image->name != ((void *)0) && image->export_count == 0)) {
         String value_5 = StringLiteral("invalid ZX module dispatcher entry or missing exports");
         uint8_t* value_6 = (void *)0;
@@ -2648,7 +2648,7 @@ compiler_host_api_ImageRead(ZxModuleLoader* loader, ModuleImage* image, Bundle* 
     } else {
         value_9 = 1;
     }
-    uint8_t* value_10 = zir_f_4e8972c89764e104_calloc(value_9, sizeof(BindingPlan));
+    uint8_t* value_10 = zir_foreign_compiler_host_api__calloc(value_9, sizeof(BindingPlan));
     (*value_8) = (BindingPlan*)(value_10);
     if (image->plans == ((void *)0)) {
         ZxModuleLoader* value_11 = loader;
@@ -2749,7 +2749,7 @@ compiler_host_api_ImageRead(ZxModuleLoader* loader, ModuleImage* image, Bundle* 
         }
         if (method->count != 0) {
             size_t** value_42 = &(method->parameters);
-            uint8_t* value_43 = zir_f_4e8972c89764e104_calloc(method->count, sizeof(size_t));
+            uint8_t* value_43 = zir_foreign_compiler_host_api__calloc(method->count, sizeof(size_t));
             (*value_42) = (size_t*)(value_43);
             if (method->parameters == ((void *)0)) {
                 ZxModuleLoader* value_44 = loader;
@@ -2867,7 +2867,7 @@ compiler_host_api_ImageRead(ZxModuleLoader* loader, ModuleImage* image, Bundle* 
         bool value_84 = value_80;
         bool value_85 = value_84;
         if (!value_85) {
-            uint8_t* value_86 = zir_f_4e8972c89764e104_ExecBundleModuleType(image->exec, cap, -1);
+            uint8_t* value_86 = zir_foreign_compiler_host_api__ExecBundleModuleType(image->exec, cap, -1);
             value_85 = (value_86 == ((void *)0));
         }
         bool value_87 = value_85;
@@ -2917,7 +2917,7 @@ compiler_host_api_ImageRead(ZxModuleLoader* loader, ModuleImage* image, Bundle* 
 int32_t
 compiler_host_api_ResultParameter(ModuleImage* image, ModuleExport* method)
 {
-    bool value_0 = zir_f_4e8972c89764e104_ExecBundleModuleParameterCount(image->exec, method->result) != 0;
+    bool value_0 = zir_foreign_compiler_host_api__ExecBundleModuleParameterCount(image->exec, method->result) != 0;
     int32_t value_1 = 0;
     if (value_0) {
         value_1 = 0;
@@ -2937,7 +2937,7 @@ compiler_host_api_ImportMismatch(ZxModuleLoader* loader, ModuleImport* import, M
             String s = value_0;
             value_1 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_4e8972c89764e104_snprintf(&(loader->error[0]), 512, value_1, import->module, import->function, provider->name, method->name, what);
+        zir_foreign_compiler_host_api__snprintf(&(loader->error[0]), 512, value_1, import->module, import->function, provider->name, method->name, what);
     }
     return 0;
 }
@@ -2982,7 +2982,7 @@ compiler_host_api_VerifyImports(ZxModuleLoader* loader, ModuleImage* image)
             value_10 = &(image->exports[index]);
         }
         ModuleExport* method = value_10;
-        int32_t count = zir_f_4e8972c89764e104_ExecBundleModuleParameterCount(image->exec, import->capability);
+        int32_t count = zir_foreign_compiler_host_api__ExecBundleModuleParameterCount(image->exec, import->capability);
         if (count < 1 || (size_t)(((int32_t)((uint32_t)count - 1u))) != method->count) {
             String value_12 = StringLiteral("arity");
             uint8_t* value_13 = (void *)0;
@@ -2994,7 +2994,7 @@ compiler_host_api_VerifyImports(ZxModuleLoader* loader, ModuleImage* image)
         }
         int32_t p = 1;
         while (p < count) {
-            if (zir_f_4e8972c89764e104_ExecBundleModuleTypeEqual(image->exec, import->capability, p, provider->exec, method->parameters[((int32_t)((uint32_t)p - 1u))], -1) == 0) {
+            if (zir_foreign_compiler_host_api__ExecBundleModuleTypeEqual(image->exec, import->capability, p, provider->exec, method->parameters[((int32_t)((uint32_t)p - 1u))], -1) == 0) {
                 uint8_t what[32] = {0};
                 String value_15 = StringLiteral("parameter %d");
                 uint8_t* value_16 = (void *)0;
@@ -3002,7 +3002,7 @@ compiler_host_api_VerifyImports(ZxModuleLoader* loader, ModuleImage* image)
                     String s = value_15;
                     value_16 = ((StaticText*)(&(s)))->data;
                 }
-                zir_f_4e8972c89764e104_snprintf(&(what[0]), 32, value_16, p);
+                zir_foreign_compiler_host_api__snprintf(&(what[0]), 32, value_16, p);
                 return compiler_host_api_ImportMismatch(loader, import, provider, method, &(what[0]));
             }
             p = (int32_t)((uint32_t)p + 1u);
@@ -3011,7 +3011,7 @@ compiler_host_api_VerifyImports(ZxModuleLoader* loader, ModuleImage* image)
         size_t value_19 = import->capability;
         void* value_20 = provider->exec;
         size_t value_21 = method->result;
-        if (zir_f_4e8972c89764e104_ExecBundleModuleTypeEqual(value_18, value_19, -1, value_20, value_21, compiler_host_api_ResultParameter(provider, method)) == 0) {
+        if (zir_foreign_compiler_host_api__ExecBundleModuleTypeEqual(value_18, value_19, -1, value_20, value_21, compiler_host_api_ResultParameter(provider, method)) == 0) {
             String value_22 = StringLiteral("result");
             uint8_t* value_23 = (void *)0;
             {
@@ -3037,8 +3037,8 @@ uint8_t*
 compiler_host_api_CandidatePath(ZxModuleLoader* loader, size_t index, uint8_t* name)
 {
     uint8_t* root = loader->roots[index];
-    size_t root_length = zir_f_4e8972c89764e104_strlen(root);
-    size_t name_length = zir_f_4e8972c89764e104_strlen(name);
+    size_t root_length = zir_foreign_compiler_host_api__strlen(root);
+    size_t name_length = zir_foreign_compiler_host_api__strlen(name);
     uint8_t* path = (void *)0;
     size_t value_0 = 0;
     {
@@ -3081,7 +3081,7 @@ compiler_host_api_CandidatePath(ZxModuleLoader* loader, size_t index, uint8_t* n
         }
         uint8_t* separator = value_8;
         size_t length = (root_length + name_length) + 5;
-        path = zir_f_4e8972c89764e104_malloc(length);
+        path = zir_foreign_compiler_host_api__malloc(length);
         if (path != ((void *)0)) {
             String value_15 = StringLiteral("%s%s%s.zx");
             uint8_t* value_16 = (void *)0;
@@ -3089,7 +3089,7 @@ compiler_host_api_CandidatePath(ZxModuleLoader* loader, size_t index, uint8_t* n
                 String s = value_15;
                 value_16 = ((StaticText*)(&(s)))->data;
             }
-            zir_f_4e8972c89764e104_snprintf(path, length, value_16, root, separator, name);
+            zir_foreign_compiler_host_api__snprintf(path, length, value_16, root, separator, name);
         }
     }
     if (path == ((void *)0)) {
@@ -3119,18 +3119,18 @@ compiler_host_api_ResolveHostPath(ZxModuleLoader* loader, uint8_t* name)
     size_t i = 0;
     while (i < loader->root_count) {
         if (ZxRunControlRequested(loader->control) != 0) {
-            zir_f_4e8972c89764e104_free(selected);
+            zir_foreign_compiler_host_api__free(selected);
             return (void *)0;
         }
         uint8_t* path = compiler_host_api_CandidatePath(loader, i, name);
         if (path == ((void *)0)) {
-            zir_f_4e8972c89764e104_free(selected);
+            zir_foreign_compiler_host_api__free(selected);
             return (void *)0;
         }
         uint64_t device = 0ULL;
         uint64_t inode = 0ULL;
         int32_t regular = 0;
-        int32_t status = zir_f_4e8972c89764e104_FileIdentity(path, &(device), &(inode), &(regular));
+        int32_t status = zir_foreign_compiler_host_api__FileIdentity(path, &(device), &(inode), &(regular));
         bool failed = false;
         if (status < 0) {
             String value_0 = StringLiteral("cannot resolve ZX module %s at %s");
@@ -3161,8 +3161,8 @@ compiler_host_api_ResolveHostPath(ZxModuleLoader* loader, uint8_t* name)
             failed = true;
         }
         if (failed) {
-            zir_f_4e8972c89764e104_free(path);
-            zir_f_4e8972c89764e104_free(selected);
+            zir_foreign_compiler_host_api__free(path);
+            zir_foreign_compiler_host_api__free(selected);
             return (void *)0;
         }
         if (status == 0 && selected == ((void *)0)) {
@@ -3170,7 +3170,7 @@ compiler_host_api_ResolveHostPath(ZxModuleLoader* loader, uint8_t* name)
             selected_device = device;
             selected_inode = inode;
         } else {
-            zir_f_4e8972c89764e104_free(path);
+            zir_foreign_compiler_host_api__free(path);
         }
         i = i + 1;
     }
@@ -3241,7 +3241,7 @@ compiler_host_api_ResolveGuestBundle(ZxModuleLoader* loader, uint8_t* name, uint
         }
         bool value_0 = *(selected_path) != ((void *)0);
         if (value_0 && compiler_host_api_Same(*(selected_path), path)) {
-            zir_f_4e8972c89764e104_free(path);
+            zir_foreign_compiler_host_api__free(path);
             i = i + 1;
             continue;
         }
@@ -3277,11 +3277,11 @@ compiler_host_api_ResolveGuestBundle(ZxModuleLoader* loader, uint8_t* name, uint
                 }
                 compiler_host_api_Problem(loader, value_7, name, path, (void *)0, (void *)0);
             }
-            zir_f_4e8972c89764e104_free(path);
+            zir_foreign_compiler_host_api__free(path);
             BundleClose(selected);
             return (void *)0;
         }
-        zir_f_4e8972c89764e104_free(path);
+        zir_foreign_compiler_host_api__free(path);
         i = i + 1;
     }
     if (selected == ((void *)0)) {
@@ -3304,7 +3304,7 @@ compiler_host_api_ImageClose(ModuleImage* image)
     }
     compiler_host_api_ImageClear(image);
     BundleClose(image->bundle);
-    zir_f_4e8972c89764e104_free((uint8_t*)(image));
+    zir_foreign_compiler_host_api__free((uint8_t*)(image));
 }
 
 HostBinding*
@@ -3367,7 +3367,7 @@ compiler_host_api_OpenImage(ZxModuleLoader* loader, Bundle* bundle, uint8_t* pat
     if (bundle == ((void *)0)) {
         return (void *)0;
     }
-    uint8_t* value_0 = zir_f_4e8972c89764e104_calloc(1, sizeof(ModuleImage));
+    uint8_t* value_0 = zir_foreign_compiler_host_api__calloc(1, sizeof(ModuleImage));
     ModuleImage* image = (ModuleImage*)(value_0);
     if (image == ((void *)0)) {
         ZxModuleLoader* value_1 = loader;
@@ -3463,22 +3463,22 @@ compiler_host_api_ReadModuleFile(uint8_t* path, ptrdiff_t limit, size_t* size)
         String s = value_0;
         value_1 = ((StaticText*)(&(s)))->data;
     }
-    void* stream = zir_f_4e8972c89764e104_fopen(path, value_1);
+    void* stream = zir_foreign_compiler_host_api__fopen(path, value_1);
     if (stream == ((void *)0)) {
         return (void *)0;
     }
     uint8_t* bytes = (void *)0;
     bool ok = false;
-    if (zir_f_4e8972c89764e104_fseek(stream, 0, 2) == 0) {
-        ptrdiff_t length = zir_f_4e8972c89764e104_ftell(stream);
-        if (length >= 0 && length <= limit && zir_f_4e8972c89764e104_fseek(stream, 0, 0) == 0) {
-            bytes = zir_f_4e8972c89764e104_malloc((size_t)(length) + 1);
+    if (zir_foreign_compiler_host_api__fseek(stream, 0, 2) == 0) {
+        ptrdiff_t length = zir_foreign_compiler_host_api__ftell(stream);
+        if (length >= 0 && length <= limit && zir_foreign_compiler_host_api__fseek(stream, 0, 0) == 0) {
+            bytes = zir_foreign_compiler_host_api__malloc((size_t)(length) + 1);
             bool value_3 = bytes != ((void *)0);
-            bool value_4 = value_3 && zir_f_4e8972c89764e104_fread(bytes, 1, (size_t)(length), stream) == (size_t)(length);
+            bool value_4 = value_3 && zir_foreign_compiler_host_api__fread(bytes, 1, (size_t)(length), stream) == (size_t)(length);
             bool value_5 = value_4;
-            bool value_6 = value_5 && zir_f_4e8972c89764e104_fgetc(stream) < 0;
+            bool value_6 = value_5 && zir_foreign_compiler_host_api__fgetc(stream) < 0;
             bool value_7 = value_6;
-            if (value_7 && zir_f_4e8972c89764e104_ferror(stream) == 0) {
+            if (value_7 && zir_foreign_compiler_host_api__ferror(stream) == 0) {
                 uint8_t* value_8 = &(bytes[length]);
                 (*value_8) = 0;
                 size_t* value_9 = &((*(size)));
@@ -3487,11 +3487,11 @@ compiler_host_api_ReadModuleFile(uint8_t* path, ptrdiff_t limit, size_t* size)
             }
         }
     }
-    if (zir_f_4e8972c89764e104_fclose(stream) != 0) {
+    if (zir_foreign_compiler_host_api__fclose(stream) != 0) {
         ok = false;
     }
     if (!ok) {
-        zir_f_4e8972c89764e104_free(bytes);
+        zir_foreign_compiler_host_api__free(bytes);
         return (void *)0;
     }
     return bytes;
@@ -3535,7 +3535,7 @@ compiler_host_api_OpenPathBundle(ZxModuleLoader* loader, uint8_t* path, uint8_t*
     size_t size = 0;
     uint8_t* bytes = compiler_host_api_ReadModuleFile(path, 268435456, &(size));
     Bundle* bundle = BundleOpenBytes(bytes, size);
-    zir_f_4e8972c89764e104_free(bytes);
+    zir_foreign_compiler_host_api__free(bytes);
     if (bundle == ((void *)0)) {
         String value_10 = StringLiteral("cannot open verified ZX module %s from %s");
         uint8_t* value_11 = (void *)0;
@@ -3579,7 +3579,7 @@ compiler_host_api_OpenLogicalImage(ZxModuleLoader* loader, uint8_t* artifact, ui
         }
     }
     ModuleImage* image = compiler_host_api_OpenImage(loader, bundle, path, name);
-    zir_f_4e8972c89764e104_free(path);
+    zir_foreign_compiler_host_api__free(path);
     return image;
 }
 
@@ -3742,7 +3742,7 @@ compiler_host_api_VerifyGraph(ZxModuleLoader* loader, ModuleImage* root)
         size_t* value_32 = &(image->next_requirement);
         (*value_32) = 0;
     }
-    zir_f_4e8972c89764e104_free((uint8_t*)(stack));
+    zir_foreign_compiler_host_api__free((uint8_t*)(stack));
     return valid;
 }
 
@@ -3837,19 +3837,19 @@ compiler_host_api_ScopeOpen(ModuleScope* scope, HostBinding* external, size_t ex
     } else {
         value_13 = 1;
     }
-    uint8_t* value_14 = zir_f_4e8972c89764e104_calloc(value_13, sizeof(HostBinding));
+    uint8_t* value_14 = zir_foreign_compiler_host_api__calloc(value_13, sizeof(HostBinding));
     HostBinding* bindings = (HostBinding*)(value_14);
     BoundModuleHost** value_15 = &(scope->hosts);
     BoundModuleHost* value_16 = (void *)0;
     if (count != 0) {
-        uint8_t* value_17 = zir_f_4e8972c89764e104_calloc(count, sizeof(BoundModuleHost));
+        uint8_t* value_17 = zir_foreign_compiler_host_api__calloc(count, sizeof(BoundModuleHost));
         value_16 = (BoundModuleHost*)(value_17);
     } else {
         value_16 = (void *)0;
     }
     (*value_15) = value_16;
     if (bindings == ((void *)0) || (count != 0 && scope->hosts == ((void *)0))) {
-        zir_f_4e8972c89764e104_free((uint8_t*)(bindings));
+        zir_foreign_compiler_host_api__free((uint8_t*)(bindings));
         ZxModuleLoader* value_18 = loader;
         int32_t value_19 = 0;
         {
@@ -3865,7 +3865,7 @@ compiler_host_api_ScopeOpen(ModuleScope* scope, HostBinding* external, size_t ex
         return value_19 != 0;
     }
     if (external_count != 0) {
-        zir_f_4e8972c89764e104_memcpy((uint8_t*)(bindings), (uint8_t*)(external), external_count * sizeof(HostBinding));
+        zir_foreign_compiler_host_api__memcpy((uint8_t*)(bindings), (uint8_t*)(external), external_count * sizeof(HostBinding));
     }
     size_t used = external_count;
     size_t i = 0;
@@ -3908,7 +3908,7 @@ compiler_host_api_ScopeOpen(ModuleScope* scope, HostBinding* external, size_t ex
     BundleInstance** value_35 = &(scope->instance);
     BundleInstance* value_36 = BundleInstantiateControlled(image->bundle, bindings, used, &(loader->options), loader->write, loader->console_context, loader->control, &(status));
     (*value_35) = value_36;
-    zir_f_4e8972c89764e104_free((uint8_t*)(bindings));
+    zir_foreign_compiler_host_api__free((uint8_t*)(bindings));
     if (status == 0 && (loader->error)[0] == 0) {
         ZxModuleLoader* value_37 = loader;
         String value_38 = StringLiteral("ZX module initialization failed: %s");
@@ -3934,7 +3934,7 @@ compiler_host_api_ScopeClose(ModuleScope* scope)
 {
     BundleInstanceClose(scope->instance);
     BundleFreeHostValue(&(scope->result));
-    zir_f_4e8972c89764e104_free((uint8_t*)(scope->hosts));
+    zir_foreign_compiler_host_api__free((uint8_t*)(scope->hosts));
     while (scope->children != ((void *)0)) {
         ModuleSlot* slot = scope->children;
         ModuleSlot** value_0 = &(scope->children);
@@ -3951,8 +3951,8 @@ compiler_host_api_SlotClose(ModuleSlot* slot)
     if (scope->owns_image != 0) {
         compiler_host_api_ImageClose(scope->image);
     }
-    zir_f_4e8972c89764e104_free((uint8_t*)(scope));
-    zir_f_4e8972c89764e104_free((uint8_t*)(slot));
+    zir_foreign_compiler_host_api__free((uint8_t*)(scope));
+    zir_foreign_compiler_host_api__free((uint8_t*)(slot));
 }
 
 ModuleSlot*
@@ -4011,7 +4011,7 @@ compiler_host_api_ReleaseSlot(ModuleScope* owner, uint64_t handle)
 uint64_t
 compiler_host_api_NextHandle(void)
 {
-    while (zir_f_4e8972c89764e104_FlagTake((void*)(&(handle_lock))) != 0) {
+    while (zir_foreign_compiler_host_api__FlagTake((void*)(&(handle_lock))) != 0) {
     }
     uint64_t handle = 0ULL;
     uint64_t last = 0ULL;
@@ -4019,7 +4019,7 @@ compiler_host_api_NextHandle(void)
         handles_issued = (uint64_t)((uint64_t)handles_issued + UINT64_C(1));
         handle = handles_issued;
     }
-    zir_f_4e8972c89764e104_FlagClear((void*)(&(handle_lock)));
+    zir_foreign_compiler_host_api__FlagClear((void*)(&(handle_lock)));
     return handle;
 }
 
@@ -4040,13 +4040,13 @@ compiler_host_api_LoadSlot(ModuleScope* owner, ModuleImage* image)
         compiler_host_api_Problem(loader, value_1, (void *)0, (void *)0, (void *)0, (void *)0);
         return 0ULL;
     }
-    uint8_t* value_3 = zir_f_4e8972c89764e104_calloc(1, sizeof(ModuleSlot));
+    uint8_t* value_3 = zir_foreign_compiler_host_api__calloc(1, sizeof(ModuleSlot));
     ModuleSlot* slot = (ModuleSlot*)(value_3);
-    uint8_t* value_4 = zir_f_4e8972c89764e104_calloc(1, sizeof(ModuleScope));
+    uint8_t* value_4 = zir_foreign_compiler_host_api__calloc(1, sizeof(ModuleScope));
     ModuleScope* scope = (ModuleScope*)(value_4);
     if (slot == ((void *)0) || scope == ((void *)0)) {
-        zir_f_4e8972c89764e104_free((uint8_t*)(scope));
-        zir_f_4e8972c89764e104_free((uint8_t*)(slot));
+        zir_foreign_compiler_host_api__free((uint8_t*)(scope));
+        zir_foreign_compiler_host_api__free((uint8_t*)(slot));
         ZxModuleLoader* value_5 = loader;
         int32_t value_6 = 0;
         {
@@ -4143,7 +4143,7 @@ compiler_host_api_CallSlot(ModuleSlot* slot, size_t ordinal, HostValue* args, si
     HostValue** value_15 = &(frame.args);
     (*value_15) = args;
     HostValue previous = scope->result;
-    zir_f_4e8972c89764e104_memset((uint8_t*)(&(scope->result)), 0, sizeof(HostValue));
+    zir_foreign_compiler_host_api__memset((uint8_t*)(&(scope->result)), 0, sizeof(HostValue));
     ModuleFrame** value_16 = &(scope->frame);
     (*value_16) = &(frame);
     uint32_t* value_17 = &(loader->depth);
@@ -4205,7 +4205,7 @@ compiler_host_api_ParameterType(ModuleSlot* slot, ModuleExport* method, size_t i
     if (method == ((void *)0) || index >= method->count) {
         return (void *)0;
     }
-    return zir_f_4e8972c89764e104_ExecBundleModuleType(slot->scope->image->exec, method->parameters[index], -1);
+    return zir_foreign_compiler_host_api__ExecBundleModuleType(slot->scope->image->exec, method->parameters[index], -1);
 }
 
 uint8_t*
@@ -4213,7 +4213,7 @@ compiler_host_api_ResultType(ModuleImage* image, ModuleExport* method)
 {
     void* value_0 = image->exec;
     size_t value_1 = method->result;
-    return zir_f_4e8972c89764e104_ExecBundleModuleType(value_0, value_1, compiler_host_api_ResultParameter(image, method));
+    return zir_foreign_compiler_host_api__ExecBundleModuleType(value_0, value_1, compiler_host_api_ResultParameter(image, method));
 }
 
 bool
@@ -4308,7 +4308,7 @@ compiler_host_api_SameLinkage(ModuleImage* a, ModuleImage* b)
         }
         size_t p = 0;
         while (p < left->count) {
-            if (zir_f_4e8972c89764e104_ExecBundleModuleTypeEqual(a->exec, left->parameters[p], -1, b->exec, right->parameters[p], -1) == 0) {
+            if (zir_foreign_compiler_host_api__ExecBundleModuleTypeEqual(a->exec, left->parameters[p], -1, b->exec, right->parameters[p], -1) == 0) {
                 return false;
             }
             p = p + 1;
@@ -4318,7 +4318,7 @@ compiler_host_api_SameLinkage(ModuleImage* a, ModuleImage* b)
         int32_t value_25 = compiler_host_api_ResultParameter(a, left);
         void* value_26 = b->exec;
         size_t value_27 = right->result;
-        if (zir_f_4e8972c89764e104_ExecBundleModuleTypeEqual(value_23, value_24, value_25, value_26, value_27, compiler_host_api_ResultParameter(b, right)) == 0) {
+        if (zir_foreign_compiler_host_api__ExecBundleModuleTypeEqual(value_23, value_24, value_25, value_26, value_27, compiler_host_api_ResultParameter(b, right)) == 0) {
             return false;
         }
         i = i + 1;
@@ -4382,7 +4382,7 @@ compiler_host_api_ReplaceSlot(ModuleSlot* slot, uint8_t* artifact, bool search_r
         compiler_host_api_ImageClose(image);
         return 0;
     }
-    uint8_t* value_13 = zir_f_4e8972c89764e104_calloc(1, sizeof(ModuleScope));
+    uint8_t* value_13 = zir_foreign_compiler_host_api__calloc(1, sizeof(ModuleScope));
     ModuleScope* candidate = (ModuleScope*)(value_13);
     if (candidate == ((void *)0)) {
         compiler_host_api_ImageClose(image);
@@ -4473,7 +4473,7 @@ compiler_host_api_ReplaceSlot(ModuleSlot* slot, uint8_t* artifact, bool search_r
     if (failure != ((void *)0)) {
         compiler_host_api_ScopeClose(candidate);
         compiler_host_api_ImageClose(image);
-        zir_f_4e8972c89764e104_free((uint8_t*)(candidate));
+        zir_foreign_compiler_host_api__free((uint8_t*)(candidate));
         String value_45 = StringLiteral("ZX module replacement refused: %s");
         uint8_t* value_46 = (void *)0;
         {
@@ -4488,7 +4488,7 @@ compiler_host_api_ReplaceSlot(ModuleSlot* slot, uint8_t* artifact, bool search_r
     if (old->owns_image != 0) {
         compiler_host_api_ImageClose(old->image);
     }
-    zir_f_4e8972c89764e104_free((uint8_t*)(old));
+    zir_foreign_compiler_host_api__free((uint8_t*)(old));
     return 1;
 }
 
@@ -4527,7 +4527,7 @@ compiler_host_api_SetText(HostValue* result, uint8_t* text)
     size_t* value_2 = &(result->length);
     size_t value_3 = 0;
     if (text != ((void *)0)) {
-        size_t value_4 = zir_f_4e8972c89764e104_strlen(text);
+        size_t value_4 = zir_foreign_compiler_host_api__strlen(text);
         value_3 = value_4;
     } else {
         value_3 = 0;
@@ -4552,15 +4552,15 @@ compiler_host_api_ReadText(HostValue* value)
     bool value_5 = value_1;
     bool value_6 = value_5;
     if (!value_6) {
-        uint8_t* value_7 = zir_f_4e8972c89764e104_memchr(value->data, 0, value->length);
+        uint8_t* value_7 = zir_foreign_compiler_host_api__memchr(value->data, 0, value->length);
         value_6 = (value_7 != ((void *)0));
     }
     if (value_6) {
         return (void *)0;
     }
-    uint8_t* text = zir_f_4e8972c89764e104_malloc(value->length + 1);
+    uint8_t* text = zir_foreign_compiler_host_api__malloc(value->length + 1);
     if (text != ((void *)0)) {
-        zir_f_4e8972c89764e104_memcpy(text, value->data, value->length);
+        zir_foreign_compiler_host_api__memcpy(text, value->data, value->length);
         uint8_t* value_8 = &(text[value->length]);
         (*value_8) = 0;
     }
@@ -4615,7 +4615,7 @@ compiler_host_api_ServiceCall(ModuleScope* scope, BindingKind kind, HostValue* a
             value_10 = 0ULL;
         }
         uint64_t handle = value_10;
-        zir_f_4e8972c89764e104_free(name);
+        zir_foreign_compiler_host_api__free(name);
         HostValue* value_12 = result;
         {
             HostValue* result = value_12;
@@ -4727,7 +4727,7 @@ compiler_host_api_ServiceCall(ModuleScope* scope, BindingKind kind, HostValue* a
             int64_t* value_54 = &(result->integer);
             (*value_54) = (int64_t)(number);
         }
-        zir_f_4e8972c89764e104_free(name);
+        zir_foreign_compiler_host_api__free(name);
     } else if (kind == BindingKind_ExportCount) {
         HostValue* value_55 = result;
         uint64_t value_56 = 0;
@@ -5094,7 +5094,7 @@ ZxModuleLoaderOpenConfigured(ZxModuleLoaderConfig* config)
         }
         g = g + 1;
     }
-    uint8_t* value_6 = zir_f_4e8972c89764e104_calloc(1, sizeof(ZxModuleLoader));
+    uint8_t* value_6 = zir_foreign_compiler_host_api__calloc(1, sizeof(ZxModuleLoader));
     ZxModuleLoader* loader = (ZxModuleLoader*)(value_6);
     if (loader == ((void *)0)) {
         return (void *)0;
@@ -5121,7 +5121,7 @@ ZxModuleLoaderOpenConfigured(ZxModuleLoaderConfig* config)
     (*value_16) = config->console_context;
     if (count != 0) {
         uint8_t*** value_17 = &(loader->roots);
-        uint8_t* value_18 = zir_f_4e8972c89764e104_calloc(count, sizeof(void *));
+        uint8_t* value_18 = zir_foreign_compiler_host_api__calloc(count, sizeof(void *));
         (*value_17) = (uint8_t**)(value_18);
         if (loader->roots == ((void *)0)) {
             ZxModuleLoaderClose(loader);
@@ -5132,7 +5132,7 @@ ZxModuleLoaderOpenConfigured(ZxModuleLoaderConfig* config)
         uint8_t* root = roots[loader->root_count];
         uint8_t* value_19 = (void *)0;
         if (root != ((void *)0) && root[0] != 0) {
-            uint8_t* value_20 = zir_f_4e8972c89764e104_strdup(root);
+            uint8_t* value_20 = zir_foreign_compiler_host_api__strdup(root);
             value_19 = value_20;
         } else {
             value_19 = (void *)0;
@@ -5160,11 +5160,11 @@ ZxModuleLoaderClose(ZxModuleLoader* loader)
     compiler_host_api_RewindCache(loader, (void *)0);
     size_t i = 0;
     while (i < loader->root_count) {
-        zir_f_4e8972c89764e104_free(loader->roots[i]);
+        zir_foreign_compiler_host_api__free(loader->roots[i]);
         i = i + 1;
     }
-    zir_f_4e8972c89764e104_free((uint8_t*)(loader->roots));
-    zir_f_4e8972c89764e104_free((uint8_t*)(loader));
+    zir_foreign_compiler_host_api__free((uint8_t*)(loader->roots));
+    zir_foreign_compiler_host_api__free((uint8_t*)(loader));
 }
 
 int32_t
@@ -5175,9 +5175,9 @@ ZxModuleProgramNeedsLoader(Bundle* bundle)
         return 0;
     }
     size_t length = 0;
-    zir_f_4e8972c89764e104_ExecBundleModuleLinkage(exec, &(length));
+    zir_foreign_compiler_host_api__ExecBundleModuleLinkage(exec, &(length));
     bool value_0 = length != 0;
-    if (value_0 || zir_f_4e8972c89764e104_ExecBundleModuleEntry(exec) != 0) {
+    if (value_0 || zir_foreign_compiler_host_api__ExecBundleModuleEntry(exec) != 0) {
         return 1;
     }
     size_t i = 0;
@@ -5232,7 +5232,7 @@ ZxModuleProgramHasExternalHosts(Bundle* bundle)
 ZxModuleProgram*
 compiler_host_api_ProgramOpen(ZxModuleLoader* loader, Bundle* bundle, HostBinding* bindings, size_t count)
 {
-    uint8_t* value_0 = zir_f_4e8972c89764e104_calloc(1, sizeof(ZxModuleProgram));
+    uint8_t* value_0 = zir_foreign_compiler_host_api__calloc(1, sizeof(ZxModuleProgram));
     ZxModuleProgram* program = (ZxModuleProgram*)(value_0);
     if (program == ((void *)0)) {
         ZxModuleLoader* value_1 = loader;
@@ -5463,7 +5463,7 @@ ZxModuleProgramClose(ZxModuleProgram* program)
     }
     compiler_host_api_ScopeClose(&(program->scope));
     compiler_host_api_ImageClear(&(program->image));
-    zir_f_4e8972c89764e104_free((uint8_t*)(program));
+    zir_foreign_compiler_host_api__free((uint8_t*)(program));
 }
 
 uint64_t
@@ -5787,7 +5787,7 @@ compiler_host_api_CStr(String s)
 bool
 compiler_host_api_Same(uint8_t* a, uint8_t* b)
 {
-    return zir_f_4e8972c89764e104_strcmp(a, b) == 0;
+    return zir_foreign_compiler_host_api__strcmp(a, b) == 0;
 }
 
 size_t
@@ -5806,7 +5806,7 @@ compiler_host_api_HostSpan(void)
         String s = value_0;
         value_1 = ((StaticText*)(&(s)))->data;
     }
-    return zir_f_4e8972c89764e104_Span(value_1, 1, 1);
+    return zir_foreign_compiler_host_api__Span(value_1, 1, 1);
 }
 
 void*
@@ -5825,9 +5825,9 @@ void
 compiler_host_api_BundleDigest(uint8_t* bytes, size_t size, uint8_t* digest)
 {
     Sha256 hash = {0};
-    zir_f_4e8972c89764e104_Sha256Begin(&(hash));
-    zir_f_4e8972c89764e104_Sha256Add(&(hash), bytes, size);
-    zir_f_4e8972c89764e104_Sha256End(&(hash), digest);
+    zir_foreign_compiler_host_api__Sha256Begin(&(hash));
+    zir_foreign_compiler_host_api__Sha256Add(&(hash), bytes, size);
+    zir_foreign_compiler_host_api__Sha256End(&(hash), digest);
 }
 
 void
@@ -5844,7 +5844,7 @@ compiler_host_api_BundleImageConsumed(void* context, uint8_t* bytes, size_t size
 Bundle*
 compiler_host_api_NewBundle(void)
 {
-    uint8_t* value_0 = zir_f_4e8972c89764e104_calloc(1, sizeof(Bundle));
+    uint8_t* value_0 = zir_foreign_compiler_host_api__calloc(1, sizeof(Bundle));
     Bundle* bundle = (Bundle*)(value_0);
     if (bundle != ((void *)0)) {
         size_t* value_1 = &(bundle->references);
@@ -5873,15 +5873,15 @@ compiler_host_api_OpenBundle(uint8_t* bytes, size_t size, uint8_t* name, BundleI
     (*value_3) = &(bundle->digest[0]);
     bool* value_4 = &(owner.pending);
     (*value_4) = owned;
-    uint64_t started = zir_f_4e8972c89764e104_ProfileStart();
+    uint64_t started = zir_foreign_compiler_host_api__ProfileStart();
     if (owned) {
         void** value_5 = &(bundle->exec);
-        void* value_6 = zir_f_4e8972c89764e104_ExecBundleOpenWithRelease(bytes, size, name, compiler_host_api_BundleImageConsumed, (void*)(&(owner)));
+        void* value_6 = zir_foreign_compiler_host_api__ExecBundleOpenWithRelease(bytes, size, name, compiler_host_api_BundleImageConsumed, (void*)(&(owner)));
         (*value_5) = value_6;
     } else {
         BundleImageRelease keep = (BundleImageRelease)(((void *)0));
         void** value_7 = &(bundle->exec);
-        void* value_8 = zir_f_4e8972c89764e104_ExecBundleOpenWithRelease(bytes, size, name, keep, (void *)0);
+        void* value_8 = zir_foreign_compiler_host_api__ExecBundleOpenWithRelease(bytes, size, name, keep, (void *)0);
         (*value_7) = value_8;
     }
     if (owner.pending) {
@@ -5889,7 +5889,7 @@ compiler_host_api_OpenBundle(uint8_t* bytes, size_t size, uint8_t* name, BundleI
         value_9(owner.context, bytes, size);
     }
     if (bundle->exec == ((void *)0)) {
-        zir_f_4e8972c89764e104_free((uint8_t*)(bundle));
+        zir_foreign_compiler_host_api__free((uint8_t*)(bundle));
         return (void *)0;
     }
     if (!owned) {
@@ -5901,7 +5901,7 @@ compiler_host_api_OpenBundle(uint8_t* bytes, size_t size, uint8_t* name, BundleI
         String s = value_10;
         value_11 = ((StaticText*)(&(s)))->data;
     }
-    zir_f_4e8972c89764e104_ProfileEnd(value_11, started);
+    zir_foreign_compiler_host_api__ProfileEnd(value_11, started);
     return bundle;
 }
 
@@ -5910,7 +5910,7 @@ compiler_host_api_FreeBundleImage(void* context, uint8_t* bytes, size_t size)
 {
     (void)context;
     (void)size;
-    zir_f_4e8972c89764e104_free(bytes);
+    zir_foreign_compiler_host_api__free(bytes);
 }
 
 uint8_t*
@@ -5922,30 +5922,30 @@ compiler_host_api_ReadBundleFile(uint8_t* path, ptrdiff_t* size)
         String s = value_0;
         value_1 = ((StaticText*)(&(s)))->data;
     }
-    void* file = zir_f_4e8972c89764e104_fopen(path, value_1);
+    void* file = zir_foreign_compiler_host_api__fopen(path, value_1);
     if (file == ((void *)0)) {
         return (void *)0;
     }
     uint8_t* bytes = (void *)0;
     ptrdiff_t length = -1;
-    if (zir_f_4e8972c89764e104_fseek(file, 0, 2) == 0) {
-        length = zir_f_4e8972c89764e104_ftell(file);
-        if (length >= 0 && zir_f_4e8972c89764e104_fseek(file, 0, 0) == 0) {
+    if (zir_foreign_compiler_host_api__fseek(file, 0, 2) == 0) {
+        length = zir_foreign_compiler_host_api__ftell(file);
+        if (length >= 0 && zir_foreign_compiler_host_api__fseek(file, 0, 0) == 0) {
             size_t value_3 = 0;
             if (length != 0) {
                 value_3 = (size_t)(length);
             } else {
                 value_3 = 1;
             }
-            bytes = zir_f_4e8972c89764e104_malloc(value_3);
+            bytes = zir_foreign_compiler_host_api__malloc(value_3);
             bool value_4 = bytes != ((void *)0);
-            if (value_4 && zir_f_4e8972c89764e104_fread(bytes, 1, (size_t)(length), file) != (size_t)(length)) {
-                zir_f_4e8972c89764e104_free(bytes);
+            if (value_4 && zir_foreign_compiler_host_api__fread(bytes, 1, (size_t)(length), file) != (size_t)(length)) {
+                zir_foreign_compiler_host_api__free(bytes);
                 bytes = (void *)0;
             }
         }
     }
-    zir_f_4e8972c89764e104_fclose(file);
+    zir_foreign_compiler_host_api__fclose(file);
     ptrdiff_t* value_5 = &((*(size)));
     (*value_5) = length;
     return bytes;
@@ -5960,7 +5960,7 @@ BundleOpen(uint8_t* path)
     ptrdiff_t size = -1;
     uint8_t* bytes = compiler_host_api_ReadBundleFile(path, &(size));
     if (bytes == ((void *)0)) {
-        ZirSourceSpan value_0 = zir_f_4e8972c89764e104_Span(path, 1, 1);
+        ZirSourceSpan value_0 = zir_foreign_compiler_host_api__Span(path, 1, 1);
         String value_1 = StringLiteral("zx.input");
         uint8_t* value_2 = (void *)0;
         {
@@ -5973,7 +5973,7 @@ BundleOpen(uint8_t* path)
             String s = value_4;
             value_5 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_4e8972c89764e104_Diagnostic(value_0, value_2, value_5);
+        zir_foreign_compiler_host_api__Diagnostic(value_0, value_2, value_5);
         return (void *)0;
     }
     return compiler_host_api_OpenBundle(bytes, (size_t)(size), path, compiler_host_api_FreeBundleImage, (void *)0, true);
@@ -6026,14 +6026,14 @@ compiler_host_api_OpenBundleReadAt(uint64_t size, BundleReadAt read_at, void* co
     if (bundle == ((void *)0)) {
         return (void *)0;
     }
-    uint64_t started = zir_f_4e8972c89764e104_ProfileStart();
+    uint64_t started = zir_foreign_compiler_host_api__ProfileStart();
     int32_t* value_1 = &(bundle->engine_only);
     (*value_1) = engine_only;
     void** value_2 = &(bundle->exec);
-    void* value_3 = zir_f_4e8972c89764e104_ExecBundleOpenReadAt(size, read_at, context, &(bundle->digest[0]), unsupported, engine_only, shrink);
+    void* value_3 = zir_foreign_compiler_host_api__ExecBundleOpenReadAt(size, read_at, context, &(bundle->digest[0]), unsupported, engine_only, shrink);
     (*value_2) = value_3;
     if (bundle->exec == ((void *)0)) {
-        zir_f_4e8972c89764e104_free((uint8_t*)(bundle));
+        zir_foreign_compiler_host_api__free((uint8_t*)(bundle));
         return (void *)0;
     }
     String value_4 = StringLiteral("zx.bundle.open");
@@ -6042,7 +6042,7 @@ compiler_host_api_OpenBundleReadAt(uint64_t size, BundleReadAt read_at, void* co
         String s = value_4;
         value_5 = ((StaticText*)(&(s)))->data;
     }
-    zir_f_4e8972c89764e104_ProfileEnd(value_5, started);
+    zir_foreign_compiler_host_api__ProfileEnd(value_5, started);
     return bundle;
 }
 
@@ -6070,10 +6070,10 @@ BundleClose(Bundle* bundle)
     if (bundle->references != 0) {
         return;
     }
-    zir_f_4e8972c89764e104_NativeBundleSlotClose(&(bundle->native));
-    zir_f_4e8972c89764e104_NativeBundleSlotClose(&(bundle->unbounded));
-    zir_f_4e8972c89764e104_ExecBundleClose(bundle->exec);
-    zir_f_4e8972c89764e104_free((uint8_t*)(bundle));
+    zir_foreign_compiler_host_api__NativeBundleSlotClose(&(bundle->native));
+    zir_foreign_compiler_host_api__NativeBundleSlotClose(&(bundle->unbounded));
+    zir_foreign_compiler_host_api__ExecBundleClose(bundle->exec);
+    zir_foreign_compiler_host_api__free((uint8_t*)(bundle));
 }
 
 size_t
@@ -6081,7 +6081,7 @@ BundleCapabilityCount(Bundle* bundle)
 {
     size_t value_0 = 0;
     if (bundle != ((void *)0)) {
-        size_t value_1 = zir_f_4e8972c89764e104_ExecBundleCapabilityCount(bundle->exec);
+        size_t value_1 = zir_foreign_compiler_host_api__ExecBundleCapabilityCount(bundle->exec);
         value_0 = value_1;
     } else {
         value_0 = 0;
@@ -6094,7 +6094,7 @@ BundleCapabilityModule(Bundle* bundle, size_t index)
 {
     uint8_t* value_0 = (void *)0;
     if (bundle != ((void *)0)) {
-        uint8_t* value_1 = zir_f_4e8972c89764e104_ExecBundleCapabilityModule(bundle->exec, index);
+        uint8_t* value_1 = zir_foreign_compiler_host_api__ExecBundleCapabilityModule(bundle->exec, index);
         value_0 = value_1;
     } else {
         value_0 = (void *)0;
@@ -6107,7 +6107,7 @@ BundleCapabilityFunction(Bundle* bundle, size_t index)
 {
     uint8_t* value_0 = (void *)0;
     if (bundle != ((void *)0)) {
-        uint8_t* value_1 = zir_f_4e8972c89764e104_ExecBundleCapabilityFunction(bundle->exec, index);
+        uint8_t* value_1 = zir_foreign_compiler_host_api__ExecBundleCapabilityFunction(bundle->exec, index);
         value_0 = value_1;
     } else {
         value_0 = (void *)0;
@@ -6121,7 +6121,7 @@ BundleCapabilityAbiAt(Bundle* bundle, size_t index, BundleCapabilityAbi* abi)
     if (bundle == ((void *)0) || abi == ((void *)0)) {
         return 0;
     }
-    bool value_0 = zir_f_4e8972c89764e104_ExecBundleCapabilityAbi(bundle->exec, index, abi) != 0;
+    bool value_0 = zir_foreign_compiler_host_api__ExecBundleCapabilityAbi(bundle->exec, index, abi) != 0;
     int32_t value_1 = 0;
     if (value_0) {
         value_1 = 1;
@@ -6403,9 +6403,9 @@ BundleAbiCompatible(Bundle* left, Bundle* right)
     bool value_30 = value_16;
     bool value_31 = value_30;
     if (!value_31) {
-        uint8_t* value_32 = zir_f_4e8972c89764e104_ExecBundleEntryArguments(left->exec);
+        uint8_t* value_32 = zir_foreign_compiler_host_api__ExecBundleEntryArguments(left->exec);
         uint8_t* value_33 = value_32;
-        uint8_t* value_34 = zir_f_4e8972c89764e104_ExecBundleEntryArguments(right->exec);
+        uint8_t* value_34 = zir_foreign_compiler_host_api__ExecBundleEntryArguments(right->exec);
         bool value_35 = false;
         {
             uint8_t* left = value_33;
@@ -6441,9 +6441,9 @@ BundleAbiCompatible(Bundle* left, Bundle* right)
     bool value_45 = value_31;
     bool value_46 = value_45;
     if (!value_46) {
-        uint8_t* value_47 = zir_f_4e8972c89764e104_ExecBundleEntryReturnType(left->exec);
+        uint8_t* value_47 = zir_foreign_compiler_host_api__ExecBundleEntryReturnType(left->exec);
         uint8_t* value_48 = value_47;
-        uint8_t* value_49 = zir_f_4e8972c89764e104_ExecBundleEntryReturnType(right->exec);
+        uint8_t* value_49 = zir_foreign_compiler_host_api__ExecBundleEntryReturnType(right->exec);
         bool value_50 = false;
         {
             uint8_t* left = value_48;
@@ -6505,7 +6505,7 @@ BundleEntryModuleName(Bundle* bundle)
 {
     uint8_t* value_0 = (void *)0;
     if (bundle != ((void *)0)) {
-        uint8_t* value_1 = zir_f_4e8972c89764e104_ExecBundleEntryModule(bundle->exec);
+        uint8_t* value_1 = zir_foreign_compiler_host_api__ExecBundleEntryModule(bundle->exec);
         value_0 = value_1;
     } else {
         value_0 = (void *)0;
@@ -6518,7 +6518,7 @@ BundleEntryFunctionName(Bundle* bundle)
 {
     uint8_t* value_0 = (void *)0;
     if (bundle != ((void *)0)) {
-        uint8_t* value_1 = zir_f_4e8972c89764e104_ExecBundleEntryFunction(bundle->exec);
+        uint8_t* value_1 = zir_foreign_compiler_host_api__ExecBundleEntryFunction(bundle->exec);
         value_0 = value_1;
     } else {
         value_0 = (void *)0;
@@ -6531,7 +6531,7 @@ BundleEntryReturnType(Bundle* bundle)
 {
     uint8_t* type = (void *)0;
     if (bundle != ((void *)0)) {
-        type = zir_f_4e8972c89764e104_ExecBundleEntryReturnType(bundle->exec);
+        type = zir_foreign_compiler_host_api__ExecBundleEntryReturnType(bundle->exec);
     }
     uint8_t* value_0 = (void *)0;
     {
@@ -6560,9 +6560,9 @@ BundleCodeIdentity(Bundle* bundle, uint8_t* identity)
         return;
     }
     if (bundle == ((void *)0)) {
-        zir_f_4e8972c89764e104_memset(identity, 0, 32);
+        zir_foreign_compiler_host_api__memset(identity, 0, 32);
     } else {
-        zir_f_4e8972c89764e104_memcpy(identity, &(bundle->digest[0]), 32);
+        zir_foreign_compiler_host_api__memcpy(identity, &(bundle->digest[0]), 32);
     }
 }
 
@@ -6571,7 +6571,7 @@ BundleAssetCount(Bundle* bundle)
 {
     size_t value_0 = 0;
     if (bundle != ((void *)0)) {
-        size_t value_1 = zir_f_4e8972c89764e104_ExecBundleAssetCount(bundle->exec);
+        size_t value_1 = zir_foreign_compiler_host_api__ExecBundleAssetCount(bundle->exec);
         value_0 = value_1;
     } else {
         value_0 = 0;
@@ -6584,7 +6584,7 @@ BundleAssetName(Bundle* bundle, size_t index)
 {
     uint8_t* value_0 = (void *)0;
     if (bundle != ((void *)0)) {
-        uint8_t* value_1 = zir_f_4e8972c89764e104_ExecBundleAssetName(bundle->exec, index);
+        uint8_t* value_1 = zir_foreign_compiler_host_api__ExecBundleAssetName(bundle->exec, index);
         value_0 = value_1;
     } else {
         value_0 = (void *)0;
@@ -6597,7 +6597,7 @@ BundleAssetData(Bundle* bundle, size_t index)
 {
     uint8_t* value_0 = (void *)0;
     if (bundle != ((void *)0)) {
-        uint8_t* value_1 = zir_f_4e8972c89764e104_ExecBundleAssetData(bundle->exec, index);
+        uint8_t* value_1 = zir_foreign_compiler_host_api__ExecBundleAssetData(bundle->exec, index);
         value_0 = value_1;
     } else {
         value_0 = (void *)0;
@@ -6610,7 +6610,7 @@ BundleAssetSize(Bundle* bundle, size_t index)
 {
     size_t value_0 = 0;
     if (bundle != ((void *)0)) {
-        size_t value_1 = zir_f_4e8972c89764e104_ExecBundleAssetSize(bundle->exec, index);
+        size_t value_1 = zir_foreign_compiler_host_api__ExecBundleAssetSize(bundle->exec, index);
         value_0 = value_1;
     } else {
         value_0 = 0;
@@ -6621,10 +6621,10 @@ BundleAssetSize(Bundle* bundle, size_t index)
 ZxRunControl*
 ZxRunControlCreate(void)
 {
-    uint8_t* value_0 = zir_f_4e8972c89764e104_malloc(sizeof(ZxRunControl));
+    uint8_t* value_0 = zir_foreign_compiler_host_api__malloc(sizeof(ZxRunControl));
     ZxRunControl* control = (ZxRunControl*)(value_0);
     if (control != ((void *)0)) {
-        zir_f_4e8972c89764e104_IntStore((void*)(&(control->requested)), 0);
+        zir_foreign_compiler_host_api__IntStore((void*)(&(control->requested)), 0);
     }
     return control;
 }
@@ -6633,7 +6633,7 @@ void
 ZxRunControlRequest(ZxRunControl* control)
 {
     if (control != ((void *)0)) {
-        zir_f_4e8972c89764e104_IntStore((void*)(&(control->requested)), 1);
+        zir_foreign_compiler_host_api__IntStore((void*)(&(control->requested)), 1);
     }
 }
 
@@ -6643,7 +6643,7 @@ ZxRunControlRequested(ZxRunControl* control)
     if (control == ((void *)0)) {
         return 0;
     }
-    bool value_0 = zir_f_4e8972c89764e104_IntLoad((void*)(&(control->requested))) != 0;
+    bool value_0 = zir_foreign_compiler_host_api__IntLoad((void*)(&(control->requested))) != 0;
     int32_t value_1 = 0;
     if (value_0) {
         value_1 = 1;
@@ -6656,7 +6656,7 @@ ZxRunControlRequested(ZxRunControl* control)
 void
 ZxRunControlFree(ZxRunControl* control)
 {
-    zir_f_4e8972c89764e104_free((uint8_t*)(control));
+    zir_foreign_compiler_host_api__free((uint8_t*)(control));
 }
 
 HostBinding*
@@ -6668,12 +6668,12 @@ compiler_host_api_BindingAt(HostBinding* bindings, size_t index)
 int32_t
 compiler_host_api_CompareBindingRecords(HostBinding* a, HostBinding* b)
 {
-    int32_t module = zir_f_4e8972c89764e104_strcmp(a->module, b->module);
+    int32_t module = zir_foreign_compiler_host_api__strcmp(a->module, b->module);
     int32_t value_0 = 0;
     if (module != 0) {
         value_0 = module;
     } else {
-        int32_t value_1 = zir_f_4e8972c89764e104_strcmp(a->function, b->function);
+        int32_t value_1 = zir_foreign_compiler_host_api__strcmp(a->function, b->function);
         value_0 = value_1;
     }
     return value_0;
@@ -6758,7 +6758,7 @@ compiler_host_api_ValidateBindings(Bundle* bundle, BindingSet* set)
                 String s = value_11;
                 value_12 = ((StaticText*)(&(s)))->data;
             }
-            zir_f_4e8972c89764e104_Diagnostic(value_7, value_9, value_12, current->module, current->function);
+            zir_foreign_compiler_host_api__Diagnostic(value_7, value_9, value_12, current->module, current->function);
             return false;
         }
         i = i + 1;
@@ -6783,7 +6783,7 @@ compiler_host_api_ValidateBindings(Bundle* bundle, BindingSet* set)
                 String s = value_19;
                 value_20 = ((StaticText*)(&(s)))->data;
             }
-            zir_f_4e8972c89764e104_Diagnostic(value_15, value_17, value_20, module, function, module, function, module);
+            zir_foreign_compiler_host_api__Diagnostic(value_15, value_17, value_20, module, function, module, function, module);
             return false;
         }
         i = i + 1;
@@ -6816,7 +6816,7 @@ compiler_host_api_BindingCopyBytes(HostBinding* bindings, size_t count)
         if (binding->module == ((void *)0) || binding->function == ((void *)0) || binding->call == ((void *)0)) {
             return 0;
         }
-        size_t length = zir_f_4e8972c89764e104_strlen(binding->module);
+        size_t length = zir_foreign_compiler_host_api__strlen(binding->module);
         size_t value_5 = 0;
         {
             size_t zero = 0;
@@ -6826,7 +6826,7 @@ compiler_host_api_BindingCopyBytes(HostBinding* bindings, size_t count)
             return 0;
         }
         bytes = bytes + (length + 1);
-        length = zir_f_4e8972c89764e104_strlen(binding->function);
+        length = zir_foreign_compiler_host_api__strlen(binding->function);
         size_t value_7 = 0;
         {
             size_t zero = 0;
@@ -6848,7 +6848,7 @@ compiler_host_api_CopyBindings(BundleInstance* instance, HostBinding* bindings, 
     (*value_0) = count;
     if (count > 0) {
         HostBinding** value_1 = &(instance->owned_bindings);
-        uint8_t* value_2 = zir_f_4e8972c89764e104_malloc(bytes);
+        uint8_t* value_2 = zir_foreign_compiler_host_api__malloc(bytes);
         (*value_1) = (HostBinding*)(value_2);
         if (instance->owned_bindings == ((void *)0)) {
             return false;
@@ -6874,20 +6874,20 @@ compiler_host_api_CopyBindings(BundleInstance* instance, HostBinding* bindings, 
             HostBinding* copy = value_7;
             HostBinding* value_9 = &((*(copy)));
             (*value_9) = *(source);
-            size_t length = zir_f_4e8972c89764e104_strlen(source->module) + 1;
-            zir_f_4e8972c89764e104_memcpy(name, source->module, length);
+            size_t length = zir_foreign_compiler_host_api__strlen(source->module) + 1;
+            zir_foreign_compiler_host_api__memcpy(name, source->module, length);
             uint8_t** value_10 = &(copy->module);
             (*value_10) = name;
             name = (uint8_t*)(((size_t)(name) + length));
-            length = zir_f_4e8972c89764e104_strlen(source->function) + 1;
-            zir_f_4e8972c89764e104_memcpy(name, source->function, length);
+            length = zir_foreign_compiler_host_api__strlen(source->function) + 1;
+            zir_foreign_compiler_host_api__memcpy(name, source->function, length);
             uint8_t** value_11 = &(copy->function);
             (*value_11) = name;
             name = (uint8_t*)(((size_t)(name) + length));
             i = i + 1;
         }
         if (count > 1) {
-            zir_f_4e8972c89764e104_qsort((uint8_t*)(instance->owned_bindings), count, sizeof(HostBinding), compiler_host_api_CompareBindings);
+            zir_foreign_compiler_host_api__qsort((uint8_t*)(instance->owned_bindings), count, sizeof(HostBinding), compiler_host_api_CompareBindings);
         }
     }
     HostBinding** value_12 = &(instance->set.bindings);
@@ -6901,18 +6901,18 @@ compiler_host_api_OpenBackend(BundleInstance* instance, Bundle* bundle, int32_t 
     (void)has_console;
     void* context = (void*)(&(instance->set));
     if (selected == 2) {
-        void* value_0 = zir_f_4e8972c89764e104_ZxWasmPlatformActive();
+        void* value_0 = zir_foreign_compiler_host_api__ZxWasmPlatformActive();
         if (value_0 == ((void *)0)) {
             return false;
         }
         void** value_1 = &(instance->wasm);
-        void* value_2 = zir_f_4e8972c89764e104_ZxWasmOpenExec(bundle->exec, compiler_host_api_FindBindingIn, context, (int64_t)(max_steps));
+        void* value_2 = zir_foreign_compiler_host_api__ZxWasmOpenExec(bundle->exec, compiler_host_api_FindBindingIn, context, (int64_t)(max_steps));
         (*value_1) = value_2;
         int32_t* value_3 = &(instance->backend);
         (*value_3) = 2;
     } else {
         int32_t value_4 = selected;
-        if (value_4 == zir_f_4e8972c89764e104_NativePlatformBackend()) {
+        if (value_4 == zir_foreign_compiler_host_api__NativePlatformBackend()) {
             NativeBundleSlot* value_5 = (void *)0;
             if (unbounded != 0) {
                 value_5 = &(bundle->unbounded);
@@ -6920,18 +6920,18 @@ compiler_host_api_OpenBackend(BundleInstance* instance, Bundle* bundle, int32_t 
                 value_5 = &(bundle->native);
             }
             NativeBundleSlot* slot = value_5;
-            void* code = zir_f_4e8972c89764e104_NativeBundleSlotCode(slot, bundle->exec, &(bundle->digest[0]), unbounded);
+            void* code = zir_foreign_compiler_host_api__NativeBundleSlotCode(slot, bundle->exec, &(bundle->digest[0]), unbounded);
             if (code == ((void *)0)) {
                 return false;
             }
             void** value_6 = &(instance->native);
-            void* value_7 = zir_f_4e8972c89764e104_NativeInstanceOpen(code, bundle->exec, compiler_host_api_FindBindingIn, context, (int64_t)(max_steps));
+            void* value_7 = zir_foreign_compiler_host_api__NativeInstanceOpen(code, bundle->exec, compiler_host_api_FindBindingIn, context, (int64_t)(max_steps));
             (*value_6) = value_7;
             int32_t* value_8 = &(instance->backend);
             (*value_8) = selected;
         } else {
             void** value_9 = &(instance->exec);
-            void* value_10 = zir_f_4e8972c89764e104_ExecInstanceOpen(bundle->exec, compiler_host_api_FindBindingIn, context, (int64_t)(max_steps), write, console_context, control, status);
+            void* value_10 = zir_foreign_compiler_host_api__ExecInstanceOpen(bundle->exec, compiler_host_api_FindBindingIn, context, (int64_t)(max_steps), write, console_context, control, status);
             (*value_9) = value_10;
             int32_t* value_11 = &(instance->backend);
             (*value_11) = 1;
@@ -6961,7 +6961,7 @@ compiler_host_api_InstantiateWithPolicy(Bundle* bundle, HostBinding* bindings, s
             String s = value_5;
             value_6 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_4e8972c89764e104_Diagnostic(value_1, value_3, value_6);
+        zir_foreign_compiler_host_api__Diagnostic(value_1, value_3, value_6);
         return (void *)0;
     }
     if (ZxRunControlRequested(control) != 0) {
@@ -6979,7 +6979,7 @@ compiler_host_api_InstantiateWithPolicy(Bundle* bundle, HostBinding* bindings, s
     if (binding_count != 0 && bytes == 0) {
         return (void *)0;
     }
-    uint8_t* value_10 = zir_f_4e8972c89764e104_calloc(1, sizeof(BundleInstance));
+    uint8_t* value_10 = zir_foreign_compiler_host_api__calloc(1, sizeof(BundleInstance));
     BundleInstance* instance = (BundleInstance*)(value_10);
     if (instance == ((void *)0)) {
         return (void *)0;
@@ -6994,12 +6994,12 @@ compiler_host_api_InstantiateWithPolicy(Bundle* bundle, HostBinding* bindings, s
         BundleInstanceClose(instance);
         return (void *)0;
     }
-    int32_t selected = zir_f_4e8972c89764e104_AutoPlatformBackend();
+    int32_t selected = zir_foreign_compiler_host_api__AutoPlatformBackend();
     if (policy == 1) {
         selected = 1;
     }
     if (policy == 2) {
-        selected = zir_f_4e8972c89764e104_NativePlatformBackend();
+        selected = zir_foreign_compiler_host_api__NativePlatformBackend();
     }
     if (bundle->engine_only != 0 && selected != 1) {
         ZirSourceSpan value_14 = compiler_host_api_HostSpan();
@@ -7015,7 +7015,7 @@ compiler_host_api_InstantiateWithPolicy(Bundle* bundle, HostBinding* bindings, s
             String s = value_18;
             value_19 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_4e8972c89764e104_Diagnostic(value_14, value_16, value_19);
+        zir_foreign_compiler_host_api__Diagnostic(value_14, value_16, value_19);
         BundleInstanceClose(instance);
         return (void *)0;
     }
@@ -7033,7 +7033,7 @@ compiler_host_api_InstantiateWithPolicy(Bundle* bundle, HostBinding* bindings, s
             String s = value_25;
             value_26 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_4e8972c89764e104_Diagnostic(value_21, value_23, value_26);
+        zir_foreign_compiler_host_api__Diagnostic(value_21, value_23, value_26);
         BundleInstanceClose(instance);
         return (void *)0;
     }
@@ -7301,7 +7301,7 @@ BundleNativeProblem(Bundle* bundle)
         }
         return value_4;
     }
-    return zir_f_4e8972c89764e104_NativeBundleSlotProblem(&(bundle->native), bundle->exec, &(bundle->digest[0]));
+    return zir_foreign_compiler_host_api__NativeBundleSlotProblem(&(bundle->native), bundle->exec, &(bundle->digest[0]));
 }
 
 int32_t
@@ -7324,16 +7324,16 @@ BundleInstanceRunControlled(BundleInstance* instance, int64_t* result, int32_t* 
         return 0;
     }
     if (instance->exec != ((void *)0)) {
-        return zir_f_4e8972c89764e104_ExecInstanceRun(instance->exec, result, has_result, control);
+        return zir_foreign_compiler_host_api__ExecInstanceRun(instance->exec, result, has_result, control);
     }
     if (control != ((void *)0)) {
         return 0;
     }
     int32_t ran = 0;
     if (instance->wasm != ((void *)0)) {
-        ran = zir_f_4e8972c89764e104_ZxWasmRun(instance->wasm, result, has_result);
+        ran = zir_foreign_compiler_host_api__ZxWasmRun(instance->wasm, result, has_result);
     } else {
-        ran = zir_f_4e8972c89764e104_NativeInstanceRun(instance->native, result, has_result);
+        ran = zir_foreign_compiler_host_api__NativeInstanceRun(instance->native, result, has_result);
     }
     int32_t value_0 = 0;
     if (ran != 0) {
@@ -7351,11 +7351,11 @@ BundleInstanceLimitSteps(BundleInstance* instance, int32_t max_steps)
         return;
     }
     if (instance->wasm != ((void *)0)) {
-        zir_f_4e8972c89764e104_ZxWasmLimitSteps(instance->wasm, (int64_t)(max_steps));
+        zir_foreign_compiler_host_api__ZxWasmLimitSteps(instance->wasm, (int64_t)(max_steps));
     } else if (instance->native != ((void *)0)) {
-        zir_f_4e8972c89764e104_NativeInstanceLimitSteps(instance->native, (int64_t)(max_steps));
+        zir_foreign_compiler_host_api__NativeInstanceLimitSteps(instance->native, (int64_t)(max_steps));
     } else {
-        zir_f_4e8972c89764e104_ExecInstanceLimitSteps(instance->exec, (int64_t)(max_steps));
+        zir_foreign_compiler_host_api__ExecInstanceLimitSteps(instance->exec, (int64_t)(max_steps));
     }
 }
 
@@ -7366,11 +7366,11 @@ BundleInstanceMatchFieldsByName(BundleInstance* instance, int32_t enabled)
         return;
     }
     if (instance->wasm != ((void *)0)) {
-        zir_f_4e8972c89764e104_ZxWasmMatchFieldsByName(instance->wasm, enabled);
+        zir_foreign_compiler_host_api__ZxWasmMatchFieldsByName(instance->wasm, enabled);
     } else if (instance->native != ((void *)0)) {
-        zir_f_4e8972c89764e104_NativeInstanceMatchFieldsByName(instance->native, enabled);
+        zir_foreign_compiler_host_api__NativeInstanceMatchFieldsByName(instance->native, enabled);
     } else if (instance->exec != ((void *)0)) {
-        zir_f_4e8972c89764e104_ExecInstanceMatchFieldsByName(instance->exec, enabled);
+        zir_foreign_compiler_host_api__ExecInstanceMatchFieldsByName(instance->exec, enabled);
     }
 }
 
@@ -7380,7 +7380,7 @@ BundleInstanceBorrowHostString(BundleInstance* instance, uint8_t* module, uint8_
     if (instance == ((void *)0) || instance->exec == ((void *)0)) {
         return 0;
     }
-    bool value_0 = zir_f_4e8972c89764e104_ExecInstanceBorrowHostView(instance->exec, module, function, parameter, 1) != 0;
+    bool value_0 = zir_foreign_compiler_host_api__ExecInstanceBorrowHostView(instance->exec, module, function, parameter, 1) != 0;
     int32_t value_1 = 0;
     if (value_0) {
         value_1 = 1;
@@ -7396,7 +7396,7 @@ BundleInstanceBorrowHostSlice(BundleInstance* instance, uint8_t* module, uint8_t
     if (instance == ((void *)0) || instance->exec == ((void *)0)) {
         return 0;
     }
-    bool value_0 = zir_f_4e8972c89764e104_ExecInstanceBorrowHostView(instance->exec, module, function, parameter, 0) != 0;
+    bool value_0 = zir_foreign_compiler_host_api__ExecInstanceBorrowHostView(instance->exec, module, function, parameter, 0) != 0;
     int32_t value_1 = 0;
     if (value_0) {
         value_1 = 1;
@@ -7412,11 +7412,11 @@ BundleInstanceClose(BundleInstance* instance)
     if (instance == ((void *)0)) {
         return;
     }
-    zir_f_4e8972c89764e104_ExecInstanceClose(instance->exec);
-    zir_f_4e8972c89764e104_ZxWasmClose(instance->wasm);
-    zir_f_4e8972c89764e104_NativeInstanceClose(instance->native);
-    zir_f_4e8972c89764e104_free((uint8_t*)(instance->owned_bindings));
-    zir_f_4e8972c89764e104_free((uint8_t*)(instance));
+    zir_foreign_compiler_host_api__ExecInstanceClose(instance->exec);
+    zir_foreign_compiler_host_api__ZxWasmClose(instance->wasm);
+    zir_foreign_compiler_host_api__NativeInstanceClose(instance->native);
+    zir_foreign_compiler_host_api__free((uint8_t*)(instance->owned_bindings));
+    zir_foreign_compiler_host_api__free((uint8_t*)(instance));
 }
 
 int32_t

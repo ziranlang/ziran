@@ -6,125 +6,55 @@
 #include "compiler_native_names.h"
 #undef ZIRAN_COMPILER_NATIVE_NAMES_H_PRIVATE
 #include "compiler_type.h"
-#ifndef ZIR_FOREIGN_zir_f_ab9febbcabff1329_CScalarType_9055c366
-#define ZIR_FOREIGN_zir_f_ab9febbcabff1329_CScalarType_9055c366
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_ab9febbcabff1329_CScalarType(uint8_t* type) __asm__("_ScalarType");
+uint8_t* zir_foreign_compiler_native_names__CScalarType(uint8_t* type) __asm__("_ScalarType");
 #else
-uint8_t* zir_foreign_zir_f_ab9febbcabff1329_CScalarType(uint8_t* type) __asm__("ScalarType");
+uint8_t* zir_foreign_compiler_native_names__CScalarType(uint8_t* type) __asm__("ScalarType");
 #endif
-static uint8_t*
-zir_f_ab9febbcabff1329_CScalarType(uint8_t* type)
-{
-    return zir_foreign_zir_f_ab9febbcabff1329_CScalarType(type);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_ab9febbcabff1329_CSliceElementType_2bdd8629
-#define ZIR_FOREIGN_zir_f_ab9febbcabff1329_CSliceElementType_2bdd8629
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_ab9febbcabff1329_CSliceElementType(uint8_t* type, uint8_t* element, size_t size) __asm__("_SliceElementType");
+int32_t zir_foreign_compiler_native_names__CSliceElementType(uint8_t* type, uint8_t* element, size_t size) __asm__("_SliceElementType");
 #else
-int32_t zir_foreign_zir_f_ab9febbcabff1329_CSliceElementType(uint8_t* type, uint8_t* element, size_t size) __asm__("SliceElementType");
+int32_t zir_foreign_compiler_native_names__CSliceElementType(uint8_t* type, uint8_t* element, size_t size) __asm__("SliceElementType");
 #endif
-static int32_t
-zir_f_ab9febbcabff1329_CSliceElementType(uint8_t* type, uint8_t* element, size_t size)
-{
-    return zir_foreign_zir_f_ab9febbcabff1329_CSliceElementType(type, element, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_ab9febbcabff1329_TargetBindingName_0c579786
-#define ZIR_FOREIGN_zir_f_ab9febbcabff1329_TargetBindingName_0c579786
 #ifdef __APPLE__
-void zir_foreign_zir_f_ab9febbcabff1329_TargetBindingName(ZirFunction* function, ZirTarget target, uint8_t* name, uint8_t* output, size_t size) __asm__("_TargetBindingName");
+void zir_foreign_compiler_native_names__TargetBindingName(ZirFunction* function, ZirTarget target, uint8_t* name, uint8_t* output, size_t size) __asm__("_TargetBindingName");
 #else
-void zir_foreign_zir_f_ab9febbcabff1329_TargetBindingName(ZirFunction* function, ZirTarget target, uint8_t* name, uint8_t* output, size_t size) __asm__("TargetBindingName");
+void zir_foreign_compiler_native_names__TargetBindingName(ZirFunction* function, ZirTarget target, uint8_t* name, uint8_t* output, size_t size) __asm__("TargetBindingName");
 #endif
-static void
-zir_f_ab9febbcabff1329_TargetBindingName(ZirFunction* function, ZirTarget target, uint8_t* name, uint8_t* output, size_t size)
-{
-    zir_foreign_zir_f_ab9febbcabff1329_TargetBindingName(function, target, name, 
-output, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_ab9febbcabff1329_CNativeHeaderKeyword_76d6b68f
-#define ZIR_FOREIGN_zir_f_ab9febbcabff1329_CNativeHeaderKeyword_76d6b68f
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_ab9febbcabff1329_CNativeHeaderKeyword(uint8_t* name) __asm__("_NativeHeaderKeyword");
+int32_t zir_foreign_compiler_native_names__CNativeHeaderKeyword(uint8_t* name) __asm__("_NativeHeaderKeyword");
 #else
-int32_t zir_foreign_zir_f_ab9febbcabff1329_CNativeHeaderKeyword(uint8_t* name) __asm__("NativeHeaderKeyword");
+int32_t zir_foreign_compiler_native_names__CNativeHeaderKeyword(uint8_t* name) __asm__("NativeHeaderKeyword");
 #endif
-static int32_t
-zir_f_ab9febbcabff1329_CNativeHeaderKeyword(uint8_t* name)
-{
-    return zir_foreign_zir_f_ab9febbcabff1329_CNativeHeaderKeyword(name);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_ab9febbcabff1329_NativeNamesReset_0b7ee99f
-#define ZIR_FOREIGN_zir_f_ab9febbcabff1329_NativeNamesReset_0b7ee99f
 #ifdef __APPLE__
-void zir_foreign_zir_f_ab9febbcabff1329_NativeNamesReset(void) __asm__("_NativeNamesReset");
+void zir_foreign_compiler_native_names__NativeNamesReset(void) __asm__("_NativeNamesReset");
 #else
-void zir_foreign_zir_f_ab9febbcabff1329_NativeNamesReset(void) __asm__("NativeNamesReset");
+void zir_foreign_compiler_native_names__NativeNamesReset(void) __asm__("NativeNamesReset");
 #endif
-static void
-zir_f_ab9febbcabff1329_NativeNamesReset(void)
-{
-    zir_foreign_zir_f_ab9febbcabff1329_NativeNamesReset();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_ab9febbcabff1329_CMarkNativeNameCollisions_2d77f8fa
-#define ZIR_FOREIGN_zir_f_ab9febbcabff1329_CMarkNativeNameCollisions_2d77f8fa
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_ab9febbcabff1329_CMarkNativeNameCollisions(ZirProgram** programs, int32_t count) __asm__("_MarkNativeNameCollisions");
+int32_t zir_foreign_compiler_native_names__CMarkNativeNameCollisions(ZirProgram** programs, int32_t count) __asm__("_MarkNativeNameCollisions");
 #else
-int32_t zir_foreign_zir_f_ab9febbcabff1329_CMarkNativeNameCollisions(ZirProgram** programs, int32_t count) __asm__("MarkNativeNameCollisions");
+int32_t zir_foreign_compiler_native_names__CMarkNativeNameCollisions(ZirProgram** programs, int32_t count) __asm__("MarkNativeNameCollisions");
 #endif
-static int32_t
-zir_f_ab9febbcabff1329_CMarkNativeNameCollisions(ZirProgram** programs, int32_t count)
-{
-    return zir_foreign_zir_f_ab9febbcabff1329_CMarkNativeNameCollisions(programs, count);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_ab9febbcabff1329_CSameTypeApplicationRaw_2c1f1d78
-#define ZIR_FOREIGN_zir_f_ab9febbcabff1329_CSameTypeApplicationRaw_2c1f1d78
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_ab9febbcabff1329_CSameTypeApplicationRaw(void* target_owner, ZirType* target, void* source_owner, ZirType* source) __asm__("_same_type_application");
+int32_t zir_foreign_compiler_native_names__CSameTypeApplicationRaw(void* target_owner, ZirType* target, void* source_owner, ZirType* source) __asm__("_same_type_application");
 #else
-int32_t zir_foreign_zir_f_ab9febbcabff1329_CSameTypeApplicationRaw(void* target_owner, ZirType* target, void* source_owner, ZirType* source) __asm__("same_type_application");
+int32_t zir_foreign_compiler_native_names__CSameTypeApplicationRaw(void* target_owner, ZirType* target, void* source_owner, ZirType* source) __asm__("same_type_application");
 #endif
-static int32_t
-zir_f_ab9febbcabff1329_CSameTypeApplicationRaw(void* target_owner, ZirType* target, void* source_owner, ZirType* source)
-{
-    return zir_foreign_zir_f_ab9febbcabff1329_CSameTypeApplicationRaw(target_owner, target, 
-source_owner, source);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_ab9febbcabff1329_CSameMapTypeRaw_3ce233b2
-#define ZIR_FOREIGN_zir_f_ab9febbcabff1329_CSameMapTypeRaw_3ce233b2
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_ab9febbcabff1329_CSameMapTypeRaw(void* target_owner, ZirType* target, void* source_owner, ZirType* source) __asm__("_SameMapType");
+int32_t zir_foreign_compiler_native_names__CSameMapTypeRaw(void* target_owner, ZirType* target, void* source_owner, ZirType* source) __asm__("_SameMapType");
 #else
-int32_t zir_foreign_zir_f_ab9febbcabff1329_CSameMapTypeRaw(void* target_owner, ZirType* target, void* source_owner, ZirType* source) __asm__("SameMapType");
+int32_t zir_foreign_compiler_native_names__CSameMapTypeRaw(void* target_owner, ZirType* target, void* source_owner, ZirType* source) __asm__("SameMapType");
 #endif
-static int32_t
-zir_f_ab9febbcabff1329_CSameMapTypeRaw(void* target_owner, ZirType* target, void* source_owner, ZirType* source)
-{
-    return zir_foreign_zir_f_ab9febbcabff1329_CSameMapTypeRaw(target_owner, target, 
-source_owner, source);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_ab9febbcabff1329_DiagnosticOutOfMemory_4a6ba8c0
-#define ZIR_FOREIGN_zir_f_ab9febbcabff1329_DiagnosticOutOfMemory_4a6ba8c0
 #ifdef __APPLE__
-void zir_foreign_zir_f_ab9febbcabff1329_DiagnosticOutOfMemory(void) __asm__("_DiagnosticOutOfMemory");
+void zir_foreign_compiler_native_names__DiagnosticOutOfMemory(void) __asm__("_DiagnosticOutOfMemory");
 #else
-void zir_foreign_zir_f_ab9febbcabff1329_DiagnosticOutOfMemory(void) __asm__("DiagnosticOutOfMemory");
+void zir_foreign_compiler_native_names__DiagnosticOutOfMemory(void) __asm__("DiagnosticOutOfMemory");
 #endif
-static void
-zir_f_ab9febbcabff1329_DiagnosticOutOfMemory(void)
-{
-    zir_foreign_zir_f_ab9febbcabff1329_DiagnosticOutOfMemory();
-}
+#ifdef __APPLE__
+int32_t zir_foreign_compiler_native_names__CQualifyNativeTypeNames(ZirProgram** programs, int32_t count) __asm__("_QualifyNativeTypeNames");
+#else
+int32_t zir_foreign_compiler_native_names__CQualifyNativeTypeNames(ZirProgram** programs, int32_t count) __asm__("QualifyNativeTypeNames");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -205,7 +135,7 @@ TargetTypeZiran(void* type, ZirTarget target)
         }
         return value_2;
     }
-    uint8_t* scalar = zir_f_ab9febbcabff1329_CScalarType((uint8_t*)(type));
+    uint8_t* scalar = zir_foreign_compiler_native_names__CScalarType((uint8_t*)(type));
     bool value_5 = scalar != ((void *)0);
     bool value_6 = value_5;
     if (value_6) {
@@ -221,7 +151,7 @@ TargetTypeZiran(void* type, ZirTarget target)
     } else if (StringEqual(text, StringLiteral("real"))) {
         text = StringLiteral("float64");
     }
-    if (target == ZirTarget_ZIR_C && zir_f_ab9febbcabff1329_CSliceElementType((uint8_t*)(type), (void *)0, 0) != 0) {
+    if (target == ZirTarget_ZIR_C && zir_foreign_compiler_native_names__CSliceElementType((uint8_t*)(type), (void *)0, 0) != 0) {
         String value_9 = StringLiteral("Slice");
         void* value_10 = (void *)0;
         {
@@ -260,7 +190,7 @@ TargetTypeZiran(void* type, ZirTarget target)
 int32_t
 PrepareNativeNames(ZirProgram** programs, int32_t count)
 {
-    zir_f_ab9febbcabff1329_NativeNamesReset();
+    zir_foreign_compiler_native_names__NativeNamesReset();
     {
         int32_t range_first_1 = 0;
         int32_t range_last_1 = (int32_t)((uint32_t)count - 1u);
@@ -346,8 +276,8 @@ PrepareNativeNames(ZirProgram** programs, int32_t count)
                                 continue;
                             }
                             uint8_t mapped[256] = {0};
-                            zir_f_ab9febbcabff1329_TargetBindingName((void *)0, ZirTarget_ZIR_GO, &(type->name[0]), &(mapped[0]), (size_t)(256));
-                            bool value_18 = zir_f_ab9febbcabff1329_CNativeHeaderKeyword(&(type->name[0])) != 0;
+                            zir_foreign_compiler_native_names__TargetBindingName((void *)0, ZirTarget_ZIR_GO, &(type->name[0]), &(mapped[0]), (size_t)(256));
+                            bool value_18 = zir_foreign_compiler_native_names__CNativeHeaderKeyword(&(type->name[0])) != 0;
                             bool value_19 = value_18;
                             if (!value_19) {
                                 String value_20 = compiler_ir_CText(&(mapped[0]));
@@ -377,8 +307,8 @@ PrepareNativeNames(ZirProgram** programs, int32_t count)
             p = (int32_t)((uint32_t)p + 1u);
         }
     }
-    if (zir_f_ab9febbcabff1329_CMarkNativeNameCollisions(programs, count) == 0) {
-        zir_f_ab9febbcabff1329_DiagnosticOutOfMemory();
+    if (zir_foreign_compiler_native_names__CMarkNativeNameCollisions(programs, count) == 0) {
+        zir_foreign_compiler_native_names__DiagnosticOutOfMemory();
         return 0;
     }
     {
@@ -529,19 +459,19 @@ PrepareNativeNames(ZirProgram** programs, int32_t count)
             p = (int32_t)((uint32_t)p + 1u);
         }
     }
-    return 1;
+    return zir_foreign_compiler_native_names__CQualifyNativeTypeNames(programs, count);
 }
 
 static int32_t
 compiler_native_names_CSameTypeApplication(ZirModule* target_owner, ZirType* target, ZirModule* source_owner, ZirType* source)
 {
-    return zir_f_ab9febbcabff1329_CSameTypeApplicationRaw((void*)(target_owner), target, (void*)(source_owner), source);
+    return zir_foreign_compiler_native_names__CSameTypeApplicationRaw((void*)(target_owner), target, (void*)(source_owner), source);
 }
 
 static int32_t
 compiler_native_names_CSameMapType(ZirModule* target_owner, ZirType* target, ZirModule* source_owner, ZirType* source)
 {
-    return zir_f_ab9febbcabff1329_CSameMapTypeRaw((void*)(target_owner), target, (void*)(source_owner), source);
+    return zir_foreign_compiler_native_names__CSameMapTypeRaw((void*)(target_owner), target, (void*)(source_owner), source);
 }
 
 static void*

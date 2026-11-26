@@ -23,20 +23,20 @@ compiler_profile_CStr(String s)
 void
 compiler_profile_LockProfile(void)
 {
-    while (zir_f_69c909820e403472_S15FlagTake((void*)(&(profile_lock))) != 0) {
+    while (zir_foreign_compiler_profile__S15FlagTake((void*)(&(profile_lock))) != 0) {
     }
 }
 
 void
 compiler_profile_UnlockProfile(void)
 {
-    zir_f_69c909820e403472_S15FlagClear((void*)(&(profile_lock)));
+    zir_foreign_compiler_profile__S15FlagClear((void*)(&(profile_lock)));
 }
 
 bool
 compiler_profile_Disabled(void)
 {
-    return zir_f_69c909820e403472_S15IntLoad((void*)(&(profile_state))) == 2;
+    return zir_foreign_compiler_profile__S15IntLoad((void*)(&(profile_state))) == 2;
 }
 
 void
@@ -48,8 +48,8 @@ compiler_profile_Report(void)
         return;
     }
     uint8_t record[8192] = {0};
-    int64_t rss = zir_f_69c909820e403472_ProfileMaxRssKib();
-    uint64_t finished = zir_f_69c909820e403472_ProfileNow();
+    int64_t rss = zir_foreign_compiler_profile__ProfileMaxRssKib();
+    uint64_t finished = zir_foreign_compiler_profile__ProfileNow();
     uint64_t elapsed = 0ULL;
     if (finished >= profile_started) {
         elapsed = (uint64_t)((uint64_t)finished - (uint64_t)profile_started);
@@ -60,7 +60,7 @@ compiler_profile_Report(void)
         String s = value_0;
         value_1 = ((StaticText*)(&(s)))->data;
     }
-    int32_t used = zir_f_69c909820e403472_snprintf(&(record[0]), 8192, value_1, zir_f_69c909820e403472_ProfilePid(), (double)(elapsed) / 1000000.0);
+    int32_t used = zir_foreign_compiler_profile__snprintf(&(record[0]), 8192, value_1, zir_foreign_compiler_profile__ProfilePid(), (double)(elapsed) / 1000000.0);
     size_t narrow = 8192 - 1;
     if (used > 0 && (size_t)(used) < 8192) {
         int32_t value_3 = used;
@@ -70,7 +70,7 @@ compiler_profile_Report(void)
             String s = value_4;
             value_5 = ((StaticText*)(&(s)))->data;
         }
-        int32_t value_7 = zir_f_69c909820e403472_snprintf(&(record[(size_t)(used)]), narrow - (size_t)(used), value_5, rss, profile_allocation_calls);
+        int32_t value_7 = zir_foreign_compiler_profile__snprintf(&(record[(size_t)(used)]), narrow - (size_t)(used), value_5, rss, profile_allocation_calls);
         used = (int32_t)((uint32_t)value_3 + (uint32_t)value_7);
     }
     if (used > 0 && (size_t)(used) < 8192) {
@@ -81,7 +81,7 @@ compiler_profile_Report(void)
             String s = value_9;
             value_10 = ((StaticText*)(&(s)))->data;
         }
-        int32_t value_12 = zir_f_69c909820e403472_snprintf(&(record[(size_t)(used)]), narrow - (size_t)(used), value_10, profile_allocation_bytes);
+        int32_t value_12 = zir_foreign_compiler_profile__snprintf(&(record[(size_t)(used)]), narrow - (size_t)(used), value_10, profile_allocation_bytes);
         used = (int32_t)((uint32_t)value_8 + (uint32_t)value_12);
     }
     {
@@ -116,7 +116,7 @@ compiler_profile_Report(void)
                 String s = value_20;
                 value_21 = ((StaticText*)(&(s)))->data;
             }
-            int32_t value_23 = zir_f_69c909820e403472_snprintf(&(record[(size_t)(used)]), narrow - (size_t)(used), value_21, separator, value->name, value->calls, (double)(value->elapsed_ns) / 1000000.0);
+            int32_t value_23 = zir_foreign_compiler_profile__snprintf(&(record[(size_t)(used)]), narrow - (size_t)(used), value_21, separator, value->name, value->calls, (double)(value->elapsed_ns) / 1000000.0);
             used = (int32_t)((uint32_t)value_19 + (uint32_t)value_23);
             if (i == range_last_20) {
                 break;
@@ -132,7 +132,7 @@ compiler_profile_Report(void)
             String s = value_25;
             value_26 = ((StaticText*)(&(s)))->data;
         }
-        int32_t value_28 = zir_f_69c909820e403472_snprintf(&(record[(size_t)(used)]), narrow - (size_t)(used), value_26);
+        int32_t value_28 = zir_foreign_compiler_profile__snprintf(&(record[(size_t)(used)]), narrow - (size_t)(used), value_26);
         used = (int32_t)((uint32_t)value_24 + (uint32_t)value_28);
     }
     {
@@ -167,7 +167,7 @@ compiler_profile_Report(void)
                 String s = value_36;
                 value_37 = ((StaticText*)(&(s)))->data;
             }
-            int32_t value_39 = zir_f_69c909820e403472_snprintf(&(record[(size_t)(used)]), narrow - (size_t)(used), value_37, separator, value->name, value->calls);
+            int32_t value_39 = zir_foreign_compiler_profile__snprintf(&(record[(size_t)(used)]), narrow - (size_t)(used), value_37, separator, value->name, value->calls);
             used = (int32_t)((uint32_t)value_35 + (uint32_t)value_39);
             if (i == range_last_34) {
                 break;
@@ -183,17 +183,17 @@ compiler_profile_Report(void)
             String s = value_41;
             value_42 = ((StaticText*)(&(s)))->data;
         }
-        int32_t value_44 = zir_f_69c909820e403472_snprintf(&(record[(size_t)(used)]), narrow - (size_t)(used), value_42);
+        int32_t value_44 = zir_foreign_compiler_profile__snprintf(&(record[(size_t)(used)]), narrow - (size_t)(used), value_42);
         used = (int32_t)((uint32_t)value_40 + (uint32_t)value_44);
     }
     bool failed = false;
     if (used > 0 && (size_t)(used) < 8192) {
-        int64_t written = zir_f_69c909820e403472_ProfileWrite(profile_output, &(record[0]), (size_t)(used));
+        int64_t written = zir_foreign_compiler_profile__ProfileWrite(profile_output, &(record[0]), (size_t)(used));
         failed = written != (int64_t)(used);
     }
-    zir_f_69c909820e403472_fclose(profile_output);
+    zir_foreign_compiler_profile__fclose(profile_output);
     profile_output = (void *)0;
-    zir_f_69c909820e403472_S15IntStore((void*)(&(profile_state)), 2);
+    zir_foreign_compiler_profile__S15IntStore((void*)(&(profile_state)), 2);
     compiler_profile_UnlockProfile();
     if (failed) {
         String value_45 = StringLiteral("");
@@ -202,7 +202,7 @@ compiler_profile_Report(void)
             String s = value_45;
             value_46 = ((StaticText*)(&(s)))->data;
         }
-        ZirSourceSpan value_48 = zir_f_69c909820e403472_Span(value_46, 0, 0);
+        ZirSourceSpan value_48 = zir_foreign_compiler_profile__Span(value_46, 0, 0);
         String value_49 = StringLiteral("zir.output");
         uint8_t* value_50 = (void *)0;
         {
@@ -215,7 +215,7 @@ compiler_profile_Report(void)
             String s = value_52;
             value_53 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_69c909820e403472_Diagnostic(value_48, value_50, value_53);
+        zir_foreign_compiler_profile__Diagnostic(value_48, value_50, value_53);
     }
 }
 
@@ -228,14 +228,14 @@ ProfileReport(void)
 bool
 compiler_profile_Enabled(void)
 {
-    if (zir_f_69c909820e403472_S15IntLoad((void*)(&(profile_state))) == 0) {
+    if (zir_foreign_compiler_profile__S15IntLoad((void*)(&(profile_state))) == 0) {
         String value_0 = StringLiteral("ZIRAN_PROFILE");
         uint8_t* value_1 = (void *)0;
         {
             String s = value_0;
             value_1 = ((StaticText*)(&(s)))->data;
         }
-        uint8_t* path = zir_f_69c909820e403472_getenv(value_1);
+        uint8_t* path = zir_foreign_compiler_profile__getenv(value_1);
         if (path != ((void *)0) && path[0] != 0) {
             String value_3 = StringLiteral("ab");
             uint8_t* value_4 = (void *)0;
@@ -243,11 +243,11 @@ compiler_profile_Enabled(void)
                 String s = value_3;
                 value_4 = ((StaticText*)(&(s)))->data;
             }
-            profile_output = zir_f_69c909820e403472_fopen(path, value_4);
+            profile_output = zir_foreign_compiler_profile__fopen(path, value_4);
             if (profile_output == ((void *)0)) {
-                zir_f_69c909820e403472_S15IntStore((void*)(&(profile_state)), 2);
+                zir_foreign_compiler_profile__S15IntStore((void*)(&(profile_state)), 2);
                 compiler_profile_UnlockProfile();
-                ZirSourceSpan value_6 = zir_f_69c909820e403472_Span(path, 1, 1);
+                ZirSourceSpan value_6 = zir_foreign_compiler_profile__Span(path, 1, 1);
                 String value_7 = StringLiteral("zir.output");
                 uint8_t* value_8 = (void *)0;
                 {
@@ -260,17 +260,17 @@ compiler_profile_Enabled(void)
                     String s = value_10;
                     value_11 = ((StaticText*)(&(s)))->data;
                 }
-                zir_f_69c909820e403472_Diagnostic(value_6, value_8, value_11);
-                zir_f_69c909820e403472_exit(1);
+                zir_foreign_compiler_profile__Diagnostic(value_6, value_8, value_11);
+                zir_foreign_compiler_profile__exit(1);
             }
-            profile_started = zir_f_69c909820e403472_ProfileNow();
-            zir_f_69c909820e403472_ProfileRegister();
+            profile_started = zir_foreign_compiler_profile__ProfileNow();
+            zir_foreign_compiler_profile__ProfileRegister();
         }
         int32_t state = 2;
         if (profile_output != ((void *)0)) {
             state = 1;
         }
-        zir_f_69c909820e403472_S15IntStore((void*)(&(profile_state)), state);
+        zir_foreign_compiler_profile__S15IntStore((void*)(&(profile_state)), state);
     }
     return profile_output != ((void *)0);
 }
@@ -284,7 +284,7 @@ ProfileStart(void)
     compiler_profile_LockProfile();
     uint64_t started = 0ULL;
     if (compiler_profile_Enabled()) {
-        started = zir_f_69c909820e403472_ProfileNow();
+        started = zir_foreign_compiler_profile__ProfileNow();
     }
     compiler_profile_UnlockProfile();
     return started;
@@ -298,7 +298,7 @@ compiler_profile_Sample(ProfileSample* items, size_t* count, uint8_t* name)
         int64_t range_last_0 = (int64_t)((uint64_t)(count[0]) - UINT64_C(1));
         int64_t i = range_first_0;
         if (i <= range_last_0) for (;;) {
-            if (zir_f_69c909820e403472_strcmp((items[(size_t)(i)]).name, name) == 0) {
+            if (zir_foreign_compiler_profile__strcmp((items[(size_t)(i)]).name, name) == 0) {
                 return &(items[(size_t)(i)]);
             }
             if (i == range_last_0) {
@@ -330,7 +330,7 @@ ProfileEnd(uint8_t* phase, uint64_t started)
         value = compiler_profile_Sample(&(profile_phases[0]), &(profile_phase_count), phase);
     }
     if (value != ((void *)0)) {
-        uint64_t finished = zir_f_69c909820e403472_ProfileNow();
+        uint64_t finished = zir_foreign_compiler_profile__ProfileNow();
         uint64_t* value_0 = &(value->calls);
         (*value_0) = (uint64_t)((uint64_t)((*value_0)) + UINT64_C(1));
         if (finished >= started) {

@@ -5,45 +5,20 @@
 #define ZIRAN_COMPILER_C_PRUNE_H_PRIVATE 1
 #include "compiler_c_prune.h"
 #undef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
-#ifndef ZIR_FOREIGN_zir_f_172564c044c00261_Free_c75930da
-#define ZIR_FOREIGN_zir_f_172564c044c00261_Free_c75930da
 #ifdef __APPLE__
-void zir_foreign_zir_f_172564c044c00261_Free(void* memory) __asm__("_free");
+void zir_foreign_compiler_c_prune__Free(void* memory) __asm__("_free");
 #else
-void zir_foreign_zir_f_172564c044c00261_Free(void* memory) __asm__("free");
+void zir_foreign_compiler_c_prune__Free(void* memory) __asm__("free");
 #endif
-static void
-zir_f_172564c044c00261_Free(void* memory)
-{
-    zir_foreign_zir_f_172564c044c00261_Free(memory);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_172564c044c00261_SimdNamesFind_d3f15ee1
-#define ZIR_FOREIGN_zir_f_172564c044c00261_SimdNamesFind_d3f15ee1
 #ifdef __APPLE__
-int64_t zir_foreign_zir_f_172564c044c00261_SimdNamesFind(void* names, uint8_t* name, size_t length, int32_t add) __asm__("_SimdNamesFind");
+int64_t zir_foreign_compiler_c_prune__SimdNamesFind(void* names, uint8_t* name, size_t length, int32_t add) __asm__("_SimdNamesFind");
 #else
-int64_t zir_foreign_zir_f_172564c044c00261_SimdNamesFind(void* names, uint8_t* name, size_t length, int32_t add) __asm__("SimdNamesFind");
+int64_t zir_foreign_compiler_c_prune__SimdNamesFind(void* names, uint8_t* name, size_t length, int32_t add) __asm__("SimdNamesFind");
 #endif
-static int64_t
-zir_f_172564c044c00261_SimdNamesFind(void* names, uint8_t* name, size_t length, int32_t add)
-{
-    return zir_foreign_zir_f_172564c044c00261_SimdNamesFind(names, name, length, add);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_172564c044c00261_PruneInlineText_235189a9
-#define ZIR_FOREIGN_zir_f_172564c044c00261_PruneInlineText_235189a9
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_172564c044c00261_PruneInlineText(uint8_t* stem, uint8_t* guard, int32_t vector_operations, uint8_t* declarations, uint8_t* bodies, void* simd) __asm__("_PruneInlineText");
+uint8_t* zir_foreign_compiler_c_prune__PruneInlineText(uint8_t* stem, uint8_t* guard, int32_t vector_operations, uint8_t* declarations, uint8_t* bodies, void* simd) __asm__("_PruneInlineText");
 #else
-uint8_t* zir_foreign_zir_f_172564c044c00261_PruneInlineText(uint8_t* stem, uint8_t* guard, int32_t vector_operations, uint8_t* declarations, uint8_t* bodies, void* simd) __asm__("PruneInlineText");
-#endif
-static uint8_t*
-zir_f_172564c044c00261_PruneInlineText(uint8_t* stem, uint8_t* guard, int32_t vector_operations, uint8_t* declarations, uint8_t* bodies, void* simd)
-{
-    return zir_foreign_zir_f_172564c044c00261_PruneInlineText(stem, guard, vector_operations, declarations, bodies, 
-simd);
-}
+uint8_t* zir_foreign_compiler_c_prune__PruneInlineText(uint8_t* stem, uint8_t* guard, int32_t vector_operations, uint8_t* declarations, uint8_t* bodies, void* simd) __asm__("PruneInlineText");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -452,10 +427,10 @@ compiler_c_prune_PruneModuleFree(ZirCPruneModule* module)
     uint8_t* texts[6] = {(uint8_t*)module->stem, (uint8_t*)module->guard, (uint8_t*)module->header, (uint8_t*)module->source, (uint8_t*)module->final_header, (uint8_t*)module->final_source};
     for (int64_t it_index = 0LL; it_index < 6; it_index++) {
         uint8_t* text = (texts)[it_index];
-        zir_f_172564c044c00261_Free((void*)(text));
+        zir_foreign_compiler_c_prune__Free((void*)(text));
     }
-    zir_f_172564c044c00261_Free((void*)(((int32_t*)module->header_scope)));
-    zir_f_172564c044c00261_Free((void*)(((int32_t*)module->source_scope)));
+    zir_foreign_compiler_c_prune__Free((void*)(((int32_t*)module->header_scope)));
+    zir_foreign_compiler_c_prune__Free((void*)(((int32_t*)module->source_scope)));
     ZirCPruneModule* value_0 = &((*(module)));
     (*value_0) = (ZirCPruneModule){0};
 }
@@ -480,7 +455,7 @@ compiler_c_prune_PruneNoteNames(uint8_t* text, void* names)
             value_0 = ((TextDescriptor*)(&(value)))->data;
         value_1: ;
         }
-        zir_f_172564c044c00261_SimdNamesFind(names, value_0, (size_t)((int64_t)(word).length), 1);
+        zir_foreign_compiler_c_prune__SimdNamesFind(names, value_0, (size_t)((int64_t)(word).length), 1);
     }
 }
 
@@ -579,7 +554,7 @@ static int64_t
 compiler_c_prune_WordAt(Prune* prune, String word, bool add)
 {
     int64_t index = -1LL;
-    bool value_0 = hash_map___zi_spec_23e963c184ddc8df(&(prune->index), word, &(index));
+    bool value_0 = hash_map_hash_map_HashMapGet_for_string_s64(&(prune->index), word, &(index));
     if (value_0 || !add) {
         return index;
     }
@@ -597,7 +572,7 @@ compiler_c_prune_WordAt(Prune* prune, String word, bool add)
         return -1LL;
     }
     index = (int64_t)((uint64_t)(prune->words.count) - UINT64_C(1));
-    hash_map___zi_spec_90efdf9e469b09ec(&(prune->index), word, index);
+    hash_map_hash_map_HashMapSet_for_string_s64(&(prune->index), word, index);
     return index;
 }
 
@@ -1102,7 +1077,7 @@ compiler_c_prune_InlineSection(__type_838711075b90279a* out, Prune* prune, ZirCP
         (*value_0).count = 0;
         return value_15;
     }
-    uint8_t* section = zir_f_172564c044c00261_PruneInlineText((uint8_t*)module->stem, (uint8_t*)module->guard, module->vector_operations, &(ZIRAN_VEC_INDEX((declarations).data, (declarations).count, 0)), &(ZIRAN_VEC_INDEX((bodies).data, (bodies).count, 0)), prune->simd);
+    uint8_t* section = zir_foreign_compiler_c_prune__PruneInlineText((uint8_t*)module->stem, (uint8_t*)module->guard, module->vector_operations, &(ZIRAN_VEC_INDEX((declarations).data, (declarations).count, 0)), &(ZIRAN_VEC_INDEX((bodies).data, (bodies).count, 0)), prune->simd);
     if (section == ((void *)0)) {
         bool value_16 = false;
         free((*value_1).data);
@@ -1129,7 +1104,7 @@ compiler_c_prune_InlineSection(__type_838711075b90279a* out, Prune* prune, ZirCP
         }
     }
     bool ok = value_18;
-    zir_f_172564c044c00261_Free((void*)(section));
+    zir_foreign_compiler_c_prune__Free((void*)(section));
     bool value_20 = ok;
     free((*value_1).data);
     (*value_1).data = NULL;

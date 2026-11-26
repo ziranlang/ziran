@@ -15,7 +15,7 @@ extern "C" {
 typedef struct GoSimdText GoSimdText;
 #endif
 #ifdef ZIRAN_COMPILER_GO_SIMD_H_PRIVATE
-typedef struct zir_6245d7f785f9ace2_StaticText zir_6245d7f785f9ace2_StaticText;
+typedef struct compiler_go_simd_StaticText compiler_go_simd_StaticText;
 #endif
 #ifdef ZIRAN_COMPILER_GO_SIMD_H_PRIVATE
 typedef struct GoHelper GoHelper;
@@ -32,7 +32,7 @@ struct GoSimdText {
 #endif
 #ifdef ZIRAN_COMPILER_GO_SIMD_H_PRIVATE
 
-struct zir_6245d7f785f9ace2_StaticText {
+struct compiler_go_simd_StaticText {
     uint8_t* data;
     size_t length;
 };

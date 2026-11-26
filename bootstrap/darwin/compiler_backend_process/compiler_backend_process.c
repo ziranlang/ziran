@@ -20,7 +20,7 @@ __type_c53c2d7c4913dc02 zir_g_ebee27c61794d0ae = {0};
 int32_t
 compiler_backend_process_WorkerLimit(void)
 {
-    int64_t online = zir_f_1cd1ecb166af98b1_SysconfByName(58);
+    int64_t online = zir_foreign_compiler_backend_process__SysconfByName(58);
     int64_t affinity = compiler_backend_process_AffinityCpus();
     int64_t value_0 = 0;
     if (affinity > 0LL && (online <= 0LL || affinity < online)) {
@@ -62,7 +62,7 @@ compiler_backend_process_WorkerLimit(void)
 int32_t
 compiler_backend_process_BuildLock(String directory)
 {
-    zir_e4358493ea4607d1_Results__string__bool results_1_ = compiler_backend_process_PathJoin(directory, StringLiteral(".build.lock"));
+    compiler_backend_process_Results__string__bool results_1_ = compiler_backend_process_PathJoin(directory, StringLiteral(".build.lock"));
     String lock_path = results_1_.value_0;
     bool made = results_1_.value_1;
     if (!made) {
@@ -83,7 +83,7 @@ compiler_backend_process_BuildLock(String directory)
         }
         return cleanup_return_0;
     }
-    int32_t descriptor = zir_f_1cd1ecb166af98b1_OpenLock(&(name[0]), 16777986, 384LL);
+    int32_t descriptor = zir_foreign_compiler_backend_process__OpenLock(&(name[0]), 16777986, 384LL);
     if (descriptor < 0) {
         int32_t cleanup_return_1 = -1;
         {
@@ -93,15 +93,15 @@ compiler_backend_process_BuildLock(String directory)
     }
     PathInfo info = file_tree_linux_PathStatus(lock_path, false);
     if (((PathKind)(info.kind)) != ((PathKind)(1))) {
-        zir_f_1cd1ecb166af98b1_CloseDescriptor(descriptor);
+        zir_foreign_compiler_backend_process__CloseDescriptor(descriptor);
         int32_t cleanup_return_2 = -1;
         {
             compiler_backend_process_ReleaseOwnedText(lock_path);
         }
         return cleanup_return_2;
     }
-    if (zir_f_1cd1ecb166af98b1_FlockLock(descriptor, 2) != 0) {
-        zir_f_1cd1ecb166af98b1_CloseDescriptor(descriptor);
+    if (zir_foreign_compiler_backend_process__FlockLock(descriptor, 2) != 0) {
+        zir_foreign_compiler_backend_process__CloseDescriptor(descriptor);
         int32_t cleanup_return_3 = -1;
         {
             compiler_backend_process_ReleaseOwnedText(lock_path);
@@ -125,7 +125,7 @@ compiler_backend_process_ReleasePointerVector(__type_21092c8252d3dcaa* values)
     (*(values)) = value_1;
     for (int64_t it_index = 0LL; it_index < owned.count; it_index++) {
         uint8_t* value = (owned).data[it_index];
-        zir_f_1cd1ecb166af98b1_FreeRaw((void*)(value));
+        zir_foreign_compiler_backend_process__FreeRaw((void*)(value));
     }
     free((owned).data);
     (owned).data = NULL;
@@ -174,7 +174,7 @@ compiler_backend_process_StartJob(Slice commands, bool capture, bool report_erro
         return value_7;
     }
     int32_t pipes[2] = {-1, -1};
-    if (capture && zir_f_1cd1ecb166af98b1_PipeRaw(&(pipes[0])) != 0) {
+    if (capture && zir_foreign_compiler_backend_process__PipeRaw(&(pipes[0])) != 0) {
         __type_21092c8252d3dcaa value_8 = pointers;
         pointers.data = NULL;
         pointers.capacity = 0;
@@ -199,19 +199,19 @@ compiler_backend_process_StartJob(Slice commands, bool capture, bool report_erro
         compiler_backend_process_SetCloexec((pipes)[0]);
         compiler_backend_process_SetCloexec((pipes)[1]);
     }
-    zir_f_1cd1ecb166af98b1_FlushStreams((void *)0);
-    int32_t process = zir_f_1cd1ecb166af98b1_ForkRaw();
+    zir_foreign_compiler_backend_process__FlushStreams((void *)0);
+    int32_t process = zir_foreign_compiler_backend_process__ForkRaw();
     if (process == 0) {
         if (capture) {
-            zir_f_1cd1ecb166af98b1_CloseDescriptor((pipes)[0]);
+            zir_foreign_compiler_backend_process__CloseDescriptor((pipes)[0]);
         }
         if (capture) {
-            bool value_11 = zir_f_1cd1ecb166af98b1_DupRaw((pipes)[1], 1) < 0;
-            if (value_11 || zir_f_1cd1ecb166af98b1_DupRaw((pipes)[1], 2) < 0) {
-                zir_f_1cd1ecb166af98b1_ExitChild(127);
+            bool value_11 = zir_foreign_compiler_backend_process__DupRaw((pipes)[1], 1) < 0;
+            if (value_11 || zir_foreign_compiler_backend_process__DupRaw((pipes)[1], 2) < 0) {
+                zir_foreign_compiler_backend_process__ExitChild(127);
             }
             if ((pipes)[1] > 2) {
-                zir_f_1cd1ecb166af98b1_CloseDescriptor((pipes)[1]);
+                zir_foreign_compiler_backend_process__CloseDescriptor((pipes)[1]);
             }
         }
         CapturePointer slots[1024] = {0};
@@ -229,10 +229,10 @@ compiler_backend_process_StartJob(Slice commands, bool capture, bool report_erro
             }
         }
         compiler_backend_process_ExecChild((slots[0]).value, &(slots[0]), report_error);
-        zir_f_1cd1ecb166af98b1_ExitChild(127);
+        zir_foreign_compiler_backend_process__ExitChild(127);
     }
     if (capture) {
-        zir_f_1cd1ecb166af98b1_CloseDescriptor((pipes)[1]);
+        zir_foreign_compiler_backend_process__CloseDescriptor((pipes)[1]);
     }
     __type_21092c8252d3dcaa value_13 = pointers;
     pointers.data = NULL;
@@ -241,7 +241,7 @@ compiler_backend_process_StartJob(Slice commands, bool capture, bool report_erro
     compiler_backend_process_FreePointers(value_13);
     if (process < 0) {
         if (capture) {
-            zir_f_1cd1ecb166af98b1_CloseDescriptor((pipes)[0]);
+            zir_foreign_compiler_backend_process__CloseDescriptor((pipes)[0]);
         }
         Job value_14 = result;
         (result).output.data = NULL;
@@ -301,9 +301,9 @@ compiler_backend_process_WaitJob(Job* job)
     }
     int32_t status = 0;
     int32_t waited = 0;
-    waited = zir_f_1cd1ecb166af98b1_WaitRaw(job->process, &(status), 0);
+    waited = zir_foreign_compiler_backend_process__WaitRaw(job->process, &(status), 0);
     while (waited < 0 && compiler_backend_process_ErrnoValue() == 4) {
-        waited = zir_f_1cd1ecb166af98b1_WaitRaw(job->process, &(status), 0);
+        waited = zir_foreign_compiler_backend_process__WaitRaw(job->process, &(status), 0);
     }
     if (waited != job->process) {
         bool* value_2 = &(job->finished);
@@ -330,7 +330,7 @@ void
 compiler_backend_process_FreeJob(Job* job)
 {
     if (job->descriptor >= 0) {
-        zir_f_1cd1ecb166af98b1_CloseDescriptor(job->descriptor);
+        zir_foreign_compiler_backend_process__CloseDescriptor(job->descriptor);
         int32_t* value_0 = &(job->descriptor);
         (*value_0) = -1;
     }
@@ -378,7 +378,7 @@ compiler_backend_process_PathName(String value)
     return StringRangeAt(value, (int64_t)at, (int64_t)(int64_t)(value).length);
 }
 
-zir_e4358493ea4607d1_Results__string__bool
+compiler_backend_process_Results__string__bool
 compiler_backend_process_PathJoin(String left, String right)
 {
     __type_838711075b90279a bytes = {0};
@@ -400,7 +400,7 @@ compiler_backend_process_PathJoin(String left, String right)
         (bytes).data = NULL;
         bytes.capacity = 0;
         bytes.count = 0;
-        zir_e4358493ea4607d1_Results__string__bool value_5 = (zir_e4358493ea4607d1_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        compiler_backend_process_Results__string__bool value_5 = (compiler_backend_process_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -421,7 +421,7 @@ compiler_backend_process_PathJoin(String left, String right)
             (bytes).data = NULL;
             bytes.capacity = 0;
             bytes.count = 0;
-            zir_e4358493ea4607d1_Results__string__bool value_9 = (zir_e4358493ea4607d1_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+            compiler_backend_process_Results__string__bool value_9 = (compiler_backend_process_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
             free((*value_2).data);
             (*value_2).data = NULL;
             (*value_2).capacity = 0;
@@ -446,7 +446,7 @@ compiler_backend_process_PathJoin(String left, String right)
         (bytes).data = NULL;
         bytes.capacity = 0;
         bytes.count = 0;
-        zir_e4358493ea4607d1_Results__string__bool value_12 = (zir_e4358493ea4607d1_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        compiler_backend_process_Results__string__bool value_12 = (compiler_backend_process_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -460,7 +460,7 @@ compiler_backend_process_PathJoin(String left, String right)
     (bytes).data = NULL;
     bytes.capacity = 0;
     bytes.count = 0;
-    zir_e4358493ea4607d1_Results__string__bool value_15 = (zir_e4358493ea4607d1_Results__string__bool){.value_0 = result, .value_1 = true};
+    compiler_backend_process_Results__string__bool value_15 = (compiler_backend_process_Results__string__bool){.value_0 = result, .value_1 = true};
     free((*value_2).data);
     (*value_2).data = NULL;
     (*value_2).capacity = 0;
@@ -468,7 +468,7 @@ compiler_backend_process_PathJoin(String left, String right)
     return value_15;
 }
 
-zir_e4358493ea4607d1_Results__string__bool
+compiler_backend_process_Results__string__bool
 compiler_backend_process_PathSuffix(String value, String suffix)
 {
     __type_838711075b90279a bytes = {0};
@@ -506,7 +506,7 @@ compiler_backend_process_PathSuffix(String value, String suffix)
         (bytes).data = NULL;
         bytes.capacity = 0;
         bytes.count = 0;
-        zir_e4358493ea4607d1_Results__string__bool value_8 = (zir_e4358493ea4607d1_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        compiler_backend_process_Results__string__bool value_8 = (compiler_backend_process_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -520,7 +520,7 @@ compiler_backend_process_PathSuffix(String value, String suffix)
     (bytes).data = NULL;
     bytes.capacity = 0;
     bytes.count = 0;
-    zir_e4358493ea4607d1_Results__string__bool value_11 = (zir_e4358493ea4607d1_Results__string__bool){.value_0 = result, .value_1 = true};
+    compiler_backend_process_Results__string__bool value_11 = (compiler_backend_process_Results__string__bool){.value_0 = result, .value_1 = true};
     free((*value_2).data);
     (*value_2).data = NULL;
     (*value_2).capacity = 0;
@@ -535,13 +535,13 @@ compiler_backend_process_ReleaseOwnedText(String value)
         return;
     }
     OwnedText* descriptor = (OwnedText*)(&(value));
-    zir_f_1cd1ecb166af98b1_FreeRaw((void*)(descriptor->data));
+    zir_foreign_compiler_backend_process__FreeRaw((void*)(descriptor->data));
 }
 
 uint8_t*
 compiler_backend_process_AllocateText(String value)
 {
-    void* memory = zir_f_1cd1ecb166af98b1_AllocateRaw(1, (size_t)(((int64_t)((uint64_t)((int64_t)(value).length) + UINT64_C(1)))));
+    void* memory = zir_foreign_compiler_backend_process__AllocateRaw(1, (size_t)(((int64_t)((uint64_t)((int64_t)(value).length) + UINT64_C(1)))));
     if (memory == ((void *)0)) {
         return (void *)0;
     }
@@ -596,7 +596,7 @@ compiler_backend_process_FreePointers(__type_21092c8252d3dcaa values)
         while (loop_cursor_0 < loop_count_0) {
             int64_t loop_index_0 = loop_cursor_0;
             uint8_t* value = ((uint8_t* *)loop_view_0.data)[loop_index_0];
-            zir_f_1cd1ecb166af98b1_FreeRaw((void*)(value));
+            zir_foreign_compiler_backend_process__FreeRaw((void*)(value));
             loop_cursor_0 = (int64_t)((uint64_t)loop_cursor_0 + UINT64_C(1));
         }
     }
@@ -689,7 +689,7 @@ compiler_backend_process_EnvironmentWords(String name, __type_21092c8252d3dcaa* 
 uint8_t*
 compiler_backend_process_LinkFlag(String name)
 {
-    void* memory = zir_f_1cd1ecb166af98b1_AllocateRaw(1, (size_t)(((int64_t)((uint64_t)((int64_t)(name).length) + UINT64_C(3)))));
+    void* memory = zir_foreign_compiler_backend_process__AllocateRaw(1, (size_t)(((int64_t)((uint64_t)((int64_t)(name).length) + UINT64_C(3)))));
     if (memory == ((void *)0)) {
         return (void *)0;
     }
@@ -721,24 +721,24 @@ compiler_backend_process_ReadMapBytes(uint8_t* path, int64_t* length)
 {
     int64_t* value_0 = &(length[0]);
     (*value_0) = 0LL;
-    int32_t descriptor = zir_f_1cd1ecb166af98b1_OpenLock(path, 0);
+    int32_t descriptor = zir_foreign_compiler_backend_process__OpenLock(path, 0);
     if (descriptor < 0) {
         return (void *)0;
     }
     int64_t capacity = 65536LL;
     int64_t filled = 0LL;
-    void* memory = zir_f_1cd1ecb166af98b1_AllocateRaw(1, (size_t)(capacity));
+    void* memory = zir_foreign_compiler_backend_process__AllocateRaw(1, (size_t)(capacity));
     if (memory == ((void *)0)) {
-        zir_f_1cd1ecb166af98b1_CloseDescriptor(descriptor);
+        zir_foreign_compiler_backend_process__CloseDescriptor(descriptor);
         return (void *)0;
     }
     uint8_t* target = (uint8_t*)(memory);
     uint8_t chunk[65536] = {0};
     while (true) {
-        int64_t read = zir_f_1cd1ecb166af98b1_ReadDescriptor(descriptor, &(chunk[0]), 65536);
+        int64_t read = zir_foreign_compiler_backend_process__ReadDescriptor(descriptor, &(chunk[0]), 65536);
         if (read < 0LL) {
-            zir_f_1cd1ecb166af98b1_FreeRaw(memory);
-            zir_f_1cd1ecb166af98b1_CloseDescriptor(descriptor);
+            zir_foreign_compiler_backend_process__FreeRaw(memory);
+            zir_foreign_compiler_backend_process__CloseDescriptor(descriptor);
             return (void *)0;
         }
         if (read == 0LL) {
@@ -746,10 +746,10 @@ compiler_backend_process_ReadMapBytes(uint8_t* path, int64_t* length)
         }
         if ((int64_t)(((uint64_t)filled + (uint64_t)read) + UINT64_C(1)) > capacity) {
             capacity = (int64_t)((uint64_t)(((uint64_t)filled + (uint64_t)read) + UINT64_C(1)) * UINT64_C(2));
-            void* grown = zir_f_1cd1ecb166af98b1_AllocateRaw(1, (size_t)(capacity));
+            void* grown = zir_foreign_compiler_backend_process__AllocateRaw(1, (size_t)(capacity));
             if (grown == ((void *)0)) {
-                zir_f_1cd1ecb166af98b1_FreeRaw(memory);
-                zir_f_1cd1ecb166af98b1_CloseDescriptor(descriptor);
+                zir_foreign_compiler_backend_process__FreeRaw(memory);
+                zir_foreign_compiler_backend_process__CloseDescriptor(descriptor);
                 return (void *)0;
             }
             uint8_t* grown_target = (uint8_t*)(grown);
@@ -766,7 +766,7 @@ compiler_backend_process_ReadMapBytes(uint8_t* path, int64_t* length)
                     index = (int64_t)((uint64_t)index + UINT64_C(1));
                 }
             }
-            zir_f_1cd1ecb166af98b1_FreeRaw(memory);
+            zir_foreign_compiler_backend_process__FreeRaw(memory);
             memory = grown;
             target = grown_target;
         }
@@ -785,7 +785,7 @@ compiler_backend_process_ReadMapBytes(uint8_t* path, int64_t* length)
         }
         filled = (int64_t)((uint64_t)filled + (uint64_t)read);
     }
-    zir_f_1cd1ecb166af98b1_CloseDescriptor(descriptor);
+    zir_foreign_compiler_backend_process__CloseDescriptor(descriptor);
     uint8_t* value_3 = &(target[filled]);
     (*value_3) = 0;
     int64_t* value_4 = &(length[0]);
@@ -806,7 +806,7 @@ compiler_backend_process_AppendIncludedLinks(__type_21092c8252d3dcaa* files, __t
     }
     int64_t length = 0;
     uint8_t* memory = compiler_backend_process_ReadMapBytes(map_path, &(length));
-    zir_f_1cd1ecb166af98b1_FreeRaw((void*)(map_path));
+    zir_foreign_compiler_backend_process__FreeRaw((void*)(map_path));
     if (memory == ((void *)0)) {
         return true;
     }
@@ -1014,7 +1014,7 @@ compiler_backend_process_AppendIncludedLinks(__type_21092c8252d3dcaa* files, __t
     (links).data = NULL;
     links.capacity = 0;
     links.count = 0;
-    zir_f_1cd1ecb166af98b1_FreeRaw((void*)(memory));
+    zir_foreign_compiler_backend_process__FreeRaw((void*)(memory));
     bool value_31 = ok;
     free((*value_6).data);
     (*value_6).data = NULL;
@@ -1329,7 +1329,7 @@ compiler_backend_process_CompileExecutable(String out, String name, bool threads
         (*value_0).count = 0;
         return value_34;
     }
-    uint8_t* include = zir_f_1cd1ecb166af98b1_ToolchainIncludeDirectory();
+    uint8_t* include = zir_foreign_compiler_backend_process__ToolchainIncludeDirectory();
     bool value_35 = include != ((void *)0);
     bool value_36 = value_35;
     if (value_36) {
@@ -1391,7 +1391,7 @@ compiler_backend_process_FinishCompile(String out, String name, bool forced_lang
     int64_t index = 0LL;
     bool added = false;
     while (true) {
-        uint8_t* generated = zir_f_1cd1ecb166af98b1_GeneratedOutputPath(index);
+        uint8_t* generated = zir_foreign_compiler_backend_process__GeneratedOutputPath(index);
         if (generated == ((void *)0)) {
             break;
         }
@@ -1433,7 +1433,7 @@ compiler_backend_process_FinishCompile(String out, String name, bool forced_lang
         value_5: ;
         }
         String entry_name = value_4;
-        zir_e4358493ea4607d1_Results__string__bool results_2_ = compiler_backend_process_PathJoin(out, entry_name);
+        compiler_backend_process_Results__string__bool results_2_ = compiler_backend_process_PathJoin(out, entry_name);
         String path = results_2_.value_0;
         bool made = results_2_.value_1;
         if (!made) {
@@ -1463,7 +1463,7 @@ compiler_backend_process_FinishCompile(String out, String name, bool forced_lang
         return false;
     }
     compiler_backend_process_SortPaths(files);
-    zir_e4358493ea4607d1_Results__string__bool results_3_ = compiler_backend_process_PathJoin(out, StringLiteral(".objects"));
+    compiler_backend_process_Results__string__bool results_3_ = compiler_backend_process_PathJoin(out, StringLiteral(".objects"));
     String object_directory = results_3_.value_0;
     bool made = results_3_.value_1;
     if (!made) {
@@ -1509,7 +1509,7 @@ compiler_backend_process_FinishCompile(String out, String name, bool forced_lang
                 value_14 = true;
             }
             if (!value_14) {
-                zir_f_1cd1ecb166af98b1_FreeRaw((void*)(object));
+                zir_foreign_compiler_backend_process__FreeRaw((void*)(object));
                 compiler_backend_process_ReleaseBuildValues(base, tail, files, objects, log);
                 return false;
             }
@@ -1532,7 +1532,7 @@ compiler_backend_process_FinishCompile(String out, String name, bool forced_lang
 Results__pu8__bool
 compiler_backend_process_ObjectPath(String out, String relative)
 {
-    zir_e4358493ea4607d1_Results__string__bool results_5_ = compiler_backend_process_PathJoin(out, StringLiteral(".objects"));
+    compiler_backend_process_Results__string__bool results_5_ = compiler_backend_process_PathJoin(out, StringLiteral(".objects"));
     String root = results_5_.value_0;
     bool root_ok = results_5_.value_1;
     if (!root_ok) {
@@ -1546,7 +1546,7 @@ compiler_backend_process_ObjectPath(String out, String relative)
         }
         return cleanup_return_0;
     }
-    zir_e4358493ea4607d1_Results__string__bool results_6_ = compiler_backend_process_PathJoin(root, relative_object);
+    compiler_backend_process_Results__string__bool results_6_ = compiler_backend_process_PathJoin(root, relative_object);
     String joined = results_6_.value_0;
     bool made = results_6_.value_1;
     if (!made) {
@@ -1637,7 +1637,7 @@ compiler_backend_process_ReapJob(Job* job)
         return;
     }
     int32_t status = 0;
-    int32_t waited = zir_f_1cd1ecb166af98b1_WaitRaw(job->process, &(status), 1);
+    int32_t waited = zir_foreign_compiler_backend_process__WaitRaw(job->process, &(status), 1);
     if (waited == job->process) {
         Job* value_0 = job;
         int32_t value_1 = status;
@@ -1728,7 +1728,7 @@ compiler_backend_process_PollSlots(Slice jobs, Slice slots, bool* failed)
         } else {
             value_2 = -1;
         }
-        int32_t ready = zir_f_1cd1ecb166af98b1_PollRaw(&(pollers[0]), (uint64_t)(count), value_2);
+        int32_t ready = zir_foreign_compiler_backend_process__PollRaw(&(pollers[0]), (uint64_t)(count), value_2);
         if (ready < 0 && compiler_backend_process_ErrnoValue() != 4) {
             bool* value_3 = &((*(failed)));
             (*value_3) = true;
@@ -1796,13 +1796,13 @@ compiler_backend_process_CompileAndLink(String out, String name, bool forced_lan
             slot = (int32_t)((uint32_t)slot + 1u);
         }
     }
-    uint64_t identity_started = zir_f_1cd1ecb166af98b1_ProfileStart();
+    uint64_t identity_started = zir_foreign_compiler_backend_process__ProfileStart();
     compiler_backend_process_ProfileEnd(StringLiteral("native.toolchain"), identity_started);
-    uint64_t objects_started = zir_f_1cd1ecb166af98b1_ProfileStart();
+    uint64_t objects_started = zir_foreign_compiler_backend_process__ProfileStart();
     __type_6f55d821d15c8cbf outputs = {0};
     __type_6f55d821d15c8cbf* value_7 = &outputs;
     bool outputs_ready = true;
-    bool capture = zir_f_1cd1ecb166af98b1_DiagnosticJsonEnabled() != 0;
+    bool capture = zir_foreign_compiler_backend_process__DiagnosticJsonEnabled() != 0;
     bool compile_ok = true;
     SlotOutput slots[16] = {0};
     Job jobs[16] = {0};
@@ -1914,7 +1914,7 @@ compiler_backend_process_CompileAndLink(String out, String name, bool forced_lan
                     added = true;
                 }
                 String object = compiler_backend_process_CText((*(objects)).data[index]);
-                zir_e4358493ea4607d1_Results__string__bool results_7_ = compiler_backend_process_PathSuffix(object, StringLiteral(".d"));
+                compiler_backend_process_Results__string__bool results_7_ = compiler_backend_process_PathSuffix(object, StringLiteral(".d"));
                 String dependency = results_7_.value_0;
                 bool dependency_ok = results_7_.value_1;
                 if (dependency_ok) {
@@ -1975,7 +1975,7 @@ compiler_backend_process_CompileAndLink(String out, String name, bool forced_lan
                     added = value_38;
                 }
                 if (added) {
-                    zir_e4358493ea4607d1_Results__string__bool results_8_ = compiler_backend_process_PathSuffix(object, StringLiteral(".inputs"));
+                    compiler_backend_process_Results__string__bool results_8_ = compiler_backend_process_PathSuffix(object, StringLiteral(".inputs"));
                     String inputs = results_8_.value_0;
                     bool inputs_ok = results_8_.value_1;
                     if (inputs_ok) {
@@ -2066,7 +2066,7 @@ compiler_backend_process_CompileAndLink(String out, String name, bool forced_lan
                         compile_ok = false;
                     }
                     if ((jobs[slot]).ok && cache != ((void *)0)) {
-                        uint64_t record_started = zir_f_1cd1ecb166af98b1_ProfileStart();
+                        uint64_t record_started = zir_foreign_compiler_backend_process__ProfileStart();
                         compiler_backend_cache_Record(cache, object, compiler_backend_process_CText((*(files)).data[(slots[slot]).file]));
                         compiler_backend_process_ProfileEnd(StringLiteral("native.cache.record"), record_started);
                     }
@@ -2269,7 +2269,7 @@ compiler_backend_process_CloneTexts(__type_21092c8252d3dcaa* source)
         }
         if (value_4) {
             if (owned_text != ((void *)0)) {
-                zir_f_1cd1ecb166af98b1_FreeRaw((void*)(owned_text));
+                zir_foreign_compiler_backend_process__FreeRaw((void*)(owned_text));
             }
             compiler_backend_process_FreeArguments(&(result));
             __type_c53c2d7c4913dc02 value_9 = (__type_c53c2d7c4913dc02){0};
@@ -2374,7 +2374,7 @@ compiler_backend_process_AddTextArgument(__type_c53c2d7c4913dc02* output, String
         value_2 = true;
     }
     if (!value_2) {
-        zir_f_1cd1ecb166af98b1_FreeRaw((void*)(left));
+        zir_foreign_compiler_backend_process__FreeRaw((void*)(left));
         return false;
     }
     if ((int64_t)(value).length == 0LL) {
@@ -2466,7 +2466,7 @@ compiler_backend_process_LinkOwnedObjects(String out, String name, bool forced_l
         compiler_backend_process_ReleaseBuildValues(base, tail, files, objects, log);
         return false;
     }
-    zir_e4358493ea4607d1_Results__string__bool results_9_ = compiler_backend_process_PathJoin(link_directory, name);
+    compiler_backend_process_Results__string__bool results_9_ = compiler_backend_process_PathJoin(link_directory, name);
     String temporary = results_9_.value_0;
     bool temporary_ok = results_9_.value_1;
     if (!temporary_ok) {
@@ -2559,9 +2559,9 @@ compiler_backend_process_LinkOwnedObjects(String out, String name, bool forced_l
         (*value_2).count = 0;
         return value_8;
     }
-    uint64_t link_started = zir_f_1cd1ecb166af98b1_ProfileStart();
+    uint64_t link_started = zir_foreign_compiler_backend_process__ProfileStart();
     Slice value_9 = {(arguments).data, (arguments).count};
-    bool value_10 = zir_f_1cd1ecb166af98b1_DiagnosticJsonEnabled() != 0;
+    bool value_10 = zir_foreign_compiler_backend_process__DiagnosticJsonEnabled() != 0;
     Job job = compiler_backend_process_StartJob(SliceRangeAt(value_9, 0LL, arguments.count, sizeof(*(arguments).data)), value_10, true);
     compiler_backend_process_FreeArguments(&(arguments));
     bool value_11 = job.process >= 0;
@@ -2623,7 +2623,7 @@ compiler_backend_process_ReleaseBuildValues(__type_21092c8252d3dcaa* base, __typ
 bool
 compiler_backend_process_MoveLinkOutput(String directory, String out, String name)
 {
-    zir_e4358493ea4607d1_Results__string__bool results_10_ = compiler_backend_process_PathJoin(directory, name);
+    compiler_backend_process_Results__string__bool results_10_ = compiler_backend_process_PathJoin(directory, name);
     String temporary_path = results_10_.value_0;
     bool temporary_ok = results_10_.value_1;
     if (!temporary_ok) {
@@ -2674,10 +2674,10 @@ compiler_backend_process_MoveLinkOutput(String directory, String out, String nam
         if (StringEqual(entry_name, StringLiteral(".")) || StringEqual(entry_name, StringLiteral("..")) || StringEqual(entry_name, name)) {
             continue;
         }
-        zir_e4358493ea4607d1_Results__string__bool results_11_ = compiler_backend_process_PathJoin(directory, entry_name);
+        compiler_backend_process_Results__string__bool results_11_ = compiler_backend_process_PathJoin(directory, entry_name);
         String source = results_11_.value_0;
         bool source_ok = results_11_.value_1;
-        zir_e4358493ea4607d1_Results__string__bool results_12_ = compiler_backend_process_PathJoin(out, entry_name);
+        compiler_backend_process_Results__string__bool results_12_ = compiler_backend_process_PathJoin(out, entry_name);
         String destination = results_12_.value_0;
         bool destination_ok = results_12_.value_1;
         moved = source_ok && destination_ok && RenamePath(source, destination);
@@ -2693,7 +2693,7 @@ compiler_backend_process_MoveLinkOutput(String directory, String out, String nam
         }
         return cleanup_return_2;
     }
-    zir_e4358493ea4607d1_Results__string__bool results_13_ = compiler_backend_process_PathJoin(out, name);
+    compiler_backend_process_Results__string__bool results_13_ = compiler_backend_process_PathJoin(out, name);
     String final = results_13_.value_0;
     bool final_ok = results_13_.value_1;
     if (!final_ok) {
@@ -2815,30 +2815,30 @@ compiler_backend_process_Report(bool ok, String code, String message)
         if (ok) {
             uint8_t* format = compiler_backend_process_AllocateText(StringLiteral("%s"));
             if (format != ((void *)0)) {
-                zir_f_1cd1ecb166af98b1_WarningForeign((DiagnosticSpan){0}, code_pointer, format, message_pointer);
+                zir_foreign_compiler_backend_process__WarningForeign((DiagnosticSpan){0}, code_pointer, format, message_pointer);
             }
-            zir_f_1cd1ecb166af98b1_FreeRaw((void*)(format));
+            zir_foreign_compiler_backend_process__FreeRaw((void*)(format));
         } else {
             uint8_t* target = compiler_backend_process_AllocateText(StringLiteral("c"));
             uint8_t* capability = compiler_backend_process_AllocateText(StringLiteral("toolchain.native"));
             uint8_t* format = compiler_backend_process_AllocateText(StringLiteral("%s%s"));
             if (target != ((void *)0) && capability != ((void *)0) && format != ((void *)0)) {
-                zir_f_1cd1ecb166af98b1_DiagnosticTargetForeign((DiagnosticSpan){0}, code_pointer, target, capability, format, message_pointer, empty);
+                zir_foreign_compiler_backend_process__DiagnosticTargetForeign((DiagnosticSpan){0}, code_pointer, target, capability, format, message_pointer, empty);
             }
-            zir_f_1cd1ecb166af98b1_FreeRaw((void*)(target));
-            zir_f_1cd1ecb166af98b1_FreeRaw((void*)(capability));
-            zir_f_1cd1ecb166af98b1_FreeRaw((void*)(format));
+            zir_foreign_compiler_backend_process__FreeRaw((void*)(target));
+            zir_foreign_compiler_backend_process__FreeRaw((void*)(capability));
+            zir_foreign_compiler_backend_process__FreeRaw((void*)(format));
         }
     }
-    zir_f_1cd1ecb166af98b1_FreeRaw((void*)(message_pointer));
-    zir_f_1cd1ecb166af98b1_FreeRaw((void*)(empty));
-    zir_f_1cd1ecb166af98b1_FreeRaw((void*)(code_pointer));
+    zir_foreign_compiler_backend_process__FreeRaw((void*)(message_pointer));
+    zir_foreign_compiler_backend_process__FreeRaw((void*)(empty));
+    zir_foreign_compiler_backend_process__FreeRaw((void*)(code_pointer));
 }
 
 int64_t
 compiler_backend_process_AffinityCpus(void)
 {
-    int64_t online = zir_f_1cd1ecb166af98b1_SysconfByName(58);
+    int64_t online = zir_foreign_compiler_backend_process__SysconfByName(58);
     return online;
 }
 
@@ -2851,13 +2851,13 @@ compiler_backend_process_AvailableMemory(void)
     if (!value_1) {
         return -1LL;
     }
-    int32_t descriptor = zir_f_1cd1ecb166af98b1_OpenReadFile(&(name[0]));
+    int32_t descriptor = zir_foreign_compiler_backend_process__OpenReadFile(&(name[0]));
     if (descriptor < 0) {
         return -1LL;
     }
     uint8_t bytes[4096] = {0};
-    int64_t count = zir_f_1cd1ecb166af98b1_ReadDescriptor(descriptor, &(bytes[0]), 4095);
-    zir_f_1cd1ecb166af98b1_CloseDescriptor(descriptor);
+    int64_t count = zir_foreign_compiler_backend_process__ReadDescriptor(descriptor, &(bytes[0]), 4095);
+    zir_foreign_compiler_backend_process__CloseDescriptor(descriptor);
     if (count <= 0LL) {
         return -1LL;
     }
@@ -2946,7 +2946,7 @@ compiler_backend_process_CreateDirectories(String path)
         }
         uint8_t* value_3 = &(name[at]);
         (*value_3) = 0;
-        int32_t status = zir_f_1cd1ecb166af98b1_MakeDirectory(&(name[0]), 493);
+        int32_t status = zir_foreign_compiler_backend_process__MakeDirectory(&(name[0]), 493);
         if (status != 0 && compiler_backend_process_ErrnoValue() != 17) {
             return false;
         }
@@ -2954,21 +2954,21 @@ compiler_backend_process_CreateDirectories(String path)
         (*value_4) = 47;
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
-    int32_t status = zir_f_1cd1ecb166af98b1_MakeDirectory(&(name[0]), 493);
+    int32_t status = zir_foreign_compiler_backend_process__MakeDirectory(&(name[0]), 493);
     return status == 0 || compiler_backend_process_ErrnoValue() == 17;
 }
 
 int32_t
 compiler_backend_process_ErrnoValue(void)
 {
-    int32_t* value_0 = zir_f_1cd1ecb166af98b1_ErrnoLocation();
+    int32_t* value_0 = zir_foreign_compiler_backend_process__ErrnoLocation();
     return *(value_0);
 }
 
 void
 compiler_backend_process_SetCloexec(int32_t descriptor)
 {
-    zir_f_1cd1ecb166af98b1_FcntlCloexec(descriptor, 2, 1LL);
+    zir_foreign_compiler_backend_process__FcntlCloexec(descriptor, 2, 1LL);
 }
 
 void
@@ -2986,18 +2986,18 @@ compiler_backend_process_ReadJobOutput(Job* job)
 {
     uint8_t bytes[4096] = {0};
     int64_t count = 0;
-    count = zir_f_1cd1ecb166af98b1_ReadDescriptor(job->descriptor, &(bytes[0]), 4096);
+    count = zir_foreign_compiler_backend_process__ReadDescriptor(job->descriptor, &(bytes[0]), 4096);
     while (count < 0LL && compiler_backend_process_ErrnoValue() == 4) {
-        count = zir_f_1cd1ecb166af98b1_ReadDescriptor(job->descriptor, &(bytes[0]), 4096);
+        count = zir_foreign_compiler_backend_process__ReadDescriptor(job->descriptor, &(bytes[0]), 4096);
     }
     if (count < 0LL) {
-        zir_f_1cd1ecb166af98b1_CloseDescriptor(job->descriptor);
+        zir_foreign_compiler_backend_process__CloseDescriptor(job->descriptor);
         int32_t* value_0 = &(job->descriptor);
         (*value_0) = -1;
         return false;
     }
     if (count == 0LL) {
-        zir_f_1cd1ecb166af98b1_CloseDescriptor(job->descriptor);
+        zir_foreign_compiler_backend_process__CloseDescriptor(job->descriptor);
         int32_t* value_1 = &(job->descriptor);
         (*value_1) = -1;
         return true;
@@ -3023,7 +3023,7 @@ compiler_backend_process_ReadJobOutput(Job* job)
 void
 compiler_backend_process_ExecChild(uint8_t* path, CapturePointer* arguments, bool report_error)
 {
-    if (zir_f_1cd1ecb166af98b1_ExecRaw(path, arguments) == 0) {
+    if (zir_foreign_compiler_backend_process__ExecRaw(path, arguments) == 0) {
         return;
     }
     if (report_error) {
@@ -3031,28 +3031,28 @@ compiler_backend_process_ExecChild(uint8_t* path, CapturePointer* arguments, boo
         String value = compiler_backend_process_CText(path);
         uint8_t* prefix_message = compiler_backend_process_AllocateText(prefix);
         uint8_t* path_message = compiler_backend_process_AllocateText(value);
-        uint8_t* reason = zir_f_1cd1ecb166af98b1_Strerror(compiler_backend_process_ErrnoValue());
+        uint8_t* reason = zir_foreign_compiler_backend_process__Strerror(compiler_backend_process_ErrnoValue());
         String reason_text = compiler_backend_process_CText(reason);
         uint8_t* separator = compiler_backend_process_AllocateText(StringLiteral(": "));
         uint8_t* ending = compiler_backend_process_AllocateText(StringLiteral("\n"));
         if (prefix_message != ((void *)0)) {
-            zir_f_1cd1ecb166af98b1_WriteDescriptor(2, prefix_message, (size_t)((int64_t)(prefix).length));
-            zir_f_1cd1ecb166af98b1_FreeRaw((void*)(prefix_message));
+            zir_foreign_compiler_backend_process__WriteDescriptor(2, prefix_message, (size_t)((int64_t)(prefix).length));
+            zir_foreign_compiler_backend_process__FreeRaw((void*)(prefix_message));
         }
         if (path_message != ((void *)0)) {
-            zir_f_1cd1ecb166af98b1_WriteDescriptor(2, path_message, (size_t)((int64_t)(value).length));
-            zir_f_1cd1ecb166af98b1_FreeRaw((void*)(path_message));
+            zir_foreign_compiler_backend_process__WriteDescriptor(2, path_message, (size_t)((int64_t)(value).length));
+            zir_foreign_compiler_backend_process__FreeRaw((void*)(path_message));
         }
         if (separator != ((void *)0)) {
-            zir_f_1cd1ecb166af98b1_WriteDescriptor(2, separator, (size_t)(2LL));
-            zir_f_1cd1ecb166af98b1_FreeRaw((void*)(separator));
+            zir_foreign_compiler_backend_process__WriteDescriptor(2, separator, (size_t)(2LL));
+            zir_foreign_compiler_backend_process__FreeRaw((void*)(separator));
         }
         if (reason != ((void *)0)) {
-            zir_f_1cd1ecb166af98b1_WriteDescriptor(2, reason, (size_t)((int64_t)(reason_text).length));
+            zir_foreign_compiler_backend_process__WriteDescriptor(2, reason, (size_t)((int64_t)(reason_text).length));
         }
         if (ending != ((void *)0)) {
-            zir_f_1cd1ecb166af98b1_WriteDescriptor(2, ending, (size_t)(1LL));
-            zir_f_1cd1ecb166af98b1_FreeRaw((void*)(ending));
+            zir_foreign_compiler_backend_process__WriteDescriptor(2, ending, (size_t)(1LL));
+            zir_foreign_compiler_backend_process__FreeRaw((void*)(ending));
         }
     }
 }
@@ -3062,7 +3062,7 @@ compiler_backend_process_ProfileCount(String counter)
 {
     uint8_t* value = compiler_backend_process_ProfileName(counter);
     if (value != ((void *)0)) {
-        zir_f_1cd1ecb166af98b1_ProfileCountForeign(value);
+        zir_foreign_compiler_backend_process__ProfileCountForeign(value);
     }
 }
 
@@ -3073,7 +3073,7 @@ compiler_backend_process_ProfileEnd(String phase, uint64_t started)
     if (value == ((void *)0)) {
         return;
     }
-    zir_f_1cd1ecb166af98b1_ProfileEndForeign(value, started);
+    zir_foreign_compiler_backend_process__ProfileEndForeign(value, started);
 }
 
 uint8_t*
@@ -3100,7 +3100,7 @@ compiler_backend_process_ProfileName(String name)
         value_1 = true;
     }
     if (!value_1) {
-        zir_f_1cd1ecb166af98b1_FreeRaw((void*)(pointer));
+        zir_foreign_compiler_backend_process__FreeRaw((void*)(pointer));
         return (void *)0;
     }
     OwnedText* descriptor = (OwnedText*)(&(owned));

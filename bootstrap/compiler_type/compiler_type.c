@@ -3,18 +3,10 @@
 #include <stdbool.h>
 #include "zir_string.h"
 #include "compiler_type.h"
-#ifndef ZIR_FOREIGN_zir_f_a5f36d0ea8129be9_IsAlnum_6f4b98bf
-#define ZIR_FOREIGN_zir_f_a5f36d0ea8129be9_IsAlnum_6f4b98bf
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_a5f36d0ea8129be9_IsAlnum(int32_t byte) __asm__("_isalnum");
+int32_t zir_foreign_compiler_type__IsAlnum(int32_t byte) __asm__("_isalnum");
 #else
-int32_t zir_foreign_zir_f_a5f36d0ea8129be9_IsAlnum(int32_t byte) __asm__("isalnum");
-#endif
-static int32_t
-zir_f_a5f36d0ea8129be9_IsAlnum(int32_t byte)
-{
-    return zir_foreign_zir_f_a5f36d0ea8129be9_IsAlnum(byte);
-}
+int32_t zir_foreign_compiler_type__IsAlnum(int32_t byte) __asm__("isalnum");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -766,7 +758,7 @@ compiler_type_GoTypeTarget(String target)
 static bool
 compiler_type_VectorIdentifierByte(uint8_t byte)
 {
-    return byte == 95 || zir_f_a5f36d0ea8129be9_IsAlnum((int32_t)(byte)) != 0;
+    return byte == 95 || zir_foreign_compiler_type__IsAlnum((int32_t)(byte)) != 0;
 }
 
 static uint8_t

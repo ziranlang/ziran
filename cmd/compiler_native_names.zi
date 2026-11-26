@@ -121,7 +121,7 @@ PrepareNativeNames :: (programs: **IR.ZirProgram, count: s32) -> s32 {
             }
         }
     }
-    return 1
+    return CQualifyNativeTypeNames(programs, count)
 }
 
 #scope_file
@@ -160,3 +160,5 @@ Literal :: (text: string) -> *void { return cast(*void)Services.Keep(text) }
 StartsText :: (text: string, prefix: string) -> bool {
     return text.count >= prefix.count && text[0:prefix.count] == prefix
 }
+
+CQualifyNativeTypeNames :: (programs: **IR.ZirProgram, count: s32) -> s32 #foreign compiler "QualifyNativeTypeNames";

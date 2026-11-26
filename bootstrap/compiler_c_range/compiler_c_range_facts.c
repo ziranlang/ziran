@@ -5,174 +5,70 @@
 #define ZIRAN_COMPILER_C_RANGE_FACTS_H_PRIVATE 1
 #include "compiler_c_range_facts.h"
 #undef ZIRAN_COMPILER_C_RANGE_FACTS_H_PRIVATE
-#ifndef ZIR_FOREIGN_zir_f_cbfaf6764db493ec_calloc_0c09ffff
-#define ZIR_FOREIGN_zir_f_cbfaf6764db493ec_calloc_0c09ffff
 #ifdef __APPLE__
-void* zir_foreign_zir_f_cbfaf6764db493ec_calloc(size_t count, size_t size) __asm__("_calloc");
+void* zir_foreign_compiler_c_range_facts__calloc(size_t count, size_t size) __asm__("_calloc");
 #else
-void* zir_foreign_zir_f_cbfaf6764db493ec_calloc(size_t count, size_t size) __asm__("calloc");
+void* zir_foreign_compiler_c_range_facts__calloc(size_t count, size_t size) __asm__("calloc");
 #endif
-static void*
-zir_f_cbfaf6764db493ec_calloc(size_t count, size_t size)
-{
-    return zir_foreign_zir_f_cbfaf6764db493ec_calloc(count, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cbfaf6764db493ec_realloc_88719d39
-#define ZIR_FOREIGN_zir_f_cbfaf6764db493ec_realloc_88719d39
 #ifdef __APPLE__
-void* zir_foreign_zir_f_cbfaf6764db493ec_realloc(void* memory, size_t size) __asm__("_realloc");
+void* zir_foreign_compiler_c_range_facts__realloc(void* memory, size_t size) __asm__("_realloc");
 #else
-void* zir_foreign_zir_f_cbfaf6764db493ec_realloc(void* memory, size_t size) __asm__("realloc");
+void* zir_foreign_compiler_c_range_facts__realloc(void* memory, size_t size) __asm__("realloc");
 #endif
-static void*
-zir_f_cbfaf6764db493ec_realloc(void* memory, size_t size)
-{
-    return zir_foreign_zir_f_cbfaf6764db493ec_realloc(memory, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CFree_c75930da
-#define ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CFree_c75930da
 #ifdef __APPLE__
-void zir_foreign_zir_f_cbfaf6764db493ec_CFree(void* memory) __asm__("_free");
+void zir_foreign_compiler_c_range_facts__CFree(void* memory) __asm__("_free");
 #else
-void zir_foreign_zir_f_cbfaf6764db493ec_CFree(void* memory) __asm__("free");
+void zir_foreign_compiler_c_range_facts__CFree(void* memory) __asm__("free");
 #endif
-static void
-zir_f_cbfaf6764db493ec_CFree(void* memory)
-{
-    zir_foreign_zir_f_cbfaf6764db493ec_CFree(memory);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cbfaf6764db493ec_memcpy_d3838e83
-#define ZIR_FOREIGN_zir_f_cbfaf6764db493ec_memcpy_d3838e83
 #ifdef __APPLE__
-void* zir_foreign_zir_f_cbfaf6764db493ec_memcpy(void* destination, void* source, size_t count) __asm__("_memcpy");
+void* zir_foreign_compiler_c_range_facts__memcpy(void* destination, void* source, size_t count) __asm__("_memcpy");
 #else
-void* zir_foreign_zir_f_cbfaf6764db493ec_memcpy(void* destination, void* source, size_t count) __asm__("memcpy");
+void* zir_foreign_compiler_c_range_facts__memcpy(void* destination, void* source, size_t count) __asm__("memcpy");
 #endif
-static void*
-zir_f_cbfaf6764db493ec_memcpy(void* destination, void* source, size_t count)
-{
-    return zir_foreign_zir_f_cbfaf6764db493ec_memcpy(destination, source, count);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CScalarType_9055c366
-#define ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CScalarType_9055c366
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_cbfaf6764db493ec_CScalarType(uint8_t* type) __asm__("_ScalarType");
+uint8_t* zir_foreign_compiler_c_range_facts__CScalarType(uint8_t* type) __asm__("_ScalarType");
 #else
-uint8_t* zir_foreign_zir_f_cbfaf6764db493ec_CScalarType(uint8_t* type) __asm__("ScalarType");
+uint8_t* zir_foreign_compiler_c_range_facts__CScalarType(uint8_t* type) __asm__("ScalarType");
 #endif
-static uint8_t*
-zir_f_cbfaf6764db493ec_CScalarType(uint8_t* type)
-{
-    return zir_foreign_zir_f_cbfaf6764db493ec_CScalarType(type);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CArrayElementType_7810fd9e
-#define ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CArrayElementType_7810fd9e
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_cbfaf6764db493ec_CArrayElementType(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity) __asm__("_ArrayElementType");
+int32_t zir_foreign_compiler_c_range_facts__CArrayElementType(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity) __asm__("_ArrayElementType");
 #else
-int32_t zir_foreign_zir_f_cbfaf6764db493ec_CArrayElementType(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity) __asm__("ArrayElementType");
+int32_t zir_foreign_compiler_c_range_facts__CArrayElementType(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity) __asm__("ArrayElementType");
 #endif
-static int32_t
-zir_f_cbfaf6764db493ec_CArrayElementType(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity)
-{
-    return zir_foreign_zir_f_cbfaf6764db493ec_CArrayElementType(type, element, size, capacity);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CSliceElementType_2bdd8629
-#define ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CSliceElementType_2bdd8629
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_cbfaf6764db493ec_CSliceElementType(uint8_t* type, uint8_t* element, size_t size) __asm__("_SliceElementType");
+int32_t zir_foreign_compiler_c_range_facts__CSliceElementType(uint8_t* type, uint8_t* element, size_t size) __asm__("_SliceElementType");
 #else
-int32_t zir_foreign_zir_f_cbfaf6764db493ec_CSliceElementType(uint8_t* type, uint8_t* element, size_t size) __asm__("SliceElementType");
+int32_t zir_foreign_compiler_c_range_facts__CSliceElementType(uint8_t* type, uint8_t* element, size_t size) __asm__("SliceElementType");
 #endif
-static int32_t
-zir_f_cbfaf6764db493ec_CSliceElementType(uint8_t* type, uint8_t* element, size_t size)
-{
-    return zir_foreign_zir_f_cbfaf6764db493ec_CSliceElementType(type, element, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CScalarByteWidth_5d41210b
-#define ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CScalarByteWidth_5d41210b
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_cbfaf6764db493ec_CScalarByteWidth(uint8_t* type) __asm__("_ScalarByteWidth");
+size_t zir_foreign_compiler_c_range_facts__CScalarByteWidth(uint8_t* type) __asm__("_ScalarByteWidth");
 #else
-size_t zir_foreign_zir_f_cbfaf6764db493ec_CScalarByteWidth(uint8_t* type) __asm__("ScalarByteWidth");
+size_t zir_foreign_compiler_c_range_facts__CScalarByteWidth(uint8_t* type) __asm__("ScalarByteWidth");
 #endif
-static size_t
-zir_f_cbfaf6764db493ec_CScalarByteWidth(uint8_t* type)
-{
-    return zir_foreign_zir_f_cbfaf6764db493ec_CScalarByteWidth(type);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CZirIntegerLiteral_dc1e0baa
-#define ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CZirIntegerLiteral_dc1e0baa
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_cbfaf6764db493ec_CZirIntegerLiteral(uint8_t* text, uint64_t* value) __asm__("_ZirIntegerLiteral");
+int32_t zir_foreign_compiler_c_range_facts__CZirIntegerLiteral(uint8_t* text, uint64_t* value) __asm__("_ZirIntegerLiteral");
 #else
-int32_t zir_foreign_zir_f_cbfaf6764db493ec_CZirIntegerLiteral(uint8_t* text, uint64_t* value) __asm__("ZirIntegerLiteral");
+int32_t zir_foreign_compiler_c_range_facts__CZirIntegerLiteral(uint8_t* text, uint64_t* value) __asm__("ZirIntegerLiteral");
 #endif
-static int32_t
-zir_f_cbfaf6764db493ec_CZirIntegerLiteral(uint8_t* text, uint64_t* value)
-{
-    return zir_foreign_zir_f_cbfaf6764db493ec_CZirIntegerLiteral(text, value);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CParametersOf_ec83c8a7
-#define ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CParametersOf_ec83c8a7
 #ifdef __APPLE__
-RangeParameters* zir_foreign_zir_f_cbfaf6764db493ec_CParametersOf(uint8_t* text) __asm__("_ParametersOf");
+RangeParameters* zir_foreign_compiler_c_range_facts__CParametersOf(uint8_t* text) __asm__("_ParametersOf");
 #else
-RangeParameters* zir_foreign_zir_f_cbfaf6764db493ec_CParametersOf(uint8_t* text) __asm__("ParametersOf");
+RangeParameters* zir_foreign_compiler_c_range_facts__CParametersOf(uint8_t* text) __asm__("ParametersOf");
 #endif
-static RangeParameters*
-zir_f_cbfaf6764db493ec_CParametersOf(uint8_t* text)
-{
-    return zir_foreign_zir_f_cbfaf6764db493ec_CParametersOf(text);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CFindType_2a8e44a3
-#define ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CFindType_2a8e44a3
 #ifdef __APPLE__
-ZirType* zir_foreign_zir_f_cbfaf6764db493ec_CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("_FindType");
+ZirType* zir_foreign_compiler_c_range_facts__CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("_FindType");
 #else
-ZirType* zir_foreign_zir_f_cbfaf6764db493ec_CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("FindType");
+ZirType* zir_foreign_compiler_c_range_facts__CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("FindType");
 #endif
-static ZirType*
-zir_f_cbfaf6764db493ec_CFindType(ZirModule* module, uint8_t* name, ZirModule** owner)
-{
-    return zir_foreign_zir_f_cbfaf6764db493ec_CFindType(module, name, owner);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CResolveFunction_08b348f2
-#define ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CResolveFunction_08b348f2
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_cbfaf6764db493ec_CResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** fn) __asm__("_ResolveFunction");
+int32_t zir_foreign_compiler_c_range_facts__CResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** fn) __asm__("_ResolveFunction");
 #else
-int32_t zir_foreign_zir_f_cbfaf6764db493ec_CResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** fn) __asm__("ResolveFunction");
+int32_t zir_foreign_compiler_c_range_facts__CResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** fn) __asm__("ResolveFunction");
 #endif
-static int32_t
-zir_f_cbfaf6764db493ec_CResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** fn)
-{
-    return zir_foreign_zir_f_cbfaf6764db493ec_CResolveFunction(module, name, owner, fn);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CNativeProgramMain_7630c69c
-#define ZIR_FOREIGN_zir_f_cbfaf6764db493ec_CNativeProgramMain_7630c69c
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_cbfaf6764db493ec_CNativeProgramMain(ZirModule* module, ZirFunction* fn) __asm__("_NativeProgramMain");
+int32_t zir_foreign_compiler_c_range_facts__CNativeProgramMain(ZirModule* module, ZirFunction* fn) __asm__("_NativeProgramMain");
 #else
-int32_t zir_foreign_zir_f_cbfaf6764db493ec_CNativeProgramMain(ZirModule* module, ZirFunction* fn) __asm__("NativeProgramMain");
-#endif
-static int32_t
-zir_f_cbfaf6764db493ec_CNativeProgramMain(ZirModule* module, ZirFunction* fn)
-{
-    return zir_foreign_zir_f_cbfaf6764db493ec_CNativeProgramMain(module, fn);
-}
+int32_t zir_foreign_compiler_c_range_facts__CNativeProgramMain(ZirModule* module, ZirFunction* fn) __asm__("NativeProgramMain");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -200,15 +96,15 @@ static RangeParameters*
 compiler_c_range_facts_Parameters(ZirFunction* fn)
 {
     if (((uint8_t*)fn->args_text) != ((void *)0)) {
-        return zir_f_cbfaf6764db493ec_CParametersOf((uint8_t*)fn->args_text);
+        return zir_foreign_compiler_c_range_facts__CParametersOf((uint8_t*)fn->args_text);
     }
     String value_0 = StringLiteral("");
     uint8_t* value_1 = (void *)0;
     {
         String text = value_0;
-        value_1 = ((zir_8e9ab5d4dd15b8ae_TextDescriptor*)(&(text)))->data;
+        value_1 = ((compiler_c_range_facts_TextDescriptor*)(&(text)))->data;
     }
-    return zir_f_cbfaf6764db493ec_CParametersOf(value_1);
+    return zir_foreign_compiler_c_range_facts__CParametersOf(value_1);
 }
 
 static RangeParameter*
@@ -222,7 +118,7 @@ compiler_c_range_facts_ParameterAt(ZirFunction* fn, int32_t index)
 uint8_t*
 compiler_c_range_facts_LiteralC(String text)
 {
-    return ((zir_8e9ab5d4dd15b8ae_TextDescriptor*)(&(text)))->data;
+    return ((compiler_c_range_facts_TextDescriptor*)(&(text)))->data;
 }
 
 bool
@@ -250,37 +146,37 @@ compiler_c_range_facts_IsOp(ZirExpr* expr, String want)
 void*
 compiler_c_range_facts_Allocate(int64_t count, int64_t size)
 {
-    return zir_f_cbfaf6764db493ec_calloc((size_t)(count), (size_t)(size));
+    return zir_foreign_compiler_c_range_facts__calloc((size_t)(count), (size_t)(size));
 }
 
 void*
 compiler_c_range_facts_GrowMemory(void* memory, int64_t size)
 {
-    return zir_f_cbfaf6764db493ec_realloc(memory, (size_t)(size));
+    return zir_foreign_compiler_c_range_facts__realloc(memory, (size_t)(size));
 }
 
 void
 compiler_c_range_facts_ReleaseMemory(void* memory)
 {
-    zir_f_cbfaf6764db493ec_CFree(memory);
+    zir_foreign_compiler_c_range_facts__CFree(memory);
 }
 
 void
 compiler_c_range_facts_CopyMemory(void* destination, void* source, int64_t size)
 {
-    zir_f_cbfaf6764db493ec_memcpy(destination, source, (size_t)(size));
+    zir_foreign_compiler_c_range_facts__memcpy(destination, source, (size_t)(size));
 }
 
 uint8_t*
 compiler_c_range_facts_Canonical(uint8_t* type)
 {
-    uint8_t* result = zir_f_cbfaf6764db493ec_CScalarType(type);
+    uint8_t* result = zir_foreign_compiler_c_range_facts__CScalarType(type);
     if (compiler_c_range_facts_Is(type, StringLiteral("integer"))) {
         String value_0 = StringLiteral("s64");
         uint8_t* value_1 = (void *)0;
         {
             String text = value_0;
-            value_1 = ((zir_8e9ab5d4dd15b8ae_TextDescriptor*)(&(text)))->data;
+            value_1 = ((compiler_c_range_facts_TextDescriptor*)(&(text)))->data;
         }
         return value_1;
     }
@@ -289,7 +185,7 @@ compiler_c_range_facts_Canonical(uint8_t* type)
         uint8_t* value_4 = (void *)0;
         {
             String text = value_3;
-            value_4 = ((zir_8e9ab5d4dd15b8ae_TextDescriptor*)(&(text)))->data;
+            value_4 = ((compiler_c_range_facts_TextDescriptor*)(&(text)))->data;
         }
         return value_4;
     }
@@ -305,51 +201,51 @@ compiler_c_range_facts_Canonical(uint8_t* type)
 bool
 compiler_c_range_facts_ArrayCapacity(uint8_t* type, int32_t* capacity)
 {
-    return zir_f_cbfaf6764db493ec_CArrayElementType(type, (void *)0, 0, capacity) != 0;
+    return zir_foreign_compiler_c_range_facts__CArrayElementType(type, (void *)0, 0, capacity) != 0;
 }
 
 bool
 compiler_c_range_facts_ArrayElement(uint8_t* type, Slice element, int32_t* capacity)
 {
-    return zir_f_cbfaf6764db493ec_CArrayElementType(type, &(((uint8_t *)element.data)[0]), (size_t)((int64_t)(element).length), capacity) != 0;
+    return zir_foreign_compiler_c_range_facts__CArrayElementType(type, &(((uint8_t *)element.data)[0]), (size_t)((int64_t)(element).length), capacity) != 0;
 }
 
 bool
 compiler_c_range_facts_IsSlice(uint8_t* type)
 {
-    return zir_f_cbfaf6764db493ec_CSliceElementType(type, (void *)0, 0) != 0;
+    return zir_foreign_compiler_c_range_facts__CSliceElementType(type, (void *)0, 0) != 0;
 }
 
 int64_t
 compiler_c_range_facts_ScalarBytes(uint8_t* type)
 {
-    size_t value_0 = zir_f_cbfaf6764db493ec_CScalarByteWidth(type);
+    size_t value_0 = zir_foreign_compiler_c_range_facts__CScalarByteWidth(type);
     return (int64_t)(value_0);
 }
 
 ZirType*
 compiler_c_range_facts_FindType(ZirModule* module, uint8_t* name)
 {
-    return zir_f_cbfaf6764db493ec_CFindType(module, name, (void *)0);
+    return zir_foreign_compiler_c_range_facts__CFindType(module, name, (void *)0);
 }
 
 bool
 compiler_c_range_facts_RecordType(ZirModule* module, uint8_t* type)
 {
-    ZirType* declared = zir_f_cbfaf6764db493ec_CFindType(module, type, (void *)0);
+    ZirType* declared = zir_foreign_compiler_c_range_facts__CFindType(module, type, (void *)0);
     return declared != ((void *)0) && declared->is_enum == 0 && declared->is_procedure_type == 0;
 }
 
 int32_t
 compiler_c_range_facts_ResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** fn)
 {
-    return zir_f_cbfaf6764db493ec_CResolveFunction(module, name, owner, fn);
+    return zir_foreign_compiler_c_range_facts__CResolveFunction(module, name, owner, fn);
 }
 
 bool
 compiler_c_range_facts_NativeProgramMain(ZirModule* module, ZirFunction* fn)
 {
-    return zir_f_cbfaf6764db493ec_CNativeProgramMain(module, fn) != 0;
+    return zir_foreign_compiler_c_range_facts__CNativeProgramMain(module, fn) != 0;
 }
 
 int32_t
@@ -676,7 +572,7 @@ bool
 compiler_c_range_facts_LiteralValue(uint8_t* text, int64_t* value)
 {
     uint64_t bits = 0;
-    bool value_0 = zir_f_cbfaf6764db493ec_CZirIntegerLiteral(text, &(bits)) == 0;
+    bool value_0 = zir_foreign_compiler_c_range_facts__CZirIntegerLiteral(text, &(bits)) == 0;
     if (value_0 || bits > 4611686018427387904ULL) {
         return false;
     }
@@ -2061,98 +1957,98 @@ compiler_c_range_facts_RangeFactsBuild(ZirFunction* fn)
 }
 
 void
-compiler_c_range_facts___zi_spec_1c076b9130a22c09(int32_t* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_s32(int32_t* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 void
-compiler_c_range_facts___zi_spec_26cf6fa78d69a0a8(uint8_t* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_u8(uint8_t* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 void
-compiler_c_range_facts___zi_spec_d6c77b4b19ad9ddc(int64_t* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_s64(int64_t* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 void
-compiler_c_range_facts___zi_spec_36badaf37b490cb8(uint8_t** memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for__u8(uint8_t** memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 void
-compiler_c_range_facts___zi_spec_1cfa5bbe8c743fa4(RangeMemo* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_RangeMemo(RangeMemo* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 void
-compiler_c_range_facts___zi_spec_d22218a307c20f46(Range* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_Range(Range* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 void
-compiler_c_range_facts___zi_spec_b63787f70acafcb6(CallRange* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_CallRange(CallRange* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 void
-compiler_c_range_facts___zi_spec_b4230299ea84c8b9(Poly* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_Poly(Poly* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 void
-compiler_c_range_facts___zi_spec_dedcdc5a2bfcb83b(GuardFacts* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_GuardFacts(GuardFacts* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 void
-compiler_c_range_facts___zi_spec_5950ee889da3ded3(RangeFacts* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_RangeFacts(RangeFacts* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 void
-compiler_c_range_facts___zi_spec_4f7278c383bc71a4(ZirStmt* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_ZirStmt(ZirStmt* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 void
-compiler_c_range_facts___zi_spec_f25bf0ef6b818ab7(ZirExpr* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_ZirExpr(ZirExpr* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 void
-compiler_c_range_facts___zi_spec_dc8095db15498499(Callers* memory)
+compiler_c_range_facts_compiler_c_range_facts_Release_for_Callers(Callers* memory)
 {
     compiler_c_range_facts_ReleaseMemory((void*)(memory));
 }
 
 uint8_t**
-compiler_c_range_facts___zi_spec_72ce1a0d7fc61446(uint8_t** memory, int64_t count)
+compiler_c_range_facts_compiler_c_range_facts_Grow_for__u8(uint8_t** memory, int64_t count)
 {
     void* value_0 = compiler_c_range_facts_GrowMemory((void*)(memory), (int64_t)((uint64_t)count * (uint64_t)(sizeof(void *))));
     return (uint8_t**)(value_0);
 }
 
 void
-compiler_c_range_facts___zi_spec_9b28547ded648747(uint8_t* destination, uint8_t* source, int64_t count)
+compiler_c_range_facts_compiler_c_range_facts_Copy_for_u8(uint8_t* destination, uint8_t* source, int64_t count)
 {
     compiler_c_range_facts_CopyMemory((void*)(destination), (void*)(source), (int64_t)((uint64_t)count * (uint64_t)(sizeof(uint8_t))));
 }
 
 void
-compiler_c_range_facts___zi_spec_262c8131ae5c049c(ZirExpr* destination, ZirExpr* source, int64_t count)
+compiler_c_range_facts_compiler_c_range_facts_Copy_for_ZirExpr(ZirExpr* destination, ZirExpr* source, int64_t count)
 {
     compiler_c_range_facts_CopyMemory((void*)(destination), (void*)(source), (int64_t)((uint64_t)count * (uint64_t)(sizeof(ZirExpr))));
 }

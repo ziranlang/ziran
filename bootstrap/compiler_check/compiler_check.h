@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 #include "compiler_ir.h"
 #include "compiler_check_types.h"
 
@@ -57,6 +58,7 @@ int32_t private_check_order_using_expressions(ZirFunction* function);
 ZirFunction* private_check_function(Checker* c, uint8_t* name, ZirSourceSpan span);
 int32_t private_check_replace_template_type(uint8_t* target, size_t capacity, uint8_t* source, uint8_t* parameter, uint8_t* concrete);
 uint64_t private_check_specialization_hash(ZirModule* owner, ZirModule* instance_owner, ZirFunction* fn, uint8_t* type);
+bool compiler_check_SpecializationName(ZirModule* owner, ZirFunction* fn, uint8_t* type, uint64_t hash, uint8_t* out, size_t size);
 int32_t private_check_queue_specialization(Checker* c, ZirModule* owner, ZirModule* instance_owner, ZirFunction* fn, uint8_t* type, uint8_t* name, size_t name_size, ZirSourceSpan span);
 
 #ifdef __cplusplus

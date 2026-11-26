@@ -157,6 +157,7 @@
   <url><loc>https://ziran-lang.org/std/text</loc></url>
   <url><loc>https://ziran-lang.org/std/text_buffer</loc></url>
   <url><loc>https://ziran-lang.org/std/text_go</loc></url>
+  <url><loc>https://ziran-lang.org/std/text_layout</loc></url>
   <url><loc>https://ziran-lang.org/std/text_tools</loc></url>
   <url><loc>https://ziran-lang.org/std/thread</loc></url>
   <url><loc>https://ziran-lang.org/std/thread_linux</loc></url>

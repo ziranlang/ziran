@@ -14,14 +14,14 @@
 extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_SIMD_H_PRIVATE
-typedef struct zir_68dc77ef28a83636_StaticText zir_68dc77ef28a83636_StaticText;
+typedef struct compiler_c_emit_simd_StaticText compiler_c_emit_simd_StaticText;
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_SIMD_H_PRIVATE
 typedef struct SimdBuffers SimdBuffers;
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_SIMD_H_PRIVATE
 
-struct zir_68dc77ef28a83636_StaticText {
+struct compiler_c_emit_simd_StaticText {
     uint8_t* data;
     size_t length;
 };

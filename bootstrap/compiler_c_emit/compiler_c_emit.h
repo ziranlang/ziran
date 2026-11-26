@@ -66,7 +66,7 @@ typedef struct CParameters CParameters;
 typedef struct ZirVector ZirVector;
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
-typedef struct zir_9d57101922f2e428_StaticText zir_9d57101922f2e428_StaticText;
+typedef struct compiler_c_emit_StaticText compiler_c_emit_StaticText;
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
 typedef struct ModuleIdentity ModuleIdentity;
@@ -128,7 +128,7 @@ struct ZirVector {
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
 
-struct zir_9d57101922f2e428_StaticText {
+struct compiler_c_emit_StaticText {
     uint8_t* data;
     size_t length;
 };
@@ -208,6 +208,7 @@ int32_t NativeHeaderKeyword(uint8_t* name);
 void TargetBindingName(ZirFunction* fn, ZirTarget target, uint8_t* name, uint8_t* out, size_t size);
 void TargetFieldName(ZirType* record, ZirTarget target, uint8_t* name, uint8_t* out, size_t size);
 int32_t MarkNativeNameCollisions(ZirProgram** programs, int32_t count);
+int32_t QualifyNativeTypeNames(ZirProgram** programs, int32_t count);
 void TargetGlobalName(ZirModule* module, ZirTarget target, uint8_t* name, uint8_t* out, size_t size);
 void TargetDefineName(ZirModule* module, ZirTarget target, uint8_t* name, uint8_t* out, size_t size);
 void ArrayAbiName(ZirFunction* fn, int32_t parameter, uint8_t* out, size_t size);

@@ -4,83 +4,35 @@
 #define ZIRAN_COMPILER_PARSE_TYPES_H_PRIVATE 1
 #include "compiler_parse_types.h"
 #undef ZIRAN_COMPILER_PARSE_TYPES_H_PRIVATE
-#ifndef ZIR_FOREIGN_zir_f_ba6b2c68b869374a_CompilerContextScratch_7a4a5fab
-#define ZIR_FOREIGN_zir_f_ba6b2c68b869374a_CompilerContextScratch_7a4a5fab
 #ifdef __APPLE__
-void* zir_foreign_zir_f_ba6b2c68b869374a_CompilerContextScratch(void* key, Destroy destroy) __asm__("_CompilerContextScratch");
+void* zir_foreign_compiler_parse_types__CompilerContextScratch(void* key, Destroy destroy) __asm__("_CompilerContextScratch");
 #else
-void* zir_foreign_zir_f_ba6b2c68b869374a_CompilerContextScratch(void* key, Destroy destroy) __asm__("CompilerContextScratch");
+void* zir_foreign_compiler_parse_types__CompilerContextScratch(void* key, Destroy destroy) __asm__("CompilerContextScratch");
 #endif
-static void*
-zir_f_ba6b2c68b869374a_CompilerContextScratch(void* key, Destroy destroy)
-{
-    return zir_foreign_zir_f_ba6b2c68b869374a_CompilerContextScratch(key, destroy);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_ba6b2c68b869374a_CompilerScratchTake_7eecd454
-#define ZIR_FOREIGN_zir_f_ba6b2c68b869374a_CompilerScratchTake_7eecd454
 #ifdef __APPLE__
-void* zir_foreign_zir_f_ba6b2c68b869374a_CompilerScratchTake(void* pool) __asm__("_CompilerScratchTake");
+void* zir_foreign_compiler_parse_types__CompilerScratchTake(void* pool) __asm__("_CompilerScratchTake");
 #else
-void* zir_foreign_zir_f_ba6b2c68b869374a_CompilerScratchTake(void* pool) __asm__("CompilerScratchTake");
+void* zir_foreign_compiler_parse_types__CompilerScratchTake(void* pool) __asm__("CompilerScratchTake");
 #endif
-static void*
-zir_f_ba6b2c68b869374a_CompilerScratchTake(void* pool)
-{
-    return zir_foreign_zir_f_ba6b2c68b869374a_CompilerScratchTake(pool);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_ba6b2c68b869374a_CompilerScratchPut_24e84c9a
-#define ZIR_FOREIGN_zir_f_ba6b2c68b869374a_CompilerScratchPut_24e84c9a
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_ba6b2c68b869374a_CompilerScratchPut(void* pool, void* memory) __asm__("_CompilerScratchPut");
+int32_t zir_foreign_compiler_parse_types__CompilerScratchPut(void* pool, void* memory) __asm__("_CompilerScratchPut");
 #else
-int32_t zir_foreign_zir_f_ba6b2c68b869374a_CompilerScratchPut(void* pool, void* memory) __asm__("CompilerScratchPut");
+int32_t zir_foreign_compiler_parse_types__CompilerScratchPut(void* pool, void* memory) __asm__("CompilerScratchPut");
 #endif
-static int32_t
-zir_f_ba6b2c68b869374a_CompilerScratchPut(void* pool, void* memory)
-{
-    return zir_foreign_zir_f_ba6b2c68b869374a_CompilerScratchPut(pool, memory);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_ba6b2c68b869374a_CompilerMemoryRecovering_b88389da
-#define ZIR_FOREIGN_zir_f_ba6b2c68b869374a_CompilerMemoryRecovering_b88389da
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_ba6b2c68b869374a_CompilerMemoryRecovering(void) __asm__("_CompilerMemoryRecovering");
+int32_t zir_foreign_compiler_parse_types__CompilerMemoryRecovering(void) __asm__("_CompilerMemoryRecovering");
 #else
-int32_t zir_foreign_zir_f_ba6b2c68b869374a_CompilerMemoryRecovering(void) __asm__("CompilerMemoryRecovering");
+int32_t zir_foreign_compiler_parse_types__CompilerMemoryRecovering(void) __asm__("CompilerMemoryRecovering");
 #endif
-static int32_t
-zir_f_ba6b2c68b869374a_CompilerMemoryRecovering(void)
-{
-    return zir_foreign_zir_f_ba6b2c68b869374a_CompilerMemoryRecovering();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_ba6b2c68b869374a_CompilerFree_544d5753
-#define ZIR_FOREIGN_zir_f_ba6b2c68b869374a_CompilerFree_544d5753
 #ifdef __APPLE__
-void zir_foreign_zir_f_ba6b2c68b869374a_CompilerFree(void* memory) __asm__("_CompilerFree");
+void zir_foreign_compiler_parse_types__CompilerFree(void* memory) __asm__("_CompilerFree");
 #else
-void zir_foreign_zir_f_ba6b2c68b869374a_CompilerFree(void* memory) __asm__("CompilerFree");
+void zir_foreign_compiler_parse_types__CompilerFree(void* memory) __asm__("CompilerFree");
 #endif
-static void
-zir_f_ba6b2c68b869374a_CompilerFree(void* memory)
-{
-    zir_foreign_zir_f_ba6b2c68b869374a_CompilerFree(memory);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_ba6b2c68b869374a_AllocateOrExit_5810995e
-#define ZIR_FOREIGN_zir_f_ba6b2c68b869374a_AllocateOrExit_5810995e
 #ifdef __APPLE__
-void* zir_foreign_zir_f_ba6b2c68b869374a_AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
+void* zir_foreign_compiler_parse_types__AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
 #else
-void* zir_foreign_zir_f_ba6b2c68b869374a_AllocateOrExit(size_t size) __asm__("AllocateOrExit");
-#endif
-static void*
-zir_f_ba6b2c68b869374a_AllocateOrExit(size_t size)
-{
-    return zir_foreign_zir_f_ba6b2c68b869374a_AllocateOrExit(size);
-}
+void* zir_foreign_compiler_parse_types__AllocateOrExit(size_t size) __asm__("AllocateOrExit");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -252,30 +204,30 @@ compiler_parse_types_ParserCString(String text)
 static void
 compiler_parse_types_DestroyScratch(void* memory)
 {
-    zir_f_ba6b2c68b869374a_CompilerFree(memory);
+    zir_foreign_compiler_parse_types__CompilerFree(memory);
 }
 
 void*
 compiler_parse_types_ParserScratchTake(uint8_t* key, size_t size)
 {
-    if (zir_f_ba6b2c68b869374a_CompilerMemoryRecovering() == 0) {
-        void* pool = zir_f_ba6b2c68b869374a_CompilerContextScratch((void*)(key), compiler_parse_types_DestroyScratch);
-        void* memory = zir_f_ba6b2c68b869374a_CompilerScratchTake(pool);
+    if (zir_foreign_compiler_parse_types__CompilerMemoryRecovering() == 0) {
+        void* pool = zir_foreign_compiler_parse_types__CompilerContextScratch((void*)(key), compiler_parse_types_DestroyScratch);
+        void* memory = zir_foreign_compiler_parse_types__CompilerScratchTake(pool);
         if (memory != ((void *)0)) {
             return memory;
         }
     }
-    return zir_f_ba6b2c68b869374a_AllocateOrExit(size);
+    return zir_foreign_compiler_parse_types__AllocateOrExit(size);
 }
 
 void
 compiler_parse_types_ParserScratchRelease(uint8_t* key, void* memory)
 {
-    if (zir_f_ba6b2c68b869374a_CompilerMemoryRecovering() == 0) {
-        void* pool = zir_f_ba6b2c68b869374a_CompilerContextScratch((void*)(key), compiler_parse_types_DestroyScratch);
-        if (zir_f_ba6b2c68b869374a_CompilerScratchPut(pool, memory) != 0) {
+    if (zir_foreign_compiler_parse_types__CompilerMemoryRecovering() == 0) {
+        void* pool = zir_foreign_compiler_parse_types__CompilerContextScratch((void*)(key), compiler_parse_types_DestroyScratch);
+        if (zir_foreign_compiler_parse_types__CompilerScratchPut(pool, memory) != 0) {
             return;
         }
     }
-    zir_f_ba6b2c68b869374a_CompilerFree(memory);
+    zir_foreign_compiler_parse_types__CompilerFree(memory);
 }

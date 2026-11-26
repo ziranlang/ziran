@@ -8,8 +8,8 @@
 int64_t
 MonotonicNanoseconds(void)
 {
-    zir_9339a8296a493286_ClockValue value = {0};
-    if (zir_f_9bb5b5b3425765c7_ClockGetTimeRaw(1, &(value)) != 0) {
+    timer_linux_ClockValue value = {0};
+    if (zir_foreign_timer_linux__ClockGetTimeRaw(1, &(value)) != 0) {
         return -1LL;
     }
     int64_t seconds = (int64_t)(value.seconds);
@@ -23,8 +23,8 @@ MonotonicNanoseconds(void)
 int64_t
 MonotonicMilliseconds(void)
 {
-    zir_9339a8296a493286_ClockValue value[1] = {0};
-    if (zir_f_9bb5b5b3425765c7_ClockGetTimeRaw(1, &(value[0])) != 0) {
+    timer_linux_ClockValue value[1] = {0};
+    if (zir_foreign_timer_linux__ClockGetTimeRaw(1, &(value[0])) != 0) {
         return -1LL;
     }
     int64_t seconds = (int64_t)((value[0]).seconds);
@@ -38,10 +38,10 @@ MonotonicMilliseconds(void)
     return (int64_t)(((uint64_t)seconds * UINT64_C(1000)) + (uint64_t)((nanoseconds / 1000000LL)));
 }
 
-zir_9339a8296a493286_ClockValue
+timer_linux_ClockValue
 timer_linux_MakeClockValue(int64_t milliseconds)
 {
-    zir_9339a8296a493286_ClockValue value = {0};
+    timer_linux_ClockValue value = {0};
     if (milliseconds < 0LL) {
         return value;
     }
@@ -58,14 +58,14 @@ SleepMilliseconds(int64_t milliseconds)
     if (milliseconds < 0LL || milliseconds > 86400000LL) {
         return false;
     }
-    zir_9339a8296a493286_ClockValue request[1] = {0};
-    zir_9339a8296a493286_ClockValue remaining[1] = {0};
-    zir_9339a8296a493286_ClockValue* value_0 = &(request[0]);
+    timer_linux_ClockValue request[1] = {0};
+    timer_linux_ClockValue remaining[1] = {0};
+    timer_linux_ClockValue* value_0 = &(request[0]);
     int64_t value_1 = milliseconds;
-    zir_9339a8296a493286_ClockValue value_2 = {0};
+    timer_linux_ClockValue value_2 = {0};
     {
         int64_t milliseconds = value_1;
-        zir_9339a8296a493286_ClockValue value = {0};
+        timer_linux_ClockValue value = {0};
         if (milliseconds < 0LL) {
             value_2 = value;
             goto value_3;
@@ -79,14 +79,14 @@ SleepMilliseconds(int64_t milliseconds)
     }
     (*value_0) = value_2;
     while ((request[0]).seconds > 0 || (request[0]).nanoseconds > 0) {
-        int32_t status = zir_f_9bb5b5b3425765c7_ClockSleepRaw(1, 0, &(request[0]), &(remaining[0]));
+        int32_t status = zir_foreign_timer_linux__ClockSleepRaw(1, 0, &(request[0]), &(remaining[0]));
         if (status == 0) {
             return true;
         }
         if (status != 4) {
             return false;
         }
-        zir_9339a8296a493286_ClockValue* value_6 = &(request[0]);
+        timer_linux_ClockValue* value_6 = &(request[0]);
         (*value_6) = (remaining)[0];
     }
     return true;

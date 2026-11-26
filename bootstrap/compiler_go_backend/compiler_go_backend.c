@@ -6,1224 +6,480 @@
 #define ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE 1
 #include "compiler_go_backend.h"
 #undef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_AllocateOrExit_5810995e
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_AllocateOrExit_5810995e
 #ifdef __APPLE__
-void* zir_foreign_zir_f_daa84719ffd73ec0_AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
+void* zir_foreign_compiler_go_backend__AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
 #else
-void* zir_foreign_zir_f_daa84719ffd73ec0_AllocateOrExit(size_t size) __asm__("AllocateOrExit");
+void* zir_foreign_compiler_go_backend__AllocateOrExit(size_t size) __asm__("AllocateOrExit");
 #endif
-static void*
-zir_f_daa84719ffd73ec0_AllocateOrExit(size_t size)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_AllocateOrExit(size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ArrayTypeAlias_98bb783b
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ArrayTypeAlias_98bb783b
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_ArrayTypeAlias(uint8_t* value) __asm__("_ArrayTypeAlias");
+int32_t zir_foreign_compiler_go_backend__ArrayTypeAlias(uint8_t* value) __asm__("_ArrayTypeAlias");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_ArrayTypeAlias(uint8_t* value) __asm__("ArrayTypeAlias");
-#endif
-static int32_t
-zir_f_daa84719ffd73ec0_ArrayTypeAlias(uint8_t* value)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_ArrayTypeAlias(value);
-}
+int32_t zir_foreign_compiler_go_backend__ArrayTypeAlias(uint8_t* value) __asm__("ArrayTypeAlias");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_BitBuiltin_a0d1d23e
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_BitBuiltin_a0d1d23e
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_BitBuiltin(uint8_t* checked_name) __asm__("_BitBuiltin");
+int32_t zir_foreign_compiler_go_backend__BitBuiltin(uint8_t* checked_name) __asm__("_BitBuiltin");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_BitBuiltin(uint8_t* checked_name) __asm__("BitBuiltin");
+int32_t zir_foreign_compiler_go_backend__BitBuiltin(uint8_t* checked_name) __asm__("BitBuiltin");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_BitBuiltin(uint8_t* checked_name)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_BitBuiltin(checked_name);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_CompilerContextScratch_533b40d3
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_CompilerContextScratch_533b40d3
 #ifdef __APPLE__
-void* zir_foreign_zir_f_daa84719ffd73ec0_CompilerContextScratch(void* key, GoDestroyBuffer destroy) __asm__("_CompilerContextScratch");
+void* zir_foreign_compiler_go_backend__CompilerContextScratch(void* key, GoDestroyBuffer destroy) __asm__("_CompilerContextScratch");
 #else
-void* zir_foreign_zir_f_daa84719ffd73ec0_CompilerContextScratch(void* key, GoDestroyBuffer destroy) __asm__("CompilerContextScratch");
+void* zir_foreign_compiler_go_backend__CompilerContextScratch(void* key, GoDestroyBuffer destroy) __asm__("CompilerContextScratch");
 #endif
-static void*
-zir_f_daa84719ffd73ec0_CompilerContextScratch(void* key, GoDestroyBuffer destroy)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_CompilerContextScratch(key, destroy);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_CompilerContextSelect_7dd45a0e
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_CompilerContextSelect_7dd45a0e
 #ifdef __APPLE__
-void* zir_foreign_zir_f_daa84719ffd73ec0_CompilerContextSelect(void* context) __asm__("_CompilerContextSelect");
+void* zir_foreign_compiler_go_backend__CompilerContextSelect(void* context) __asm__("_CompilerContextSelect");
 #else
-void* zir_foreign_zir_f_daa84719ffd73ec0_CompilerContextSelect(void* context) __asm__("CompilerContextSelect");
-#endif
-static void*
-zir_f_daa84719ffd73ec0_CompilerContextSelect(void* context)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_CompilerContextSelect(context);
-}
+void* zir_foreign_compiler_go_backend__CompilerContextSelect(void* context) __asm__("CompilerContextSelect");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_CompilerScratchPut_24e84c9a
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_CompilerScratchPut_24e84c9a
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_CompilerScratchPut(void* scratch, void* value) __asm__("_CompilerScratchPut");
+int32_t zir_foreign_compiler_go_backend__CompilerScratchPut(void* scratch, void* value) __asm__("_CompilerScratchPut");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_CompilerScratchPut(void* scratch, void* value) __asm__("CompilerScratchPut");
+int32_t zir_foreign_compiler_go_backend__CompilerScratchPut(void* scratch, void* value) __asm__("CompilerScratchPut");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_CompilerScratchPut(void* scratch, void* value)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_CompilerScratchPut(scratch, value);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_CompilerScratchTake_7eecd454
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_CompilerScratchTake_7eecd454
 #ifdef __APPLE__
-void* zir_foreign_zir_f_daa84719ffd73ec0_CompilerScratchTake(void* scratch) __asm__("_CompilerScratchTake");
+void* zir_foreign_compiler_go_backend__CompilerScratchTake(void* scratch) __asm__("_CompilerScratchTake");
 #else
-void* zir_foreign_zir_f_daa84719ffd73ec0_CompilerScratchTake(void* scratch) __asm__("CompilerScratchTake");
+void* zir_foreign_compiler_go_backend__CompilerScratchTake(void* scratch) __asm__("CompilerScratchTake");
 #endif
-static void*
-zir_f_daa84719ffd73ec0_CompilerScratchTake(void* scratch)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_CompilerScratchTake(scratch);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_DecodeStringLiteral_a7c0151e
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_DecodeStringLiteral_a7c0151e
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_DecodeStringLiteral(uint8_t* source, uint8_t* out, size_t capacity, size_t* length) __asm__("_DecodeStringLiteral");
+int32_t zir_foreign_compiler_go_backend__DecodeStringLiteral(uint8_t* source, uint8_t* out, size_t capacity, size_t* length) __asm__("_DecodeStringLiteral");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_DecodeStringLiteral(uint8_t* source, uint8_t* out, size_t capacity, size_t* length) __asm__("DecodeStringLiteral");
-#endif
-static int32_t
-zir_f_daa84719ffd73ec0_DecodeStringLiteral(uint8_t* source, uint8_t* out, size_t capacity, size_t* length)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_DecodeStringLiteral(source, out, capacity, length);
-}
+int32_t zir_foreign_compiler_go_backend__DecodeStringLiteral(uint8_t* source, uint8_t* out, size_t capacity, size_t* length) __asm__("DecodeStringLiteral");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_DefineIsAggregate_d60785a2
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_DefineIsAggregate_d60785a2
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_DefineIsAggregate(ZirModule* module, ZirDefine* define) __asm__("_CompilerDefineIsAggregate");
+int32_t zir_foreign_compiler_go_backend__DefineIsAggregate(ZirModule* module, ZirDefine* define) __asm__("_CompilerDefineIsAggregate");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_DefineIsAggregate(ZirModule* module, ZirDefine* define) __asm__("CompilerDefineIsAggregate");
+int32_t zir_foreign_compiler_go_backend__DefineIsAggregate(ZirModule* module, ZirDefine* define) __asm__("CompilerDefineIsAggregate");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_DefineIsAggregate(ZirModule* module, ZirDefine* define)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_DefineIsAggregate(module, define);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_Diagnostic_78ef33bb
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_Diagnostic_78ef33bb
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("_Diagnostic");
+void zir_foreign_compiler_go_backend__Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("_Diagnostic");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("Diagnostic");
+void zir_foreign_compiler_go_backend__Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("Diagnostic");
 #endif
-#define zir_f_daa84719ffd73ec0_Diagnostic zir_foreign_zir_f_daa84719ffd73ec0_Diagnostic
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_DiagnosticOutOfMemory_4a6ba8c0
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_DiagnosticOutOfMemory_4a6ba8c0
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_DiagnosticOutOfMemory(void) __asm__("_DiagnosticOutOfMemory");
+void zir_foreign_compiler_go_backend__DiagnosticOutOfMemory(void) __asm__("_DiagnosticOutOfMemory");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_DiagnosticOutOfMemory(void) __asm__("DiagnosticOutOfMemory");
-#endif
-static void
-zir_f_daa84719ffd73ec0_DiagnosticOutOfMemory(void)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_DiagnosticOutOfMemory();
-}
+void zir_foreign_compiler_go_backend__DiagnosticOutOfMemory(void) __asm__("DiagnosticOutOfMemory");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_EmitBody_f4d4af90
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_EmitBody_f4d4af90
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_EmitBody(void* out, ZirModule* module, ZirFunction* fn, int32_t target, GoResolveTarget resolve, void* context, GoAssemblyBlockEmitter assembly, void* assembly_context) __asm__("_EmitBody");
+int32_t zir_foreign_compiler_go_backend__EmitBody(void* out, ZirModule* module, ZirFunction* fn, int32_t target, GoResolveTarget resolve, void* context, GoAssemblyBlockEmitter assembly, void* assembly_context) __asm__("_EmitBody");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_EmitBody(void* out, ZirModule* module, ZirFunction* fn, int32_t target, GoResolveTarget resolve, void* context, GoAssemblyBlockEmitter assembly, void* assembly_context) __asm__("EmitBody");
+int32_t zir_foreign_compiler_go_backend__EmitBody(void* out, ZirModule* module, ZirFunction* fn, int32_t target, GoResolveTarget resolve, void* context, GoAssemblyBlockEmitter assembly, void* assembly_context) __asm__("EmitBody");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_EmitBody(void* out, ZirModule* module, ZirFunction* fn, int32_t target, GoResolveTarget resolve, void* context, GoAssemblyBlockEmitter assembly, void* assembly_context)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_EmitBody(out, module, fn, target, resolve, context, assembly, assembly_context);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_EmitConstantTablesBegin_09b27502
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_EmitConstantTablesBegin_09b27502
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_EmitConstantTablesBegin(uint8_t* prefix, int32_t target) __asm__("_EmitConstantTablesBegin");
+void zir_foreign_compiler_go_backend__EmitConstantTablesBegin(uint8_t* prefix, int32_t target) __asm__("_EmitConstantTablesBegin");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_EmitConstantTablesBegin(uint8_t* prefix, int32_t target) __asm__("EmitConstantTablesBegin");
+void zir_foreign_compiler_go_backend__EmitConstantTablesBegin(uint8_t* prefix, int32_t target) __asm__("EmitConstantTablesBegin");
 #endif
-static void
-zir_f_daa84719ffd73ec0_EmitConstantTablesBegin(uint8_t* prefix, int32_t target)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_EmitConstantTablesBegin(prefix, target);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_EmitConstantTablesEnd_8f1839a1
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_EmitConstantTablesEnd_8f1839a1
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_EmitConstantTablesEnd(void) __asm__("_EmitConstantTablesEnd");
+uint8_t* zir_foreign_compiler_go_backend__EmitConstantTablesEnd(void) __asm__("_EmitConstantTablesEnd");
 #else
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_EmitConstantTablesEnd(void) __asm__("EmitConstantTablesEnd");
-#endif
-static uint8_t*
-zir_f_daa84719ffd73ec0_EmitConstantTablesEnd(void)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_EmitConstantTablesEnd();
-}
+uint8_t* zir_foreign_compiler_go_backend__EmitConstantTablesEnd(void) __asm__("EmitConstantTablesEnd");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_EmitGlobalInitializerText_383a53a7
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_EmitGlobalInitializerText_383a53a7
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_EmitGlobalInitializerText(ZirModule* module, ZirGlobal* global, int32_t target, GoGlobalRewrite scalar, GoGlobalRewrite type_name, GoGlobalFieldRewrite field_name, void* context, int32_t* status) __asm__("_EmitGlobalInitializerText");
+uint8_t* zir_foreign_compiler_go_backend__EmitGlobalInitializerText(ZirModule* module, ZirGlobal* global, int32_t target, GoGlobalRewrite scalar, GoGlobalRewrite type_name, GoGlobalFieldRewrite field_name, void* context, int32_t* status) __asm__("_EmitGlobalInitializerText");
 #else
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_EmitGlobalInitializerText(ZirModule* module, ZirGlobal* global, int32_t target, GoGlobalRewrite scalar, GoGlobalRewrite type_name, GoGlobalFieldRewrite field_name, void* context, int32_t* status) __asm__("EmitGlobalInitializerText");
+uint8_t* zir_foreign_compiler_go_backend__EmitGlobalInitializerText(ZirModule* module, ZirGlobal* global, int32_t target, GoGlobalRewrite scalar, GoGlobalRewrite type_name, GoGlobalFieldRewrite field_name, void* context, int32_t* status) __asm__("EmitGlobalInitializerText");
 #endif
-static uint8_t*
-zir_f_daa84719ffd73ec0_EmitGlobalInitializerText(ZirModule* module, ZirGlobal* global, int32_t target, GoGlobalRewrite scalar, GoGlobalRewrite type_name, GoGlobalFieldRewrite field_name, void* context, int32_t* status)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_EmitGlobalInitializerText(module, global, target, scalar, type_name, field_name, context, status);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_EmitGoNumberHelpers_82d45a7c
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_EmitGoNumberHelpers_82d45a7c
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_EmitGoNumberHelpers(void* out, uint8_t* text, uint32_t* written) __asm__("_EmitGoNumberHelpers");
+void zir_foreign_compiler_go_backend__EmitGoNumberHelpers(void* out, uint8_t* text, uint32_t* written) __asm__("_EmitGoNumberHelpers");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_EmitGoNumberHelpers(void* out, uint8_t* text, uint32_t* written) __asm__("EmitGoNumberHelpers");
+void zir_foreign_compiler_go_backend__EmitGoNumberHelpers(void* out, uint8_t* text, uint32_t* written) __asm__("EmitGoNumberHelpers");
 #endif
-static void
-zir_f_daa84719ffd73ec0_EmitGoNumberHelpers(void* out, uint8_t* text, uint32_t* written)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_EmitGoNumberHelpers(out, text, written);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_EmitGoPrintSupport_c2bf86b3
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_EmitGoPrintSupport_c2bf86b3
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_EmitGoPrintSupport(void* out) __asm__("_EmitGoPrintSupport");
+void zir_foreign_compiler_go_backend__EmitGoPrintSupport(void* out) __asm__("_EmitGoPrintSupport");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_EmitGoPrintSupport(void* out) __asm__("EmitGoPrintSupport");
-#endif
-static void
-zir_f_daa84719ffd73ec0_EmitGoPrintSupport(void* out)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_EmitGoPrintSupport(out);
-}
+void zir_foreign_compiler_go_backend__EmitGoPrintSupport(void* out) __asm__("EmitGoPrintSupport");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_EmitSlotType_882d5296
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_EmitSlotType_882d5296
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_EmitSlotType(void* out, ZirType* slot, int32_t target, GoResolveTarget resolve_type, void* context) __asm__("_EmitSlotType");
+void zir_foreign_compiler_go_backend__EmitSlotType(void* out, ZirType* slot, int32_t target, GoResolveTarget resolve_type, void* context) __asm__("_EmitSlotType");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_EmitSlotType(void* out, ZirType* slot, int32_t target, GoResolveTarget resolve_type, void* context) __asm__("EmitSlotType");
+void zir_foreign_compiler_go_backend__EmitSlotType(void* out, ZirType* slot, int32_t target, GoResolveTarget resolve_type, void* context) __asm__("EmitSlotType");
 #endif
-static void
-zir_f_daa84719ffd73ec0_EmitSlotType(void* out, ZirType* slot, int32_t target, GoResolveTarget resolve_type, void* context)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_EmitSlotType(out, slot, target, resolve_type, context);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_EnumMemberValue_3400a243
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_EnumMemberValue_3400a243
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_EnumMemberValue(ZirType* type, uint8_t* name, int64_t* value) __asm__("_EnumMemberValue");
+int32_t zir_foreign_compiler_go_backend__EnumMemberValue(ZirType* type, uint8_t* name, int64_t* value) __asm__("_EnumMemberValue");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_EnumMemberValue(ZirType* type, uint8_t* name, int64_t* value) __asm__("EnumMemberValue");
+int32_t zir_foreign_compiler_go_backend__EnumMemberValue(ZirType* type, uint8_t* name, int64_t* value) __asm__("EnumMemberValue");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_EnumMemberValue(ZirType* type, uint8_t* name, int64_t* value)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_EnumMemberValue(type, name, value);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_CFindType_2a8e44a3
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_CFindType_2a8e44a3
 #ifdef __APPLE__
-ZirType* zir_foreign_zir_f_daa84719ffd73ec0_CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("_FindType");
+ZirType* zir_foreign_compiler_go_backend__CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("_FindType");
 #else
-ZirType* zir_foreign_zir_f_daa84719ffd73ec0_CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("FindType");
-#endif
-static ZirType*
-zir_f_daa84719ffd73ec0_CFindType(ZirModule* module, uint8_t* name, ZirModule** owner)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_CFindType(module, name, owner);
-}
+ZirType* zir_foreign_compiler_go_backend__CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("FindType");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GeneratedOutputRecord_ea447a8a
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GeneratedOutputRecord_ea447a8a
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_GeneratedOutputRecord(uint8_t* path) __asm__("_GeneratedOutputRecord");
+void zir_foreign_compiler_go_backend__GeneratedOutputRecord(uint8_t* path) __asm__("_GeneratedOutputRecord");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_GeneratedOutputRecord(uint8_t* path) __asm__("GeneratedOutputRecord");
+void zir_foreign_compiler_go_backend__GeneratedOutputRecord(uint8_t* path) __asm__("GeneratedOutputRecord");
 #endif
-static void
-zir_f_daa84719ffd73ec0_GeneratedOutputRecord(uint8_t* path)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_GeneratedOutputRecord(path);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoAssemblyAvailability_f494c626
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoAssemblyAvailability_f494c626
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyAvailability(uint8_t* directory, uint8_t* package, ZirSourceSpan span) __asm__("_GoAssemblyAvailability");
+int32_t zir_foreign_compiler_go_backend__GoAssemblyAvailability(uint8_t* directory, uint8_t* package, ZirSourceSpan span) __asm__("_GoAssemblyAvailability");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyAvailability(uint8_t* directory, uint8_t* package, ZirSourceSpan span) __asm__("GoAssemblyAvailability");
+int32_t zir_foreign_compiler_go_backend__GoAssemblyAvailability(uint8_t* directory, uint8_t* package, ZirSourceSpan span) __asm__("GoAssemblyAvailability");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_GoAssemblyAvailability(uint8_t* directory, uint8_t* package, ZirSourceSpan span)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyAvailability(directory, package, span);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoAssemblyClose_7abb9f18
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoAssemblyClose_7abb9f18
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyClose(GoAssembly* assembly) __asm__("_GoAssemblyClose");
+void zir_foreign_compiler_go_backend__GoAssemblyClose(GoAssembly* assembly) __asm__("_GoAssemblyClose");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyClose(GoAssembly* assembly) __asm__("GoAssemblyClose");
-#endif
-static void
-zir_f_daa84719ffd73ec0_GoAssemblyClose(GoAssembly* assembly)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyClose(assembly);
-}
+void zir_foreign_compiler_go_backend__GoAssemblyClose(GoAssembly* assembly) __asm__("GoAssemblyClose");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoAssemblyFunction_b11d90f9
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoAssemblyFunction_b11d90f9
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function) __asm__("_GoAssemblyFunction");
+void zir_foreign_compiler_go_backend__GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function) __asm__("_GoAssemblyFunction");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function) __asm__("GoAssemblyFunction");
+void zir_foreign_compiler_go_backend__GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function) __asm__("GoAssemblyFunction");
 #endif
-static void
-zir_f_daa84719ffd73ec0_GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyFunction(out, assembly, function);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoAssemblyOpen_65980d89
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoAssemblyOpen_65980d89
 #ifdef __APPLE__
-GoAssembly* zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyOpen(ZirProgram** programs, int32_t count, ZirModule* module) __asm__("_GoAssemblyOpen");
+GoAssembly* zir_foreign_compiler_go_backend__GoAssemblyOpen(ZirProgram** programs, int32_t count, ZirModule* module) __asm__("_GoAssemblyOpen");
 #else
-GoAssembly* zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyOpen(ZirProgram** programs, int32_t count, ZirModule* module) __asm__("GoAssemblyOpen");
+GoAssembly* zir_foreign_compiler_go_backend__GoAssemblyOpen(ZirProgram** programs, int32_t count, ZirModule* module) __asm__("GoAssemblyOpen");
 #endif
-static GoAssembly*
-zir_f_daa84719ffd73ec0_GoAssemblyOpen(ZirProgram** programs, int32_t count, ZirModule* module)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyOpen(programs, count, module);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoAssemblyWrite_dd6b4db4
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoAssemblyWrite_dd6b4db4
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package) __asm__("_GoAssemblyWrite");
+int32_t zir_foreign_compiler_go_backend__GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package) __asm__("_GoAssemblyWrite");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package) __asm__("GoAssemblyWrite");
-#endif
-static int32_t
-zir_f_daa84719ffd73ec0_GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyWrite(assembly, path, package);
-}
+int32_t zir_foreign_compiler_go_backend__GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package) __asm__("GoAssemblyWrite");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoCHeader_d336e75b
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoCHeader_d336e75b
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_GoCHeader(uint8_t* package, uint8_t* header, size_t header_size) __asm__("_GoCHeader");
+int32_t zir_foreign_compiler_go_backend__GoCHeader(uint8_t* package, uint8_t* header, size_t header_size) __asm__("_GoCHeader");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_GoCHeader(uint8_t* package, uint8_t* header, size_t header_size) __asm__("GoCHeader");
+int32_t zir_foreign_compiler_go_backend__GoCHeader(uint8_t* package, uint8_t* header, size_t header_size) __asm__("GoCHeader");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_GoCHeader(uint8_t* package, uint8_t* header, size_t header_size)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_GoCHeader(package, header, header_size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoForeignCallParts_83626743
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoForeignCallParts_83626743
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_GoForeignCallParts(uint8_t* target, uint8_t* package, size_t package_size, uint8_t* receiver, size_t receiver_size, uint8_t* symbol, size_t symbol_size) __asm__("_GoForeignCallParts");
+int32_t zir_foreign_compiler_go_backend__GoForeignCallParts(uint8_t* target, uint8_t* package, size_t package_size, uint8_t* receiver, size_t receiver_size, uint8_t* symbol, size_t symbol_size) __asm__("_GoForeignCallParts");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_GoForeignCallParts(uint8_t* target, uint8_t* package, size_t package_size, uint8_t* receiver, size_t receiver_size, uint8_t* symbol, size_t symbol_size) __asm__("GoForeignCallParts");
+int32_t zir_foreign_compiler_go_backend__GoForeignCallParts(uint8_t* target, uint8_t* package, size_t package_size, uint8_t* receiver, size_t receiver_size, uint8_t* symbol, size_t symbol_size) __asm__("GoForeignCallParts");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_GoForeignCallParts(uint8_t* target, uint8_t* package, size_t package_size, uint8_t* receiver, size_t receiver_size, uint8_t* symbol, size_t symbol_size)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_GoForeignCallParts(target, package, package_size, receiver, receiver_size, symbol, symbol_size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoSimdBegin_e868ab19
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoSimdBegin_e868ab19
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_GoSimdBegin(void) __asm__("_GoSimdBegin");
+void zir_foreign_compiler_go_backend__GoSimdBegin(void) __asm__("_GoSimdBegin");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_GoSimdBegin(void) __asm__("GoSimdBegin");
-#endif
-static void
-zir_f_daa84719ffd73ec0_GoSimdBegin(void)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_GoSimdBegin();
-}
+void zir_foreign_compiler_go_backend__GoSimdBegin(void) __asm__("GoSimdBegin");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoSimdCollect_c1f22b80
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoSimdCollect_c1f22b80
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_GoSimdCollect(uint8_t* text) __asm__("_GoSimdCollect");
+void zir_foreign_compiler_go_backend__GoSimdCollect(uint8_t* text) __asm__("_GoSimdCollect");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_GoSimdCollect(uint8_t* text) __asm__("GoSimdCollect");
+void zir_foreign_compiler_go_backend__GoSimdCollect(uint8_t* text) __asm__("GoSimdCollect");
 #endif
-static void
-zir_f_daa84719ffd73ec0_GoSimdCollect(uint8_t* text)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_GoSimdCollect(text);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoSimdWrite_475252ae
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoSimdWrite_475252ae
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_GoSimdWrite(uint8_t* out_dir, uint8_t* pkg) __asm__("_GoSimdWrite");
+int32_t zir_foreign_compiler_go_backend__GoSimdWrite(uint8_t* out_dir, uint8_t* pkg) __asm__("_GoSimdWrite");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_GoSimdWrite(uint8_t* out_dir, uint8_t* pkg) __asm__("GoSimdWrite");
+int32_t zir_foreign_compiler_go_backend__GoSimdWrite(uint8_t* out_dir, uint8_t* pkg) __asm__("GoSimdWrite");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_GoSimdWrite(uint8_t* out_dir, uint8_t* pkg)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_GoSimdWrite(out_dir, pkg);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_MapTypeParts_e81b4ba0
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_MapTypeParts_e81b4ba0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_MapTypeParts(ZirModule* module, uint8_t* name, uint8_t* key, size_t key_size, uint8_t* value, size_t value_size) __asm__("_MapTypeParts");
+int32_t zir_foreign_compiler_go_backend__MapTypeParts(ZirModule* module, uint8_t* name, uint8_t* key, size_t key_size, uint8_t* value, size_t value_size) __asm__("_MapTypeParts");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_MapTypeParts(ZirModule* module, uint8_t* name, uint8_t* key, size_t key_size, uint8_t* value, size_t value_size) __asm__("MapTypeParts");
-#endif
-static int32_t
-zir_f_daa84719ffd73ec0_MapTypeParts(ZirModule* module, uint8_t* name, uint8_t* key, size_t key_size, uint8_t* value, size_t value_size)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_MapTypeParts(module, name, key, key_size, value, value_size);
-}
+int32_t zir_foreign_compiler_go_backend__MapTypeParts(ZirModule* module, uint8_t* name, uint8_t* key, size_t key_size, uint8_t* value, size_t value_size) __asm__("MapTypeParts");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ModuleNeedsStartup_a8795790
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ModuleNeedsStartup_a8795790
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_ModuleNeedsStartup(ZirModule* module) __asm__("_ModuleNeedsStartup");
+int32_t zir_foreign_compiler_go_backend__ModuleNeedsStartup(ZirModule* module) __asm__("_ModuleNeedsStartup");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_ModuleNeedsStartup(ZirModule* module) __asm__("ModuleNeedsStartup");
+int32_t zir_foreign_compiler_go_backend__ModuleNeedsStartup(ZirModule* module) __asm__("ModuleNeedsStartup");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_ModuleNeedsStartup(ZirModule* module)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_ModuleNeedsStartup(module);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_NativeConstantOwner_510b1c60
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_NativeConstantOwner_510b1c60
 #ifdef __APPLE__
-ZirModule* zir_foreign_zir_f_daa84719ffd73ec0_NativeConstantOwner(ZirModule* module, uint8_t* name) __asm__("_NativeConstantOwner");
+ZirModule* zir_foreign_compiler_go_backend__NativeConstantOwner(ZirModule* module, uint8_t* name) __asm__("_NativeConstantOwner");
 #else
-ZirModule* zir_foreign_zir_f_daa84719ffd73ec0_NativeConstantOwner(ZirModule* module, uint8_t* name) __asm__("NativeConstantOwner");
+ZirModule* zir_foreign_compiler_go_backend__NativeConstantOwner(ZirModule* module, uint8_t* name) __asm__("NativeConstantOwner");
 #endif
-static ZirModule*
-zir_f_daa84719ffd73ec0_NativeConstantOwner(ZirModule* module, uint8_t* name)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_NativeConstantOwner(module, name);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_NativeEnumMemberName_fbf0f07c
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_NativeEnumMemberName_fbf0f07c
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_NativeEnumMemberName(ZirModule* owner, ZirType* type, uint8_t* member, uint8_t* out, size_t size) __asm__("_NativeEnumMemberName");
+int32_t zir_foreign_compiler_go_backend__NativeEnumMemberName(ZirModule* owner, ZirType* type, uint8_t* member, uint8_t* out, size_t size) __asm__("_NativeEnumMemberName");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_NativeEnumMemberName(ZirModule* owner, ZirType* type, uint8_t* member, uint8_t* out, size_t size) __asm__("NativeEnumMemberName");
-#endif
-static int32_t
-zir_f_daa84719ffd73ec0_NativeEnumMemberName(ZirModule* owner, ZirType* type, uint8_t* member, uint8_t* out, size_t size)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_NativeEnumMemberName(owner, type, member, out, size);
-}
+int32_t zir_foreign_compiler_go_backend__NativeEnumMemberName(ZirModule* owner, ZirType* type, uint8_t* member, uint8_t* out, size_t size) __asm__("NativeEnumMemberName");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_NativeGoModuleIdentity_7a3f423c
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_NativeGoModuleIdentity_7a3f423c
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_NativeGoModuleIdentity(ZirProgram** programs, int32_t count, ZirModule* module, uint8_t* file_stem, size_t file_size, uint8_t* guard, size_t guard_size) __asm__("_NativeGoModuleIdentity");
+void zir_foreign_compiler_go_backend__NativeGoModuleIdentity(ZirProgram** programs, int32_t count, ZirModule* module, uint8_t* file_stem, size_t file_size, uint8_t* guard, size_t guard_size) __asm__("_NativeGoModuleIdentity");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_NativeGoModuleIdentity(ZirProgram** programs, int32_t count, ZirModule* module, uint8_t* file_stem, size_t file_size, uint8_t* guard, size_t guard_size) __asm__("NativeGoModuleIdentity");
+void zir_foreign_compiler_go_backend__NativeGoModuleIdentity(ZirProgram** programs, int32_t count, ZirModule* module, uint8_t* file_stem, size_t file_size, uint8_t* guard, size_t guard_size) __asm__("NativeGoModuleIdentity");
 #endif
-static void
-zir_f_daa84719ffd73ec0_NativeGoModuleIdentity(ZirProgram** programs, int32_t count, ZirModule* module, uint8_t* file_stem, size_t file_size, uint8_t* guard, size_t guard_size)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_NativeGoModuleIdentity(programs, count, module, file_stem, file_size, guard, guard_size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_NativeGoType_a9528c12
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_NativeGoType_a9528c12
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_NativeGoType(ZirModule* module, uint8_t* type, uint8_t* out, size_t size) __asm__("_NativeGoType");
+int32_t zir_foreign_compiler_go_backend__NativeGoType(ZirModule* module, uint8_t* type, uint8_t* out, size_t size) __asm__("_NativeGoType");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_NativeGoType(ZirModule* module, uint8_t* type, uint8_t* out, size_t size) __asm__("NativeGoType");
+int32_t zir_foreign_compiler_go_backend__NativeGoType(ZirModule* module, uint8_t* type, uint8_t* out, size_t size) __asm__("NativeGoType");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_NativeGoType(ZirModule* module, uint8_t* type, uint8_t* out, size_t size)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_NativeGoType(module, type, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_NativeTypeAtUse_7f7adec4
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_NativeTypeAtUse_7f7adec4
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_NativeTypeAtUse(ZirModule* module, uint8_t* type, uint8_t* out, size_t size) __asm__("_NativeTypeAtUse");
+int32_t zir_foreign_compiler_go_backend__NativeTypeAtUse(ZirModule* module, uint8_t* type, uint8_t* out, size_t size) __asm__("_NativeTypeAtUse");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_NativeTypeAtUse(ZirModule* module, uint8_t* type, uint8_t* out, size_t size) __asm__("NativeTypeAtUse");
-#endif
-static int32_t
-zir_f_daa84719ffd73ec0_NativeTypeAtUse(ZirModule* module, uint8_t* type, uint8_t* out, size_t size)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_NativeTypeAtUse(module, type, out, size);
-}
+int32_t zir_foreign_compiler_go_backend__NativeTypeAtUse(ZirModule* module, uint8_t* type, uint8_t* out, size_t size) __asm__("NativeTypeAtUse");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_NativeTypeName_41e9026e
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_NativeTypeName_41e9026e
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_NativeTypeName(ZirModule* owner, ZirType* type, uint8_t* out, size_t size) __asm__("_NativeTypeName");
+void zir_foreign_compiler_go_backend__NativeTypeName(ZirModule* owner, ZirType* type, uint8_t* out, size_t size) __asm__("_NativeTypeName");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_NativeTypeName(ZirModule* owner, ZirType* type, uint8_t* out, size_t size) __asm__("NativeTypeName");
+void zir_foreign_compiler_go_backend__NativeTypeName(ZirModule* owner, ZirType* type, uint8_t* out, size_t size) __asm__("NativeTypeName");
 #endif
-static void
-zir_f_daa84719ffd73ec0_NativeTypeName(ZirModule* owner, ZirType* type, uint8_t* out, size_t size)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_NativeTypeName(owner, type, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ParametersOf_b63e3b41
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ParametersOf_b63e3b41
 #ifdef __APPLE__
-zir_e93613178cb7063a_ZirParameters* zir_foreign_zir_f_daa84719ffd73ec0_ParametersOf(uint8_t* text) __asm__("_ParametersOf");
+compiler_go_backend_ZirParameters* zir_foreign_compiler_go_backend__ParametersOf(uint8_t* text) __asm__("_ParametersOf");
 #else
-zir_e93613178cb7063a_ZirParameters* zir_foreign_zir_f_daa84719ffd73ec0_ParametersOf(uint8_t* text) __asm__("ParametersOf");
+compiler_go_backend_ZirParameters* zir_foreign_compiler_go_backend__ParametersOf(uint8_t* text) __asm__("ParametersOf");
 #endif
-static zir_e93613178cb7063a_ZirParameters*
-zir_f_daa84719ffd73ec0_ParametersOf(uint8_t* text)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_ParametersOf(text);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ProfileEnd_ae202c81
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ProfileEnd_ae202c81
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_ProfileEnd(uint8_t* phase, uint64_t started) __asm__("_ProfileEnd");
+void zir_foreign_compiler_go_backend__ProfileEnd(uint8_t* phase, uint64_t started) __asm__("_ProfileEnd");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_ProfileEnd(uint8_t* phase, uint64_t started) __asm__("ProfileEnd");
-#endif
-static void
-zir_f_daa84719ffd73ec0_ProfileEnd(uint8_t* phase, uint64_t started)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_ProfileEnd(phase, started);
-}
+void zir_foreign_compiler_go_backend__ProfileEnd(uint8_t* phase, uint64_t started) __asm__("ProfileEnd");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ProfileStart_b892bac9
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ProfileStart_b892bac9
 #ifdef __APPLE__
-uint64_t zir_foreign_zir_f_daa84719ffd73ec0_ProfileStart(void) __asm__("_ProfileStart");
+uint64_t zir_foreign_compiler_go_backend__ProfileStart(void) __asm__("_ProfileStart");
 #else
-uint64_t zir_foreign_zir_f_daa84719ffd73ec0_ProfileStart(void) __asm__("ProfileStart");
+uint64_t zir_foreign_compiler_go_backend__ProfileStart(void) __asm__("ProfileStart");
 #endif
-static uint64_t
-zir_f_daa84719ffd73ec0_ProfileStart(void)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_ProfileStart();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_CResolveFunction_08b348f2
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_CResolveFunction_08b348f2
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_CResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** function) __asm__("_ResolveFunction");
+int32_t zir_foreign_compiler_go_backend__CResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** function) __asm__("_ResolveFunction");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_CResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** function) __asm__("ResolveFunction");
+int32_t zir_foreign_compiler_go_backend__CResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** function) __asm__("ResolveFunction");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_CResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** function)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_CResolveFunction(module, name, owner, function);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ResolveGlobal_c52931b0
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ResolveGlobal_c52931b0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_ResolveGlobal(ZirModule* module, uint8_t* name, ZirModule** owner, ZirGlobal** global) __asm__("_ResolveGlobal");
+int32_t zir_foreign_compiler_go_backend__ResolveGlobal(ZirModule* module, uint8_t* name, ZirModule** owner, ZirGlobal** global) __asm__("_ResolveGlobal");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_ResolveGlobal(ZirModule* module, uint8_t* name, ZirModule** owner, ZirGlobal** global) __asm__("ResolveGlobal");
-#endif
-static int32_t
-zir_f_daa84719ffd73ec0_ResolveGlobal(ZirModule* module, uint8_t* name, ZirModule** owner, ZirGlobal** global)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_ResolveGlobal(module, name, owner, global);
-}
+int32_t zir_foreign_compiler_go_backend__ResolveGlobal(ZirModule* module, uint8_t* name, ZirModule** owner, ZirGlobal** global) __asm__("ResolveGlobal");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_CResolveGlobalAt_bfb06f2f
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_CResolveGlobalAt_bfb06f2f
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_CResolveGlobalAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirGlobal** global) __asm__("_ResolveGlobalAt");
+int32_t zir_foreign_compiler_go_backend__CResolveGlobalAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirGlobal** global) __asm__("_ResolveGlobalAt");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_CResolveGlobalAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirGlobal** global) __asm__("ResolveGlobalAt");
+int32_t zir_foreign_compiler_go_backend__CResolveGlobalAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirGlobal** global) __asm__("ResolveGlobalAt");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_CResolveGlobalAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirGlobal** global)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_CResolveGlobalAt(module, name, source_path, owner, global);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_SameMapType_3d208b48
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_SameMapType_3d208b48
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_SameMapType(ZirModule* a_owner, ZirType* a, ZirModule* b_owner, ZirType* b) __asm__("_SameMapType");
+int32_t zir_foreign_compiler_go_backend__SameMapType(ZirModule* a_owner, ZirType* a, ZirModule* b_owner, ZirType* b) __asm__("_SameMapType");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_SameMapType(ZirModule* a_owner, ZirType* a, ZirModule* b_owner, ZirType* b) __asm__("SameMapType");
+int32_t zir_foreign_compiler_go_backend__SameMapType(ZirModule* a_owner, ZirType* a, ZirModule* b_owner, ZirType* b) __asm__("SameMapType");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_SameMapType(ZirModule* a_owner, ZirType* a, ZirModule* b_owner, ZirType* b)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_SameMapType(a_owner, a, b_owner, b);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ScalarByteWidth_5d41210b
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ScalarByteWidth_5d41210b
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_daa84719ffd73ec0_ScalarByteWidth(uint8_t* type) __asm__("_ScalarByteWidth");
+size_t zir_foreign_compiler_go_backend__ScalarByteWidth(uint8_t* type) __asm__("_ScalarByteWidth");
 #else
-size_t zir_foreign_zir_f_daa84719ffd73ec0_ScalarByteWidth(uint8_t* type) __asm__("ScalarByteWidth");
-#endif
-static size_t
-zir_f_daa84719ffd73ec0_ScalarByteWidth(uint8_t* type)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_ScalarByteWidth(type);
-}
+size_t zir_foreign_compiler_go_backend__ScalarByteWidth(uint8_t* type) __asm__("ScalarByteWidth");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ScalarLiteral_d0132a19
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ScalarLiteral_d0132a19
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_ScalarLiteral(uint8_t* type, uint8_t* text, int32_t target, ZirSourceSpan span, uint8_t* out, size_t size) __asm__("_ScalarLiteral");
+int32_t zir_foreign_compiler_go_backend__ScalarLiteral(uint8_t* type, uint8_t* text, int32_t target, ZirSourceSpan span, uint8_t* out, size_t size) __asm__("_ScalarLiteral");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_ScalarLiteral(uint8_t* type, uint8_t* text, int32_t target, ZirSourceSpan span, uint8_t* out, size_t size) __asm__("ScalarLiteral");
+int32_t zir_foreign_compiler_go_backend__ScalarLiteral(uint8_t* type, uint8_t* text, int32_t target, ZirSourceSpan span, uint8_t* out, size_t size) __asm__("ScalarLiteral");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_ScalarLiteral(uint8_t* type, uint8_t* text, int32_t target, ZirSourceSpan span, uint8_t* out, size_t size)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_ScalarLiteral(type, text, target, span, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ScalarType_9055c366
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ScalarType_9055c366
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_ScalarType(uint8_t* type) __asm__("_ScalarType");
+uint8_t* zir_foreign_compiler_go_backend__ScalarType(uint8_t* type) __asm__("_ScalarType");
 #else
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_ScalarType(uint8_t* type) __asm__("ScalarType");
+uint8_t* zir_foreign_compiler_go_backend__ScalarType(uint8_t* type) __asm__("ScalarType");
 #endif
-static uint8_t*
-zir_f_daa84719ffd73ec0_ScalarType(uint8_t* type)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_ScalarType(type);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_SliceElementType_2bdd8629
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_SliceElementType_2bdd8629
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_SliceElementType(uint8_t* type, uint8_t* element, size_t element_size) __asm__("_SliceElementType");
+int32_t zir_foreign_compiler_go_backend__SliceElementType(uint8_t* type, uint8_t* element, size_t element_size) __asm__("_SliceElementType");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_SliceElementType(uint8_t* type, uint8_t* element, size_t element_size) __asm__("SliceElementType");
-#endif
-static int32_t
-zir_f_daa84719ffd73ec0_SliceElementType(uint8_t* type, uint8_t* element, size_t element_size)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_SliceElementType(type, element, element_size);
-}
+int32_t zir_foreign_compiler_go_backend__SliceElementType(uint8_t* type, uint8_t* element, size_t element_size) __asm__("SliceElementType");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_SpanPath_57316ae8
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_SpanPath_57316ae8
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_SpanPath(ZirSourceSpan span) __asm__("_SpanPath");
+uint8_t* zir_foreign_compiler_go_backend__SpanPath(ZirSourceSpan span) __asm__("_SpanPath");
 #else
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_SpanPath(ZirSourceSpan span) __asm__("SpanPath");
+uint8_t* zir_foreign_compiler_go_backend__SpanPath(ZirSourceSpan span) __asm__("SpanPath");
 #endif
-static uint8_t*
-zir_f_daa84719ffd73ec0_SpanPath(ZirSourceSpan span)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_SpanPath(span);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_TargetBindingName_b2419db7
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_TargetBindingName_b2419db7
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_TargetBindingName(ZirFunction* fn, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("_TargetBindingName");
+void zir_foreign_compiler_go_backend__TargetBindingName(ZirFunction* fn, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("_TargetBindingName");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_TargetBindingName(ZirFunction* fn, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("TargetBindingName");
+void zir_foreign_compiler_go_backend__TargetBindingName(ZirFunction* fn, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("TargetBindingName");
 #endif
-static void
-zir_f_daa84719ffd73ec0_TargetBindingName(ZirFunction* fn, int32_t target, uint8_t* name, uint8_t* out, size_t size)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_TargetBindingName(fn, target, name, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_TargetDefineName_70f7b699
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_TargetDefineName_70f7b699
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_TargetDefineName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("_TargetDefineName");
+void zir_foreign_compiler_go_backend__TargetDefineName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("_TargetDefineName");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_TargetDefineName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("TargetDefineName");
-#endif
-static void
-zir_f_daa84719ffd73ec0_TargetDefineName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_TargetDefineName(module, target, name, out, size);
-}
+void zir_foreign_compiler_go_backend__TargetDefineName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("TargetDefineName");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_TargetGlobalName_f2bfe3ed
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_TargetGlobalName_f2bfe3ed
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_TargetGlobalName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("_TargetGlobalName");
+void zir_foreign_compiler_go_backend__TargetGlobalName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("_TargetGlobalName");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_TargetGlobalName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("TargetGlobalName");
+void zir_foreign_compiler_go_backend__TargetGlobalName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("TargetGlobalName");
 #endif
-static void
-zir_f_daa84719ffd73ec0_TargetGlobalName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_TargetGlobalName(module, target, name, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_TargetTypeZiran_68ed1c41
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_TargetTypeZiran_68ed1c41
 #ifdef __APPLE__
-void* zir_foreign_zir_f_daa84719ffd73ec0_TargetTypeZiran(void* type, int32_t target) __asm__("_TargetTypeZiran");
+void* zir_foreign_compiler_go_backend__TargetTypeZiran(void* type, int32_t target) __asm__("_TargetTypeZiran");
 #else
-void* zir_foreign_zir_f_daa84719ffd73ec0_TargetTypeZiran(void* type, int32_t target) __asm__("TargetTypeZiran");
+void* zir_foreign_compiler_go_backend__TargetTypeZiran(void* type, int32_t target) __asm__("TargetTypeZiran");
 #endif
-static void*
-zir_f_daa84719ffd73ec0_TargetTypeZiran(void* type, int32_t target)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_TargetTypeZiran(type, target);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_TextStreamClose_1229e480
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_TextStreamClose_1229e480
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_TextStreamClose(zir_0eae4a02a9048d94_TextStream* stream) __asm__("_ZirTextStreamClose");
+int32_t zir_foreign_compiler_go_backend__TextStreamClose(compiler_go_backend_TextStream* stream) __asm__("_ZirTextStreamClose");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_TextStreamClose(zir_0eae4a02a9048d94_TextStream* stream) __asm__("ZirTextStreamClose");
-#endif
-static int32_t
-zir_f_daa84719ffd73ec0_TextStreamClose(zir_0eae4a02a9048d94_TextStream* stream)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_TextStreamClose(stream);
-}
+int32_t zir_foreign_compiler_go_backend__TextStreamClose(compiler_go_backend_TextStream* stream) __asm__("ZirTextStreamClose");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_TextStreamOpen_ed57933c
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_TextStreamOpen_ed57933c
 #ifdef __APPLE__
-void* zir_foreign_zir_f_daa84719ffd73ec0_TextStreamOpen(zir_0eae4a02a9048d94_TextStream* stream, uint8_t** text, size_t* size) __asm__("_ZirTextStreamOpen");
+void* zir_foreign_compiler_go_backend__TextStreamOpen(compiler_go_backend_TextStream* stream, uint8_t** text, size_t* size) __asm__("_ZirTextStreamOpen");
 #else
-void* zir_foreign_zir_f_daa84719ffd73ec0_TextStreamOpen(zir_0eae4a02a9048d94_TextStream* stream, uint8_t** text, size_t* size) __asm__("ZirTextStreamOpen");
+void* zir_foreign_compiler_go_backend__TextStreamOpen(compiler_go_backend_TextStream* stream, uint8_t** text, size_t* size) __asm__("ZirTextStreamOpen");
 #endif
-static void*
-zir_f_daa84719ffd73ec0_TextStreamOpen(zir_0eae4a02a9048d94_TextStream* stream, uint8_t** text, size_t* size)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_TextStreamOpen(stream, text, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_TypeNextField_37a0826c
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_TypeNextField_37a0826c
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_TypeNextField(ZirType* record, size_t* offset, ZirTypeField* field) __asm__("_TypeNextField");
+int32_t zir_foreign_compiler_go_backend__TypeNextField(ZirType* record, size_t* offset, ZirTypeField* field) __asm__("_TypeNextField");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_TypeNextField(ZirType* record, size_t* offset, ZirTypeField* field) __asm__("TypeNextField");
+int32_t zir_foreign_compiler_go_backend__TypeNextField(ZirType* record, size_t* offset, ZirTypeField* field) __asm__("TypeNextField");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_TypeNextField(ZirType* record, size_t* offset, ZirTypeField* field)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_TypeNextField(record, offset, field);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_VecElementType_1b64f3c1
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_VecElementType_1b64f3c1
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_VecElementType(ZirModule* module, uint8_t* type, uint8_t* element, size_t element_size) __asm__("_VecElementType");
+int32_t zir_foreign_compiler_go_backend__VecElementType(ZirModule* module, uint8_t* type, uint8_t* element, size_t element_size) __asm__("_VecElementType");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_VecElementType(ZirModule* module, uint8_t* type, uint8_t* element, size_t element_size) __asm__("VecElementType");
-#endif
-static int32_t
-zir_f_daa84719ffd73ec0_VecElementType(ZirModule* module, uint8_t* type, uint8_t* element, size_t element_size)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_VecElementType(module, type, element, element_size);
-}
+int32_t zir_foreign_compiler_go_backend__VecElementType(ZirModule* module, uint8_t* type, uint8_t* element, size_t element_size) __asm__("VecElementType");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_camel_ident_2a50b19b
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_camel_ident_2a50b19b
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_camel_ident(uint8_t* s, uint8_t* dst, size_t dst_size) __asm__("_camel_ident");
+void zir_foreign_compiler_go_backend__camel_ident(uint8_t* s, uint8_t* dst, size_t dst_size) __asm__("_camel_ident");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_camel_ident(uint8_t* s, uint8_t* dst, size_t dst_size) __asm__("camel_ident");
+void zir_foreign_compiler_go_backend__camel_ident(uint8_t* s, uint8_t* dst, size_t dst_size) __asm__("camel_ident");
 #endif
-static void
-zir_f_daa84719ffd73ec0_camel_ident(uint8_t* s, uint8_t* dst, size_t dst_size)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_camel_ident(s, dst, dst_size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_copy_text_833bb3c1
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_copy_text_833bb3c1
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_copy_text(uint8_t* dst, size_t dst_size, uint8_t* src) __asm__("_copy_text");
+void zir_foreign_compiler_go_backend__copy_text(uint8_t* dst, size_t dst_size, uint8_t* src) __asm__("_copy_text");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_copy_text(uint8_t* dst, size_t dst_size, uint8_t* src) __asm__("copy_text");
+void zir_foreign_compiler_go_backend__copy_text(uint8_t* dst, size_t dst_size, uint8_t* src) __asm__("copy_text");
 #endif
-static void
-zir_f_daa84719ffd73ec0_copy_text(uint8_t* dst, size_t dst_size, uint8_t* src)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_copy_text(dst, dst_size, src);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_exit_1120afe9
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_exit_1120afe9
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_exit(int32_t ziran_keyword___status_0) __asm__("_exit");
+void zir_foreign_compiler_go_backend__exit(int32_t ziran_keyword___status_0) __asm__("_exit");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_exit(int32_t ziran_keyword___status_0) __asm__("exit");
-#endif
-static void
-zir_f_daa84719ffd73ec0_exit(int32_t ziran_keyword___status_0)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_exit(ziran_keyword___status_0);
-}
+void zir_foreign_compiler_go_backend__exit(int32_t ziran_keyword___status_0) __asm__("exit");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_fclose_2bb6893f
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_fclose_2bb6893f
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_fclose(void* ziran_keyword___stream_0) __asm__("_fclose");
+int32_t zir_foreign_compiler_go_backend__fclose(void* ziran_keyword___stream_0) __asm__("_fclose");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_fclose(void* ziran_keyword___stream_0) __asm__("fclose");
+int32_t zir_foreign_compiler_go_backend__fclose(void* ziran_keyword___stream_0) __asm__("fclose");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_fclose(void* ziran_keyword___stream_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_fclose(ziran_keyword___stream_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ferror_384a3a69
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_ferror_384a3a69
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_ferror(void* ziran_keyword___stream_0) __asm__("_ferror");
+int32_t zir_foreign_compiler_go_backend__ferror(void* ziran_keyword___stream_0) __asm__("_ferror");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_ferror(void* ziran_keyword___stream_0) __asm__("ferror");
+int32_t zir_foreign_compiler_go_backend__ferror(void* ziran_keyword___stream_0) __asm__("ferror");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_ferror(void* ziran_keyword___stream_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_ferror(ziran_keyword___stream_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_fopen_e9f9057d
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_fopen_e9f9057d
 #ifdef __APPLE__
-void* zir_foreign_zir_f_daa84719ffd73ec0_fopen(uint8_t* ziran_keyword___filename_0, uint8_t* ziran_keyword___modes_0) __asm__("_fopen");
+void* zir_foreign_compiler_go_backend__fopen(uint8_t* ziran_keyword___filename_0, uint8_t* ziran_keyword___modes_0) __asm__("_fopen");
 #else
-void* zir_foreign_zir_f_daa84719ffd73ec0_fopen(uint8_t* ziran_keyword___filename_0, uint8_t* ziran_keyword___modes_0) __asm__("fopen");
-#endif
-static void*
-zir_f_daa84719ffd73ec0_fopen(uint8_t* ziran_keyword___filename_0, uint8_t* ziran_keyword___modes_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_fopen(ziran_keyword___filename_0, ziran_keyword___modes_0);
-}
+void* zir_foreign_compiler_go_backend__fopen(uint8_t* ziran_keyword___filename_0, uint8_t* ziran_keyword___modes_0) __asm__("fopen");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_fprintf_83feebb0
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_fprintf_83feebb0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_fprintf");
+int32_t zir_foreign_compiler_go_backend__fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_fprintf");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("fprintf");
+int32_t zir_foreign_compiler_go_backend__fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("fprintf");
 #endif
-#define zir_f_daa84719ffd73ec0_fprintf zir_foreign_zir_f_daa84719ffd73ec0_fprintf
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_fputc_f9ce5a65
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_fputc_f9ce5a65
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_fputc(int32_t ziran_keyword___c_0, void* ziran_keyword___stream_0) __asm__("_fputc");
+int32_t zir_foreign_compiler_go_backend__fputc(int32_t ziran_keyword___c_0, void* ziran_keyword___stream_0) __asm__("_fputc");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_fputc(int32_t ziran_keyword___c_0, void* ziran_keyword___stream_0) __asm__("fputc");
+int32_t zir_foreign_compiler_go_backend__fputc(int32_t ziran_keyword___c_0, void* ziran_keyword___stream_0) __asm__("fputc");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_fputc(int32_t ziran_keyword___c_0, void* ziran_keyword___stream_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_fputc(ziran_keyword___c_0, ziran_keyword___stream_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_fputs_28723a01
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_fputs_28723a01
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0) __asm__("_fputs");
+int32_t zir_foreign_compiler_go_backend__fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0) __asm__("_fputs");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0) __asm__("fputs");
-#endif
-static int32_t
-zir_f_daa84719ffd73ec0_fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_fputs(ziran_keyword___s_0, ziran_keyword___stream_0);
-}
+int32_t zir_foreign_compiler_go_backend__fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0) __asm__("fputs");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_free_c75930da
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_free_c75930da
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_free(void* ziran_keyword___ptr_0) __asm__("_free");
+void zir_foreign_compiler_go_backend__free(void* ziran_keyword___ptr_0) __asm__("_free");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_free(void* ziran_keyword___ptr_0) __asm__("free");
+void zir_foreign_compiler_go_backend__free(void* ziran_keyword___ptr_0) __asm__("free");
 #endif
-static void
-zir_f_daa84719ffd73ec0_free(void* ziran_keyword___ptr_0)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_free(ziran_keyword___ptr_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_fwrite_53178e58
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_fwrite_53178e58
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_daa84719ffd73ec0_fwrite(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0, size_t ziran_keyword___n_0, void* ziran_keyword___s_0) __asm__("_fwrite");
+size_t zir_foreign_compiler_go_backend__fwrite(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0, size_t ziran_keyword___n_0, void* ziran_keyword___s_0) __asm__("_fwrite");
 #else
-size_t zir_foreign_zir_f_daa84719ffd73ec0_fwrite(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0, size_t ziran_keyword___n_0, void* ziran_keyword___s_0) __asm__("fwrite");
+size_t zir_foreign_compiler_go_backend__fwrite(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0, size_t ziran_keyword___n_0, void* ziran_keyword___s_0) __asm__("fwrite");
 #endif
-static size_t
-zir_f_daa84719ffd73ec0_fwrite(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0, size_t ziran_keyword___n_0, void* ziran_keyword___s_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_fwrite(ziran_keyword___ptr_0, ziran_keyword___size_0, ziran_keyword___n_0, ziran_keyword___s_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_getenv_40be1ae7
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_getenv_40be1ae7
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_getenv(uint8_t* ziran_keyword___name_0) __asm__("_getenv");
+uint8_t* zir_foreign_compiler_go_backend__getenv(uint8_t* ziran_keyword___name_0) __asm__("_getenv");
 #else
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_getenv(uint8_t* ziran_keyword___name_0) __asm__("getenv");
-#endif
-static uint8_t*
-zir_f_daa84719ffd73ec0_getenv(uint8_t* ziran_keyword___name_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_getenv(ziran_keyword___name_0);
-}
+uint8_t* zir_foreign_compiler_go_backend__getenv(uint8_t* ziran_keyword___name_0) __asm__("getenv");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_go_field_ident_c7b65794
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_go_field_ident_c7b65794
 #ifdef __APPLE__
-void zir_foreign_zir_f_daa84719ffd73ec0_go_field_ident(uint8_t* s, uint8_t* dst, size_t dst_size) __asm__("_go_field_ident");
+void zir_foreign_compiler_go_backend__go_field_ident(uint8_t* s, uint8_t* dst, size_t dst_size) __asm__("_go_field_ident");
 #else
-void zir_foreign_zir_f_daa84719ffd73ec0_go_field_ident(uint8_t* s, uint8_t* dst, size_t dst_size) __asm__("go_field_ident");
+void zir_foreign_compiler_go_backend__go_field_ident(uint8_t* s, uint8_t* dst, size_t dst_size) __asm__("go_field_ident");
 #endif
-static void
-zir_f_daa84719ffd73ec0_go_field_ident(uint8_t* s, uint8_t* dst, size_t dst_size)
-{
-    zir_foreign_zir_f_daa84719ffd73ec0_go_field_ident(s, dst, dst_size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_is_ident_char_fb9866b8
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_is_ident_char_fb9866b8
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_is_ident_char(int32_t c) __asm__("_is_ident_char");
+int32_t zir_foreign_compiler_go_backend__is_ident_char(int32_t c) __asm__("_is_ident_char");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_is_ident_char(int32_t c) __asm__("is_ident_char");
+int32_t zir_foreign_compiler_go_backend__is_ident_char(int32_t c) __asm__("is_ident_char");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_is_ident_char(int32_t c)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_is_ident_char(c);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_isalnum_6f4b98bf
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_isalnum_6f4b98bf
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_isalnum(int32_t arg0) __asm__("_isalnum");
+int32_t zir_foreign_compiler_go_backend__isalnum(int32_t arg0) __asm__("_isalnum");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_isalnum(int32_t arg0) __asm__("isalnum");
-#endif
-static int32_t
-zir_f_daa84719ffd73ec0_isalnum(int32_t arg0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_isalnum(arg0);
-}
+int32_t zir_foreign_compiler_go_backend__isalnum(int32_t arg0) __asm__("isalnum");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_isalpha_4acb1306
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_isalpha_4acb1306
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_isalpha(int32_t arg0) __asm__("_isalpha");
+int32_t zir_foreign_compiler_go_backend__isalpha(int32_t arg0) __asm__("_isalpha");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_isalpha(int32_t arg0) __asm__("isalpha");
+int32_t zir_foreign_compiler_go_backend__isalpha(int32_t arg0) __asm__("isalpha");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_isalpha(int32_t arg0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_isalpha(arg0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_isdigit_191aad1d
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_isdigit_191aad1d
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_isdigit(int32_t arg0) __asm__("_isdigit");
+int32_t zir_foreign_compiler_go_backend__isdigit(int32_t arg0) __asm__("_isdigit");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_isdigit(int32_t arg0) __asm__("isdigit");
+int32_t zir_foreign_compiler_go_backend__isdigit(int32_t arg0) __asm__("isdigit");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_isdigit(int32_t arg0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_isdigit(arg0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_isxdigit_155cbc1f
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_isxdigit_155cbc1f
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_isxdigit(int32_t arg0) __asm__("_isxdigit");
+int32_t zir_foreign_compiler_go_backend__isxdigit(int32_t arg0) __asm__("_isxdigit");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_isxdigit(int32_t arg0) __asm__("isxdigit");
-#endif
-static int32_t
-zir_f_daa84719ffd73ec0_isxdigit(int32_t arg0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_isxdigit(arg0);
-}
+int32_t zir_foreign_compiler_go_backend__isxdigit(int32_t arg0) __asm__("isxdigit");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_malloc_22891b28
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_malloc_22891b28
 #ifdef __APPLE__
-void* zir_foreign_zir_f_daa84719ffd73ec0_malloc(size_t ziran_keyword___size_0) __asm__("_malloc");
+void* zir_foreign_compiler_go_backend__malloc(size_t ziran_keyword___size_0) __asm__("_malloc");
 #else
-void* zir_foreign_zir_f_daa84719ffd73ec0_malloc(size_t ziran_keyword___size_0) __asm__("malloc");
+void* zir_foreign_compiler_go_backend__malloc(size_t ziran_keyword___size_0) __asm__("malloc");
 #endif
-static void*
-zir_f_daa84719ffd73ec0_malloc(size_t ziran_keyword___size_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_malloc(ziran_keyword___size_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_memcpy_d3838e83
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_memcpy_d3838e83
 #ifdef __APPLE__
-void* zir_foreign_zir_f_daa84719ffd73ec0_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("_memcpy");
+void* zir_foreign_compiler_go_backend__memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("_memcpy");
 #else
-void* zir_foreign_zir_f_daa84719ffd73ec0_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("memcpy");
+void* zir_foreign_compiler_go_backend__memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("memcpy");
 #endif
-static void*
-zir_f_daa84719ffd73ec0_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_memcpy(ziran_keyword___dest_0, ziran_keyword___src_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_memmove_f228d238
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_memmove_f228d238
 #ifdef __APPLE__
-void* zir_foreign_zir_f_daa84719ffd73ec0_memmove(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("_memmove");
+void* zir_foreign_compiler_go_backend__memmove(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("_memmove");
 #else
-void* zir_foreign_zir_f_daa84719ffd73ec0_memmove(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("memmove");
-#endif
-static void*
-zir_f_daa84719ffd73ec0_memmove(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_memmove(ziran_keyword___dest_0, ziran_keyword___src_0, ziran_keyword___n_0);
-}
+void* zir_foreign_compiler_go_backend__memmove(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("memmove");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_memset_0839e910
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_memset_0839e910
 #ifdef __APPLE__
-void* zir_foreign_zir_f_daa84719ffd73ec0_memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("_memset");
+void* zir_foreign_compiler_go_backend__memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("_memset");
 #else
-void* zir_foreign_zir_f_daa84719ffd73ec0_memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("memset");
+void* zir_foreign_compiler_go_backend__memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("memset");
 #endif
-static void*
-zir_f_daa84719ffd73ec0_memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_memset(ziran_keyword___s_0, ziran_keyword___c_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_mkdir_9266eb24
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_mkdir_9266eb24
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_mkdir(uint8_t* ziran_keyword___path_0, uint32_t ziran_keyword___mode_0) __asm__("_mkdir");
+int32_t zir_foreign_compiler_go_backend__mkdir(uint8_t* ziran_keyword___path_0, uint32_t ziran_keyword___mode_0) __asm__("_mkdir");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_mkdir(uint8_t* ziran_keyword___path_0, uint32_t ziran_keyword___mode_0) __asm__("mkdir");
+int32_t zir_foreign_compiler_go_backend__mkdir(uint8_t* ziran_keyword___path_0, uint32_t ziran_keyword___mode_0) __asm__("mkdir");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_mkdir(uint8_t* ziran_keyword___path_0, uint32_t ziran_keyword___mode_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_mkdir(ziran_keyword___path_0, ziran_keyword___mode_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_realloc_88719d39
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_realloc_88719d39
 #ifdef __APPLE__
-void* zir_foreign_zir_f_daa84719ffd73ec0_realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0) __asm__("_realloc");
+void* zir_foreign_compiler_go_backend__realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0) __asm__("_realloc");
 #else
-void* zir_foreign_zir_f_daa84719ffd73ec0_realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0) __asm__("realloc");
-#endif
-static void*
-zir_f_daa84719ffd73ec0_realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_realloc(ziran_keyword___ptr_0, ziran_keyword___size_0);
-}
+void* zir_foreign_compiler_go_backend__realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0) __asm__("realloc");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_skip_ws_02fa5432
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_skip_ws_02fa5432
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_skip_ws(uint8_t* s) __asm__("_skip_ws");
+uint8_t* zir_foreign_compiler_go_backend__skip_ws(uint8_t* s) __asm__("_skip_ws");
 #else
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_skip_ws(uint8_t* s) __asm__("skip_ws");
+uint8_t* zir_foreign_compiler_go_backend__skip_ws(uint8_t* s) __asm__("skip_ws");
 #endif
-static uint8_t*
-zir_f_daa84719ffd73ec0_skip_ws(uint8_t* s)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_skip_ws(s);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_snprintf_7c8971c5
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_snprintf_7c8971c5
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_snprintf");
+int32_t zir_foreign_compiler_go_backend__snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_snprintf");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("snprintf");
+int32_t zir_foreign_compiler_go_backend__snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("snprintf");
 #endif
-#define zir_f_daa84719ffd73ec0_snprintf zir_foreign_zir_f_daa84719ffd73ec0_snprintf
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_sscanf_bf888f42
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_sscanf_bf888f42
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_sscanf(uint8_t* ziran_keyword___s_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_sscanf");
+int32_t zir_foreign_compiler_go_backend__sscanf(uint8_t* ziran_keyword___s_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_sscanf");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_sscanf(uint8_t* ziran_keyword___s_0, uint8_t* ziran_keyword___format_0, ...) __asm__("sscanf");
-#endif
-#define zir_f_daa84719ffd73ec0_sscanf zir_foreign_zir_f_daa84719ffd73ec0_sscanf
+int32_t zir_foreign_compiler_go_backend__sscanf(uint8_t* ziran_keyword___s_0, uint8_t* ziran_keyword___format_0, ...) __asm__("sscanf");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_strchr_35c1c732
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_strchr_35c1c732
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("_strchr");
+uint8_t* zir_foreign_compiler_go_backend__strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("_strchr");
 #else
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strchr");
+uint8_t* zir_foreign_compiler_go_backend__strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strchr");
 #endif
-static uint8_t*
-zir_f_daa84719ffd73ec0_strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_strchr(ziran_keyword___s_0, ziran_keyword___c_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_strcmp_b1a4f317
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_strcmp_b1a4f317
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("_strcmp");
+int32_t zir_foreign_compiler_go_backend__strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("_strcmp");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("strcmp");
+int32_t zir_foreign_compiler_go_backend__strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("strcmp");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_strcmp(ziran_keyword___s1_0, ziran_keyword___s2_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_strlen_b24a2871
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_strlen_b24a2871
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_daa84719ffd73ec0_strlen(uint8_t* ziran_keyword___s_0) __asm__("_strlen");
+size_t zir_foreign_compiler_go_backend__strlen(uint8_t* ziran_keyword___s_0) __asm__("_strlen");
 #else
-size_t zir_foreign_zir_f_daa84719ffd73ec0_strlen(uint8_t* ziran_keyword___s_0) __asm__("strlen");
-#endif
-static size_t
-zir_f_daa84719ffd73ec0_strlen(uint8_t* ziran_keyword___s_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_strlen(ziran_keyword___s_0);
-}
+size_t zir_foreign_compiler_go_backend__strlen(uint8_t* ziran_keyword___s_0) __asm__("strlen");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_strncmp_5281c9d0
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_strncmp_5281c9d0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("_strncmp");
+int32_t zir_foreign_compiler_go_backend__strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("_strncmp");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("strncmp");
+int32_t zir_foreign_compiler_go_backend__strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("strncmp");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_strncmp(ziran_keyword___s1_0, ziran_keyword___s2_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_strpbrk_e9e96770
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_strpbrk_e9e96770
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_strpbrk(uint8_t* ziran_keyword___s_0, uint8_t* ziran_keyword___accept_0) __asm__("_strpbrk");
+uint8_t* zir_foreign_compiler_go_backend__strpbrk(uint8_t* ziran_keyword___s_0, uint8_t* ziran_keyword___accept_0) __asm__("_strpbrk");
 #else
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_strpbrk(uint8_t* ziran_keyword___s_0, uint8_t* ziran_keyword___accept_0) __asm__("strpbrk");
+uint8_t* zir_foreign_compiler_go_backend__strpbrk(uint8_t* ziran_keyword___s_0, uint8_t* ziran_keyword___accept_0) __asm__("strpbrk");
 #endif
-static uint8_t*
-zir_f_daa84719ffd73ec0_strpbrk(uint8_t* ziran_keyword___s_0, uint8_t* ziran_keyword___accept_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_strpbrk(ziran_keyword___s_0, ziran_keyword___accept_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_strrchr_1eb3f404
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_strrchr_1eb3f404
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("_strrchr");
+uint8_t* zir_foreign_compiler_go_backend__strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("_strrchr");
 #else
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strrchr");
-#endif
-static uint8_t*
-zir_f_daa84719ffd73ec0_strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_strrchr(ziran_keyword___s_0, ziran_keyword___c_0);
-}
+uint8_t* zir_foreign_compiler_go_backend__strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strrchr");
 #endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_strstr_ae26e2fa
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_strstr_ae26e2fa
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_strstr(uint8_t* ziran_keyword___haystack_0, uint8_t* ziran_keyword___needle_0) __asm__("_strstr");
+uint8_t* zir_foreign_compiler_go_backend__strstr(uint8_t* ziran_keyword___haystack_0, uint8_t* ziran_keyword___needle_0) __asm__("_strstr");
 #else
-uint8_t* zir_foreign_zir_f_daa84719ffd73ec0_strstr(uint8_t* ziran_keyword___haystack_0, uint8_t* ziran_keyword___needle_0) __asm__("strstr");
+uint8_t* zir_foreign_compiler_go_backend__strstr(uint8_t* ziran_keyword___haystack_0, uint8_t* ziran_keyword___needle_0) __asm__("strstr");
 #endif
-static uint8_t*
-zir_f_daa84719ffd73ec0_strstr(uint8_t* ziran_keyword___haystack_0, uint8_t* ziran_keyword___needle_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_strstr(ziran_keyword___haystack_0, ziran_keyword___needle_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_tolower_4d2e8e2c
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_tolower_4d2e8e2c
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_tolower(int32_t ziran_keyword___c_0) __asm__("_tolower");
+int32_t zir_foreign_compiler_go_backend__tolower(int32_t ziran_keyword___c_0) __asm__("_tolower");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_tolower(int32_t ziran_keyword___c_0) __asm__("tolower");
+int32_t zir_foreign_compiler_go_backend__tolower(int32_t ziran_keyword___c_0) __asm__("tolower");
 #endif
-static int32_t
-zir_f_daa84719ffd73ec0_tolower(int32_t ziran_keyword___c_0)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_tolower(ziran_keyword___c_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoAssemblyBlock_9a99232b
-#define ZIR_FOREIGN_zir_f_daa84719ffd73ec0_GoAssemblyBlock_9a99232b
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* function, int32_t statement, void* context) __asm__("_GoAssemblyBlock");
+int32_t zir_foreign_compiler_go_backend__GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* function, int32_t statement, void* context) __asm__("_GoAssemblyBlock");
 #else
-int32_t zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* function, int32_t statement, void* context) __asm__("GoAssemblyBlock");
-#endif
-static int32_t
-zir_f_daa84719ffd73ec0_GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* function, int32_t statement, void* context)
-{
-    return zir_foreign_zir_f_daa84719ffd73ec0_GoAssemblyBlock(out, module, function, statement, context);
-}
+int32_t zir_foreign_compiler_go_backend__GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* function, int32_t statement, void* context) __asm__("GoAssemblyBlock");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -1316,7 +572,7 @@ static uint8_t go_lower_in_context_scratch_key = 0;
 static uint8_t*
 compiler_go_backend_CStr(String s)
 {
-    return ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+    return ((compiler_go_backend_StaticText*)(&(s)))->data;
 }
 
 static uint8_t*
@@ -1330,7 +586,7 @@ compiler_go_backend_FunctionArgs(ZirFunction* fn)
         uint8_t* value_2 = (void *)0;
         {
             String s = value_1;
-            value_2 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_2 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
         value_0 = value_2;
     }
@@ -1358,14 +614,14 @@ compiler_go_backend_enum_storage_type(GoLowerState* ctx, uint8_t* backing)
     uint8_t* value_3 = (void *)0;
     {
         String s = value_2;
-        value_3 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_3 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_1.name = value_3;
     String value_5 = StringLiteral("int8");
     uint8_t* value_6 = (void *)0;
     {
         String s = value_5;
-        value_6 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_6 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_1.go_type = value_6;
     value_0[0] = value_1;
@@ -1374,14 +630,14 @@ compiler_go_backend_enum_storage_type(GoLowerState* ctx, uint8_t* backing)
     uint8_t* value_10 = (void *)0;
     {
         String s = value_9;
-        value_10 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_10 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_8.name = value_10;
     String value_12 = StringLiteral("uint8");
     uint8_t* value_13 = (void *)0;
     {
         String s = value_12;
-        value_13 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_13 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_8.go_type = value_13;
     value_0[1] = value_8;
@@ -1390,14 +646,14 @@ compiler_go_backend_enum_storage_type(GoLowerState* ctx, uint8_t* backing)
     uint8_t* value_17 = (void *)0;
     {
         String s = value_16;
-        value_17 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_17 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_15.name = value_17;
     String value_19 = StringLiteral("int16");
     uint8_t* value_20 = (void *)0;
     {
         String s = value_19;
-        value_20 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_20 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_15.go_type = value_20;
     value_0[2] = value_15;
@@ -1406,14 +662,14 @@ compiler_go_backend_enum_storage_type(GoLowerState* ctx, uint8_t* backing)
     uint8_t* value_24 = (void *)0;
     {
         String s = value_23;
-        value_24 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_24 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_22.name = value_24;
     String value_26 = StringLiteral("uint16");
     uint8_t* value_27 = (void *)0;
     {
         String s = value_26;
-        value_27 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_27 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_22.go_type = value_27;
     value_0[3] = value_22;
@@ -1422,14 +678,14 @@ compiler_go_backend_enum_storage_type(GoLowerState* ctx, uint8_t* backing)
     uint8_t* value_31 = (void *)0;
     {
         String s = value_30;
-        value_31 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_31 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_29.name = value_31;
     String value_33 = StringLiteral("int32");
     uint8_t* value_34 = (void *)0;
     {
         String s = value_33;
-        value_34 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_34 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_29.go_type = value_34;
     value_0[4] = value_29;
@@ -1438,14 +694,14 @@ compiler_go_backend_enum_storage_type(GoLowerState* ctx, uint8_t* backing)
     uint8_t* value_38 = (void *)0;
     {
         String s = value_37;
-        value_38 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_38 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_36.name = value_38;
     String value_40 = StringLiteral("uint32");
     uint8_t* value_41 = (void *)0;
     {
         String s = value_40;
-        value_41 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_41 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_36.go_type = value_41;
     value_0[5] = value_36;
@@ -1454,14 +710,14 @@ compiler_go_backend_enum_storage_type(GoLowerState* ctx, uint8_t* backing)
     uint8_t* value_45 = (void *)0;
     {
         String s = value_44;
-        value_45 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_45 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_43.name = value_45;
     String value_47 = StringLiteral("int64");
     uint8_t* value_48 = (void *)0;
     {
         String s = value_47;
-        value_48 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_48 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_43.go_type = value_48;
     value_0[6] = value_43;
@@ -1470,14 +726,14 @@ compiler_go_backend_enum_storage_type(GoLowerState* ctx, uint8_t* backing)
     uint8_t* value_52 = (void *)0;
     {
         String s = value_51;
-        value_52 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_52 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_50.name = value_52;
     String value_54 = StringLiteral("uint64");
     uint8_t* value_55 = (void *)0;
     {
         String s = value_54;
-        value_55 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_55 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_50.go_type = value_55;
     value_0[7] = value_50;
@@ -1489,7 +745,7 @@ compiler_go_backend_enum_storage_type(GoLowerState* ctx, uint8_t* backing)
             if (!(i < ((8) * (sizeof(GoEnumStorage))) / sizeof(GoEnumStorage))) {
                 break;
             }
-            if (zir_f_daa84719ffd73ec0_strcmp(backing, (types[i]).name) == 0) {
+            if (zir_foreign_compiler_go_backend__strcmp(backing, (types[i]).name) == 0) {
                 return (types[i]).go_type;
             }
             i = i + 1;
@@ -1508,20 +764,20 @@ compiler_go_backend_mkdir_parent(GoLowerState* ctx, uint8_t* path)
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_snprintf(&(tmp[0]), (1024) * (sizeof(uint8_t)), value_1, path);
+    zir_foreign_compiler_go_backend__snprintf(&(tmp[0]), (1024) * (sizeof(uint8_t)), value_1, path);
     {
         i = (size_t)(1LL);
         while (true) {
-            bool value_3 = i < zir_f_daa84719ffd73ec0_strlen(&(tmp[0]));
+            bool value_3 = i < zir_foreign_compiler_go_backend__strlen(&(tmp[0]));
             if (!value_3) {
                 break;
             }
             if ((tmp)[i] == 47) {
                 uint8_t* value_4 = &(tmp[i]);
                 (*value_4) = 0;
-                zir_f_daa84719ffd73ec0_mkdir(&(tmp[0]), 493);
+                zir_foreign_compiler_go_backend__mkdir(&(tmp[0]), 493);
                 uint8_t* value_5 = &(tmp[i]);
                 (*value_5) = 47;
             }
@@ -1539,7 +795,7 @@ compiler_go_backend_go_local_name_for(GoLowerState* ctx, uint8_t* name)
             if (!(i >= 0)) {
                 break;
             }
-            if (zir_f_daa84719ffd73ec0_strcmp(&(((ctx->zir_go_locals[i]).source)[0]), name) == 0) {
+            if (zir_foreign_compiler_go_backend__strcmp(&(((ctx->zir_go_locals[i]).source)[0]), name) == 0) {
                 return &(((ctx->zir_go_locals[i]).go)[0]);
             }
             i = (int32_t)((uint32_t)i - 1u);
@@ -1561,14 +817,14 @@ compiler_go_backend_go_register_local_name(GoLowerState* ctx, ZirFunction* fn, u
             if (!(i < ctx->zir_go_local_count)) {
                 break;
             }
-            if (zir_f_daa84719ffd73ec0_strcmp(&(((ctx->zir_go_locals[i]).source)[0]), name) == 0) {
+            if (zir_foreign_compiler_go_backend__strcmp(&(((ctx->zir_go_locals[i]).source)[0]), name) == 0) {
                 return;
             }
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    zir_f_daa84719ffd73ec0_TargetBindingName(fn, (int32_t)(((ZirTarget)(1))), name, &(mapped[0]), (256) * (sizeof(uint8_t)));
-    bool value_0 = zir_f_daa84719ffd73ec0_strcmp(&(mapped[0]), name) == 0;
+    zir_foreign_compiler_go_backend__TargetBindingName(fn, (int32_t)(((ZirTarget)(1))), name, &(mapped[0]), (256) * (sizeof(uint8_t)));
+    bool value_0 = zir_foreign_compiler_go_backend__strcmp(&(mapped[0]), name) == 0;
     if (value_0 || ctx->zir_go_local_count >= 256) {
         return;
     }
@@ -1576,16 +832,16 @@ compiler_go_backend_go_register_local_name(GoLowerState* ctx, ZirFunction* fn, u
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
-        value_2 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_2 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_snprintf(&(((ctx->zir_go_locals[ctx->zir_go_local_count]).source)[0]), (256) * (sizeof(uint8_t)), value_2, name);
+    zir_foreign_compiler_go_backend__snprintf(&(((ctx->zir_go_locals[ctx->zir_go_local_count]).source)[0]), (256) * (sizeof(uint8_t)), value_2, name);
     String value_4 = StringLiteral("%s");
     uint8_t* value_5 = (void *)0;
     {
         String s = value_4;
-        value_5 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_5 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_snprintf(&(((ctx->zir_go_locals[ctx->zir_go_local_count]).go)[0]), (256) * (sizeof(uint8_t)), value_5, &(mapped[0]));
+    zir_foreign_compiler_go_backend__snprintf(&(((ctx->zir_go_locals[ctx->zir_go_local_count]).go)[0]), (256) * (sizeof(uint8_t)), value_5, &(mapped[0]));
     int32_t* value_7 = &(ctx->zir_go_local_count);
     (*value_7) = (int32_t)((uint32_t)((*value_7)) + 1u);
 }
@@ -1594,13 +850,13 @@ static size_t
 compiler_go_backend_scalar_byte_width(GoLowerState* ctx, uint8_t* type)
 {
     (void)ctx;
-    return zir_f_daa84719ffd73ec0_ScalarByteWidth(type);
+    return zir_foreign_compiler_go_backend__ScalarByteWidth(type);
 }
 
 static int32_t
 compiler_go_backend_go_type(GoLowerState* ctx, uint8_t* type, uint8_t* dst, size_t dst_size)
 {
-    return zir_f_daa84719ffd73ec0_NativeGoType(ctx->type_scope, type, dst, dst_size);
+    return zir_foreign_compiler_go_backend__NativeGoType(ctx->type_scope, type, dst, dst_size);
 }
 
 static void
@@ -1613,16 +869,16 @@ compiler_go_backend_require_go_type(GoLowerState* ctx, uint8_t* type, uint8_t* d
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     String value_3 = StringLiteral("unsupported or unresolved Go type: %s");
     uint8_t* value_4 = (void *)0;
     {
         String s = value_3;
-        value_4 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_4 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_Diagnostic(span, value_1, value_4, type);
-    zir_f_daa84719ffd73ec0_exit(1);
+    zir_foreign_compiler_go_backend__Diagnostic(span, value_1, value_4, type);
+    zir_foreign_compiler_go_backend__exit(1);
 }
 
 static int32_t
@@ -1635,9 +891,9 @@ compiler_go_backend_module_fn_index(GoLowerState* ctx, ZirModule* m, uint8_t* na
             if (!(i < m->function_count)) {
                 break;
             }
-            size_t value_0 = zir_f_daa84719ffd73ec0_strlen(&(((m->functions[i]).name)[0]));
+            size_t value_0 = zir_foreign_compiler_go_backend__strlen(&(((m->functions[i]).name)[0]));
             bool value_1 = value_0 == len;
-            if (value_1 && zir_f_daa84719ffd73ec0_strncmp(&(((m->functions[i]).name)[0]), name, len) == 0) {
+            if (value_1 && zir_foreign_compiler_go_backend__strncmp(&(((m->functions[i]).name)[0]), name, len) == 0) {
                 return i;
             }
             i = (int32_t)((uint32_t)i + 1u);
@@ -1655,10 +911,10 @@ compiler_go_backend_go_global_function_index(GoLowerState* ctx, ZirModule* modul
     if (len >= ((128) * (sizeof(uint8_t)))) {
         return -1;
     }
-    zir_f_daa84719ffd73ec0_memcpy((void*)(&(ident[0])), (void*)(name), len);
+    zir_foreign_compiler_go_backend__memcpy((void*)(&(ident[0])), (void*)(name), len);
     uint8_t* value_0 = &(ident[len]);
     (*value_0) = 0;
-    if (zir_f_daa84719ffd73ec0_CResolveFunction(module, &(ident[0]), &(owner), &(function)) != 1) {
+    if (zir_foreign_compiler_go_backend__CResolveFunction(module, &(ident[0]), &(owner), &(function)) != 1) {
         return -1;
     }
     {
@@ -1668,7 +924,7 @@ compiler_go_backend_go_global_function_index(GoLowerState* ctx, ZirModule* modul
                 break;
             }
             bool value_1 = (ctx->g_functions[i]).module == owner;
-            if (value_1 && zir_f_daa84719ffd73ec0_strcmp(&(((ctx->g_functions[i]).source)[0]), &(function->name[0])) == 0) {
+            if (value_1 && zir_foreign_compiler_go_backend__strcmp(&(((ctx->g_functions[i]).source)[0]), &(function->name[0])) == 0) {
                 return i;
             }
             i = (int32_t)((uint32_t)i + 1u);
@@ -1686,8 +942,8 @@ compiler_go_backend_go_bound_provider(GoLowerState* ctx, uint8_t* module, uint8_
             if (!(i < ctx->g_function_count)) {
                 break;
             }
-            bool value_0 = zir_f_daa84719ffd73ec0_strcmp(&((((ctx->g_functions[i]).module)->name)[0]), module) == 0;
-            if (value_0 && zir_f_daa84719ffd73ec0_strcmp(&(((ctx->g_functions[i]).source)[0]), function) == 0) {
+            bool value_0 = zir_foreign_compiler_go_backend__strcmp(&((((ctx->g_functions[i]).module)->name)[0]), module) == 0;
+            if (value_0 && zir_foreign_compiler_go_backend__strcmp(&(((ctx->g_functions[i]).source)[0]), function) == 0) {
                 return &(((ctx->g_functions[i]).go)[0]);
             }
             i = (int32_t)((uint32_t)i + 1u);
@@ -1717,7 +973,7 @@ compiler_go_backend_go_build_global_functions(GoLowerState* ctx, ZirProgram** pr
                     ZirModule* m = &(prog->modules[mi]);
                     uint8_t stem[1024] = {0};
                     uint8_t guard[256] = {0};
-                    zir_f_daa84719ffd73ec0_NativeGoModuleIdentity(progs, prog_count, m, &(stem[0]), (1024) * (sizeof(uint8_t)), &(guard[0]), (256) * (sizeof(uint8_t)));
+                    zir_foreign_compiler_go_backend__NativeGoModuleIdentity(progs, prog_count, m, &(stem[0]), (1024) * (sizeof(uint8_t)), &(guard[0]), (256) * (sizeof(uint8_t)));
                     {
                         int32_t fi = 0;
                         while (true) {
@@ -1730,28 +986,28 @@ compiler_go_backend_go_build_global_functions(GoLowerState* ctx, ZirProgram** pr
                                 fi = (int32_t)((uint32_t)fi + 1u);
                                 continue;
                             }
-                            zir_f_daa84719ffd73ec0_camel_ident(&(fn->name[0]), &(fname[0]), (256) * (sizeof(uint8_t)));
+                            zir_foreign_compiler_go_backend__camel_ident(&(fn->name[0]), &(fname[0]), (256) * (sizeof(uint8_t)));
                             String value_1 = StringLiteral("%s");
                             uint8_t* value_2 = (void *)0;
                             {
                                 String s = value_1;
-                                value_2 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_2 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_snprintf(&(((ctx->g_functions[ctx->g_function_count]).source)[0]), (256) * (sizeof(uint8_t)), value_2, &(fn->name[0]));
+                            zir_foreign_compiler_go_backend__snprintf(&(((ctx->g_functions[ctx->g_function_count]).source)[0]), (256) * (sizeof(uint8_t)), value_2, &(fn->name[0]));
                             String value_4 = StringLiteral("%s");
                             uint8_t* value_5 = (void *)0;
                             {
                                 String s = value_4;
-                                value_5 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_5 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_snprintf(&(((ctx->g_functions[ctx->g_function_count]).guard)[0]), (256) * (sizeof(uint8_t)), value_5, &(guard[0]));
+                            zir_foreign_compiler_go_backend__snprintf(&(((ctx->g_functions[ctx->g_function_count]).guard)[0]), (256) * (sizeof(uint8_t)), value_5, &(guard[0]));
                             String value_7 = StringLiteral("%s_%s");
                             uint8_t* value_8 = (void *)0;
                             {
                                 String s = value_7;
-                                value_8 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_8 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_snprintf(&(((ctx->g_functions[ctx->g_function_count]).go)[0]), (512) * (sizeof(uint8_t)), value_8, &(guard[0]), &(fname[0]));
+                            zir_foreign_compiler_go_backend__snprintf(&(((ctx->g_functions[ctx->g_function_count]).go)[0]), (512) * (sizeof(uint8_t)), value_8, &(guard[0]), &(fname[0]));
                             ZirModule** value_10 = &((ctx->g_functions[ctx->g_function_count]).module);
                             (*value_10) = m;
                             ZirFunction** value_11 = &((ctx->g_functions[ctx->g_function_count]).declaration);
@@ -1777,399 +1033,399 @@ compiler_go_backend_go_validate_exports(GoLowerState* ctx, ZirProgram** programs
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
-        value_2 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_2 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[0] = value_2;
     String value_4 = StringLiteral("init");
     uint8_t* value_5 = (void *)0;
     {
         String s = value_4;
-        value_5 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_5 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[1] = value_5;
     String value_7 = StringLiteral("main");
     uint8_t* value_8 = (void *)0;
     {
         String s = value_7;
-        value_8 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_8 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[2] = value_8;
     String value_10 = StringLiteral("any");
     uint8_t* value_11 = (void *)0;
     {
         String s = value_10;
-        value_11 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_11 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[3] = value_11;
     String value_13 = StringLiteral("bool");
     uint8_t* value_14 = (void *)0;
     {
         String s = value_13;
-        value_14 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_14 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[4] = value_14;
     String value_16 = StringLiteral("byte");
     uint8_t* value_17 = (void *)0;
     {
         String s = value_16;
-        value_17 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_17 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[5] = value_17;
     String value_19 = StringLiteral("comparable");
     uint8_t* value_20 = (void *)0;
     {
         String s = value_19;
-        value_20 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_20 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[6] = value_20;
     String value_22 = StringLiteral("complex64");
     uint8_t* value_23 = (void *)0;
     {
         String s = value_22;
-        value_23 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_23 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[7] = value_23;
     String value_25 = StringLiteral("complex128");
     uint8_t* value_26 = (void *)0;
     {
         String s = value_25;
-        value_26 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_26 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[8] = value_26;
     String value_28 = StringLiteral("error");
     uint8_t* value_29 = (void *)0;
     {
         String s = value_28;
-        value_29 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_29 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[9] = value_29;
     String value_31 = StringLiteral("float32");
     uint8_t* value_32 = (void *)0;
     {
         String s = value_31;
-        value_32 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_32 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[10] = value_32;
     String value_34 = StringLiteral("float64");
     uint8_t* value_35 = (void *)0;
     {
         String s = value_34;
-        value_35 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_35 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[11] = value_35;
     String value_37 = StringLiteral("int");
     uint8_t* value_38 = (void *)0;
     {
         String s = value_37;
-        value_38 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_38 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[12] = value_38;
     String value_40 = StringLiteral("int8");
     uint8_t* value_41 = (void *)0;
     {
         String s = value_40;
-        value_41 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_41 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[13] = value_41;
     String value_43 = StringLiteral("int16");
     uint8_t* value_44 = (void *)0;
     {
         String s = value_43;
-        value_44 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_44 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[14] = value_44;
     String value_46 = StringLiteral("int32");
     uint8_t* value_47 = (void *)0;
     {
         String s = value_46;
-        value_47 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_47 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[15] = value_47;
     String value_49 = StringLiteral("int64");
     uint8_t* value_50 = (void *)0;
     {
         String s = value_49;
-        value_50 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_50 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[16] = value_50;
     String value_52 = StringLiteral("rune");
     uint8_t* value_53 = (void *)0;
     {
         String s = value_52;
-        value_53 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_53 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[17] = value_53;
     String value_55 = StringLiteral("string");
     uint8_t* value_56 = (void *)0;
     {
         String s = value_55;
-        value_56 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_56 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[18] = value_56;
     String value_58 = StringLiteral("uint");
     uint8_t* value_59 = (void *)0;
     {
         String s = value_58;
-        value_59 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_59 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[19] = value_59;
     String value_61 = StringLiteral("uint8");
     uint8_t* value_62 = (void *)0;
     {
         String s = value_61;
-        value_62 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_62 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[20] = value_62;
     String value_64 = StringLiteral("uint16");
     uint8_t* value_65 = (void *)0;
     {
         String s = value_64;
-        value_65 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_65 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[21] = value_65;
     String value_67 = StringLiteral("uint32");
     uint8_t* value_68 = (void *)0;
     {
         String s = value_67;
-        value_68 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_68 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[22] = value_68;
     String value_70 = StringLiteral("uint64");
     uint8_t* value_71 = (void *)0;
     {
         String s = value_70;
-        value_71 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_71 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[23] = value_71;
     String value_73 = StringLiteral("uintptr");
     uint8_t* value_74 = (void *)0;
     {
         String s = value_73;
-        value_74 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_74 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[24] = value_74;
     String value_76 = StringLiteral("true");
     uint8_t* value_77 = (void *)0;
     {
         String s = value_76;
-        value_77 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_77 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[25] = value_77;
     String value_79 = StringLiteral("false");
     uint8_t* value_80 = (void *)0;
     {
         String s = value_79;
-        value_80 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_80 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[26] = value_80;
     String value_82 = StringLiteral("iota");
     uint8_t* value_83 = (void *)0;
     {
         String s = value_82;
-        value_83 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_83 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[27] = value_83;
     String value_85 = StringLiteral("nil");
     uint8_t* value_86 = (void *)0;
     {
         String s = value_85;
-        value_86 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_86 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[28] = value_86;
     String value_88 = StringLiteral("append");
     uint8_t* value_89 = (void *)0;
     {
         String s = value_88;
-        value_89 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_89 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[29] = value_89;
     String value_91 = StringLiteral("cap");
     uint8_t* value_92 = (void *)0;
     {
         String s = value_91;
-        value_92 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_92 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[30] = value_92;
     String value_94 = StringLiteral("clear");
     uint8_t* value_95 = (void *)0;
     {
         String s = value_94;
-        value_95 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_95 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[31] = value_95;
     String value_97 = StringLiteral("close");
     uint8_t* value_98 = (void *)0;
     {
         String s = value_97;
-        value_98 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_98 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[32] = value_98;
     String value_100 = StringLiteral("complex");
     uint8_t* value_101 = (void *)0;
     {
         String s = value_100;
-        value_101 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_101 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[33] = value_101;
     String value_103 = StringLiteral("copy");
     uint8_t* value_104 = (void *)0;
     {
         String s = value_103;
-        value_104 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_104 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[34] = value_104;
     String value_106 = StringLiteral("delete");
     uint8_t* value_107 = (void *)0;
     {
         String s = value_106;
-        value_107 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_107 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[35] = value_107;
     String value_109 = StringLiteral("imag");
     uint8_t* value_110 = (void *)0;
     {
         String s = value_109;
-        value_110 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_110 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[36] = value_110;
     String value_112 = StringLiteral("len");
     uint8_t* value_113 = (void *)0;
     {
         String s = value_112;
-        value_113 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_113 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[37] = value_113;
     String value_115 = StringLiteral("make");
     uint8_t* value_116 = (void *)0;
     {
         String s = value_115;
-        value_116 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_116 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[38] = value_116;
     String value_118 = StringLiteral("max");
     uint8_t* value_119 = (void *)0;
     {
         String s = value_118;
-        value_119 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_119 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[39] = value_119;
     String value_121 = StringLiteral("min");
     uint8_t* value_122 = (void *)0;
     {
         String s = value_121;
-        value_122 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_122 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[40] = value_122;
     String value_124 = StringLiteral("new");
     uint8_t* value_125 = (void *)0;
     {
         String s = value_124;
-        value_125 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_125 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[41] = value_125;
     String value_127 = StringLiteral("panic");
     uint8_t* value_128 = (void *)0;
     {
         String s = value_127;
-        value_128 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_128 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[42] = value_128;
     String value_130 = StringLiteral("print");
     uint8_t* value_131 = (void *)0;
     {
         String s = value_130;
-        value_131 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_131 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[43] = value_131;
     String value_133 = StringLiteral("println");
     uint8_t* value_134 = (void *)0;
     {
         String s = value_133;
-        value_134 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_134 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[44] = value_134;
     String value_136 = StringLiteral("real");
     uint8_t* value_137 = (void *)0;
     {
         String s = value_136;
-        value_137 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_137 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[45] = value_137;
     String value_139 = StringLiteral("recover");
     uint8_t* value_140 = (void *)0;
     {
         String s = value_139;
-        value_140 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_140 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[46] = value_140;
     String value_142 = StringLiteral("unsafe");
     uint8_t* value_143 = (void *)0;
     {
         String s = value_142;
-        value_143 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_143 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[47] = value_143;
     String value_145 = StringLiteral("signedBits");
     uint8_t* value_146 = (void *)0;
     {
         String s = value_145;
-        value_146 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_146 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[48] = value_146;
     String value_148 = StringLiteral("wrapAdd");
     uint8_t* value_149 = (void *)0;
     {
         String s = value_148;
-        value_149 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_149 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[49] = value_149;
     String value_151 = StringLiteral("wrapSub");
     uint8_t* value_152 = (void *)0;
     {
         String s = value_151;
-        value_152 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_152 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[50] = value_152;
     String value_154 = StringLiteral("wrapMul");
     uint8_t* value_155 = (void *)0;
     {
         String s = value_154;
-        value_155 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_155 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[51] = value_155;
     String value_157 = StringLiteral("floatToInt");
     uint8_t* value_158 = (void *)0;
     {
         String s = value_157;
-        value_158 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_158 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[52] = value_158;
     String value_160 = StringLiteral("integerOp");
     uint8_t* value_161 = (void *)0;
     {
         String s = value_160;
-        value_161 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_161 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[53] = value_161;
     String value_163 = StringLiteral("shiftCount");
     uint8_t* value_164 = (void *)0;
     {
         String s = value_163;
-        value_164 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_164 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[54] = value_164;
     String value_166 = StringLiteral("zirGoCgoEnabled");
     uint8_t* value_167 = (void *)0;
     {
         String s = value_166;
-        value_167 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_167 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[55] = value_167;
     String value_169 = StringLiteral("zirGoAssemblyEnabled");
     uint8_t* value_170 = (void *)0;
     {
         String s = value_169;
-        value_170 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_170 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_0[56] = value_170;
     value_0[57] = (uint8_t*)(((void *)0));
@@ -2188,8 +1444,8 @@ compiler_go_backend_go_validate_exports(GoLowerState* ctx, ZirProgram** programs
                 continue;
             }
             uint8_t mapped[256] = {0};
-            zir_f_daa84719ffd73ec0_TargetBindingName((ZirFunction*)(((void *)0)), (int32_t)(((ZirTarget)(1))), symbol, &(mapped[0]), (256) * (sizeof(uint8_t)));
-            bool value_172 = zir_f_daa84719ffd73ec0_strcmp(symbol, &(mapped[0])) != 0;
+            zir_foreign_compiler_go_backend__TargetBindingName((ZirFunction*)(((void *)0)), (int32_t)(((ZirTarget)(1))), symbol, &(mapped[0]), (256) * (sizeof(uint8_t)));
+            bool value_172 = zir_foreign_compiler_go_backend__strcmp(symbol, &(mapped[0])) != 0;
             int32_t value_173 = 0;
             if (value_172) {
                 value_173 = 1;
@@ -2202,7 +1458,7 @@ compiler_go_backend_go_validate_exports(GoLowerState* ctx, ZirProgram** programs
                         break;
                     }
                     int32_t value_174 = invalid;
-                    bool value_175 = zir_f_daa84719ffd73ec0_strcmp(symbol, (reserved)[name]) != 0;
+                    bool value_175 = zir_foreign_compiler_go_backend__strcmp(symbol, (reserved)[name]) != 0;
                     int32_t value_176 = 0;
                     if (!value_175) {
                         value_176 = 1;
@@ -2217,15 +1473,15 @@ compiler_go_backend_go_validate_exports(GoLowerState* ctx, ZirProgram** programs
                 uint8_t* value_179 = (void *)0;
                 {
                     String s = value_178;
-                    value_179 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_179 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 String value_181 = StringLiteral("reserved native Go export name: %s");
                 uint8_t* value_182 = (void *)0;
                 {
                     String s = value_181;
-                    value_182 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_182 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_Diagnostic(value_177, value_179, value_182, symbol);
+                zir_foreign_compiler_go_backend__Diagnostic(value_177, value_179, value_182, symbol);
                 return 0;
             }
             {
@@ -2234,13 +1490,13 @@ compiler_go_backend_go_validate_exports(GoLowerState* ctx, ZirProgram** programs
                     if (!(other < ctx->g_function_count)) {
                         break;
                     }
-                    bool value_184 = zir_f_daa84719ffd73ec0_strcmp(symbol, &(((ctx->g_functions[other]).go)[0])) != 0;
+                    bool value_184 = zir_foreign_compiler_go_backend__strcmp(symbol, &(((ctx->g_functions[other]).go)[0])) != 0;
                     bool value_185 = !value_184;
                     if (!value_185) {
                         bool value_186 = other != i;
                         bool value_187 = value_186;
                         if (value_187) {
-                            bool value_188 = zir_f_daa84719ffd73ec0_strcmp(symbol, &((((ctx->g_functions[other]).declaration)->export_symbol)[0])) != 0;
+                            bool value_188 = zir_foreign_compiler_go_backend__strcmp(symbol, &((((ctx->g_functions[other]).declaration)->export_symbol)[0])) != 0;
                             value_187 = !value_188;
                         }
                         value_185 = value_187;
@@ -2251,15 +1507,15 @@ compiler_go_backend_go_validate_exports(GoLowerState* ctx, ZirProgram** programs
                         uint8_t* value_191 = (void *)0;
                         {
                             String s = value_190;
-                            value_191 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_191 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         String value_193 = StringLiteral("duplicate native Go export name: %s");
                         uint8_t* value_194 = (void *)0;
                         {
                             String s = value_193;
-                            value_194 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_194 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_Diagnostic(value_189, value_191, value_194, symbol);
+                        zir_foreign_compiler_go_backend__Diagnostic(value_189, value_191, value_194, symbol);
                         return 0;
                     }
                     other = (int32_t)((uint32_t)other + 1u);
@@ -2281,16 +1537,16 @@ compiler_go_backend_go_validate_exports(GoLowerState* ctx, ZirProgram** programs
                             uint8_t stem[1024] = {0};
                             uint8_t guard[256] = {0};
                             uint8_t generated[512] = {0};
-                            zir_f_daa84719ffd73ec0_NativeGoModuleIdentity(programs, count, module, &(stem[0]), (1024) * (sizeof(uint8_t)), &(guard[0]), (256) * (sizeof(uint8_t)));
-                            if (zir_f_daa84719ffd73ec0_ModuleNeedsStartup(module) != 0) {
+                            zir_foreign_compiler_go_backend__NativeGoModuleIdentity(programs, count, module, &(stem[0]), (1024) * (sizeof(uint8_t)), &(guard[0]), (256) * (sizeof(uint8_t)));
+                            if (zir_foreign_compiler_go_backend__ModuleNeedsStartup(module) != 0) {
                                 String value_196 = StringLiteral("%s_ziranInit");
                                 uint8_t* value_197 = (void *)0;
                                 {
                                     String s = value_196;
-                                    value_197 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_197 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_snprintf(&(generated[0]), (512) * (sizeof(uint8_t)), value_197, &(guard[0]));
-                                bool value_199 = zir_f_daa84719ffd73ec0_strcmp(symbol, &(generated[0])) != 0;
+                                zir_foreign_compiler_go_backend__snprintf(&(generated[0]), (512) * (sizeof(uint8_t)), value_197, &(guard[0]));
+                                bool value_199 = zir_foreign_compiler_go_backend__strcmp(symbol, &(generated[0])) != 0;
                                 int32_t value_200 = 0;
                                 if (!value_199) {
                                     value_200 = 1;
@@ -2300,13 +1556,13 @@ compiler_go_backend_go_validate_exports(GoLowerState* ctx, ZirProgram** programs
                                 uint8_t* value_202 = (void *)0;
                                 {
                                     String s = value_201;
-                                    value_202 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_202 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_snprintf(&(generated[0]), (512) * (sizeof(uint8_t)), value_202, &(guard[0]));
+                                zir_foreign_compiler_go_backend__snprintf(&(generated[0]), (512) * (sizeof(uint8_t)), value_202, &(guard[0]));
                                 bool value_204 = collision != 0;
                                 bool value_205 = value_204;
                                 if (!value_205) {
-                                    bool value_206 = zir_f_daa84719ffd73ec0_strcmp(symbol, &(generated[0])) != 0;
+                                    bool value_206 = zir_foreign_compiler_go_backend__strcmp(symbol, &(generated[0])) != 0;
                                     value_205 = !value_206;
                                 }
                                 if (value_205) {
@@ -2315,15 +1571,15 @@ compiler_go_backend_go_validate_exports(GoLowerState* ctx, ZirProgram** programs
                                     uint8_t* value_209 = (void *)0;
                                     {
                                         String s = value_208;
-                                        value_209 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_209 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
                                     String value_211 = StringLiteral("native Go export collides with module startup: %s");
                                     uint8_t* value_212 = (void *)0;
                                     {
                                         String s = value_211;
-                                        value_212 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_212 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_f_daa84719ffd73ec0_Diagnostic(value_207, value_209, value_212, symbol);
+                                    zir_foreign_compiler_go_backend__Diagnostic(value_207, value_209, value_212, symbol);
                                     return 0;
                                 }
                             }
@@ -2333,11 +1589,11 @@ compiler_go_backend_go_validate_exports(GoLowerState* ctx, ZirProgram** programs
                                     if (!(t < module->type_count)) {
                                         break;
                                     }
-                                    zir_f_daa84719ffd73ec0_NativeTypeName(module, &(module->types[t]), &(mapped[0]), (256) * (sizeof(uint8_t)));
-                                    bool value_214 = zir_f_daa84719ffd73ec0_strcmp(symbol, &(mapped[0])) != 0;
+                                    zir_foreign_compiler_go_backend__NativeTypeName(module, &(module->types[t]), &(mapped[0]), (256) * (sizeof(uint8_t)));
+                                    bool value_214 = zir_foreign_compiler_go_backend__strcmp(symbol, &(mapped[0])) != 0;
                                     bool value_215 = !value_214;
                                     if (!value_215) {
-                                        bool value_216 = zir_f_daa84719ffd73ec0_strcmp(symbol, &(((module->types[t]).name)[0])) != 0;
+                                        bool value_216 = zir_foreign_compiler_go_backend__strcmp(symbol, &(((module->types[t]).name)[0])) != 0;
                                         value_215 = !value_216;
                                     }
                                     if (value_215) {
@@ -2346,15 +1602,15 @@ compiler_go_backend_go_validate_exports(GoLowerState* ctx, ZirProgram** programs
                                         uint8_t* value_219 = (void *)0;
                                         {
                                             String s = value_218;
-                                            value_219 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                            value_219 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
                                         String value_221 = StringLiteral("native Go export collides with type: %s");
                                         uint8_t* value_222 = (void *)0;
                                         {
                                             String s = value_221;
-                                            value_222 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                            value_222 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
-                                        zir_f_daa84719ffd73ec0_Diagnostic(value_217, value_219, value_222, symbol);
+                                        zir_foreign_compiler_go_backend__Diagnostic(value_217, value_219, value_222, symbol);
                                         return 0;
                                     }
                                     t = (int32_t)((uint32_t)t + 1u);
@@ -2381,9 +1637,9 @@ compiler_go_backend_go_validate_export_import(GoLowerState* ctx, uint8_t* declar
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
-        value_2 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_2 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    bool value_4 = zir_f_daa84719ffd73ec0_sscanf(value_0, value_2, &(alias[0])) != 1;
+    bool value_4 = zir_foreign_compiler_go_backend__sscanf(value_0, value_2, &(alias[0])) != 1;
     bool value_5 = value_4 || (alias)[0] == 34;
     bool value_6 = value_5;
     if (!value_6) {
@@ -2391,9 +1647,9 @@ compiler_go_backend_go_validate_export_import(GoLowerState* ctx, uint8_t* declar
         uint8_t* value_8 = (void *)0;
         {
             String s = value_7;
-            value_8 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_8 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_10 = zir_f_daa84719ffd73ec0_strcmp(&(alias[0]), value_8) != 0;
+        bool value_10 = zir_foreign_compiler_go_backend__strcmp(&(alias[0]), value_8) != 0;
         value_6 = !value_10;
     }
     if (value_6) {
@@ -2406,22 +1662,22 @@ compiler_go_backend_go_validate_export_import(GoLowerState* ctx, uint8_t* declar
                 break;
             }
             ZirFunction* function = (ctx->g_functions[i]).declaration;
-            bool value_11 = zir_f_daa84719ffd73ec0_strcmp(&(function->export_symbol[0]), &(alias[0])) != 0;
+            bool value_11 = zir_foreign_compiler_go_backend__strcmp(&(function->export_symbol[0]), &(alias[0])) != 0;
             if (!value_11) {
                 ZirSourceSpan value_12 = function->span;
                 String value_13 = StringLiteral("zir_go.export");
                 uint8_t* value_14 = (void *)0;
                 {
                     String s = value_13;
-                    value_14 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_14 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 String value_16 = StringLiteral("native Go export collides with import: %s");
                 uint8_t* value_17 = (void *)0;
                 {
                     String s = value_16;
-                    value_17 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_17 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_Diagnostic(value_12, value_14, value_17, &(alias[0]));
+                zir_foreign_compiler_go_backend__Diagnostic(value_12, value_14, value_17, &(alias[0]));
                 return 0;
             }
             i = (int32_t)((uint32_t)i + 1u);
@@ -2456,7 +1712,7 @@ compiler_go_backend_go_module_uses_testing(GoLowerState* ctx, ZirModule* module,
             value_0 = (size_t)(16LL);
         }
         size_t capacity = value_0;
-        void* value_1 = zir_f_daa84719ffd73ec0_realloc((void*)(visited->modules), capacity * sizeof(void *));
+        void* value_1 = zir_foreign_compiler_go_backend__realloc((void*)(visited->modules), capacity * sizeof(void *));
         ZirModule** modules = (ZirModule**)(value_1);
         if (modules == (ZirModule**)(((void *)0))) {
             ZirSourceSpan value_2 = module->span;
@@ -2464,16 +1720,16 @@ compiler_go_backend_go_module_uses_testing(GoLowerState* ctx, ZirModule* module,
             uint8_t* value_4 = (void *)0;
             {
                 String s = value_3;
-                value_4 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_4 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
             String value_6 = StringLiteral("out of memory classifying Go tests");
             uint8_t* value_7 = (void *)0;
             {
                 String s = value_6;
-                value_7 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_7 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_Diagnostic(value_2, value_4, value_7);
-            zir_f_daa84719ffd73ec0_exit(1);
+            zir_foreign_compiler_go_backend__Diagnostic(value_2, value_4, value_7);
+            zir_foreign_compiler_go_backend__exit(1);
         }
         ZirModule*** value_9 = &(visited->modules);
         (*value_9) = modules;
@@ -2495,9 +1751,9 @@ compiler_go_backend_go_module_uses_testing(GoLowerState* ctx, ZirModule* module,
             uint8_t* value_14 = (void *)0;
             {
                 String s = value_13;
-                value_14 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_14 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            bool value_16 = zir_f_daa84719ffd73ec0_strncmp(&(((module->types[t]).foreign_target)[0]), value_14, (size_t)(11LL)) != 0;
+            bool value_16 = zir_foreign_compiler_go_backend__strncmp(&(((module->types[t]).foreign_target)[0]), value_14, (size_t)(11LL)) != 0;
             if (!value_16) {
                 return 1;
             }
@@ -2514,9 +1770,9 @@ compiler_go_backend_go_module_uses_testing(GoLowerState* ctx, ZirModule* module,
             uint8_t* value_18 = (void *)0;
             {
                 String s = value_17;
-                value_18 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_18 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            bool value_20 = zir_f_daa84719ffd73ec0_strncmp(&(((module->imports[i]).target)[0]), value_18, (size_t)(11LL)) != 0;
+            bool value_20 = zir_foreign_compiler_go_backend__strncmp(&(((module->imports[i]).target)[0]), value_18, (size_t)(11LL)) != 0;
             if (!value_20) {
                 return 1;
             }
@@ -2535,9 +1791,9 @@ compiler_go_backend_go_module_uses_testing(GoLowerState* ctx, ZirModule* module,
             uint8_t* value_23 = (void *)0;
             {
                 String s = value_22;
-                value_23 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_23 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            bool value_25 = zir_f_daa84719ffd73ec0_strncmp(value_21, value_23, (size_t)(4LL)) != 0;
+            bool value_25 = zir_foreign_compiler_go_backend__strncmp(value_21, value_23, (size_t)(4LL)) != 0;
             bool value_26 = !value_25;
             if (!value_26) {
                 uint8_t* value_27 = name;
@@ -2545,9 +1801,9 @@ compiler_go_backend_go_module_uses_testing(GoLowerState* ctx, ZirModule* module,
                 uint8_t* value_29 = (void *)0;
                 {
                     String s = value_28;
-                    value_29 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_29 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                bool value_31 = zir_f_daa84719ffd73ec0_strncmp(value_27, value_29, (size_t)(4LL)) != 0;
+                bool value_31 = zir_foreign_compiler_go_backend__strncmp(value_27, value_29, (size_t)(4LL)) != 0;
                 value_26 = !value_31;
             }
             bool value_32 = value_26;
@@ -2557,9 +1813,9 @@ compiler_go_backend_go_module_uses_testing(GoLowerState* ctx, ZirModule* module,
                 uint8_t* value_35 = (void *)0;
                 {
                     String s = value_34;
-                    value_35 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_35 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                bool value_37 = zir_f_daa84719ffd73ec0_strncmp(value_33, value_35, (size_t)(9LL)) != 0;
+                bool value_37 = zir_foreign_compiler_go_backend__strncmp(value_33, value_35, (size_t)(9LL)) != 0;
                 value_32 = !value_37;
             }
             if (value_32) {
@@ -2586,7 +1842,7 @@ compiler_go_backend_go_module_uses_testing(GoLowerState* ctx, ZirModule* module,
 static int32_t
 compiler_go_backend_go_module_is_native_test(GoLowerState* ctx, ZirModule* module)
 {
-    size_t length = zir_f_daa84719ffd73ec0_strlen(&(module->source_path[0]));
+    size_t length = zir_foreign_compiler_go_backend__strlen(&(module->source_path[0]));
     bool value_0 = length < (size_t)(8LL);
     bool value_1 = value_0;
     if (!value_1) {
@@ -2596,9 +1852,9 @@ compiler_go_backend_go_module_is_native_test(GoLowerState* ctx, ZirModule* modul
         uint8_t* value_5 = (void *)0;
         {
             String s = value_4;
-            value_5 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_5 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_7 = zir_f_daa84719ffd73ec0_strcmp(value_3, value_5) != 0;
+        bool value_7 = zir_foreign_compiler_go_backend__strcmp(value_3, value_5) != 0;
         value_1 = value_7;
     }
     if (value_1) {
@@ -2606,7 +1862,7 @@ compiler_go_backend_go_module_is_native_test(GoLowerState* ctx, ZirModule* modul
     }
     GoTestModules visited = {0};
     int32_t result = compiler_go_backend_go_module_uses_testing(ctx, module, &(visited));
-    zir_f_daa84719ffd73ec0_free((void*)(visited.modules));
+    zir_foreign_compiler_go_backend__free((void*)(visited.modules));
     return result;
 }
 
@@ -2614,13 +1870,13 @@ static int32_t
 compiler_go_backend_go_export_testing_type(GoLowerState* ctx, ZirModule* module, uint8_t* source, uint8_t* out, size_t size)
 {
     (void)ctx;
-    source = zir_f_daa84719ffd73ec0_skip_ws(source);
+    source = zir_foreign_compiler_go_backend__skip_ws(source);
     if (source[0] != 42) {
         return 0;
     }
     ZirModule* value_0 = module;
-    uint8_t* value_1 = zir_f_daa84719ffd73ec0_skip_ws((uint8_t*)(((size_t)(source) + ((size_t)(1LL) * sizeof(uint8_t)))));
-    ZirType* type = zir_f_daa84719ffd73ec0_CFindType(value_0, value_1, (ZirModule**)(((void *)0)));
+    uint8_t* value_1 = zir_foreign_compiler_go_backend__skip_ws((uint8_t*)(((size_t)(source) + ((size_t)(1LL) * sizeof(uint8_t)))));
+    ZirType* type = zir_foreign_compiler_go_backend__CFindType(value_0, value_1, (ZirModule**)(((void *)0)));
     bool value_2 = type == (ZirType*)(((void *)0));
     bool value_3 = value_2;
     if (!value_3) {
@@ -2628,9 +1884,9 @@ compiler_go_backend_go_export_testing_type(GoLowerState* ctx, ZirModule* module,
         uint8_t* value_5 = (void *)0;
         {
             String s = value_4;
-            value_5 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_5 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_7 = zir_f_daa84719ffd73ec0_strncmp(&(type->foreign_target[0]), value_5, (size_t)(11LL)) != 0;
+        bool value_7 = zir_foreign_compiler_go_backend__strncmp(&(type->foreign_target[0]), value_5, (size_t)(11LL)) != 0;
         value_3 = value_7;
     }
     if (value_3) {
@@ -2646,9 +1902,9 @@ compiler_go_backend_go_export_testing_type(GoLowerState* ctx, ZirModule* module,
     uint8_t* value_11 = (void *)0;
     {
         String s = value_10;
-        value_11 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_11 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_snprintf(value_8, value_9, value_11, name);
+    zir_foreign_compiler_go_backend__snprintf(value_8, value_9, value_11, name);
     return 1;
 }
 
@@ -2677,13 +1933,13 @@ compiler_go_backend_go_exports_use_testing(GoLowerState* ctx, ZirModule* module)
                     uint8_t* value_4 = (void *)0;
                     {
                         String s = value_3;
-                        value_4 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_4 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_2 = value_4;
                 }
                 value_0 = value_2;
             }
-            zir_e93613178cb7063a_ZirParameters* parameters = zir_f_daa84719ffd73ec0_ParametersOf(value_0);
+            compiler_go_backend_ZirParameters* parameters = zir_foreign_compiler_go_backend__ParametersOf(value_0);
             {
                 int32_t p = 0;
                 while (true) {
@@ -2712,11 +1968,11 @@ compiler_go_backend_clear_enum_context(GoLowerState* ctx)
             if (!(i < ctx->g_enum_count)) {
                 break;
             }
-            zir_f_daa84719ffd73ec0_free((void*)((ctx->g_enums[i]).members));
+            zir_foreign_compiler_go_backend__free((void*)((ctx->g_enums[i]).members));
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    zir_f_daa84719ffd73ec0_free((void*)(ctx->g_enums));
+    zir_foreign_compiler_go_backend__free((void*)(ctx->g_enums));
     ZirGoEnum** value_0 = &(ctx->g_enums);
     (*value_0) = (ZirGoEnum*)(((void *)0));
     int32_t* value_1 = &(ctx->g_enum_count);
@@ -2732,9 +1988,9 @@ compiler_go_backend_go_extern_index(GoLowerState* ctx, uint8_t* name, size_t len
             if (!(i < ctx->g_extern_count)) {
                 break;
             }
-            size_t value_0 = zir_f_daa84719ffd73ec0_strlen(&(((ctx->g_externs[i]).source)[0]));
+            size_t value_0 = zir_foreign_compiler_go_backend__strlen(&(((ctx->g_externs[i]).source)[0]));
             bool value_1 = value_0 == len;
-            if (value_1 && zir_f_daa84719ffd73ec0_strncmp(&(((ctx->g_externs[i]).source)[0]), name, len) == 0) {
+            if (value_1 && zir_foreign_compiler_go_backend__strncmp(&(((ctx->g_externs[i]).source)[0]), name, len) == 0) {
                 return i;
             }
             i = (int32_t)((uint32_t)i + 1u);
@@ -2754,9 +2010,9 @@ compiler_go_backend_go_builtin_method(GoLowerState* ctx, ZirGoExtern* binding)
         uint8_t* value_3 = (void *)0;
         {
             String s = value_2;
-            value_3 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_3 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_5 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go_import_path[0]), value_3) != 0;
+        bool value_5 = zir_foreign_compiler_go_backend__strcmp(&(binding->go_import_path[0]), value_3) != 0;
         value_1 = !value_5;
     }
     int32_t value_6 = 0;
@@ -2777,9 +2033,9 @@ compiler_go_backend_go_builtin_callback(GoLowerState* ctx, ZirGoExtern* binding)
         uint8_t* value_3 = (void *)0;
         {
             String s = value_2;
-            value_3 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_3 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_5 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go_import_path[0]), value_3) != 0;
+        bool value_5 = zir_foreign_compiler_go_backend__strcmp(&(binding->go_import_path[0]), value_3) != 0;
         value_1 = !value_5;
     }
     bool value_6 = value_1;
@@ -2789,18 +2045,18 @@ compiler_go_backend_go_builtin_callback(GoLowerState* ctx, ZirGoExtern* binding)
         uint8_t* value_9 = (void *)0;
         {
             String s = value_8;
-            value_9 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_9 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_11 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go[0]), value_9) != 0;
+        bool value_11 = zir_foreign_compiler_go_backend__strcmp(&(binding->go[0]), value_9) != 0;
         bool value_12 = !value_11;
         if (!value_12) {
             String value_13 = StringLiteral("spawn");
             uint8_t* value_14 = (void *)0;
             {
                 String s = value_13;
-                value_14 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_14 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            bool value_16 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go[0]), value_14) != 0;
+            bool value_16 = zir_foreign_compiler_go_backend__strcmp(&(binding->go[0]), value_14) != 0;
             value_12 = !value_16;
         }
         value_7 = value_12;
@@ -2823,9 +2079,9 @@ compiler_go_backend_go_builtin_bind(GoLowerState* ctx, ZirGoExtern* binding)
         uint8_t* value_3 = (void *)0;
         {
             String s = value_2;
-            value_3 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_3 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_5 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go_import_path[0]), value_3) != 0;
+        bool value_5 = zir_foreign_compiler_go_backend__strcmp(&(binding->go_import_path[0]), value_3) != 0;
         value_1 = !value_5;
     }
     bool value_6 = value_1;
@@ -2835,9 +2091,9 @@ compiler_go_backend_go_builtin_bind(GoLowerState* ctx, ZirGoExtern* binding)
         uint8_t* value_9 = (void *)0;
         {
             String s = value_8;
-            value_9 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_9 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_11 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go[0]), value_9) != 0;
+        bool value_11 = zir_foreign_compiler_go_backend__strcmp(&(binding->go[0]), value_9) != 0;
         value_7 = !value_11;
     }
     int32_t value_12 = 0;
@@ -2858,9 +2114,9 @@ compiler_go_backend_go_builtin_retain(GoLowerState* ctx, ZirGoExtern* binding)
         uint8_t* value_3 = (void *)0;
         {
             String s = value_2;
-            value_3 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_3 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_5 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go_import_path[0]), value_3) != 0;
+        bool value_5 = zir_foreign_compiler_go_backend__strcmp(&(binding->go_import_path[0]), value_3) != 0;
         value_1 = !value_5;
     }
     bool value_6 = value_1;
@@ -2870,9 +2126,9 @@ compiler_go_backend_go_builtin_retain(GoLowerState* ctx, ZirGoExtern* binding)
         uint8_t* value_9 = (void *)0;
         {
             String s = value_8;
-            value_9 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_9 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_11 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go[0]), value_9) != 0;
+        bool value_11 = zir_foreign_compiler_go_backend__strcmp(&(binding->go[0]), value_9) != 0;
         value_7 = !value_11;
     }
     int32_t value_12 = 0;
@@ -2893,9 +2149,9 @@ compiler_go_backend_go_builtin_cgo_enabled(GoLowerState* ctx, ZirGoExtern* bindi
         uint8_t* value_3 = (void *)0;
         {
             String s = value_2;
-            value_3 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_3 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_5 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go_import_path[0]), value_3) != 0;
+        bool value_5 = zir_foreign_compiler_go_backend__strcmp(&(binding->go_import_path[0]), value_3) != 0;
         value_1 = !value_5;
     }
     bool value_6 = value_1;
@@ -2905,9 +2161,9 @@ compiler_go_backend_go_builtin_cgo_enabled(GoLowerState* ctx, ZirGoExtern* bindi
         uint8_t* value_9 = (void *)0;
         {
             String s = value_8;
-            value_9 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_9 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_11 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go[0]), value_9) != 0;
+        bool value_11 = zir_foreign_compiler_go_backend__strcmp(&(binding->go[0]), value_9) != 0;
         value_7 = !value_11;
     }
     int32_t value_12 = 0;
@@ -2928,9 +2184,9 @@ compiler_go_backend_go_package_initializer(GoLowerState* ctx, ZirGoExtern* bindi
         uint8_t* value_3 = (void *)0;
         {
             String s = value_2;
-            value_3 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_3 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_5 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go_import_path[0]), value_3) != 0;
+        bool value_5 = zir_foreign_compiler_go_backend__strcmp(&(binding->go_import_path[0]), value_3) != 0;
         value_1 = value_5;
     }
     bool value_6 = value_1;
@@ -2940,9 +2196,9 @@ compiler_go_backend_go_package_initializer(GoLowerState* ctx, ZirGoExtern* bindi
         uint8_t* value_9 = (void *)0;
         {
             String s = value_8;
-            value_9 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_9 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_11 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go[0]), value_9) != 0;
+        bool value_11 = zir_foreign_compiler_go_backend__strcmp(&(binding->go[0]), value_9) != 0;
         value_7 = !value_11;
     }
     int32_t value_12 = 0;
@@ -2963,9 +2219,9 @@ compiler_go_backend_go_builtin_assertion(GoLowerState* ctx, ZirGoExtern* binding
         uint8_t* value_3 = (void *)0;
         {
             String s = value_2;
-            value_3 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_3 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_5 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go_import_path[0]), value_3) != 0;
+        bool value_5 = zir_foreign_compiler_go_backend__strcmp(&(binding->go_import_path[0]), value_3) != 0;
         value_1 = !value_5;
     }
     bool value_6 = value_1;
@@ -2975,9 +2231,9 @@ compiler_go_backend_go_builtin_assertion(GoLowerState* ctx, ZirGoExtern* binding
         uint8_t* value_9 = (void *)0;
         {
             String s = value_8;
-            value_9 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_9 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_11 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go[0]), value_9) != 0;
+        bool value_11 = zir_foreign_compiler_go_backend__strcmp(&(binding->go[0]), value_9) != 0;
         value_7 = !value_11;
     }
     int32_t value_12 = 0;
@@ -2998,9 +2254,9 @@ compiler_go_backend_go_builtin_nil_check(GoLowerState* ctx, ZirGoExtern* binding
         uint8_t* value_3 = (void *)0;
         {
             String s = value_2;
-            value_3 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_3 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_5 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go_import_path[0]), value_3) != 0;
+        bool value_5 = zir_foreign_compiler_go_backend__strcmp(&(binding->go_import_path[0]), value_3) != 0;
         value_1 = !value_5;
     }
     bool value_6 = value_1;
@@ -3010,9 +2266,9 @@ compiler_go_backend_go_builtin_nil_check(GoLowerState* ctx, ZirGoExtern* binding
         uint8_t* value_9 = (void *)0;
         {
             String s = value_8;
-            value_9 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_9 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_11 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go[0]), value_9) != 0;
+        bool value_11 = zir_foreign_compiler_go_backend__strcmp(&(binding->go[0]), value_9) != 0;
         value_7 = !value_11;
     }
     int32_t value_12 = 0;
@@ -3026,7 +2282,7 @@ static void
 compiler_go_backend_extern_go_name(GoLowerState* ctx, uint8_t* target, uint8_t* source, uint8_t* dst, size_t dst_size)
 {
     (void)ctx;
-    uint8_t* dot = zir_f_daa84719ffd73ec0_strrchr(target, 46);
+    uint8_t* dot = zir_foreign_compiler_go_backend__strrchr(target, 46);
     uint8_t* value_0 = (void *)0;
     if (dot != (uint8_t*)(((void *)0))) {
         value_0 = (uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t))));
@@ -3039,16 +2295,16 @@ compiler_go_backend_extern_go_name(GoLowerState* ctx, uint8_t* target, uint8_t* 
         uint8_t* value_2 = (void *)0;
         {
             String s = value_1;
-            value_2 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_2 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_snprintf(dst, dst_size, value_2, base);
+        zir_foreign_compiler_go_backend__snprintf(dst, dst_size, value_2, base);
         {
             uint8_t* c = dst;
             while (true) {
                 if (!(c[0] != 0)) {
                     break;
                 }
-                bool value_4 = zir_f_daa84719ffd73ec0_is_ident_char((int32_t)(c[0])) != 0;
+                bool value_4 = zir_foreign_compiler_go_backend__is_ident_char((int32_t)(c[0])) != 0;
                 if (!value_4) {
                     uint8_t* value_5 = &(c[0]);
                     (*value_5) = 95;
@@ -3057,7 +2313,7 @@ compiler_go_backend_extern_go_name(GoLowerState* ctx, uint8_t* target, uint8_t* 
             }
         }
     } else {
-        zir_f_daa84719ffd73ec0_camel_ident(source, dst, dst_size);
+        zir_foreign_compiler_go_backend__camel_ident(source, dst, dst_size);
     }
 }
 
@@ -3068,21 +2324,21 @@ compiler_go_backend_extern_direct_go_target(GoLowerState* ctx, uint8_t* target, 
     uint8_t* slash = (void *)0;
     uint8_t* base = (void *)0;
     size_t n = (size_t)(0LL);
-    bool value_0 = zir_f_daa84719ffd73ec0_GoForeignCallParts(target, import_path, import_path_size, (uint8_t*)(((void *)0)), (size_t)(0LL), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
+    bool value_0 = zir_foreign_compiler_go_backend__GoForeignCallParts(target, import_path, import_path_size, (uint8_t*)(((void *)0)), (size_t)(0LL), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
     if (!value_0) {
         return 0;
     }
-    if (zir_f_daa84719ffd73ec0_GoCHeader(import_path, (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0) {
+    if (zir_foreign_compiler_go_backend__GoCHeader(import_path, (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0) {
         String value_1 = StringLiteral("C");
         uint8_t* value_2 = (void *)0;
         {
             String s = value_1;
-            value_2 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_2 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_snprintf(alias, alias_size, value_2);
+        zir_foreign_compiler_go_backend__snprintf(alias, alias_size, value_2);
         return 1;
     }
-    slash = zir_f_daa84719ffd73ec0_strrchr(import_path, 47);
+    slash = zir_foreign_compiler_go_backend__strrchr(import_path, 47);
     uint8_t* value_4 = (void *)0;
     if (slash != (uint8_t*)(((void *)0))) {
         value_4 = (uint8_t*)(((size_t)(slash) + ((size_t)(1LL) * sizeof(uint8_t))));
@@ -3097,7 +2353,7 @@ compiler_go_backend_extern_direct_go_target(GoLowerState* ctx, uint8_t* target, 
         uint8_t* post2 = base;
         base = (uint8_t*)(((size_t)(base) + sizeof(uint8_t)));
         uint8_t c = post2[0];
-        bool value_5 = zir_f_daa84719ffd73ec0_isalnum((int32_t)(c)) != 0;
+        bool value_5 = zir_foreign_compiler_go_backend__isalnum((int32_t)(c)) != 0;
         if (value_5 || c == 95) {
             size_t post3 = n;
             n = n + 1;
@@ -3116,9 +2372,9 @@ compiler_go_backend_extern_direct_go_target(GoLowerState* ctx, uint8_t* target, 
         uint8_t* value_8 = &(alias[post5]);
         (*value_8) = 120;
     }
-    bool value_9 = zir_f_daa84719ffd73ec0_isdigit((int32_t)(alias[0])) != 0;
+    bool value_9 = zir_foreign_compiler_go_backend__isdigit((int32_t)(alias[0])) != 0;
     if (value_9 && n + (size_t)(1LL) < alias_size) {
-        zir_f_daa84719ffd73ec0_memmove((void*)((uint8_t*)(((size_t)(alias) + ((size_t)(1LL) * sizeof(uint8_t))))), (void*)(alias), n + (size_t)(1LL));
+        zir_foreign_compiler_go_backend__memmove((void*)((uint8_t*)(((size_t)(alias) + ((size_t)(1LL) * sizeof(uint8_t))))), (void*)(alias), n + (size_t)(1LL));
         uint8_t* value_10 = &(alias[0]);
         (*value_10) = 120;
         n = n + 1;
@@ -3138,7 +2394,7 @@ compiler_go_backend_add_extern(GoLowerState* ctx, uint8_t* source, uint8_t* args
     ZirGoExtern* ex = (void *)0;
     GoLowerState* value_0 = ctx;
     uint8_t* value_1 = source;
-    bool value_2 = compiler_go_backend_go_extern_index(value_0, value_1, zir_f_daa84719ffd73ec0_strlen(source)) >= 0;
+    bool value_2 = compiler_go_backend_go_extern_index(value_0, value_1, zir_foreign_compiler_go_backend__strlen(source)) >= 0;
     if (value_2 || ctx->g_extern_count >= 64) {
         return;
     }
@@ -3146,21 +2402,21 @@ compiler_go_backend_add_extern(GoLowerState* ctx, uint8_t* source, uint8_t* args
     int32_t* value_3 = &(ctx->g_extern_count);
     (*value_3) = (int32_t)((uint32_t)((*value_3)) + 1u);
     ex = &(ctx->g_externs[post6]);
-    zir_f_daa84719ffd73ec0_memset((void*)(ex), 0, sizeof(ZirGoExtern));
+    zir_foreign_compiler_go_backend__memset((void*)(ex), 0, sizeof(ZirGoExtern));
     String value_4 = StringLiteral("%s");
     uint8_t* value_5 = (void *)0;
     {
         String s = value_4;
-        value_5 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_5 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_snprintf(&(ex->source[0]), (256) * (sizeof(uint8_t)), value_5, source);
+    zir_foreign_compiler_go_backend__snprintf(&(ex->source[0]), (256) * (sizeof(uint8_t)), value_5, source);
     String value_7 = StringLiteral("%s");
     uint8_t* value_8 = (void *)0;
     {
         String s = value_7;
-        value_8 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_8 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_snprintf(&(ex->ret[0]), (256) * (sizeof(uint8_t)), value_8, ret);
+    zir_foreign_compiler_go_backend__snprintf(&(ex->ret[0]), (256) * (sizeof(uint8_t)), value_8, ret);
     int32_t* value_10 = &(ex->go_results);
     (*value_10) = go_results;
     int32_t* value_11 = &(ex->go_field);
@@ -3169,8 +2425,8 @@ compiler_go_backend_add_extern(GoLowerState* ctx, uint8_t* source, uint8_t* args
     (*value_12) = go_defer;
     int32_t* value_13 = &(ex->go_variadic);
     (*value_13) = go_variadic;
-    zir_e93613178cb7063a_ZirParameters** value_14 = &(ex->parameters);
-    zir_e93613178cb7063a_ZirParameters* value_15 = zir_f_daa84719ffd73ec0_ParametersOf(args);
+    compiler_go_backend_ZirParameters** value_14 = &(ex->parameters);
+    compiler_go_backend_ZirParameters* value_15 = zir_foreign_compiler_go_backend__ParametersOf(args);
     (*value_14) = value_15;
     int32_t* value_16 = &(ex->pcount);
     (*value_16) = ex->parameters->count;
@@ -3180,23 +2436,23 @@ compiler_go_backend_add_extern(GoLowerState* ctx, uint8_t* source, uint8_t* args
             if (!(p < ex->pcount)) {
                 break;
             }
-            zir_16d811ba518a3c8c_ZirParameter* parameter = &(ex->parameters->items[p]);
+            compiler_go_backend_ZirParameter* parameter = &(ex->parameters->items[p]);
             if (parameter->name == (uint8_t*)(((void *)0)) || parameter->type == (uint8_t*)(((void *)0))) {
                 ZirSourceSpan value_17 = span;
                 String value_18 = StringLiteral("zir_go.parameter");
                 uint8_t* value_19 = (void *)0;
                 {
                     String s = value_18;
-                    value_19 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_19 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 String value_21 = StringLiteral("parameters require name: type: %s");
                 uint8_t* value_22 = (void *)0;
                 {
                     String s = value_21;
-                    value_22 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_22 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_Diagnostic(value_17, value_19, value_22, parameter->text);
-                zir_f_daa84719ffd73ec0_exit(1);
+                zir_foreign_compiler_go_backend__Diagnostic(value_17, value_19, value_22, parameter->text);
+                zir_foreign_compiler_go_backend__exit(1);
             }
             p = (int32_t)((uint32_t)p + 1u);
         }
@@ -3209,9 +2465,9 @@ compiler_go_backend_add_extern(GoLowerState* ctx, uint8_t* source, uint8_t* args
         uint8_t* value_28 = (void *)0;
         {
             String s = value_27;
-            value_28 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_28 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_30 = zir_f_daa84719ffd73ec0_strncmp(value_26, value_28, (size_t)(2LL)) != 0;
+        bool value_30 = zir_foreign_compiler_go_backend__strncmp(value_26, value_28, (size_t)(2LL)) != 0;
         value_25 = !value_30;
     }
     if (value_25) {
@@ -3221,7 +2477,7 @@ compiler_go_backend_add_extern(GoLowerState* ctx, uint8_t* source, uint8_t* args
         uint8_t* value_33 = (void *)0;
         {
             String s = value_32;
-            value_33 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_33 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
         uint8_t* value_35 = (void *)0;
         if (provider_symbol != ((void *)0) && provider_symbol[0] != 0) {
@@ -3229,7 +2485,7 @@ compiler_go_backend_add_extern(GoLowerState* ctx, uint8_t* source, uint8_t* args
         } else {
             value_35 = (uint8_t*)(((size_t)(target) + ((size_t)(2LL) * sizeof(uint8_t))));
         }
-        zir_f_daa84719ffd73ec0_snprintf(&(ex->c_symbol[0]), (256) * (sizeof(uint8_t)), value_33, value_35);
+        zir_foreign_compiler_go_backend__snprintf(&(ex->c_symbol[0]), (256) * (sizeof(uint8_t)), value_33, value_35);
     } else {
         bool value_36 = target != (uint8_t*)(((void *)0));
         bool value_37 = value_36;
@@ -3239,9 +2495,9 @@ compiler_go_backend_add_extern(GoLowerState* ctx, uint8_t* source, uint8_t* args
             uint8_t* value_40 = (void *)0;
             {
                 String s = value_39;
-                value_40 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_40 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            bool value_42 = zir_f_daa84719ffd73ec0_strncmp(value_38, value_40, (size_t)(6LL)) == 0;
+            bool value_42 = zir_foreign_compiler_go_backend__strncmp(value_38, value_40, (size_t)(6LL)) == 0;
             value_37 = value_42;
         }
         if (value_37) {
@@ -3252,16 +2508,16 @@ compiler_go_backend_add_extern(GoLowerState* ctx, uint8_t* source, uint8_t* args
                 uint8_t* value_45 = (void *)0;
                 {
                     String s = value_44;
-                    value_45 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_45 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 String value_47 = StringLiteral("bound Ziran host provider is missing: %s:%s");
                 uint8_t* value_48 = (void *)0;
                 {
                     String s = value_47;
-                    value_48 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_48 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_Diagnostic(value_43, value_45, value_48, (uint8_t*)(((size_t)(target) + ((size_t)(6LL) * sizeof(uint8_t)))), provider_symbol);
-                zir_f_daa84719ffd73ec0_exit(1);
+                zir_foreign_compiler_go_backend__Diagnostic(value_43, value_45, value_48, (uint8_t*)(((size_t)(target) + ((size_t)(6LL) * sizeof(uint8_t)))), provider_symbol);
+                zir_foreign_compiler_go_backend__exit(1);
             }
             int32_t* value_50 = &(ex->direct_ziran);
             (*value_50) = 1;
@@ -3269,22 +2525,22 @@ compiler_go_backend_add_extern(GoLowerState* ctx, uint8_t* source, uint8_t* args
             uint8_t* value_52 = (void *)0;
             {
                 String s = value_51;
-                value_52 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_52 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_snprintf(&(ex->provider_go[0]), (512) * (sizeof(uint8_t)), value_52, bound);
+            zir_foreign_compiler_go_backend__snprintf(&(ex->provider_go[0]), (512) * (sizeof(uint8_t)), value_52, bound);
         } else {
             compiler_go_backend_extern_go_name(ctx, target, source, &(ex->go[0]), (256) * (sizeof(uint8_t)));
             int32_t* value_54 = &(ex->direct_go);
             int32_t value_55 = compiler_go_backend_extern_direct_go_target(ctx, target, &(ex->go_import_path[0]), (1024) * (sizeof(uint8_t)), &(ex->go_import_alias[0]), (256) * (sizeof(uint8_t)));
             (*value_54) = value_55;
             if (ex->direct_go != 0) {
-                zir_f_daa84719ffd73ec0_GoForeignCallParts(target, (uint8_t*)(((void *)0)), (size_t)(0LL), &(ex->go_receiver[0]), (256) * (sizeof(uint8_t)), (uint8_t*)(((void *)0)), (size_t)(0LL));
+                zir_foreign_compiler_go_backend__GoForeignCallParts(target, (uint8_t*)(((void *)0)), (size_t)(0LL), &(ex->go_receiver[0]), (256) * (sizeof(uint8_t)), (uint8_t*)(((void *)0)), (size_t)(0LL));
             }
             bool value_56 = ex->direct_go != 0;
-            if (value_56 && zir_f_daa84719ffd73ec0_GoCHeader(&(ex->go_import_path[0]), &(ex->c_header[0]), (1024) * (sizeof(uint8_t))) != 0) {
+            if (value_56 && zir_foreign_compiler_go_backend__GoCHeader(&(ex->go_import_path[0]), &(ex->c_header[0]), (1024) * (sizeof(uint8_t))) != 0) {
                 int32_t* value_57 = &(ex->direct_c);
                 (*value_57) = 1;
-                zir_f_daa84719ffd73ec0_copy_text(&(ex->c_symbol[0]), (256) * (sizeof(uint8_t)), &(ex->go[0]));
+                zir_foreign_compiler_go_backend__copy_text(&(ex->c_symbol[0]), (256) * (sizeof(uint8_t)), &(ex->go[0]));
             }
         }
     }
@@ -3292,10 +2548,10 @@ compiler_go_backend_add_extern(GoLowerState* ctx, uint8_t* source, uint8_t* args
     uint8_t* value_59 = (void *)0;
     {
         String s = value_58;
-        value_59 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_59 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    int32_t value_61 = zir_f_daa84719ffd73ec0_tolower((int32_t)((ctx->g_guard)[0]));
-    zir_f_daa84719ffd73ec0_snprintf(&(ex->host_var[0]), (264) * (sizeof(uint8_t)), value_59, (uint8_t)(value_61), (uint8_t*)(((size_t)(&(ctx->g_guard[0])) + ((size_t)(1LL) * sizeof(uint8_t)))));
+    int32_t value_61 = zir_foreign_compiler_go_backend__tolower((int32_t)((ctx->g_guard)[0]));
+    zir_foreign_compiler_go_backend__snprintf(&(ex->host_var[0]), (264) * (sizeof(uint8_t)), value_59, (uint8_t)(value_61), (uint8_t*)(((size_t)(&(ctx->g_guard[0])) + ((size_t)(1LL) * sizeof(uint8_t)))));
 }
 
 static int32_t
@@ -3337,9 +2593,9 @@ compiler_go_backend_go_prints_floats(GoLowerState* ctx, ZirProgram** programs, i
                                         uint8_t* value_4 = (void *)0;
                                         {
                                             String s = value_3;
-                                            value_4 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                            value_4 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
-                                        bool value_6 = zir_f_daa84719ffd73ec0_strcmp(value_2, value_4) != 0;
+                                        bool value_6 = zir_foreign_compiler_go_backend__strcmp(value_2, value_4) != 0;
                                         value_1 = value_6;
                                     }
                                     if (value_1 || call->first_child < 0) {
@@ -3357,9 +2613,9 @@ compiler_go_backend_go_prints_floats(GoLowerState* ctx, ZirProgram** programs, i
                                             uint8_t* value_9 = (void *)0;
                                             {
                                                 String s = value_8;
-                                                value_9 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                                value_9 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                             }
-                                            bool value_11 = zir_f_daa84719ffd73ec0_strcmp(value_7, value_9) != 0;
+                                            bool value_11 = zir_foreign_compiler_go_backend__strcmp(value_7, value_9) != 0;
                                             bool value_12 = !value_11;
                                             if (!value_12) {
                                                 uint8_t* value_13 = (uint8_t*)(fn->exprs[arg]).type;
@@ -3367,9 +2623,9 @@ compiler_go_backend_go_prints_floats(GoLowerState* ctx, ZirProgram** programs, i
                                                 uint8_t* value_15 = (void *)0;
                                                 {
                                                     String s = value_14;
-                                                    value_15 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                                    value_15 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                                 }
-                                                bool value_17 = zir_f_daa84719ffd73ec0_strcmp(value_13, value_15) != 0;
+                                                bool value_17 = zir_foreign_compiler_go_backend__strcmp(value_13, value_15) != 0;
                                                 value_12 = !value_17;
                                             }
                                             if (value_12) {
@@ -3420,9 +2676,9 @@ compiler_go_backend_go_uses_caller_location(GoLowerState* ctx, ZirProgram** prog
                             uint8_t* value_1 = (void *)0;
                             {
                                 String s = value_0;
-                                value_1 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_1 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            uint8_t* value_3 = zir_f_daa84719ffd73ec0_strstr(&(((module->types[t]).body)[0]), value_1);
+                            uint8_t* value_3 = zir_foreign_compiler_go_backend__strstr(&(((module->types[t]).body)[0]), value_1);
                             if (value_3 != ((void *)0)) {
                                 return 1;
                             }
@@ -3439,9 +2695,9 @@ compiler_go_backend_go_uses_caller_location(GoLowerState* ctx, ZirProgram** prog
                             uint8_t* value_5 = (void *)0;
                             {
                                 String s = value_4;
-                                value_5 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_5 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            uint8_t* value_7 = zir_f_daa84719ffd73ec0_strstr(&(((module->globals[g]).type)[0]), value_5);
+                            uint8_t* value_7 = zir_foreign_compiler_go_backend__strstr(&(((module->globals[g]).type)[0]), value_5);
                             if (value_7 != ((void *)0)) {
                                 return 1;
                             }
@@ -3467,7 +2723,7 @@ compiler_go_backend_go_uses_caller_location(GoLowerState* ctx, ZirProgram** prog
                                     uint8_t* value_13 = (void *)0;
                                     {
                                         String s = value_12;
-                                        value_13 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_13 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
                                     value_11 = value_13;
                                 }
@@ -3477,9 +2733,9 @@ compiler_go_backend_go_uses_caller_location(GoLowerState* ctx, ZirProgram** prog
                             uint8_t* value_16 = (void *)0;
                             {
                                 String s = value_15;
-                                value_16 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_16 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            uint8_t* value_18 = zir_f_daa84719ffd73ec0_strstr(value_9, value_16);
+                            uint8_t* value_18 = zir_foreign_compiler_go_backend__strstr(value_9, value_16);
                             bool value_19 = value_18 != ((void *)0);
                             bool value_20 = value_19;
                             if (!value_20) {
@@ -3487,9 +2743,9 @@ compiler_go_backend_go_uses_caller_location(GoLowerState* ctx, ZirProgram** prog
                                 uint8_t* value_22 = (void *)0;
                                 {
                                     String s = value_21;
-                                    value_22 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_22 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                uint8_t* value_24 = zir_f_daa84719ffd73ec0_strstr(&(fn->return_type[0]), value_22);
+                                uint8_t* value_24 = zir_foreign_compiler_go_backend__strstr(&(fn->return_type[0]), value_22);
                                 value_20 = (value_24 != ((void *)0));
                             }
                             if (value_20) {
@@ -3506,9 +2762,9 @@ compiler_go_backend_go_uses_caller_location(GoLowerState* ctx, ZirProgram** prog
                                     uint8_t* value_27 = (void *)0;
                                     {
                                         String s = value_26;
-                                        value_27 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_27 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    uint8_t* value_29 = zir_f_daa84719ffd73ec0_strstr(value_25, value_27);
+                                    uint8_t* value_29 = zir_foreign_compiler_go_backend__strstr(value_25, value_27);
                                     if (value_29 != ((void *)0)) {
                                         return 1;
                                     }
@@ -3526,9 +2782,9 @@ compiler_go_backend_go_uses_caller_location(GoLowerState* ctx, ZirProgram** prog
                                     uint8_t* value_32 = (void *)0;
                                     {
                                         String s = value_31;
-                                        value_32 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_32 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    uint8_t* value_34 = zir_f_daa84719ffd73ec0_strstr(value_30, value_32);
+                                    uint8_t* value_34 = zir_foreign_compiler_go_backend__strstr(value_30, value_32);
                                     if (value_34 != ((void *)0)) {
                                         return 1;
                                     }
@@ -3560,7 +2816,7 @@ compiler_go_backend_parse_extern_import_with_buffers(GoLowerState* ctx, ZirImpor
             uint8_t* value_3 = (void *)0;
             {
                 String s = value_2;
-                value_3 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_3 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
             value_1 = value_3;
         }
@@ -3568,10 +2824,10 @@ compiler_go_backend_parse_extern_import_with_buffers(GoLowerState* ctx, ZirImpor
         return;
     }
     uint8_t ret[256] = {0};
-    uint8_t* lp = zir_f_daa84719ffd73ec0_strchr(&(imp->signature[0]), 40);
+    uint8_t* lp = zir_foreign_compiler_go_backend__strchr(&(imp->signature[0]), 40);
     uint8_t* value_5 = (void *)0;
     if (lp != (uint8_t*)(((void *)0))) {
-        uint8_t* value_6 = zir_f_daa84719ffd73ec0_strchr(lp, 41);
+        uint8_t* value_6 = zir_foreign_compiler_go_backend__strchr(lp, 41);
         value_5 = value_6;
     } else {
         value_5 = (uint8_t*)(((void *)0));
@@ -3581,18 +2837,18 @@ compiler_go_backend_parse_extern_import_with_buffers(GoLowerState* ctx, ZirImpor
     uint8_t* value_8 = (void *)0;
     {
         String s = value_7;
-        value_8 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_8 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    uint8_t* dir = zir_f_daa84719ffd73ec0_strstr(&(imp->signature[0]), value_8);
+    uint8_t* dir = zir_foreign_compiler_go_backend__strstr(&(imp->signature[0]), value_8);
     uint8_t* value_10 = &(buffers->args[0]);
     (*value_10) = 0;
     String value_11 = StringLiteral("void");
     uint8_t* value_12 = (void *)0;
     {
         String s = value_11;
-        value_12 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_12 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_snprintf(&(ret[0]), (256) * (sizeof(uint8_t)), value_12);
+    zir_foreign_compiler_go_backend__snprintf(&(ret[0]), (256) * (sizeof(uint8_t)), value_12);
     uint8_t* value_14 = &(buffers->target[0]);
     (*value_14) = 0;
     if (lp != (uint8_t*)(((void *)0)) && rp != (uint8_t*)(((void *)0)) && rp > lp) {
@@ -3600,10 +2856,10 @@ compiler_go_backend_parse_extern_import_with_buffers(GoLowerState* ctx, ZirImpor
         uint8_t* value_16 = (void *)0;
         {
             String s = value_15;
-            value_16 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_16 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
         int32_t value_18 = (int32_t)((((ptrdiff_t)(((size_t)(rp) - (size_t)(lp))) / (ptrdiff_t)(sizeof(uint8_t))) - (ptrdiff_t)(1LL)));
-        zir_f_daa84719ffd73ec0_snprintf(&(buffers->args[0]), (8192) * (sizeof(uint8_t)), value_16, value_18, (uint8_t*)(((size_t)(lp) + ((size_t)(1LL) * sizeof(uint8_t)))));
+        zir_foreign_compiler_go_backend__snprintf(&(buffers->args[0]), (8192) * (sizeof(uint8_t)), value_16, value_18, (uint8_t*)(((size_t)(lp) + ((size_t)(1LL) * sizeof(uint8_t)))));
     }
     if (rp != (uint8_t*)(((void *)0))) {
         uint8_t* value_19 = rp;
@@ -3611,9 +2867,9 @@ compiler_go_backend_parse_extern_import_with_buffers(GoLowerState* ctx, ZirImpor
         uint8_t* value_21 = (void *)0;
         {
             String s = value_20;
-            value_21 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_21 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        uint8_t* arrow = zir_f_daa84719ffd73ec0_strstr(value_19, value_21);
+        uint8_t* arrow = zir_foreign_compiler_go_backend__strstr(value_19, value_21);
         if (arrow != (uint8_t*)(((void *)0)) && (dir == (uint8_t*)(((void *)0)) || arrow < dir)) {
             uint8_t* r = (uint8_t*)(((size_t)(arrow) + ((size_t)(2LL) * sizeof(uint8_t))));
             size_t n = (size_t)(0LL);
@@ -3645,17 +2901,17 @@ compiler_go_backend_parse_extern_import_with_buffers(GoLowerState* ctx, ZirImpor
         }
     }
     bool value_25 = (imp->target)[0] != 0;
-    if (value_25 && zir_f_daa84719ffd73ec0_strcmp(&(imp->target[0]), &(imp->name[0])) != 0) {
+    if (value_25 && zir_foreign_compiler_go_backend__strcmp(&(imp->target[0]), &(imp->name[0])) != 0) {
         String value_26 = StringLiteral("%s");
         uint8_t* value_27 = (void *)0;
         {
             String s = value_26;
-            value_27 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_27 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_snprintf(&(buffers->target[0]), (1024) * (sizeof(uint8_t)), value_27, &(imp->target[0]));
+        zir_foreign_compiler_go_backend__snprintf(&(buffers->target[0]), (1024) * (sizeof(uint8_t)), value_27, &(imp->target[0]));
     } else {
         if (dir != (uint8_t*)(((void *)0))) {
-            uint8_t* q = zir_f_daa84719ffd73ec0_strchr((uint8_t*)(((size_t)(dir) + ((size_t)(7LL) * sizeof(uint8_t)))), 34);
+            uint8_t* q = zir_foreign_compiler_go_backend__strchr((uint8_t*)(((size_t)(dir) + ((size_t)(7LL) * sizeof(uint8_t)))), 34);
             if (q != (uint8_t*)(((void *)0))) {
                 size_t n = (size_t)(0LL);
                 uint8_t* r = (uint8_t*)(((size_t)(q) + ((size_t)(1LL) * sizeof(uint8_t))));
@@ -3681,17 +2937,17 @@ compiler_go_backend_parse_extern_import_with_buffers(GoLowerState* ctx, ZirImpor
 static void
 compiler_go_backend_parse_extern_import(GoLowerState* ctx, ZirImport* imp)
 {
-    void* scratch_hint = zir_f_daa84719ffd73ec0_CompilerContextScratch((void*)(&(parse_extern_import_scratch_key)), compiler_go_backend_FreeBuffer);
-    void* value_0 = zir_f_daa84719ffd73ec0_CompilerScratchTake(scratch_hint);
+    void* scratch_hint = zir_foreign_compiler_go_backend__CompilerContextScratch((void*)(&(parse_extern_import_scratch_key)), compiler_go_backend_FreeBuffer);
+    void* value_0 = zir_foreign_compiler_go_backend__CompilerScratchTake(scratch_hint);
     ParseExternImportBuffers* buffers = (ParseExternImportBuffers*)(value_0);
     if (!(buffers != ((void *)0))) {
-        void* value_1 = zir_f_daa84719ffd73ec0_AllocateOrExit(sizeof(ParseExternImportBuffers));
+        void* value_1 = zir_foreign_compiler_go_backend__AllocateOrExit(sizeof(ParseExternImportBuffers));
         buffers = (ParseExternImportBuffers*)(value_1);
     }
     compiler_go_backend_parse_extern_import_with_buffers(ctx, imp, buffers);
-    bool value_2 = zir_f_daa84719ffd73ec0_CompilerScratchPut(scratch_hint, (void*)(buffers)) != 0;
+    bool value_2 = zir_foreign_compiler_go_backend__CompilerScratchPut(scratch_hint, (void*)(buffers)) != 0;
     if (!value_2) {
-        zir_f_daa84719ffd73ec0_free((void*)(buffers));
+        zir_foreign_compiler_go_backend__free((void*)(buffers));
     }
 }
 
@@ -3704,13 +2960,13 @@ compiler_go_backend_parse_enum_with_buffers(GoLowerState* ctx, ZirModule* owner,
     int32_t* value_0 = &(ctx->g_enum_count);
     (*value_0) = (int32_t)((uint32_t)((*value_0)) + 1u);
     e = &(ctx->g_enums[post11]);
-    zir_f_daa84719ffd73ec0_memset((void*)(e), 0, sizeof(ZirGoEnum));
+    zir_foreign_compiler_go_backend__memset((void*)(e), 0, sizeof(ZirGoEnum));
     if (t->native_name_mangled != 0) {
-        zir_f_daa84719ffd73ec0_NativeTypeName(owner, t, &(e->go_type[0]), (256) * (sizeof(uint8_t)));
+        zir_foreign_compiler_go_backend__NativeTypeName(owner, t, &(e->go_type[0]), (256) * (sizeof(uint8_t)));
     } else {
-        zir_f_daa84719ffd73ec0_camel_ident(&(t->name[0]), &(e->go_type[0]), (256) * (sizeof(uint8_t)));
+        zir_foreign_compiler_go_backend__camel_ident(&(t->name[0]), &(e->go_type[0]), (256) * (sizeof(uint8_t)));
     }
-    zir_f_daa84719ffd73ec0_camel_ident(&(t->name[0]), &(e->prefix[0]), (256) * (sizeof(uint8_t)));
+    zir_foreign_compiler_go_backend__camel_ident(&(t->name[0]), &(e->prefix[0]), (256) * (sizeof(uint8_t)));
     while (true) {
         if (!(p[0] != 0)) {
             break;
@@ -3743,10 +2999,10 @@ compiler_go_backend_parse_enum_with_buffers(GoLowerState* ctx, ZirModule* owner,
                 s = (uint8_t*)(((size_t)(s) + sizeof(uint8_t)));
             }
             void* value_3 = (void*)(s);
-            zir_f_daa84719ffd73ec0_memmove((void*)(&(buffers->line[0])), value_3, zir_f_daa84719ffd73ec0_strlen(s) + (size_t)(1LL));
+            zir_foreign_compiler_go_backend__memmove((void*)(&(buffers->line[0])), value_3, zir_foreign_compiler_go_backend__strlen(s) + (size_t)(1LL));
         }
         {
-            size_t ln = zir_f_daa84719ffd73ec0_strlen(&(buffers->line[0]));
+            size_t ln = zir_foreign_compiler_go_backend__strlen(&(buffers->line[0]));
             while (true) {
                 bool value_4 = ln > (size_t)(0LL) && ((buffers->line)[(ln - (size_t)(1LL))] == 32 || (buffers->line)[(ln - (size_t)(1LL))] == 9 || (buffers->line)[(ln - (size_t)(1LL))] == 13);
                 if (!value_4) {
@@ -3761,7 +3017,7 @@ compiler_go_backend_parse_enum_with_buffers(GoLowerState* ctx, ZirModule* owner,
             continue;
         }
         name = &(buffers->line[0]);
-        val = zir_f_daa84719ffd73ec0_strchr(&(buffers->line[0]), 61);
+        val = zir_foreign_compiler_go_backend__strchr(&(buffers->line[0]), 61);
         if (val != (uint8_t*)(((void *)0))) {
             uint8_t* value_6 = &(val[0]);
             (*value_6) = 0;
@@ -3774,7 +3030,7 @@ compiler_go_backend_parse_enum_with_buffers(GoLowerState* ctx, ZirModule* owner,
             }
         }
         {
-            size_t nn = zir_f_daa84719ffd73ec0_strlen(name);
+            size_t nn = zir_foreign_compiler_go_backend__strlen(name);
             while (true) {
                 if (!(nn > (size_t)(0LL) && (name[(nn - (size_t)(1LL))] == 32 || name[(nn - (size_t)(1LL))] == 9))) {
                     break;
@@ -3795,11 +3051,11 @@ compiler_go_backend_parse_enum_with_buffers(GoLowerState* ctx, ZirModule* owner,
                 value_8 = 16;
             }
             int32_t capacity = value_8;
-            void* value_9 = zir_f_daa84719ffd73ec0_realloc((void*)(e->members), (size_t)(capacity) * sizeof(ZirGoEnumMember));
+            void* value_9 = zir_foreign_compiler_go_backend__realloc((void*)(e->members), (size_t)(capacity) * sizeof(ZirGoEnumMember));
             ZirGoEnumMember* members = (ZirGoEnumMember*)(value_9);
             if (members == (ZirGoEnumMember*)(((void *)0))) {
-                zir_f_daa84719ffd73ec0_DiagnosticOutOfMemory();
-                zir_f_daa84719ffd73ec0_exit(1);
+                zir_foreign_compiler_go_backend__DiagnosticOutOfMemory();
+                zir_foreign_compiler_go_backend__exit(1);
             }
             ZirGoEnumMember** value_10 = &(e->members);
             (*value_10) = members;
@@ -3810,29 +3066,29 @@ compiler_go_backend_parse_enum_with_buffers(GoLowerState* ctx, ZirModule* owner,
         int32_t* value_12 = &(e->count);
         (*value_12) = (int32_t)((uint32_t)((*value_12)) + 1u);
         ZirGoEnumMember* m = &(e->members[post14]);
-        zir_f_daa84719ffd73ec0_memset((void*)(m), 0, sizeof(ZirGoEnumMember));
-        bool value_13 = zir_f_daa84719ffd73ec0_NativeEnumMemberName(owner, t, name, &(m->go[0]), (512) * (sizeof(uint8_t))) != 0;
+        zir_foreign_compiler_go_backend__memset((void*)(m), 0, sizeof(ZirGoEnumMember));
+        bool value_13 = zir_foreign_compiler_go_backend__NativeEnumMemberName(owner, t, name, &(m->go[0]), (512) * (sizeof(uint8_t))) != 0;
         if (!value_13) {
             bool value_14 = (e->prefix)[0] != 0;
             bool value_15 = value_14;
             if (value_15) {
                 uint8_t* value_16 = name;
-                bool value_17 = zir_f_daa84719ffd73ec0_strncmp(value_16, &(e->prefix[0]), zir_f_daa84719ffd73ec0_strlen(&(e->prefix[0]))) == 0;
+                bool value_17 = zir_foreign_compiler_go_backend__strncmp(value_16, &(e->prefix[0]), zir_foreign_compiler_go_backend__strlen(&(e->prefix[0]))) == 0;
                 value_15 = value_17;
             }
             if (value_15) {
-                zir_f_daa84719ffd73ec0_camel_ident(name, &(m->go[0]), (512) * (sizeof(uint8_t)));
+                zir_foreign_compiler_go_backend__camel_ident(name, &(m->go[0]), (512) * (sizeof(uint8_t)));
             } else {
                 if ((e->prefix)[0] != 0) {
                     String value_18 = StringLiteral("%s%s");
                     uint8_t* value_19 = (void *)0;
                     {
                         String s = value_18;
-                        value_19 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_19 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
-                    zir_f_daa84719ffd73ec0_snprintf(&(m->go[0]), (512) * (sizeof(uint8_t)), value_19, &(e->prefix[0]), name);
+                    zir_foreign_compiler_go_backend__snprintf(&(m->go[0]), (512) * (sizeof(uint8_t)), value_19, &(e->prefix[0]), name);
                 } else {
-                    zir_f_daa84719ffd73ec0_camel_ident(name, &(m->go[0]), (512) * (sizeof(uint8_t)));
+                    zir_foreign_compiler_go_backend__camel_ident(name, &(m->go[0]), (512) * (sizeof(uint8_t)));
                 }
             }
         }
@@ -3841,9 +3097,9 @@ compiler_go_backend_parse_enum_with_buffers(GoLowerState* ctx, ZirModule* owner,
             uint8_t* value_22 = (void *)0;
             {
                 String s = value_21;
-                value_22 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_22 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_snprintf(&(m->val[0]), (8192) * (sizeof(uint8_t)), value_22, val);
+            zir_foreign_compiler_go_backend__snprintf(&(m->val[0]), (8192) * (sizeof(uint8_t)), value_22, val);
         }
     }
 }
@@ -3851,17 +3107,17 @@ compiler_go_backend_parse_enum_with_buffers(GoLowerState* ctx, ZirModule* owner,
 static void
 compiler_go_backend_parse_enum(GoLowerState* ctx, ZirModule* owner, ZirType* t)
 {
-    void* scratch_hint = zir_f_daa84719ffd73ec0_CompilerContextScratch((void*)(&(parse_enum_scratch_key)), compiler_go_backend_FreeBuffer);
-    void* value_0 = zir_f_daa84719ffd73ec0_CompilerScratchTake(scratch_hint);
+    void* scratch_hint = zir_foreign_compiler_go_backend__CompilerContextScratch((void*)(&(parse_enum_scratch_key)), compiler_go_backend_FreeBuffer);
+    void* value_0 = zir_foreign_compiler_go_backend__CompilerScratchTake(scratch_hint);
     ParseEnumBuffers* buffers = (ParseEnumBuffers*)(value_0);
     if (!(buffers != ((void *)0))) {
-        void* value_1 = zir_f_daa84719ffd73ec0_AllocateOrExit(sizeof(ParseEnumBuffers));
+        void* value_1 = zir_foreign_compiler_go_backend__AllocateOrExit(sizeof(ParseEnumBuffers));
         buffers = (ParseEnumBuffers*)(value_1);
     }
     compiler_go_backend_parse_enum_with_buffers(ctx, owner, t, buffers);
-    bool value_2 = zir_f_daa84719ffd73ec0_CompilerScratchPut(scratch_hint, (void*)(buffers)) != 0;
+    bool value_2 = zir_foreign_compiler_go_backend__CompilerScratchPut(scratch_hint, (void*)(buffers)) != 0;
     if (!value_2) {
-        zir_f_daa84719ffd73ec0_free((void*)(buffers));
+        zir_foreign_compiler_go_backend__free((void*)(buffers));
     }
 }
 
@@ -3872,15 +3128,15 @@ compiler_go_backend_go_set_module(GoLowerState* ctx, ZirModule* m, uint8_t* guar
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_snprintf(&(ctx->g_guard[0]), (256) * (sizeof(uint8_t)), value_1, guard);
+    zir_foreign_compiler_go_backend__snprintf(&(ctx->g_guard[0]), (256) * (sizeof(uint8_t)), value_1, guard);
     int32_t* value_3 = &(ctx->g_extern_count);
     (*value_3) = 0;
     compiler_go_backend_clear_enum_context(ctx);
     if (m->type_count > 0) {
         ZirGoEnum** value_4 = &(ctx->g_enums);
-        void* value_5 = zir_f_daa84719ffd73ec0_AllocateOrExit((size_t)(m->type_count) * sizeof(ZirGoEnum));
+        void* value_5 = zir_foreign_compiler_go_backend__AllocateOrExit((size_t)(m->type_count) * sizeof(ZirGoEnum));
         (*value_4) = (ZirGoEnum*)(value_5);
     }
     {
@@ -3920,7 +3176,7 @@ compiler_go_backend_go_set_module(GoLowerState* ctx, ZirModule* m, uint8_t* guar
                         uint8_t* value_12 = (void *)0;
                         {
                             String s = value_11;
-                            value_12 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_12 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_10 = value_12;
                     }
@@ -3930,7 +3186,7 @@ compiler_go_backend_go_set_module(GoLowerState* ctx, ZirModule* m, uint8_t* guar
                 uint8_t* value_15 = (void *)0;
                 {
                     String s = value_14;
-                    value_15 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_15 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 compiler_go_backend_add_extern(value_6, &(fn->name[0]), value_8, &(fn->return_type[0]), &(fn->extern_target[0]), value_15, 0, 0, 0, 0, fn->span);
             } else {
@@ -3947,7 +3203,7 @@ compiler_go_backend_go_set_module(GoLowerState* ctx, ZirModule* m, uint8_t* guar
                         uint8_t* value_23 = (void *)0;
                         {
                             String s = value_22;
-                            value_23 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_23 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_21 = value_23;
                     }
@@ -3957,13 +3213,13 @@ compiler_go_backend_go_set_module(GoLowerState* ctx, ZirModule* m, uint8_t* guar
                 uint8_t* value_26 = (void *)0;
                 {
                     String s = value_25;
-                    value_26 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_26 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 String value_28 = StringLiteral("");
                 uint8_t* value_29 = (void *)0;
                 {
                     String s = value_28;
-                    value_29 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_29 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 compiler_go_backend_add_extern(value_17, &(fn->name[0]), value_19, &(fn->return_type[0]), value_26, value_29, 0, 0, 0, 0, fn->span);
             }
@@ -3987,7 +3243,7 @@ compiler_go_backend_go_set_module(GoLowerState* ctx, ZirModule* m, uint8_t* guar
 static uint8_t*
 compiler_go_backend_conv_arg(GoLowerState* ctx, uint8_t* source_type, uint8_t* expr)
 {
-    void* value_0 = zir_f_daa84719ffd73ec0_TargetTypeZiran((void*)(source_type), (int32_t)(((ZirTarget)(1))));
+    void* value_0 = zir_foreign_compiler_go_backend__TargetTypeZiran((void*)(source_type), (int32_t)(((ZirTarget)(1))));
     uint8_t* go_type_name = (uint8_t*)(value_0);
     bool value_1 = go_type_name != (uint8_t*)(((void *)0)) && go_type_name[0] != 0;
     bool value_2 = value_1;
@@ -3997,9 +3253,9 @@ compiler_go_backend_conv_arg(GoLowerState* ctx, uint8_t* source_type, uint8_t* e
         uint8_t* value_5 = (void *)0;
         {
             String s = value_4;
-            value_5 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_5 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_7 = zir_f_daa84719ffd73ec0_strcmp(value_3, value_5) != 0;
+        bool value_7 = zir_foreign_compiler_go_backend__strcmp(value_3, value_5) != 0;
         value_2 = value_7;
     }
     bool value_8 = value_2;
@@ -4010,9 +3266,9 @@ compiler_go_backend_conv_arg(GoLowerState* ctx, uint8_t* source_type, uint8_t* e
         uint8_t* value_12 = (void *)0;
         {
             String s = value_11;
-            value_12 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_12 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_14 = zir_f_daa84719ffd73ec0_strcmp(value_10, value_12) != 0;
+        bool value_14 = zir_foreign_compiler_go_backend__strcmp(value_10, value_12) != 0;
         value_9 = value_14;
     }
     if (value_9) {
@@ -4020,17 +3276,17 @@ compiler_go_backend_conv_arg(GoLowerState* ctx, uint8_t* source_type, uint8_t* e
         uint8_t* value_16 = (void *)0;
         {
             String s = value_15;
-            value_16 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_16 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_snprintf(&(ctx->conv_arg_buffer[0]), (8192) * (sizeof(uint8_t)), value_16, go_type_name, expr);
+        zir_foreign_compiler_go_backend__snprintf(&(ctx->conv_arg_buffer[0]), (8192) * (sizeof(uint8_t)), value_16, go_type_name, expr);
     } else {
         String value_18 = StringLiteral("%s");
         uint8_t* value_19 = (void *)0;
         {
             String s = value_18;
-            value_19 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_19 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_snprintf(&(ctx->conv_arg_buffer[0]), (8192) * (sizeof(uint8_t)), value_19, expr);
+        zir_foreign_compiler_go_backend__snprintf(&(ctx->conv_arg_buffer[0]), (8192) * (sizeof(uint8_t)), value_19, expr);
     }
     return &(ctx->conv_arg_buffer[0]);
 }
@@ -4097,12 +3353,12 @@ compiler_go_backend_tx_group_with_buffers(GoLowerState* ctx, ZirModule* m, uint8
     {
         compiler_go_backend_tx_expr(ctx, m, &(buffers->mid[0]), &(buffers->out[0]), (8192) * (sizeof(uint8_t)));
         size_t value_5 = dn[0];
-        if ((value_5 + zir_f_daa84719ffd73ec0_strlen(&(buffers->out[0]))) + (size_t)(1LL) < (size_t)(8192LL)) {
+        if ((value_5 + zir_foreign_compiler_go_backend__strlen(&(buffers->out[0]))) + (size_t)(1LL) < (size_t)(8192LL)) {
             void* value_6 = (void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn[0]) * sizeof(uint8_t)))));
-            zir_f_daa84719ffd73ec0_memcpy(value_6, (void*)(&(buffers->out[0])), zir_f_daa84719ffd73ec0_strlen(&(buffers->out[0])));
+            zir_foreign_compiler_go_backend__memcpy(value_6, (void*)(&(buffers->out[0])), zir_foreign_compiler_go_backend__strlen(&(buffers->out[0])));
             size_t* value_7 = &(dn[0]);
             size_t value_8 = dn[0];
-            size_t value_9 = value_8 + zir_f_daa84719ffd73ec0_strlen(&(buffers->out[0]));
+            size_t value_9 = value_8 + zir_foreign_compiler_go_backend__strlen(&(buffers->out[0]));
             (*value_7) = value_9;
         }
     }
@@ -4118,17 +3374,17 @@ compiler_go_backend_tx_group_with_buffers(GoLowerState* ctx, ZirModule* m, uint8
 static uint8_t*
 compiler_go_backend_tx_group(GoLowerState* ctx, ZirModule* m, uint8_t* src, uint8_t* dst, size_t* dn, uint8_t open, uint8_t close)
 {
-    void* scratch_hint = zir_f_daa84719ffd73ec0_CompilerContextScratch((void*)(&(tx_group_scratch_key)), compiler_go_backend_FreeBuffer);
-    void* value_0 = zir_f_daa84719ffd73ec0_CompilerScratchTake(scratch_hint);
+    void* scratch_hint = zir_foreign_compiler_go_backend__CompilerContextScratch((void*)(&(tx_group_scratch_key)), compiler_go_backend_FreeBuffer);
+    void* value_0 = zir_foreign_compiler_go_backend__CompilerScratchTake(scratch_hint);
     TxGroupBuffers* buffers = (TxGroupBuffers*)(value_0);
     if (!(buffers != ((void *)0))) {
-        void* value_1 = zir_f_daa84719ffd73ec0_AllocateOrExit(sizeof(TxGroupBuffers));
+        void* value_1 = zir_foreign_compiler_go_backend__AllocateOrExit(sizeof(TxGroupBuffers));
         buffers = (TxGroupBuffers*)(value_1);
     }
     uint8_t* returned = compiler_go_backend_tx_group_with_buffers(ctx, m, src, dst, dn, open, close, buffers);
-    bool value_2 = zir_f_daa84719ffd73ec0_CompilerScratchPut(scratch_hint, (void*)(buffers)) != 0;
+    bool value_2 = zir_foreign_compiler_go_backend__CompilerScratchPut(scratch_hint, (void*)(buffers)) != 0;
     if (!value_2) {
-        zir_f_daa84719ffd73ec0_free((void*)(buffers));
+        zir_foreign_compiler_go_backend__free((void*)(buffers));
     }
     return returned;
 }
@@ -4150,16 +3406,16 @@ compiler_go_backend_resolve_slot_type(void* context, uint8_t* source, uint8_t* o
         uint8_t* value_4 = (void *)0;
         {
             String s = value_3;
-            value_4 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_4 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
         String value_6 = StringLiteral("unsupported slot parameter type: %s");
         uint8_t* value_7 = (void *)0;
         {
             String s = value_6;
-            value_7 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_7 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_Diagnostic(value_2, value_4, value_7, source);
-        zir_f_daa84719ffd73ec0_exit(1);
+        zir_foreign_compiler_go_backend__Diagnostic(value_2, value_4, value_7, source);
+        zir_foreign_compiler_go_backend__exit(1);
     }
 }
 
@@ -4169,7 +3425,7 @@ compiler_go_backend_module_global_owner(GoLowerState* ctx, ZirModule* module, ui
     (void)ctx;
     ZirModule* owner = (ZirModule*)(((void *)0));
     ZirGlobal* global = (ZirGlobal*)(((void *)0));
-    bool value_0 = zir_f_daa84719ffd73ec0_ResolveGlobal(module, name, &(owner), &(global)) == 1;
+    bool value_0 = zir_foreign_compiler_go_backend__ResolveGlobal(module, name, &(owner), &(global)) == 1;
     ZirModule* value_1 = (void *)0;
     if (value_0) {
         value_1 = owner;
@@ -4263,13 +3519,13 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
             }
             continue;
         }
-        if (zir_f_daa84719ffd73ec0_isdigit((int32_t)(p[0])) != 0) {
+        if (zir_foreign_compiler_go_backend__isdigit((int32_t)(p[0])) != 0) {
             uint8_t* q = p;
             uint8_t* num_end = (void *)0;
             if (q[0] == 48 && (q[1] == 120 || q[1] == 88)) {
                 q = (uint8_t*)(((size_t)(q) + ((size_t)(2LL) * sizeof(uint8_t))));
                 while (true) {
-                    bool value_8 = zir_f_daa84719ffd73ec0_isxdigit((int32_t)(q[0])) != 0;
+                    bool value_8 = zir_foreign_compiler_go_backend__isxdigit((int32_t)(q[0])) != 0;
                     if (!value_8) {
                         break;
                     }
@@ -4277,7 +3533,7 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                 }
             } else {
                 while (true) {
-                    bool value_9 = zir_f_daa84719ffd73ec0_isdigit((int32_t)(q[0])) != 0;
+                    bool value_9 = zir_foreign_compiler_go_backend__isdigit((int32_t)(q[0])) != 0;
                     if (!(value_9 || q[0] == 46)) {
                         break;
                     }
@@ -4289,7 +3545,7 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                         q = (uint8_t*)(((size_t)(q) + sizeof(uint8_t)));
                     }
                     while (true) {
-                        bool value_10 = zir_f_daa84719ffd73ec0_isdigit((int32_t)(q[0])) != 0;
+                        bool value_10 = zir_foreign_compiler_go_backend__isdigit((int32_t)(q[0])) != 0;
                         if (!value_10) {
                             break;
                         }
@@ -4312,13 +3568,13 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
             p = q;
             continue;
         }
-        if (zir_f_daa84719ffd73ec0_is_ident_char((int32_t)(p[0])) != 0) {
+        if (zir_foreign_compiler_go_backend__is_ident_char((int32_t)(p[0])) != 0) {
             uint8_t* q = p;
             uint8_t ident[256] = {0};
             size_t il = (size_t)(0LL);
             int32_t fni = 0;
             while (true) {
-                bool value_12 = zir_f_daa84719ffd73ec0_is_ident_char((int32_t)(q[0])) != 0;
+                bool value_12 = zir_foreign_compiler_go_backend__is_ident_char((int32_t)(q[0])) != 0;
                 if (!(value_12 && il + (size_t)(1LL) < ((256) * (sizeof(uint8_t))))) {
                     break;
                 }
@@ -4343,7 +3599,7 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
             bool value_16 = q[0] == 46;
             bool value_17 = value_16;
             if (value_17) {
-                bool value_18 = zir_f_daa84719ffd73ec0_isalpha((int32_t)(q[1])) != 0;
+                bool value_18 = zir_foreign_compiler_go_backend__isalpha((int32_t)(q[1])) != 0;
                 value_17 = (value_18 || q[1] == 95);
             }
             bool value_19 = value_17;
@@ -4354,11 +3610,11 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
             }
             if (value_20) {
                 ZirModule* enum_owner = (ZirModule*)(((void *)0));
-                ZirType* enumeration = zir_f_daa84719ffd73ec0_CFindType(m, &(ident[0]), &(enum_owner));
+                ZirType* enumeration = zir_foreign_compiler_go_backend__CFindType(m, &(ident[0]), &(enum_owner));
                 uint8_t* member = (uint8_t*)(((size_t)(q) + ((size_t)(1LL) * sizeof(uint8_t))));
                 uint8_t* end = member;
                 while (true) {
-                    bool value_22 = zir_f_daa84719ffd73ec0_is_ident_char((int32_t)(end[0])) != 0;
+                    bool value_22 = zir_foreign_compiler_go_backend__is_ident_char((int32_t)(end[0])) != 0;
                     if (!value_22) {
                         break;
                     }
@@ -4369,50 +3625,50 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                     uint8_t source_name[256] = {0};
                     uint8_t prefix[256] = {0};
                     int64_t value = 0;
-                    zir_f_daa84719ffd73ec0_memcpy((void*)(&(source_name[0])), (void*)(member), length);
+                    zir_foreign_compiler_go_backend__memcpy((void*)(&(source_name[0])), (void*)(member), length);
                     uint8_t* value_23 = &(source_name[length]);
                     (*value_23) = 0;
-                    if (zir_f_daa84719ffd73ec0_EnumMemberValue(enumeration, &(source_name[0]), &(value)) != 0) {
+                    if (zir_foreign_compiler_go_backend__EnumMemberValue(enumeration, &(source_name[0]), &(value)) != 0) {
                         bool value_24 = enum_owner == (ZirModule*)(((void *)0));
                         bool value_25 = value_24;
                         if (!value_25) {
-                            bool value_26 = zir_f_daa84719ffd73ec0_NativeEnumMemberName(enum_owner, enumeration, &(source_name[0]), &(buffers->mapped[0]), (512) * (sizeof(uint8_t))) != 0;
+                            bool value_26 = zir_foreign_compiler_go_backend__NativeEnumMemberName(enum_owner, enumeration, &(source_name[0]), &(buffers->mapped[0]), (512) * (sizeof(uint8_t))) != 0;
                             value_25 = !value_26;
                         }
                         if (value_25) {
-                            zir_f_daa84719ffd73ec0_camel_ident(&(enumeration->name[0]), &(prefix[0]), (256) * (sizeof(uint8_t)));
+                            zir_foreign_compiler_go_backend__camel_ident(&(enumeration->name[0]), &(prefix[0]), (256) * (sizeof(uint8_t)));
                             bool value_27 = (prefix)[0] != 0;
-                            if (value_27 && zir_f_daa84719ffd73ec0_strncmp(&(source_name[0]), &(prefix[0]), zir_f_daa84719ffd73ec0_strlen(&(prefix[0]))) == 0) {
-                                zir_f_daa84719ffd73ec0_camel_ident(&(source_name[0]), &(buffers->mapped[0]), (512) * (sizeof(uint8_t)));
+                            if (value_27 && zir_foreign_compiler_go_backend__strncmp(&(source_name[0]), &(prefix[0]), zir_foreign_compiler_go_backend__strlen(&(prefix[0]))) == 0) {
+                                zir_foreign_compiler_go_backend__camel_ident(&(source_name[0]), &(buffers->mapped[0]), (512) * (sizeof(uint8_t)));
                             } else {
                                 String value_28 = StringLiteral("%s%s");
                                 uint8_t* value_29 = (void *)0;
                                 {
                                     String s = value_28;
-                                    value_29 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_29 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_snprintf(&(buffers->mapped[0]), (512) * (sizeof(uint8_t)), value_29, &(prefix[0]), &(source_name[0]));
+                                zir_foreign_compiler_go_backend__snprintf(&(buffers->mapped[0]), (512) * (sizeof(uint8_t)), value_29, &(prefix[0]), &(source_name[0]));
                             }
                         }
-                        length = zir_f_daa84719ffd73ec0_strlen(&(buffers->mapped[0]));
+                        length = zir_foreign_compiler_go_backend__strlen(&(buffers->mapped[0]));
                         if (dn + length >= dst_size) {
                             ZirSourceSpan value_31 = enumeration->span;
                             String value_32 = StringLiteral("zir_go.enum");
                             uint8_t* value_33 = (void *)0;
                             {
                                 String s = value_32;
-                                value_33 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_33 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
                             String value_35 = StringLiteral("enum member target name exceeds output limit");
                             uint8_t* value_36 = (void *)0;
                             {
                                 String s = value_35;
-                                value_36 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_36 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_Diagnostic(value_31, value_33, value_36);
-                            zir_f_daa84719ffd73ec0_exit(1);
+                            zir_foreign_compiler_go_backend__Diagnostic(value_31, value_33, value_36);
+                            zir_foreign_compiler_go_backend__exit(1);
                         }
-                        zir_f_daa84719ffd73ec0_memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(buffers->mapped[0])), length);
+                        zir_foreign_compiler_go_backend__memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(buffers->mapped[0])), length);
                         dn = dn + length;
                         p = end;
                         continue;
@@ -4424,11 +3680,11 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                 bool value_38 = xi >= 0;
                 bool value_39 = value_38;
                 if (value_39) {
-                    uint8_t* value_40 = zir_f_daa84719ffd73ec0_skip_ws(q);
+                    uint8_t* value_40 = zir_foreign_compiler_go_backend__skip_ws(q);
                     value_39 = (value_40[0] == 40);
                 }
                 if (value_39) {
-                    uint8_t* value_41 = zir_f_daa84719ffd73ec0_skip_ws(q);
+                    uint8_t* value_41 = zir_foreign_compiler_go_backend__skip_ws(q);
                     uint8_t* ap = (uint8_t*)(((size_t)(value_41) + ((size_t)(1LL) * sizeof(uint8_t))));
                     uint8_t* ae = ap;
                     int32_t depth = 1;
@@ -4502,9 +3758,9 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                         uint8_t* value_51 = (void *)0;
                         {
                             String s = value_50;
-                            value_51 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_51 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        int32_t value_53 = zir_f_daa84719ffd73ec0_snprintf(value_48, value_49, value_51);
+                        int32_t value_53 = zir_foreign_compiler_go_backend__snprintf(value_48, value_49, value_51);
                         dn = value_47 + (size_t)(value_53);
                     }
                     bool value_54 = (ctx->g_externs[xi]).direct_c != 0 || (ctx->g_externs[xi]).go_results != 0 || (ctx->g_externs[xi]).go_field != 0;
@@ -4525,7 +3781,7 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                     bool value_69 = value_68;
                     if (value_69 || compiler_go_backend_go_package_initializer(ctx, &(ctx->g_externs[xi])) != 0) {
                         uint8_t name[256] = {0};
-                        zir_f_daa84719ffd73ec0_camel_ident(&(((ctx->g_externs[xi]).source)[0]), &(name[0]), (256) * (sizeof(uint8_t)));
+                        zir_foreign_compiler_go_backend__camel_ident(&(((ctx->g_externs[xi]).source)[0]), &(name[0]), (256) * (sizeof(uint8_t)));
                         size_t value_70 = dn;
                         uint8_t* value_71 = (uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))));
                         size_t value_72 = (size_t)(8192LL) - dn;
@@ -4533,9 +3789,9 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                         uint8_t* value_74 = (void *)0;
                         {
                             String s = value_73;
-                            value_74 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_74 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        int32_t value_76 = zir_f_daa84719ffd73ec0_snprintf(value_71, value_72, value_74, &(ctx->g_guard[0]), &(name[0]));
+                        int32_t value_76 = zir_foreign_compiler_go_backend__snprintf(value_71, value_72, value_74, &(ctx->g_guard[0]), &(name[0]));
                         dn = value_70 + (size_t)(value_76);
                     } else {
                         if ((ctx->g_externs[xi]).direct_ziran != 0) {
@@ -4546,9 +3802,9 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                             uint8_t* value_81 = (void *)0;
                             {
                                 String s = value_80;
-                                value_81 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_81 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            int32_t value_83 = zir_f_daa84719ffd73ec0_snprintf(value_78, value_79, value_81, &(((ctx->g_externs[xi]).provider_go)[0]));
+                            int32_t value_83 = zir_foreign_compiler_go_backend__snprintf(value_78, value_79, value_81, &(((ctx->g_externs[xi]).provider_go)[0]));
                             dn = value_77 + (size_t)(value_83);
                         } else {
                             bool value_84 = (ctx->g_externs[xi]).direct_go != 0;
@@ -4558,9 +3814,9 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                                 uint8_t* value_87 = (void *)0;
                                 {
                                     String s = value_86;
-                                    value_87 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_87 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                bool value_89 = zir_f_daa84719ffd73ec0_strcmp(&(((ctx->g_externs[xi]).go_import_path)[0]), value_87) != 0;
+                                bool value_89 = zir_foreign_compiler_go_backend__strcmp(&(((ctx->g_externs[xi]).go_import_path)[0]), value_87) != 0;
                                 value_85 = !value_89;
                             }
                             bool value_90 = value_85;
@@ -4570,18 +3826,18 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                                 uint8_t* value_93 = (void *)0;
                                 {
                                     String s = value_92;
-                                    value_93 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_93 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                bool value_95 = zir_f_daa84719ffd73ec0_strcmp(&(((ctx->g_externs[xi]).go)[0]), value_93) != 0;
+                                bool value_95 = zir_foreign_compiler_go_backend__strcmp(&(((ctx->g_externs[xi]).go)[0]), value_93) != 0;
                                 bool value_96 = !value_95;
                                 if (!value_96) {
                                     String value_97 = StringLiteral("make");
                                     uint8_t* value_98 = (void *)0;
                                     {
                                         String s = value_97;
-                                        value_98 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_98 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    bool value_100 = zir_f_daa84719ffd73ec0_strcmp(&(((ctx->g_externs[xi]).go)[0]), value_98) != 0;
+                                    bool value_100 = zir_foreign_compiler_go_backend__strcmp(&(((ctx->g_externs[xi]).go)[0]), value_98) != 0;
                                     value_96 = !value_100;
                                 }
                                 value_91 = value_96;
@@ -4593,9 +3849,9 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                                 uint8_t* value_102 = (void *)0;
                                 {
                                     String s = value_101;
-                                    value_102 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_102 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                bool value_104 = zir_f_daa84719ffd73ec0_strcmp(&(((ctx->g_externs[xi]).go)[0]), value_102) != 0;
+                                bool value_104 = zir_foreign_compiler_go_backend__strcmp(&(((ctx->g_externs[xi]).go)[0]), value_102) != 0;
                                 if (!value_104) {
                                     allocation_type = (uint8_t*)(((size_t)(allocation_type) + sizeof(uint8_t)));
                                 }
@@ -4607,7 +3863,7 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                                 uint8_t* value_109 = (void *)0;
                                 {
                                     String s = value_108;
-                                    value_109 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_109 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
                                 uint8_t* value_111 = (void *)0;
                                 if (all_ws != 0) {
@@ -4615,7 +3871,7 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                                     uint8_t* value_113 = (void *)0;
                                     {
                                         String s = value_112;
-                                        value_113 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_113 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
                                     value_111 = value_113;
                                 } else {
@@ -4623,11 +3879,11 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                                     uint8_t* value_116 = (void *)0;
                                     {
                                         String s = value_115;
-                                        value_116 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_116 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
                                     value_111 = value_116;
                                 }
-                                int32_t value_118 = zir_f_daa84719ffd73ec0_snprintf(value_106, value_107, value_109, &(((ctx->g_externs[xi]).go)[0]), &(allocated[0]), value_111);
+                                int32_t value_118 = zir_foreign_compiler_go_backend__snprintf(value_106, value_107, value_109, &(((ctx->g_externs[xi]).go)[0]), &(allocated[0]), value_111);
                                 dn = value_105 + (size_t)(value_118);
                             } else {
                                 bool value_119 = (ctx->g_externs[xi]).direct_go != 0 && !(((ctx->g_externs[xi]).go_receiver)[0] != 0);
@@ -4637,9 +3893,9 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                                     uint8_t* value_122 = (void *)0;
                                     {
                                         String s = value_121;
-                                        value_122 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_122 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    bool value_124 = zir_f_daa84719ffd73ec0_strcmp(&(((ctx->g_externs[xi]).go_import_path)[0]), value_122) != 0;
+                                    bool value_124 = zir_foreign_compiler_go_backend__strcmp(&(((ctx->g_externs[xi]).go_import_path)[0]), value_122) != 0;
                                     value_120 = !value_124;
                                 }
                                 if (value_120) {
@@ -4650,9 +3906,9 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                                     uint8_t* value_129 = (void *)0;
                                     {
                                         String s = value_128;
-                                        value_129 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_129 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    int32_t value_131 = zir_f_daa84719ffd73ec0_snprintf(value_126, value_127, value_129, &(((ctx->g_externs[xi]).go)[0]));
+                                    int32_t value_131 = zir_foreign_compiler_go_backend__snprintf(value_126, value_127, value_129, &(((ctx->g_externs[xi]).go)[0]));
                                     dn = value_125 + (size_t)(value_131);
                                 } else {
                                     if ((ctx->g_externs[xi]).direct_go != 0 && ((ctx->g_externs[xi]).go_receiver)[0] != 0) {
@@ -4664,7 +3920,7 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                                         uint8_t* value_136 = (void *)0;
                                         {
                                             String s = value_135;
-                                            value_136 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                            value_136 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
                                         uint8_t* value_138 = (void *)0;
                                         if (receiver[0] == 42) {
@@ -4672,7 +3928,7 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                                             uint8_t* value_140 = (void *)0;
                                             {
                                                 String s = value_139;
-                                                value_140 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                                value_140 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                             }
                                             value_138 = value_140;
                                         } else {
@@ -4680,7 +3936,7 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                                             uint8_t* value_143 = (void *)0;
                                             {
                                                 String s = value_142;
-                                                value_143 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                                value_143 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                             }
                                             value_138 = value_143;
                                         }
@@ -4688,7 +3944,7 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                                         if (receiver[0] == 42) {
                                             value_145 = 1;
                                         }
-                                        int32_t value_146 = zir_f_daa84719ffd73ec0_snprintf(value_133, value_134, value_136, value_138, &(((ctx->g_externs[xi]).go_import_alias)[0]), (uint8_t*)(((size_t)(receiver) + (value_145 * sizeof(uint8_t)))), &(((ctx->g_externs[xi]).go)[0]));
+                                        int32_t value_146 = zir_foreign_compiler_go_backend__snprintf(value_133, value_134, value_136, value_138, &(((ctx->g_externs[xi]).go_import_alias)[0]), (uint8_t*)(((size_t)(receiver) + (value_145 * sizeof(uint8_t)))), &(((ctx->g_externs[xi]).go)[0]));
                                         dn = value_132 + (size_t)(value_146);
                                     } else {
                                         if ((ctx->g_externs[xi]).direct_go != 0) {
@@ -4699,9 +3955,9 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                                             uint8_t* value_151 = (void *)0;
                                             {
                                                 String s = value_150;
-                                                value_151 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                                value_151 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                             }
-                                            int32_t value_153 = zir_f_daa84719ffd73ec0_snprintf(value_148, value_149, value_151, &(((ctx->g_externs[xi]).go_import_alias)[0]), &(((ctx->g_externs[xi]).go)[0]));
+                                            int32_t value_153 = zir_foreign_compiler_go_backend__snprintf(value_148, value_149, value_151, &(((ctx->g_externs[xi]).go_import_alias)[0]), &(((ctx->g_externs[xi]).go)[0]));
                                             dn = value_147 + (size_t)(value_153);
                                         } else {
                                             size_t value_154 = dn;
@@ -4711,9 +3967,9 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                                             uint8_t* value_158 = (void *)0;
                                             {
                                                 String s = value_157;
-                                                value_158 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                                value_158 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                             }
-                                            int32_t value_160 = zir_f_daa84719ffd73ec0_snprintf(value_155, value_156, value_158, &(((ctx->g_externs[xi]).host_var)[0]), &(((ctx->g_externs[xi]).go)[0]));
+                                            int32_t value_160 = zir_foreign_compiler_go_backend__snprintf(value_155, value_156, value_158, &(((ctx->g_externs[xi]).host_var)[0]), &(((ctx->g_externs[xi]).go)[0]));
                                             dn = value_154 + (size_t)(value_160);
                                         }
                                     }
@@ -4722,7 +3978,7 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                         }
                     }
                     if (!(all_ws != 0)) {
-                        zir_e93613178cb7063a_ZirParameters* arguments = zir_f_daa84719ffd73ec0_ParametersOf(&(buffers->raw[0]));
+                        compiler_go_backend_ZirParameters* arguments = zir_foreign_compiler_go_backend__ParametersOf(&(buffers->raw[0]));
                         {
                             int32_t i = 0;
                             while (true) {
@@ -4738,9 +3994,9 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                                     uint8_t* value_165 = (void *)0;
                                     {
                                         String s = value_164;
-                                        value_165 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_165 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    int32_t value_167 = zir_f_daa84719ffd73ec0_snprintf(value_162, value_163, value_165);
+                                    int32_t value_167 = zir_foreign_compiler_go_backend__snprintf(value_162, value_163, value_165);
                                     dn = value_161 + (size_t)(value_167);
                                 }
                                 if (i < (ctx->g_externs[xi]).pcount) {
@@ -4751,9 +4007,9 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                                     uint8_t* value_172 = (void *)0;
                                     {
                                         String s = value_171;
-                                        value_172 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_172 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    int32_t value_174 = zir_f_daa84719ffd73ec0_snprintf(value_169, value_170, value_172, compiler_go_backend_conv_arg(ctx, ((((ctx->g_externs[xi]).parameters)->items)[i]).type, &(buffers->arg[0])));
+                                    int32_t value_174 = zir_foreign_compiler_go_backend__snprintf(value_169, value_170, value_172, compiler_go_backend_conv_arg(ctx, ((((ctx->g_externs[xi]).parameters)->items)[i]).type, &(buffers->arg[0])));
                                     dn = value_168 + (size_t)(value_174);
                                 } else {
                                     size_t value_175 = dn;
@@ -4763,9 +4019,9 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                                     uint8_t* value_179 = (void *)0;
                                     {
                                         String s = value_178;
-                                        value_179 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_179 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    int32_t value_181 = zir_f_daa84719ffd73ec0_snprintf(value_176, value_177, value_179, &(buffers->arg[0]));
+                                    int32_t value_181 = zir_foreign_compiler_go_backend__snprintf(value_176, value_177, value_179, &(buffers->arg[0]));
                                     dn = value_175 + (size_t)(value_181);
                                 }
                                 i = (int32_t)((uint32_t)i + 1u);
@@ -4785,7 +4041,7 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                 uint8_t* member = (uint8_t*)(((size_t)(q) + ((size_t)(1LL) * sizeof(uint8_t))));
                 uint8_t* end = member;
                 while (true) {
-                    bool value_183 = zir_f_daa84719ffd73ec0_is_ident_char((int32_t)(end[0])) != 0;
+                    bool value_183 = zir_foreign_compiler_go_backend__is_ident_char((int32_t)(end[0])) != 0;
                     if (!value_183) {
                         break;
                     }
@@ -4794,15 +4050,15 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                 if (end > member && (size_t)(((ptrdiff_t)(((size_t)(end) - (size_t)(p))) / (ptrdiff_t)(sizeof(uint8_t)))) < (size_t)(128LL)) {
                     uint8_t qualified[128] = {0};
                     uint8_t native[256] = {0};
-                    zir_f_daa84719ffd73ec0_memcpy((void*)(&(qualified[0])), (void*)(p), (size_t)(((ptrdiff_t)(((size_t)(end) - (size_t)(p))) / (ptrdiff_t)(sizeof(uint8_t)))));
+                    zir_foreign_compiler_go_backend__memcpy((void*)(&(qualified[0])), (void*)(p), (size_t)(((ptrdiff_t)(((size_t)(end) - (size_t)(p))) / (ptrdiff_t)(sizeof(uint8_t)))));
                     uint8_t* value_184 = &(qualified[((ptrdiff_t)(((size_t)(end) - (size_t)(p))) / (ptrdiff_t)(sizeof(uint8_t)))]);
                     (*value_184) = 0;
-                    if (zir_f_daa84719ffd73ec0_NativeTypeAtUse(m, &(qualified[0]), &(native[0]), (256) * (sizeof(uint8_t))) != 0) {
-                        size_t length = zir_f_daa84719ffd73ec0_strlen(&(native[0]));
+                    if (zir_foreign_compiler_go_backend__NativeTypeAtUse(m, &(qualified[0]), &(native[0]), (256) * (sizeof(uint8_t))) != 0) {
+                        size_t length = zir_foreign_compiler_go_backend__strlen(&(native[0]));
                         if (dn + length >= dst_size) {
                             break;
                         }
-                        zir_f_daa84719ffd73ec0_memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(native[0])), length);
+                        zir_foreign_compiler_go_backend__memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(native[0])), length);
                         dn = dn + length;
                         p = end;
                         continue;
@@ -4811,22 +4067,22 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
                 bool value_185 = end > member;
                 bool value_186 = value_185;
                 if (value_186) {
-                    uint8_t* value_187 = zir_f_daa84719ffd73ec0_skip_ws(end);
+                    uint8_t* value_187 = zir_foreign_compiler_go_backend__skip_ws(end);
                     value_186 = (value_187[0] == 40);
                 }
                 if (value_186 && (size_t)(((ptrdiff_t)(((size_t)(end) - (size_t)(p))) / (ptrdiff_t)(sizeof(uint8_t)))) < (size_t)(128LL)) {
                     int32_t gfi = compiler_go_backend_go_global_function_index(ctx, m, p, (size_t)(((ptrdiff_t)(((size_t)(end) - (size_t)(p))) / (ptrdiff_t)(sizeof(uint8_t)))));
                     if (gfi >= 0) {
-                        size_t length = zir_f_daa84719ffd73ec0_strlen(&(((ctx->g_functions[gfi]).go)[0]));
+                        size_t length = zir_foreign_compiler_go_backend__strlen(&(((ctx->g_functions[gfi]).go)[0]));
                         if ((dn + length) + (size_t)(2LL) < dst_size) {
-                            zir_f_daa84719ffd73ec0_memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(((ctx->g_functions[gfi]).go)[0])), length);
+                            zir_foreign_compiler_go_backend__memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(((ctx->g_functions[gfi]).go)[0])), length);
                             dn = dn + length;
                             size_t post52 = dn;
                             dn = dn + 1;
                             uint8_t* value_188 = &(dst[post52]);
                             (*value_188) = 40;
                         }
-                        uint8_t* value_189 = zir_f_daa84719ffd73ec0_skip_ws(end);
+                        uint8_t* value_189 = zir_foreign_compiler_go_backend__skip_ws(end);
                         p = (uint8_t*)(((size_t)(value_189) + ((size_t)(1LL) * sizeof(uint8_t))));
                         continue;
                     }
@@ -4836,50 +4092,50 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
             bool value_190 = fni >= 0;
             bool value_191 = value_190;
             if (value_191) {
-                uint8_t* value_192 = zir_f_daa84719ffd73ec0_skip_ws(q);
+                uint8_t* value_192 = zir_foreign_compiler_go_backend__skip_ws(q);
                 value_191 = (value_192[0] == 40);
             }
             if (value_191) {
                 size_t fl = 0;
                 {
                     uint8_t local[256] = {0};
-                    zir_f_daa84719ffd73ec0_camel_ident(&(((m->functions[fni]).name)[0]), &(local[0]), (256) * (sizeof(uint8_t)));
+                    zir_foreign_compiler_go_backend__camel_ident(&(((m->functions[fni]).name)[0]), &(local[0]), (256) * (sizeof(uint8_t)));
                     String value_193 = StringLiteral("%s_%s");
                     uint8_t* value_194 = (void *)0;
                     {
                         String s = value_193;
-                        value_194 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_194 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
-                    zir_f_daa84719ffd73ec0_snprintf(&(buffers->fname[0]), (512) * (sizeof(uint8_t)), value_194, &(ctx->g_guard[0]), &(local[0]));
+                    zir_foreign_compiler_go_backend__snprintf(&(buffers->fname[0]), (512) * (sizeof(uint8_t)), value_194, &(ctx->g_guard[0]), &(local[0]));
                 }
-                fl = zir_f_daa84719ffd73ec0_strlen(&(buffers->fname[0]));
+                fl = zir_foreign_compiler_go_backend__strlen(&(buffers->fname[0]));
                 if ((dn + fl) + (size_t)(16LL) < dst_size) {
-                    zir_f_daa84719ffd73ec0_memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(buffers->fname[0])), fl);
+                    zir_foreign_compiler_go_backend__memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(buffers->fname[0])), fl);
                     dn = dn + fl;
                     size_t post53 = dn;
                     dn = dn + 1;
                     uint8_t* value_196 = &(dst[post53]);
                     (*value_196) = 40;
                 }
-                uint8_t* value_197 = zir_f_daa84719ffd73ec0_skip_ws(q);
+                uint8_t* value_197 = zir_foreign_compiler_go_backend__skip_ws(q);
                 p = (uint8_t*)(((size_t)(value_197) + ((size_t)(1LL) * sizeof(uint8_t))));
                 continue;
             }
-            uint8_t* value_198 = zir_f_daa84719ffd73ec0_skip_ws(q);
+            uint8_t* value_198 = zir_foreign_compiler_go_backend__skip_ws(q);
             if (value_198[0] == 40) {
                 int32_t gfi = compiler_go_backend_go_global_function_index(ctx, m, &(ident[0]), il);
                 bool value_199 = gfi >= 0;
-                if (value_199 && zir_f_daa84719ffd73ec0_strcmp(&(((ctx->g_functions[gfi]).guard)[0]), &(ctx->g_guard[0])) != 0) {
-                    size_t fl = zir_f_daa84719ffd73ec0_strlen(&(((ctx->g_functions[gfi]).go)[0]));
+                if (value_199 && zir_foreign_compiler_go_backend__strcmp(&(((ctx->g_functions[gfi]).guard)[0]), &(ctx->g_guard[0])) != 0) {
+                    size_t fl = zir_foreign_compiler_go_backend__strlen(&(((ctx->g_functions[gfi]).go)[0]));
                     if ((dn + fl) + (size_t)(16LL) < dst_size) {
-                        zir_f_daa84719ffd73ec0_memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(((ctx->g_functions[gfi]).go)[0])), fl);
+                        zir_foreign_compiler_go_backend__memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(((ctx->g_functions[gfi]).go)[0])), fl);
                         dn = dn + fl;
                         size_t post54 = dn;
                         dn = dn + 1;
                         uint8_t* value_200 = &(dst[post54]);
                         (*value_200) = 40;
                     }
-                    uint8_t* value_201 = zir_f_daa84719ffd73ec0_skip_ws(q);
+                    uint8_t* value_201 = zir_foreign_compiler_go_backend__skip_ws(q);
                     p = (uint8_t*)(((size_t)(value_201) + ((size_t)(1LL) * sizeof(uint8_t))));
                     continue;
                 }
@@ -4887,41 +4143,41 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
             if ((dn + il) + (size_t)(1LL) < dst_size) {
                 uint8_t* local = compiler_go_backend_go_local_name_for(ctx, &(ident[0]));
                 if (local != (uint8_t*)(((void *)0))) {
-                    size_t ll = zir_f_daa84719ffd73ec0_strlen(local);
+                    size_t ll = zir_foreign_compiler_go_backend__strlen(local);
                     if ((dn + ll) + (size_t)(1LL) < dst_size) {
-                        zir_f_daa84719ffd73ec0_memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(local), ll);
+                        zir_foreign_compiler_go_backend__memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(local), ll);
                         dn = dn + ll;
                     }
                 } else {
                     ZirModule* value_202 = compiler_go_backend_module_global_owner(ctx, m, &(ident[0]));
                     if (value_202 != (ZirModule*)(((void *)0))) {
                         uint8_t mapped[256] = {0};
-                        zir_f_daa84719ffd73ec0_TargetGlobalName(compiler_go_backend_module_global_owner(ctx, m, &(ident[0])), (int32_t)(((ZirTarget)(1))), &(ident[0]), &(mapped[0]), (256) * (sizeof(uint8_t)));
-                        size_t length = zir_f_daa84719ffd73ec0_strlen(&(mapped[0]));
+                        zir_foreign_compiler_go_backend__TargetGlobalName(compiler_go_backend_module_global_owner(ctx, m, &(ident[0])), (int32_t)(((ZirTarget)(1))), &(ident[0]), &(mapped[0]), (256) * (sizeof(uint8_t)));
+                        size_t length = zir_foreign_compiler_go_backend__strlen(&(mapped[0]));
                         if ((dn + length) + (size_t)(1LL) < dst_size) {
-                            zir_f_daa84719ffd73ec0_memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(mapped[0])), length);
+                            zir_foreign_compiler_go_backend__memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(mapped[0])), length);
                             dn = dn + length;
                         }
                     } else {
-                        ZirModule* value_203 = zir_f_daa84719ffd73ec0_NativeConstantOwner(m, &(ident[0]));
+                        ZirModule* value_203 = zir_foreign_compiler_go_backend__NativeConstantOwner(m, &(ident[0]));
                         if (value_203 != (ZirModule*)(((void *)0))) {
                             uint8_t mapped[256] = {0};
-                            zir_f_daa84719ffd73ec0_TargetDefineName(zir_f_daa84719ffd73ec0_NativeConstantOwner(m, &(ident[0])), (int32_t)(((ZirTarget)(1))), &(ident[0]), &(mapped[0]), (256) * (sizeof(uint8_t)));
-                            size_t length = zir_f_daa84719ffd73ec0_strlen(&(mapped[0]));
+                            zir_foreign_compiler_go_backend__TargetDefineName(zir_foreign_compiler_go_backend__NativeConstantOwner(m, &(ident[0])), (int32_t)(((ZirTarget)(1))), &(ident[0]), &(mapped[0]), (256) * (sizeof(uint8_t)));
+                            size_t length = zir_foreign_compiler_go_backend__strlen(&(mapped[0]));
                             if ((dn + length) + (size_t)(1LL) < dst_size) {
-                                zir_f_daa84719ffd73ec0_memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(mapped[0])), length);
+                                zir_foreign_compiler_go_backend__memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(mapped[0])), length);
                                 dn = dn + length;
                             }
                         } else {
                             uint8_t native[256] = {0};
-                            if (zir_f_daa84719ffd73ec0_NativeTypeAtUse(m, &(ident[0]), &(native[0]), (256) * (sizeof(uint8_t))) != 0) {
-                                size_t length = zir_f_daa84719ffd73ec0_strlen(&(native[0]));
+                            if (zir_foreign_compiler_go_backend__NativeTypeAtUse(m, &(ident[0]), &(native[0]), (256) * (sizeof(uint8_t))) != 0) {
+                                size_t length = zir_foreign_compiler_go_backend__strlen(&(native[0]));
                                 if ((dn + length) + (size_t)(1LL) < dst_size) {
-                                    zir_f_daa84719ffd73ec0_memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(native[0])), length);
+                                    zir_foreign_compiler_go_backend__memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(native[0])), length);
                                     dn = dn + length;
                                 }
                             } else {
-                                zir_f_daa84719ffd73ec0_memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(ident[0])), il);
+                                zir_foreign_compiler_go_backend__memcpy((void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t))))), (void*)(&(ident[0])), il);
                                 dn = dn + il;
                             }
                         }
@@ -4934,7 +4190,7 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
         bool value_204 = p[0] == 46;
         bool value_205 = value_204;
         if (value_205) {
-            bool value_206 = zir_f_daa84719ffd73ec0_isalpha((int32_t)(p[1])) != 0;
+            bool value_206 = zir_foreign_compiler_go_backend__isalpha((int32_t)(p[1])) != 0;
             value_205 = (value_206 || p[1] == 95);
         }
         if (value_205) {
@@ -4943,7 +4199,7 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
             uint8_t mapped[256] = {0};
             size_t fl = (size_t)(0LL);
             while (true) {
-                bool value_207 = zir_f_daa84719ffd73ec0_is_ident_char((int32_t)(q[0])) != 0;
+                bool value_207 = zir_foreign_compiler_go_backend__is_ident_char((int32_t)(q[0])) != 0;
                 if (!(value_207 && fl + (size_t)(1LL) < ((256) * (sizeof(uint8_t))))) {
                     break;
                 }
@@ -4956,18 +4212,18 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
             }
             uint8_t* value_209 = &(field[fl]);
             (*value_209) = 0;
-            zir_f_daa84719ffd73ec0_go_field_ident(&(field[0]), &(mapped[0]), (256) * (sizeof(uint8_t)));
+            zir_foreign_compiler_go_backend__go_field_ident(&(field[0]), &(mapped[0]), (256) * (sizeof(uint8_t)));
             size_t value_210 = dn;
-            size_t value_211 = (value_210 + zir_f_daa84719ffd73ec0_strlen(&(mapped[0]))) + (size_t)(2LL);
+            size_t value_211 = (value_210 + zir_foreign_compiler_go_backend__strlen(&(mapped[0]))) + (size_t)(2LL);
             if (value_211 < dst_size) {
                 size_t post57 = dn;
                 dn = dn + 1;
                 uint8_t* value_212 = &(dst[post57]);
                 (*value_212) = 46;
                 void* value_213 = (void*)((uint8_t*)(((size_t)(dst) + ((size_t)(dn) * sizeof(uint8_t)))));
-                zir_f_daa84719ffd73ec0_memcpy(value_213, (void*)(&(mapped[0])), zir_f_daa84719ffd73ec0_strlen(&(mapped[0])));
+                zir_foreign_compiler_go_backend__memcpy(value_213, (void*)(&(mapped[0])), zir_foreign_compiler_go_backend__strlen(&(mapped[0])));
                 size_t value_214 = dn;
-                dn = value_214 + zir_f_daa84719ffd73ec0_strlen(&(mapped[0]));
+                dn = value_214 + zir_foreign_compiler_go_backend__strlen(&(mapped[0]));
             }
             p = q;
             continue;
@@ -4991,17 +4247,17 @@ compiler_go_backend_tx_expr_with_buffers(GoLowerState* ctx, ZirModule* m, uint8_
 static void
 compiler_go_backend_tx_expr(GoLowerState* ctx, ZirModule* m, uint8_t* src, uint8_t* dst, size_t dst_size)
 {
-    void* scratch_hint = zir_f_daa84719ffd73ec0_CompilerContextScratch((void*)(&(tx_expr_scratch_key)), compiler_go_backend_FreeBuffer);
-    void* value_0 = zir_f_daa84719ffd73ec0_CompilerScratchTake(scratch_hint);
+    void* scratch_hint = zir_foreign_compiler_go_backend__CompilerContextScratch((void*)(&(tx_expr_scratch_key)), compiler_go_backend_FreeBuffer);
+    void* value_0 = zir_foreign_compiler_go_backend__CompilerScratchTake(scratch_hint);
     TxExprBuffers* buffers = (TxExprBuffers*)(value_0);
     if (!(buffers != ((void *)0))) {
-        void* value_1 = zir_f_daa84719ffd73ec0_AllocateOrExit(sizeof(TxExprBuffers));
+        void* value_1 = zir_foreign_compiler_go_backend__AllocateOrExit(sizeof(TxExprBuffers));
         buffers = (TxExprBuffers*)(value_1);
     }
     compiler_go_backend_tx_expr_with_buffers(ctx, m, src, dst, dst_size, buffers);
-    bool value_2 = zir_f_daa84719ffd73ec0_CompilerScratchPut(scratch_hint, (void*)(buffers)) != 0;
+    bool value_2 = zir_foreign_compiler_go_backend__CompilerScratchPut(scratch_hint, (void*)(buffers)) != 0;
     if (!value_2) {
-        zir_f_daa84719ffd73ec0_free((void*)(buffers));
+        zir_foreign_compiler_go_backend__free((void*)(buffers));
     }
 }
 
@@ -5013,27 +4269,27 @@ compiler_go_backend_resolve_body_symbol(void* context, uint8_t* text, uint8_t* o
     ZirModule* module = symbols->module;
     ZirModule* owner = (ZirModule*)(((void *)0));
     ZirGlobal* global = (ZirGlobal*)(((void *)0));
-    uint8_t* value_0 = zir_f_daa84719ffd73ec0_ScalarType(text);
+    uint8_t* value_0 = zir_foreign_compiler_go_backend__ScalarType(text);
     bool value_1 = value_0[0] != 0;
-    bool value_2 = value_1 || zir_f_daa84719ffd73ec0_SliceElementType(text, (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
+    bool value_2 = value_1 || zir_foreign_compiler_go_backend__SliceElementType(text, (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
     bool value_3 = value_2;
     bool value_4 = value_3;
     if (!value_4) {
-        uint8_t* value_5 = zir_f_daa84719ffd73ec0_strchr(text, 42);
+        uint8_t* value_5 = zir_foreign_compiler_go_backend__strchr(text, 42);
         value_4 = (value_5 != (uint8_t*)(((void *)0)));
     }
     bool value_6 = value_4;
     bool value_7 = value_6;
     if (!value_7) {
-        ZirType* value_8 = zir_f_daa84719ffd73ec0_CFindType(module, text, (ZirModule**)(((void *)0)));
+        ZirType* value_8 = zir_foreign_compiler_go_backend__CFindType(module, text, (ZirModule**)(((void *)0)));
         value_7 = (value_8 != (ZirType*)(((void *)0)));
     }
     bool value_9 = value_7;
     if (value_9 && compiler_go_backend_go_type(ctx, text, out, size) != 0) {
         return;
     }
-    if (zir_f_daa84719ffd73ec0_CResolveGlobalAt(module, text, symbols->source_path, &(owner), &(global)) == 1) {
-        zir_f_daa84719ffd73ec0_TargetGlobalName(owner, (int32_t)(((ZirTarget)(1))), &(global->name[0]), out, size);
+    if (zir_foreign_compiler_go_backend__CResolveGlobalAt(module, text, symbols->source_path, &(owner), &(global)) == 1) {
+        zir_foreign_compiler_go_backend__TargetGlobalName(owner, (int32_t)(((ZirTarget)(1))), &(global->name[0]), out, size);
         return;
     }
     compiler_go_backend_tx_expr(ctx, module, text, out, size);
@@ -5046,7 +4302,7 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
     int32_t saved_local_count = ctx->zir_go_local_count;
     int32_t* value_0 = &(ctx->zir_go_local_count);
     (*value_0) = 0;
-    zir_f_daa84719ffd73ec0_camel_ident(&(fn->name[0]), &(buffers->fname[0]), (512) * (sizeof(uint8_t)));
+    zir_foreign_compiler_go_backend__camel_ident(&(fn->name[0]), &(buffers->fname[0]), (512) * (sizeof(uint8_t)));
     {
         ZirFunction* value_1 = fn;
         uint8_t* value_2 = (void *)0;
@@ -5060,44 +4316,44 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
                 uint8_t* value_6 = (void *)0;
                 {
                     String s = value_5;
-                    value_6 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_6 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 value_4 = value_6;
             }
             value_2 = value_4;
         }
-        zir_e93613178cb7063a_ZirParameters* parameters = zir_f_daa84719ffd73ec0_ParametersOf(value_2);
+        compiler_go_backend_ZirParameters* parameters = zir_foreign_compiler_go_backend__ParametersOf(value_2);
         if (fn->inlining == 2) {
             String value_8 = StringLiteral("//go:noinline\n");
             uint8_t* value_9 = (void *)0;
             {
                 String s = value_8;
-                value_9 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_9 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fputs(value_9, f);
+            zir_foreign_compiler_go_backend__fputs(value_9, f);
         }
         String value_11 = StringLiteral("func ");
         uint8_t* value_12 = (void *)0;
         {
             String s = value_11;
-            value_12 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_12 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_fputs(value_12, f);
+        zir_foreign_compiler_go_backend__fputs(value_12, f);
         void* value_14 = f;
         String value_15 = StringLiteral("%s_%s(");
         uint8_t* value_16 = (void *)0;
         {
             String s = value_15;
-            value_16 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_16 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_fprintf(value_14, value_16, guard, &(buffers->fname[0]));
+        zir_foreign_compiler_go_backend__fprintf(value_14, value_16, guard, &(buffers->fname[0]));
         {
             int32_t i = 0;
             while (true) {
                 if (!(i < parameters->count)) {
                     break;
                 }
-                zir_16d811ba518a3c8c_ZirParameter* parameter = &(parameters->items[i]);
+                compiler_go_backend_ZirParameter* parameter = &(parameters->items[i]);
                 uint8_t aname[256] = {0};
                 uint8_t gt[256] = {0};
                 if (parameter->name == (uint8_t*)(((void *)0)) || parameter->type == (uint8_t*)(((void *)0))) {
@@ -5106,26 +4362,26 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
                     uint8_t* value_20 = (void *)0;
                     {
                         String s = value_19;
-                        value_20 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_20 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     String value_22 = StringLiteral("parameters require name: type: %s");
                     uint8_t* value_23 = (void *)0;
                     {
                         String s = value_22;
-                        value_23 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_23 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
-                    zir_f_daa84719ffd73ec0_Diagnostic(value_18, value_20, value_23, parameter->text);
-                    zir_f_daa84719ffd73ec0_exit(1);
+                    zir_foreign_compiler_go_backend__Diagnostic(value_18, value_20, value_23, parameter->text);
+                    zir_foreign_compiler_go_backend__exit(1);
                 }
                 compiler_go_backend_go_register_local_name(ctx, fn, parameter->name);
-                zir_f_daa84719ffd73ec0_TargetBindingName(fn, (int32_t)(((ZirTarget)(1))), parameter->name, &(aname[0]), (256) * (sizeof(uint8_t)));
+                zir_foreign_compiler_go_backend__TargetBindingName(fn, (int32_t)(((ZirTarget)(1))), parameter->name, &(aname[0]), (256) * (sizeof(uint8_t)));
                 compiler_go_backend_require_go_type(ctx, parameter->type, &(gt[0]), (256) * (sizeof(uint8_t)), fn->span);
                 void* value_25 = f;
                 String value_26 = StringLiteral("%s%s %s");
                 uint8_t* value_27 = (void *)0;
                 {
                     String s = value_26;
-                    value_27 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_27 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 uint8_t* value_29 = (void *)0;
                 if (i != 0) {
@@ -5133,7 +4389,7 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
                     uint8_t* value_31 = (void *)0;
                     {
                         String s = value_30;
-                        value_31 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_31 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_29 = value_31;
                 } else {
@@ -5141,11 +4397,11 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
                     uint8_t* value_34 = (void *)0;
                     {
                         String s = value_33;
-                        value_34 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_34 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_29 = value_34;
                 }
-                zir_f_daa84719ffd73ec0_fprintf(value_25, value_27, value_29, &(aname[0]), &(gt[0]));
+                zir_foreign_compiler_go_backend__fprintf(value_25, value_27, value_29, &(aname[0]), &(gt[0]));
                 i = (int32_t)((uint32_t)i + 1u);
             }
         }
@@ -5154,9 +4410,9 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
         uint8_t* value_38 = (void *)0;
         {
             String s = value_37;
-            value_38 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_38 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_fprintf(value_36, value_38);
+        zir_foreign_compiler_go_backend__fprintf(value_36, value_38);
         compiler_go_backend_require_go_type(ctx, &(fn->return_type[0]), &(ret[0]), (256) * (sizeof(uint8_t)), fn->span);
         if ((ret)[0] != 0) {
             void* value_40 = f;
@@ -5164,52 +4420,52 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
             uint8_t* value_42 = (void *)0;
             {
                 String s = value_41;
-                value_42 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_42 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_40, value_42, &(ret[0]));
+            zir_foreign_compiler_go_backend__fprintf(value_40, value_42, &(ret[0]));
         }
         void* value_44 = f;
         String value_45 = StringLiteral(" {\n");
         uint8_t* value_46 = (void *)0;
         {
             String s = value_45;
-            value_46 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_46 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_fprintf(value_44, value_46);
+        zir_foreign_compiler_go_backend__fprintf(value_44, value_46);
     }
-    zir_f_daa84719ffd73ec0_GoAssemblyFunction(f, assembly, fn);
+    zir_foreign_compiler_go_backend__GoAssemblyFunction(f, assembly, fn);
     GoBodySymbols value_48 = {0};
     value_48.module = m;
-    uint8_t* value_49 = zir_f_daa84719ffd73ec0_SpanPath(fn->span);
+    uint8_t* value_49 = zir_foreign_compiler_go_backend__SpanPath(fn->span);
     value_48.source_path = value_49;
     value_48.state = ctx;
     GoBodySymbols symbols = value_48;
-    bool value_50 = zir_f_daa84719ffd73ec0_EmitBody(f, m, fn, (int32_t)(((ZirTarget)(1))), compiler_go_backend_resolve_body_symbol, (void*)(&(symbols)), compiler_go_backend_EmitGoAssemblyBlock, (void*)(assembly)) != 0;
+    bool value_50 = zir_foreign_compiler_go_backend__EmitBody(f, m, fn, (int32_t)(((ZirTarget)(1))), compiler_go_backend_resolve_body_symbol, (void*)(&(symbols)), compiler_go_backend_EmitGoAssemblyBlock, (void*)(assembly)) != 0;
     if (!value_50) {
         ZirSourceSpan value_51 = fn->span;
         String value_52 = StringLiteral("zir_go.body");
         uint8_t* value_53 = (void *)0;
         {
             String s = value_52;
-            value_53 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_53 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
         String value_55 = StringLiteral("function has no checked typed body: %s");
         uint8_t* value_56 = (void *)0;
         {
             String s = value_55;
-            value_56 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_56 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_Diagnostic(value_51, value_53, value_56, &(fn->name[0]));
-        zir_f_daa84719ffd73ec0_exit(1);
+        zir_foreign_compiler_go_backend__Diagnostic(value_51, value_53, value_56, &(fn->name[0]));
+        zir_foreign_compiler_go_backend__exit(1);
     }
     void* value_58 = f;
     String value_59 = StringLiteral("}\n\n");
     uint8_t* value_60 = (void *)0;
     {
         String s = value_59;
-        value_60 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_60 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_fprintf(value_58, value_60);
+    zir_foreign_compiler_go_backend__fprintf(value_58, value_60);
     if ((fn->export_symbol)[0] != 0) {
         ZirFunction* value_62 = fn;
         uint8_t* value_63 = (void *)0;
@@ -5223,21 +4479,21 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
                 uint8_t* value_67 = (void *)0;
                 {
                     String s = value_66;
-                    value_67 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_67 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 value_65 = value_67;
             }
             value_63 = value_65;
         }
-        zir_e93613178cb7063a_ZirParameters* parameters = zir_f_daa84719ffd73ec0_ParametersOf(value_63);
+        compiler_go_backend_ZirParameters* parameters = zir_foreign_compiler_go_backend__ParametersOf(value_63);
         void* value_69 = f;
         String value_70 = StringLiteral("func %s(");
         uint8_t* value_71 = (void *)0;
         {
             String s = value_70;
-            value_71 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_71 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_fprintf(value_69, value_71, &(fn->export_symbol[0]));
+        zir_foreign_compiler_go_backend__fprintf(value_69, value_71, &(fn->export_symbol[0]));
         {
             int32_t i = 0;
             while (true) {
@@ -5254,7 +4510,7 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
                 uint8_t* value_76 = (void *)0;
                 {
                     String s = value_75;
-                    value_76 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_76 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 uint8_t* value_78 = (void *)0;
                 if (i != 0) {
@@ -5262,7 +4518,7 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
                     uint8_t* value_80 = (void *)0;
                     {
                         String s = value_79;
-                        value_80 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_80 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_78 = value_80;
                 } else {
@@ -5270,11 +4526,11 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
                     uint8_t* value_83 = (void *)0;
                     {
                         String s = value_82;
-                        value_83 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_83 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_78 = value_83;
                 }
-                zir_f_daa84719ffd73ec0_fprintf(value_74, value_76, value_78, i, &(type[0]));
+                zir_foreign_compiler_go_backend__fprintf(value_74, value_76, value_78, i, &(type[0]));
                 i = (int32_t)((uint32_t)i + 1u);
             }
         }
@@ -5283,7 +4539,7 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
         uint8_t* value_87 = (void *)0;
         {
             String s = value_86;
-            value_87 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_87 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
         uint8_t* value_89 = (void *)0;
         if ((ret)[0] != 0) {
@@ -5291,7 +4547,7 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
             uint8_t* value_91 = (void *)0;
             {
                 String s = value_90;
-                value_91 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_91 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
             value_89 = value_91;
         } else {
@@ -5299,7 +4555,7 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
             uint8_t* value_94 = (void *)0;
             {
                 String s = value_93;
-                value_94 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_94 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
             value_89 = value_94;
         }
@@ -5310,7 +4566,7 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
             uint8_t* value_99 = (void *)0;
             {
                 String s = value_98;
-                value_99 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_99 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
             value_97 = value_99;
         } else {
@@ -5318,11 +4574,11 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
             uint8_t* value_102 = (void *)0;
             {
                 String s = value_101;
-                value_102 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_102 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
             value_97 = value_102;
         }
-        zir_f_daa84719ffd73ec0_fprintf(value_85, value_87, value_96, &(ret[0]), value_97, guard, &(buffers->fname[0]));
+        zir_foreign_compiler_go_backend__fprintf(value_85, value_87, value_96, &(ret[0]), value_97, guard, &(buffers->fname[0]));
         {
             int32_t i = 0;
             while (true) {
@@ -5334,7 +4590,7 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
                 uint8_t* value_106 = (void *)0;
                 {
                     String s = value_105;
-                    value_106 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_106 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 uint8_t* value_108 = (void *)0;
                 if (i != 0) {
@@ -5342,7 +4598,7 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
                     uint8_t* value_110 = (void *)0;
                     {
                         String s = value_109;
-                        value_110 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_110 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_108 = value_110;
                 } else {
@@ -5350,11 +4606,11 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
                     uint8_t* value_113 = (void *)0;
                     {
                         String s = value_112;
-                        value_113 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_113 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_108 = value_113;
                 }
-                zir_f_daa84719ffd73ec0_fprintf(value_104, value_106, value_108, i);
+                zir_foreign_compiler_go_backend__fprintf(value_104, value_106, value_108, i);
                 i = (int32_t)((uint32_t)i + 1u);
             }
         }
@@ -5362,9 +4618,9 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
         uint8_t* value_116 = (void *)0;
         {
             String s = value_115;
-            value_116 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_116 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_fputs(value_116, f);
+        zir_foreign_compiler_go_backend__fputs(value_116, f);
     }
     int32_t* value_118 = &(ctx->zir_go_local_count);
     (*value_118) = saved_local_count;
@@ -5373,17 +4629,17 @@ compiler_go_backend_lower_function_with_buffers(GoLowerState* ctx, void* f, ZirM
 static void
 compiler_go_backend_lower_function(GoLowerState* ctx, void* f, ZirModule* m, ZirFunction* fn, uint8_t* guard, GoAssembly* assembly)
 {
-    void* scratch_hint = zir_f_daa84719ffd73ec0_CompilerContextScratch((void*)(&(lower_function_scratch_key)), compiler_go_backend_FreeBuffer);
-    void* value_0 = zir_f_daa84719ffd73ec0_CompilerScratchTake(scratch_hint);
+    void* scratch_hint = zir_foreign_compiler_go_backend__CompilerContextScratch((void*)(&(lower_function_scratch_key)), compiler_go_backend_FreeBuffer);
+    void* value_0 = zir_foreign_compiler_go_backend__CompilerScratchTake(scratch_hint);
     LowerFunctionBuffers* buffers = (LowerFunctionBuffers*)(value_0);
     if (!(buffers != ((void *)0))) {
-        void* value_1 = zir_f_daa84719ffd73ec0_AllocateOrExit(sizeof(LowerFunctionBuffers));
+        void* value_1 = zir_foreign_compiler_go_backend__AllocateOrExit(sizeof(LowerFunctionBuffers));
         buffers = (LowerFunctionBuffers*)(value_1);
     }
     compiler_go_backend_lower_function_with_buffers(ctx, f, m, fn, guard, assembly, buffers);
-    bool value_2 = zir_f_daa84719ffd73ec0_CompilerScratchPut(scratch_hint, (void*)(buffers)) != 0;
+    bool value_2 = zir_foreign_compiler_go_backend__CompilerScratchPut(scratch_hint, (void*)(buffers)) != 0;
     if (!value_2) {
-        zir_f_daa84719ffd73ec0_free((void*)(buffers));
+        zir_foreign_compiler_go_backend__free((void*)(buffers));
     }
 }
 
@@ -5405,25 +4661,25 @@ compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, ZirModule* modu
             uint8_t* value_5 = (void *)0;
             {
                 String s = value_4;
-                value_5 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_5 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
             value_3 = value_5;
         }
         value_1 = value_3;
     }
-    zir_e93613178cb7063a_ZirParameters* parameters = zir_f_daa84719ffd73ec0_ParametersOf(value_1);
+    compiler_go_backend_ZirParameters* parameters = zir_foreign_compiler_go_backend__ParametersOf(value_1);
     uint8_t receiver_type[256] = {0};
     uint8_t function_name[256] = {0};
     compiler_go_backend_require_go_type(ctx, (parameters->items[0]).type, &(receiver_type[0]), (256) * (sizeof(uint8_t)), fn->span);
-    zir_f_daa84719ffd73ec0_camel_ident(&(fn->name[0]), &(function_name[0]), (256) * (sizeof(uint8_t)));
+    zir_foreign_compiler_go_backend__camel_ident(&(fn->name[0]), &(function_name[0]), (256) * (sizeof(uint8_t)));
     void* value_7 = out;
     String value_8 = StringLiteral("func (receiver %s) %s(");
     uint8_t* value_9 = (void *)0;
     {
         String s = value_8;
-        value_9 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_9 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_fprintf(value_7, value_9, &(receiver_type[0]), &(fn->go_method[0]));
+    zir_foreign_compiler_go_backend__fprintf(value_7, value_9, &(receiver_type[0]), &(fn->go_method[0]));
     {
         int32_t i = 1;
         while (true) {
@@ -5437,7 +4693,7 @@ compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, ZirModule* modu
             uint8_t* value_13 = (void *)0;
             {
                 String s = value_12;
-                value_13 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_13 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
             uint8_t* value_15 = (void *)0;
             if (i > 1) {
@@ -5445,7 +4701,7 @@ compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, ZirModule* modu
                 uint8_t* value_17 = (void *)0;
                 {
                     String s = value_16;
-                    value_17 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_17 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 value_15 = value_17;
             } else {
@@ -5453,11 +4709,11 @@ compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, ZirModule* modu
                 uint8_t* value_20 = (void *)0;
                 {
                     String s = value_19;
-                    value_20 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_20 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 value_15 = value_20;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_11, value_13, value_15, i, &(native_type[0]));
+            zir_foreign_compiler_go_backend__fprintf(value_11, value_13, value_15, i, &(native_type[0]));
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -5465,13 +4721,13 @@ compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, ZirModule* modu
     uint8_t* value_23 = (void *)0;
     {
         String s = value_22;
-        value_23 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_23 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_fputs(value_23, out);
+    zir_foreign_compiler_go_backend__fputs(value_23, out);
     ZirType* result_record = (ZirType*)(((void *)0));
     if (fn->go_method_results != 0) {
         ZirModule* result_owner = (ZirModule*)(((void *)0));
-        result_record = zir_f_daa84719ffd73ec0_CFindType(module, &(fn->return_type[0]), &(result_owner));
+        result_record = zir_foreign_compiler_go_backend__CFindType(module, &(fn->return_type[0]), &(result_owner));
         ZirModule* saved_scope = ctx->type_scope;
         ZirModule** value_25 = &(ctx->type_scope);
         (*value_25) = result_owner;
@@ -5482,11 +4738,11 @@ compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, ZirModule* modu
         uint8_t* value_27 = (void *)0;
         {
             String s = value_26;
-            value_27 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_27 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_fputs(value_27, out);
+        zir_foreign_compiler_go_backend__fputs(value_27, out);
         while (true) {
-            bool value_29 = zir_f_daa84719ffd73ec0_TypeNextField(result_record, &(offset), &(field)) == 1;
+            bool value_29 = zir_foreign_compiler_go_backend__TypeNextField(result_record, &(offset), &(field)) == 1;
             if (!value_29) {
                 break;
             }
@@ -5499,7 +4755,7 @@ compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, ZirModule* modu
             uint8_t* value_32 = (void *)0;
             {
                 String s = value_31;
-                value_32 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_32 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
             uint8_t* value_34 = (void *)0;
             if (post59 != 0) {
@@ -5507,7 +4763,7 @@ compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, ZirModule* modu
                 uint8_t* value_36 = (void *)0;
                 {
                     String s = value_35;
-                    value_36 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_36 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 value_34 = value_36;
             } else {
@@ -5515,19 +4771,19 @@ compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, ZirModule* modu
                 uint8_t* value_39 = (void *)0;
                 {
                     String s = value_38;
-                    value_39 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_39 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 value_34 = value_39;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_30, value_32, value_34, &(native_type[0]));
+            zir_foreign_compiler_go_backend__fprintf(value_30, value_32, value_34, &(native_type[0]));
         }
         String value_41 = StringLiteral(")");
         uint8_t* value_42 = (void *)0;
         {
             String s = value_41;
-            value_42 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_42 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_fputs(value_42, out);
+        zir_foreign_compiler_go_backend__fputs(value_42, out);
         ZirModule** value_44 = &(ctx->type_scope);
         (*value_44) = saved_scope;
     } else {
@@ -5539,41 +4795,41 @@ compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, ZirModule* modu
             uint8_t* value_47 = (void *)0;
             {
                 String s = value_46;
-                value_47 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_47 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_45, value_47, &(native_type[0]));
+            zir_foreign_compiler_go_backend__fprintf(value_45, value_47, &(native_type[0]));
         }
     }
     String value_49 = StringLiteral(" {\n\t");
     uint8_t* value_50 = (void *)0;
     {
         String s = value_49;
-        value_50 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_50 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_fputs(value_50, out);
+    zir_foreign_compiler_go_backend__fputs(value_50, out);
     if (result_record != (ZirType*)(((void *)0))) {
         String value_52 = StringLiteral("result := ");
         uint8_t* value_53 = (void *)0;
         {
             String s = value_52;
-            value_53 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_53 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_fputs(value_53, out);
+        zir_foreign_compiler_go_backend__fputs(value_53, out);
     } else {
         String value_55 = StringLiteral("void");
         uint8_t* value_56 = (void *)0;
         {
             String s = value_55;
-            value_56 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_56 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        if (zir_f_daa84719ffd73ec0_strcmp(&(fn->return_type[0]), value_56) != 0) {
+        if (zir_foreign_compiler_go_backend__strcmp(&(fn->return_type[0]), value_56) != 0) {
             String value_58 = StringLiteral("return ");
             uint8_t* value_59 = (void *)0;
             {
                 String s = value_58;
-                value_59 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_59 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fputs(value_59, out);
+            zir_foreign_compiler_go_backend__fputs(value_59, out);
         }
     }
     void* value_61 = out;
@@ -5581,9 +4837,9 @@ compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, ZirModule* modu
     uint8_t* value_63 = (void *)0;
     {
         String s = value_62;
-        value_63 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_63 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_fprintf(value_61, value_63, guard, &(function_name[0]));
+    zir_foreign_compiler_go_backend__fprintf(value_61, value_63, guard, &(function_name[0]));
     {
         int32_t i = 1;
         while (true) {
@@ -5595,9 +4851,9 @@ compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, ZirModule* modu
             uint8_t* value_67 = (void *)0;
             {
                 String s = value_66;
-                value_67 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_67 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_65, value_67, i);
+            zir_foreign_compiler_go_backend__fprintf(value_65, value_67, i);
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -5605,9 +4861,9 @@ compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, ZirModule* modu
     uint8_t* value_70 = (void *)0;
     {
         String s = value_69;
-        value_70 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_70 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_fputs(value_70, out);
+    zir_foreign_compiler_go_backend__fputs(value_70, out);
     if (result_record != (ZirType*)(((void *)0))) {
         size_t offset = (size_t)(0LL);
         ZirTypeField field = {0};
@@ -5616,16 +4872,16 @@ compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, ZirModule* modu
         uint8_t* value_73 = (void *)0;
         {
             String s = value_72;
-            value_73 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_73 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_fputs(value_73, out);
+        zir_foreign_compiler_go_backend__fputs(value_73, out);
         while (true) {
-            bool value_75 = zir_f_daa84719ffd73ec0_TypeNextField(result_record, &(offset), &(field)) == 1;
+            bool value_75 = zir_foreign_compiler_go_backend__TypeNextField(result_record, &(offset), &(field)) == 1;
             if (!value_75) {
                 break;
             }
             uint8_t native_name[256] = {0};
-            zir_f_daa84719ffd73ec0_go_field_ident(&(field.name[0]), &(native_name[0]), (256) * (sizeof(uint8_t)));
+            zir_foreign_compiler_go_backend__go_field_ident(&(field.name[0]), &(native_name[0]), (256) * (sizeof(uint8_t)));
             int32_t post60 = fields;
             fields = (int32_t)((uint32_t)fields + 1u);
             void* value_76 = out;
@@ -5633,7 +4889,7 @@ compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, ZirModule* modu
             uint8_t* value_78 = (void *)0;
             {
                 String s = value_77;
-                value_78 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_78 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
             uint8_t* value_80 = (void *)0;
             if (post60 != 0) {
@@ -5641,7 +4897,7 @@ compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, ZirModule* modu
                 uint8_t* value_82 = (void *)0;
                 {
                     String s = value_81;
-                    value_82 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_82 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 value_80 = value_82;
             } else {
@@ -5649,21 +4905,21 @@ compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, ZirModule* modu
                 uint8_t* value_85 = (void *)0;
                 {
                     String s = value_84;
-                    value_85 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_85 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 value_80 = value_85;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_76, value_78, value_80, &(native_name[0]));
+            zir_foreign_compiler_go_backend__fprintf(value_76, value_78, value_80, &(native_name[0]));
         }
-        zir_f_daa84719ffd73ec0_fputc(10, out);
+        zir_foreign_compiler_go_backend__fputc(10, out);
     }
     String value_87 = StringLiteral("}\n\n");
     uint8_t* value_88 = (void *)0;
     {
         String s = value_87;
-        value_88 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_88 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_fputs(value_88, out);
+    zir_foreign_compiler_go_backend__fputs(value_88, out);
 }
 
 static int32_t
@@ -5697,7 +4953,7 @@ compiler_go_backend_rewrite_global_field(ZirType* record, uint8_t* source, uint8
 {
     (void)record;
     (void)context;
-    zir_f_daa84719ffd73ec0_go_field_ident(source, out, size);
+    zir_foreign_compiler_go_backend__go_field_ident(source, out, size);
 }
 
 static void
@@ -5708,10 +4964,10 @@ compiler_go_backend_require_go_field_type(GoLowerState* ctx, ZirType* type, ZirT
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    bool value_3 = zir_f_daa84719ffd73ec0_strcmp(&(field->name[0]), value_1) != 0;
-    if (!value_3 && zir_f_daa84719ffd73ec0_VecElementType(ctx->type_scope, &(type->name[0]), &(item[0]), (128) * (sizeof(uint8_t))) != 0) {
+    bool value_3 = zir_foreign_compiler_go_backend__strcmp(&(field->name[0]), value_1) != 0;
+    if (!value_3 && zir_foreign_compiler_go_backend__VecElementType(ctx->type_scope, &(type->name[0]), &(item[0]), (128) * (sizeof(uint8_t))) != 0) {
         uint8_t mapped[256] = {0};
         compiler_go_backend_require_go_type(ctx, &(item[0]), &(mapped[0]), (256) * (sizeof(uint8_t)), type->span);
         uint8_t* value_4 = out;
@@ -5720,9 +4976,9 @@ compiler_go_backend_require_go_field_type(GoLowerState* ctx, ZirType* type, ZirT
         uint8_t* value_7 = (void *)0;
         {
             String s = value_6;
-            value_7 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_7 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_snprintf(value_4, value_5, value_7, &(mapped[0]));
+        zir_foreign_compiler_go_backend__snprintf(value_4, value_5, value_7, &(mapped[0]));
     } else {
         compiler_go_backend_require_go_type(ctx, &(field->type[0]), out, size, type->span);
     }
@@ -5767,8 +5023,8 @@ compiler_go_backend_synthetic_type_emitted(GoLowerState* ctx, ZirProgram** progr
                                 t = (int32_t)((uint32_t)t + 1u);
                                 continue;
                             }
-                            zir_f_daa84719ffd73ec0_NativeTypeName(previous, candidate, &(candidate_name[0]), (256) * (sizeof(uint8_t)));
-                            if (zir_f_daa84719ffd73ec0_strcmp(&(candidate_name[0]), native) != 0) {
+                            zir_foreign_compiler_go_backend__NativeTypeName(previous, candidate, &(candidate_name[0]), (256) * (sizeof(uint8_t)));
+                            if (zir_foreign_compiler_go_backend__strcmp(&(candidate_name[0]), native) != 0) {
                                 t = (int32_t)((uint32_t)t + 1u);
                                 continue;
                             }
@@ -5778,19 +5034,19 @@ compiler_go_backend_synthetic_type_emitted(GoLowerState* ctx, ZirProgram** progr
                                 uint8_t* value_3 = (void *)0;
                                 {
                                     String s = value_2;
-                                    value_3 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_3 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
                                 String value_5 = StringLiteral("conflicting concrete Go type: %s");
                                 uint8_t* value_6 = (void *)0;
                                 {
                                     String s = value_5;
-                                    value_6 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_6 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_Diagnostic(value_1, value_3, value_6, native);
-                                zir_f_daa84719ffd73ec0_exit(1);
+                                zir_foreign_compiler_go_backend__Diagnostic(value_1, value_3, value_6, native);
+                                zir_foreign_compiler_go_backend__exit(1);
                             }
                             bool value_8 = type->is_map != 0;
-                            if (value_8 && zir_f_daa84719ffd73ec0_SameMapType(current, type, previous, candidate) != 0) {
+                            if (value_8 && zir_foreign_compiler_go_backend__SameMapType(current, type, previous, candidate) != 0) {
                                 return 1;
                             }
                             size_t left_offset = (size_t)(0LL);
@@ -5803,8 +5059,8 @@ compiler_go_backend_synthetic_type_emitted(GoLowerState* ctx, ZirProgram** progr
                                 if (!(1LL != 0LL)) {
                                     break;
                                 }
-                                left_status = zir_f_daa84719ffd73ec0_TypeNextField(type, &(left_offset), &(left));
-                                right_status = zir_f_daa84719ffd73ec0_TypeNextField(candidate, &(right_offset), &(right));
+                                left_status = zir_foreign_compiler_go_backend__TypeNextField(type, &(left_offset), &(left));
+                                right_status = zir_foreign_compiler_go_backend__TypeNextField(candidate, &(right_offset), &(right));
                                 if (left_status != 1 || right_status != 1) {
                                     break;
                                 }
@@ -5818,9 +5074,9 @@ compiler_go_backend_synthetic_type_emitted(GoLowerState* ctx, ZirProgram** progr
                                 compiler_go_backend_require_go_field_type(ctx, candidate, &(right), &(right_type[0]), (256) * (sizeof(uint8_t)));
                                 ZirModule** value_11 = &(ctx->type_scope);
                                 (*value_11) = current;
-                                bool value_12 = zir_f_daa84719ffd73ec0_strcmp(&(left.name[0]), &(right.name[0])) != 0;
-                                bool value_13 = value_12 || zir_f_daa84719ffd73ec0_strcmp(&(left.go_tag[0]), &(right.go_tag[0])) != 0;
-                                if (value_13 || zir_f_daa84719ffd73ec0_strcmp(&(left_type[0]), &(right_type[0])) != 0) {
+                                bool value_12 = zir_foreign_compiler_go_backend__strcmp(&(left.name[0]), &(right.name[0])) != 0;
+                                bool value_13 = value_12 || zir_foreign_compiler_go_backend__strcmp(&(left.go_tag[0]), &(right.go_tag[0])) != 0;
+                                if (value_13 || zir_foreign_compiler_go_backend__strcmp(&(left_type[0]), &(right_type[0])) != 0) {
                                     break;
                                 }
                             }
@@ -5832,16 +5088,16 @@ compiler_go_backend_synthetic_type_emitted(GoLowerState* ctx, ZirProgram** progr
                             uint8_t* value_16 = (void *)0;
                             {
                                 String s = value_15;
-                                value_16 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_16 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
                             String value_18 = StringLiteral("conflicting concrete Go type: %s");
                             uint8_t* value_19 = (void *)0;
                             {
                                 String s = value_18;
-                                value_19 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_19 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_Diagnostic(value_14, value_16, value_19, native);
-                            zir_f_daa84719ffd73ec0_exit(1);
+                            zir_foreign_compiler_go_backend__Diagnostic(value_14, value_16, value_19, native);
+                            zir_foreign_compiler_go_backend__exit(1);
                             t = (int32_t)((uint32_t)t + 1u);
                         }
                     }
@@ -5863,14 +5119,14 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
     uint8_t* value_3 = (void *)0;
     {
         String s = value_2;
-        value_3 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_3 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_1.source = value_3;
     String value_5 = StringLiteral("int8_t");
     uint8_t* value_6 = (void *)0;
     {
         String s = value_5;
-        value_6 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_6 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_1.c = value_6;
     value_0[0] = value_1;
@@ -5879,14 +5135,14 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
     uint8_t* value_10 = (void *)0;
     {
         String s = value_9;
-        value_10 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_10 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_8.source = value_10;
     String value_12 = StringLiteral("uint8_t");
     uint8_t* value_13 = (void *)0;
     {
         String s = value_12;
-        value_13 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_13 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_8.c = value_13;
     value_0[1] = value_8;
@@ -5895,14 +5151,14 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
     uint8_t* value_17 = (void *)0;
     {
         String s = value_16;
-        value_17 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_17 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_15.source = value_17;
     String value_19 = StringLiteral("int16_t");
     uint8_t* value_20 = (void *)0;
     {
         String s = value_19;
-        value_20 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_20 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_15.c = value_20;
     value_0[2] = value_15;
@@ -5911,14 +5167,14 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
     uint8_t* value_24 = (void *)0;
     {
         String s = value_23;
-        value_24 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_24 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_22.source = value_24;
     String value_26 = StringLiteral("uint16_t");
     uint8_t* value_27 = (void *)0;
     {
         String s = value_26;
-        value_27 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_27 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_22.c = value_27;
     value_0[3] = value_22;
@@ -5927,14 +5183,14 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
     uint8_t* value_31 = (void *)0;
     {
         String s = value_30;
-        value_31 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_31 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_29.source = value_31;
     String value_33 = StringLiteral("int32_t");
     uint8_t* value_34 = (void *)0;
     {
         String s = value_33;
-        value_34 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_34 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_29.c = value_34;
     value_0[4] = value_29;
@@ -5943,14 +5199,14 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
     uint8_t* value_38 = (void *)0;
     {
         String s = value_37;
-        value_38 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_38 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_36.source = value_38;
     String value_40 = StringLiteral("uint32_t");
     uint8_t* value_41 = (void *)0;
     {
         String s = value_40;
-        value_41 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_41 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_36.c = value_41;
     value_0[5] = value_36;
@@ -5959,14 +5215,14 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
     uint8_t* value_45 = (void *)0;
     {
         String s = value_44;
-        value_45 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_45 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_43.source = value_45;
     String value_47 = StringLiteral("int64_t");
     uint8_t* value_48 = (void *)0;
     {
         String s = value_47;
-        value_48 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_48 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_43.c = value_48;
     value_0[6] = value_43;
@@ -5975,14 +5231,14 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
     uint8_t* value_52 = (void *)0;
     {
         String s = value_51;
-        value_52 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_52 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_50.source = value_52;
     String value_54 = StringLiteral("uint64_t");
     uint8_t* value_55 = (void *)0;
     {
         String s = value_54;
-        value_55 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_55 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_50.c = value_55;
     value_0[7] = value_50;
@@ -5991,14 +5247,14 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
     uint8_t* value_59 = (void *)0;
     {
         String s = value_58;
-        value_59 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_59 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_57.source = value_59;
     String value_61 = StringLiteral("int64_t");
     uint8_t* value_62 = (void *)0;
     {
         String s = value_61;
-        value_62 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_62 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_57.c = value_62;
     value_0[8] = value_57;
@@ -6007,14 +5263,14 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
     uint8_t* value_66 = (void *)0;
     {
         String s = value_65;
-        value_66 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_66 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_64.source = value_66;
     String value_68 = StringLiteral("size_t");
     uint8_t* value_69 = (void *)0;
     {
         String s = value_68;
-        value_69 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_69 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_64.c = value_69;
     value_0[9] = value_64;
@@ -6023,14 +5279,14 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
     uint8_t* value_73 = (void *)0;
     {
         String s = value_72;
-        value_73 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_73 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_71.source = value_73;
     String value_75 = StringLiteral("ptrdiff_t");
     uint8_t* value_76 = (void *)0;
     {
         String s = value_75;
-        value_76 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_76 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_71.c = value_76;
     value_0[10] = value_71;
@@ -6039,14 +5295,14 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
     uint8_t* value_80 = (void *)0;
     {
         String s = value_79;
-        value_80 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_80 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_78.source = value_80;
     String value_82 = StringLiteral("float");
     uint8_t* value_83 = (void *)0;
     {
         String s = value_82;
-        value_83 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_83 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_78.c = value_83;
     value_0[11] = value_78;
@@ -6055,14 +5311,14 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
     uint8_t* value_87 = (void *)0;
     {
         String s = value_86;
-        value_87 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_87 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_85.source = value_87;
     String value_89 = StringLiteral("double");
     uint8_t* value_90 = (void *)0;
     {
         String s = value_89;
-        value_90 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_90 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_85.c = value_90;
     value_0[12] = value_85;
@@ -6071,14 +5327,14 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
     uint8_t* value_94 = (void *)0;
     {
         String s = value_93;
-        value_94 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_94 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_92.source = value_94;
     String value_96 = StringLiteral("bool");
     uint8_t* value_97 = (void *)0;
     {
         String s = value_96;
-        value_97 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_97 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_92.c = value_97;
     value_0[13] = value_92;
@@ -6087,14 +5343,14 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
     uint8_t* value_101 = (void *)0;
     {
         String s = value_100;
-        value_101 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_101 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_99.source = value_101;
     String value_103 = StringLiteral("char");
     uint8_t* value_104 = (void *)0;
     {
         String s = value_103;
-        value_104 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_104 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_99.c = value_104;
     value_0[14] = value_99;
@@ -6103,14 +5359,14 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
     uint8_t* value_108 = (void *)0;
     {
         String s = value_107;
-        value_108 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_108 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_106.source = value_108;
     String value_110 = StringLiteral("void");
     uint8_t* value_111 = (void *)0;
     {
         String s = value_110;
-        value_111 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_111 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
     value_106.c = value_111;
     value_0[15] = value_106;
@@ -6132,7 +5388,7 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
             if (!((scalars[i]).source != ((void *)0))) {
                 break;
             }
-            bool value_113 = zir_f_daa84719ffd73ec0_strcmp(source, (scalars[i]).source) != 0;
+            bool value_113 = zir_foreign_compiler_go_backend__strcmp(source, (scalars[i]).source) != 0;
             if (!value_113) {
                 base = (scalars[i]).c;
             }
@@ -6141,12 +5397,12 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
     }
     uint8_t native_c_type[256] = {0};
     if (base == (uint8_t*)(((void *)0)) && depth != 0) {
-        ZirType* type = zir_f_daa84719ffd73ec0_CFindType(ctx->type_scope, source, (ZirModule**)(((void *)0)));
+        ZirType* type = zir_foreign_compiler_go_backend__CFindType(ctx->type_scope, source, (ZirModule**)(((void *)0)));
         uint8_t package[1024] = {0};
         bool value_114 = type != ((void *)0);
-        bool value_115 = value_114 && zir_f_daa84719ffd73ec0_GoForeignCallParts(&(type->foreign_target[0]), &(package[0]), (1024) * (sizeof(uint8_t)), (uint8_t*)(((void *)0)), (size_t)(0LL), &(native_c_type[0]), (256) * (sizeof(uint8_t))) != 0;
+        bool value_115 = value_114 && zir_foreign_compiler_go_backend__GoForeignCallParts(&(type->foreign_target[0]), &(package[0]), (1024) * (sizeof(uint8_t)), (uint8_t*)(((void *)0)), (size_t)(0LL), &(native_c_type[0]), (256) * (sizeof(uint8_t))) != 0;
         bool value_116 = value_115;
-        if (value_116 && zir_f_daa84719ffd73ec0_GoCHeader(&(package[0]), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0) {
+        if (value_116 && zir_foreign_compiler_go_backend__GoCHeader(&(package[0]), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0) {
             base = &(native_c_type[0]);
         }
     }
@@ -6156,16 +5412,16 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
         uint8_t* value_119 = (void *)0;
         {
             String s = value_118;
-            value_119 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_119 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
         String value_121 = StringLiteral("unsupported C ABI symbol parameter or result type: %s");
         uint8_t* value_122 = (void *)0;
         {
             String s = value_121;
-            value_122 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_122 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_Diagnostic(value_117, value_119, value_122, source);
-        zir_f_daa84719ffd73ec0_exit(1);
+        zir_foreign_compiler_go_backend__Diagnostic(value_117, value_119, value_122, source);
+        zir_foreign_compiler_go_backend__exit(1);
     }
     bool value_124 = cgo != 0 && depth != 0;
     bool value_125 = value_124;
@@ -6175,9 +5431,9 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
         uint8_t* value_128 = (void *)0;
         {
             String s = value_127;
-            value_128 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_128 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        bool value_130 = zir_f_daa84719ffd73ec0_strcmp(value_126, value_128) != 0;
+        bool value_130 = zir_foreign_compiler_go_backend__strcmp(value_126, value_128) != 0;
         value_125 = !value_130;
     }
     if (value_125) {
@@ -6188,16 +5444,16 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
         uint8_t* value_134 = (void *)0;
         {
             String s = value_133;
-            value_134 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_134 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
         int32_t value_136 = depth;
         String value_137 = StringLiteral("****************************************************************");
         uint8_t* value_138 = (void *)0;
         {
             String s = value_137;
-            value_138 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_138 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_snprintf(value_131, value_132, value_134, value_136, value_138);
+        zir_foreign_compiler_go_backend__snprintf(value_131, value_132, value_134, value_136, value_138);
     } else {
         if (cgo != 0) {
             uint8_t* value_140 = out;
@@ -6206,16 +5462,16 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
             uint8_t* value_143 = (void *)0;
             {
                 String s = value_142;
-                value_143 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_143 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
             int32_t value_145 = depth;
             String value_146 = StringLiteral("****************************************************************");
             uint8_t* value_147 = (void *)0;
             {
                 String s = value_146;
-                value_147 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_147 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_snprintf(value_140, value_141, value_143, value_145, value_147, base);
+            zir_foreign_compiler_go_backend__snprintf(value_140, value_141, value_143, value_145, value_147, base);
         } else {
             uint8_t* value_149 = out;
             size_t value_150 = size;
@@ -6223,7 +5479,7 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
             uint8_t* value_152 = (void *)0;
             {
                 String s = value_151;
-                value_152 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_152 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
             uint8_t* value_154 = base;
             int32_t value_155 = depth;
@@ -6231,9 +5487,9 @@ compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, u
             uint8_t* value_157 = (void *)0;
             {
                 String s = value_156;
-                value_157 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_157 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_snprintf(value_149, value_150, value_152, value_154, value_155, value_157);
+            zir_foreign_compiler_go_backend__snprintf(value_149, value_150, value_152, value_154, value_155, value_157);
         }
     }
 }
@@ -6278,8 +5534,8 @@ compiler_go_backend_go_module_has_headers(GoLowerState* ctx, ZirModule* module)
                 break;
             }
             uint8_t package[1024] = {0};
-            bool value_0 = zir_f_daa84719ffd73ec0_GoForeignCallParts(&(((module->types[i]).foreign_target)[0]), &(package[0]), (1024) * (sizeof(uint8_t)), (uint8_t*)(((void *)0)), (size_t)(0LL), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
-            if (value_0 && zir_f_daa84719ffd73ec0_GoCHeader(&(package[0]), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0) {
+            bool value_0 = zir_foreign_compiler_go_backend__GoForeignCallParts(&(((module->types[i]).foreign_target)[0]), &(package[0]), (1024) * (sizeof(uint8_t)), (uint8_t*)(((void *)0)), (size_t)(0LL), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
+            if (value_0 && zir_foreign_compiler_go_backend__GoCHeader(&(package[0]), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0) {
                 return 1;
             }
             i = (int32_t)((uint32_t)i + 1u);
@@ -6301,7 +5557,7 @@ compiler_go_backend_go_add_header(GoLowerState* ctx, GoCHeaders* headers, uint8_
             if (!(i < headers->count)) {
                 break;
             }
-            bool value_0 = zir_f_daa84719ffd73ec0_strcmp(&(headers->paths[i][0]), path) != 0;
+            bool value_0 = zir_foreign_compiler_go_backend__strcmp(&(headers->paths[i][0]), path) != 0;
             if (!value_0) {
                 return;
             }
@@ -6314,21 +5570,21 @@ compiler_go_backend_go_add_header(GoLowerState* ctx, GoCHeaders* headers, uint8_
         uint8_t* value_3 = (void *)0;
         {
             String s = value_2;
-            value_3 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_3 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
         String value_5 = StringLiteral("too many cgo headers");
         uint8_t* value_6 = (void *)0;
         {
             String s = value_5;
-            value_6 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_6 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_Diagnostic(value_1, value_3, value_6);
-        zir_f_daa84719ffd73ec0_exit(1);
+        zir_foreign_compiler_go_backend__Diagnostic(value_1, value_3, value_6);
+        zir_foreign_compiler_go_backend__exit(1);
     }
     int32_t post61 = headers->count;
     int32_t* value_8 = &(headers->count);
     (*value_8) = (int32_t)((uint32_t)((*value_8)) + 1u);
-    zir_f_daa84719ffd73ec0_copy_text(&(headers->paths[post61][0]), (1024) * (sizeof(uint8_t)), path);
+    zir_foreign_compiler_go_backend__copy_text(&(headers->paths[post61][0]), (1024) * (sizeof(uint8_t)), path);
 }
 
 static void
@@ -6340,13 +5596,13 @@ compiler_go_backend_go_add_type_header(GoLowerState* ctx, GoCHeaders* headers, Z
         }
         source = (uint8_t*)(((size_t)(source) + sizeof(uint8_t)));
     }
-    ZirType* type = zir_f_daa84719ffd73ec0_CFindType(module, source, (ZirModule**)(((void *)0)));
+    ZirType* type = zir_foreign_compiler_go_backend__CFindType(module, source, (ZirModule**)(((void *)0)));
     uint8_t package[1024] = {0};
     uint8_t header[1024] = {0};
     bool value_0 = type != ((void *)0);
-    bool value_1 = value_0 && zir_f_daa84719ffd73ec0_GoForeignCallParts(&(type->foreign_target[0]), &(package[0]), (1024) * (sizeof(uint8_t)), (uint8_t*)(((void *)0)), (size_t)(0LL), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
+    bool value_1 = value_0 && zir_foreign_compiler_go_backend__GoForeignCallParts(&(type->foreign_target[0]), &(package[0]), (1024) * (sizeof(uint8_t)), (uint8_t*)(((void *)0)), (size_t)(0LL), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
     bool value_2 = value_1;
-    if (value_2 && zir_f_daa84719ffd73ec0_GoCHeader(&(package[0]), &(header[0]), (1024) * (sizeof(uint8_t))) != 0) {
+    if (value_2 && zir_foreign_compiler_go_backend__GoCHeader(&(package[0]), &(header[0]), (1024) * (sizeof(uint8_t))) != 0) {
         compiler_go_backend_go_add_header(ctx, headers, &(header[0]), type->span);
     }
 }
@@ -6367,12 +5623,12 @@ compiler_go_backend_emit_go_c_preamble(GoLowerState* ctx, void* out, ZirModule* 
     uint8_t* value_4 = (void *)0;
     {
         String s = value_3;
-        value_4 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_4 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_fputs(value_4, out);
-    void* value_6 = zir_f_daa84719ffd73ec0_AllocateOrExit(sizeof(GoCHeaders));
+    zir_foreign_compiler_go_backend__fputs(value_4, out);
+    void* value_6 = zir_foreign_compiler_go_backend__AllocateOrExit(sizeof(GoCHeaders));
     GoCHeaders* headers = (GoCHeaders*)(value_6);
-    zir_f_daa84719ffd73ec0_memset((void*)(headers), 0, sizeof(GoCHeaders));
+    zir_foreign_compiler_go_backend__memset((void*)(headers), 0, sizeof(GoCHeaders));
     {
         int32_t i = 0;
         while (true) {
@@ -6418,13 +5674,13 @@ compiler_go_backend_emit_go_c_preamble(GoLowerState* ctx, void* out, ZirModule* 
             uint8_t* value_9 = (void *)0;
             {
                 String s = value_8;
-                value_9 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_9 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_7, value_9, &(headers->paths[i][0]));
+            zir_foreign_compiler_go_backend__fprintf(value_7, value_9, &(headers->paths[i][0]));
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    zir_f_daa84719ffd73ec0_free((void*)(headers));
+    zir_foreign_compiler_go_backend__free((void*)(headers));
     {
         int32_t i = 0;
         while (true) {
@@ -6442,12 +5698,12 @@ compiler_go_backend_emit_go_c_preamble(GoLowerState* ctx, void* out, ZirModule* 
                     if (!(p[0] != 0)) {
                         break;
                     }
-                    bool value_11 = zir_f_daa84719ffd73ec0_isalnum((int32_t)(p[0])) != 0;
+                    bool value_11 = zir_foreign_compiler_go_backend__isalnum((int32_t)(p[0])) != 0;
                     bool value_12 = !(value_11 || p[0] == 95);
                     bool value_13 = value_12;
                     if (!value_13) {
                         bool value_14 = p == &(binding->c_symbol[0]);
-                        bool value_15 = value_14 && zir_f_daa84719ffd73ec0_isdigit((int32_t)(p[0])) != 0;
+                        bool value_15 = value_14 && zir_foreign_compiler_go_backend__isdigit((int32_t)(p[0])) != 0;
                         value_13 = value_15;
                     }
                     if (value_13) {
@@ -6456,16 +5712,16 @@ compiler_go_backend_emit_go_c_preamble(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_18 = (void *)0;
                         {
                             String s = value_17;
-                            value_18 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_18 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         String value_20 = StringLiteral("invalid C ABI symbol: %s");
                         uint8_t* value_21 = (void *)0;
                         {
                             String s = value_20;
-                            value_21 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_21 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_Diagnostic(value_16, value_18, value_21, &(binding->c_symbol[0]));
-                        zir_f_daa84719ffd73ec0_exit(1);
+                        zir_foreign_compiler_go_backend__Diagnostic(value_16, value_18, value_21, &(binding->c_symbol[0]));
+                        zir_foreign_compiler_go_backend__exit(1);
                     }
                     p = (uint8_t*)(((size_t)(p) + sizeof(uint8_t)));
                 }
@@ -6477,9 +5733,9 @@ compiler_go_backend_emit_go_c_preamble(GoLowerState* ctx, void* out, ZirModule* 
             uint8_t* value_25 = (void *)0;
             {
                 String s = value_24;
-                value_25 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_25 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_23, value_25, &(type[0]), &(binding->c_symbol[0]));
+            zir_foreign_compiler_go_backend__fprintf(value_23, value_25, &(type[0]), &(binding->c_symbol[0]));
             {
                 int32_t p = 0;
                 while (true) {
@@ -6492,7 +5748,7 @@ compiler_go_backend_emit_go_c_preamble(GoLowerState* ctx, void* out, ZirModule* 
                     uint8_t* value_29 = (void *)0;
                     {
                         String s = value_28;
-                        value_29 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_29 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     uint8_t* value_31 = (void *)0;
                     if (p != 0) {
@@ -6500,7 +5756,7 @@ compiler_go_backend_emit_go_c_preamble(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_33 = (void *)0;
                         {
                             String s = value_32;
-                            value_33 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_33 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_31 = value_33;
                     } else {
@@ -6508,11 +5764,11 @@ compiler_go_backend_emit_go_c_preamble(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_36 = (void *)0;
                         {
                             String s = value_35;
-                            value_36 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_36 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_31 = value_36;
                     }
-                    zir_f_daa84719ffd73ec0_fprintf(value_27, value_29, value_31, &(type[0]));
+                    zir_foreign_compiler_go_backend__fprintf(value_27, value_29, value_31, &(type[0]));
                     p = (int32_t)((uint32_t)p + 1u);
                 }
             }
@@ -6521,7 +5777,7 @@ compiler_go_backend_emit_go_c_preamble(GoLowerState* ctx, void* out, ZirModule* 
             uint8_t* value_40 = (void *)0;
             {
                 String s = value_39;
-                value_40 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_40 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
             uint8_t* value_42 = (void *)0;
             if (binding->pcount != 0) {
@@ -6529,7 +5785,7 @@ compiler_go_backend_emit_go_c_preamble(GoLowerState* ctx, void* out, ZirModule* 
                 uint8_t* value_44 = (void *)0;
                 {
                     String s = value_43;
-                    value_44 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_44 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 value_42 = value_44;
             } else {
@@ -6537,11 +5793,11 @@ compiler_go_backend_emit_go_c_preamble(GoLowerState* ctx, void* out, ZirModule* 
                 uint8_t* value_47 = (void *)0;
                 {
                     String s = value_46;
-                    value_47 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_47 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 value_42 = value_47;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_38, value_40, value_42);
+            zir_foreign_compiler_go_backend__fprintf(value_38, value_40, value_42);
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -6550,17 +5806,17 @@ compiler_go_backend_emit_go_c_preamble(GoLowerState* ctx, void* out, ZirModule* 
     uint8_t* value_51 = (void *)0;
     {
         String s = value_50;
-        value_51 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_51 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    uint8_t* value_53 = zir_f_daa84719ffd73ec0_getenv(value_51);
+    uint8_t* value_53 = zir_foreign_compiler_go_backend__getenv(value_51);
     value_49[0] = value_53;
     String value_54 = StringLiteral("LDLIBS");
     uint8_t* value_55 = (void *)0;
     {
         String s = value_54;
-        value_55 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_55 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    uint8_t* value_57 = zir_f_daa84719ffd73ec0_getenv(value_55);
+    uint8_t* value_57 = zir_foreign_compiler_go_backend__getenv(value_55);
     value_49[1] = value_57;
     uint8_t* flags[2] = {0};
     memmove(flags, value_49, sizeof(flags));
@@ -6579,9 +5835,9 @@ compiler_go_backend_emit_go_c_preamble(GoLowerState* ctx, void* out, ZirModule* 
             uint8_t* value_60 = (void *)0;
             {
                 String s = value_59;
-                value_60 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_60 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            uint8_t* value_62 = zir_f_daa84719ffd73ec0_strpbrk(value_58, value_60);
+            uint8_t* value_62 = zir_foreign_compiler_go_backend__strpbrk(value_58, value_60);
             bool value_63 = value_62 != ((void *)0);
             bool value_64 = value_63;
             if (!value_64) {
@@ -6590,9 +5846,9 @@ compiler_go_backend_emit_go_c_preamble(GoLowerState* ctx, void* out, ZirModule* 
                 uint8_t* value_67 = (void *)0;
                 {
                     String s = value_66;
-                    value_67 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_67 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                uint8_t* value_69 = zir_f_daa84719ffd73ec0_strstr(value_65, value_67);
+                uint8_t* value_69 = zir_foreign_compiler_go_backend__strstr(value_65, value_67);
                 value_64 = (value_69 != ((void *)0));
             }
             if (value_64) {
@@ -6601,25 +5857,25 @@ compiler_go_backend_emit_go_c_preamble(GoLowerState* ctx, void* out, ZirModule* 
                 uint8_t* value_72 = (void *)0;
                 {
                     String s = value_71;
-                    value_72 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_72 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 String value_74 = StringLiteral("invalid cgo linker flags");
                 uint8_t* value_75 = (void *)0;
                 {
                     String s = value_74;
-                    value_75 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_75 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_Diagnostic(value_70, value_72, value_75);
-                zir_f_daa84719ffd73ec0_exit(1);
+                zir_foreign_compiler_go_backend__Diagnostic(value_70, value_72, value_75);
+                zir_foreign_compiler_go_backend__exit(1);
             }
             void* value_77 = out;
             String value_78 = StringLiteral("#cgo LDFLAGS: %s\n");
             uint8_t* value_79 = (void *)0;
             {
                 String s = value_78;
-                value_79 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_79 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_77, value_79, (flags)[i]);
+            zir_foreign_compiler_go_backend__fprintf(value_77, value_79, (flags)[i]);
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -6627,9 +5883,9 @@ compiler_go_backend_emit_go_c_preamble(GoLowerState* ctx, void* out, ZirModule* 
     uint8_t* value_82 = (void *)0;
     {
         String s = value_81;
-        value_82 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_82 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_fputs(value_82, out);
+    zir_foreign_compiler_go_backend__fputs(value_82, out);
 }
 
 static void
@@ -6648,15 +5904,15 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
             }
             uint8_t type[256] = {0};
             uint8_t name[256] = {0};
-            zir_f_daa84719ffd73ec0_camel_ident(&(binding->source[0]), &(name[0]), (256) * (sizeof(uint8_t)));
+            zir_foreign_compiler_go_backend__camel_ident(&(binding->source[0]), &(name[0]), (256) * (sizeof(uint8_t)));
             void* value_0 = out;
             String value_1 = StringLiteral("func %s_%s(");
             uint8_t* value_2 = (void *)0;
             {
                 String s = value_1;
-                value_2 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_2 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_0, value_2, &(ctx->g_guard[0]), &(name[0]));
+            zir_foreign_compiler_go_backend__fprintf(value_0, value_2, &(ctx->g_guard[0]), &(name[0]));
             {
                 int32_t p = 0;
                 while (true) {
@@ -6669,7 +5925,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                     uint8_t* value_6 = (void *)0;
                     {
                         String s = value_5;
-                        value_6 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_6 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     uint8_t* value_8 = (void *)0;
                     if (p != 0) {
@@ -6677,7 +5933,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_10 = (void *)0;
                         {
                             String s = value_9;
-                            value_10 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_10 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_8 = value_10;
                     } else {
@@ -6685,11 +5941,11 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_13 = (void *)0;
                         {
                             String s = value_12;
-                            value_13 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_13 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_8 = value_13;
                     }
-                    zir_f_daa84719ffd73ec0_fprintf(value_4, value_6, value_8, p, &(type[0]));
+                    zir_foreign_compiler_go_backend__fprintf(value_4, value_6, value_8, p, &(type[0]));
                     p = (int32_t)((uint32_t)p + 1u);
                 }
             }
@@ -6699,17 +5955,17 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
             uint8_t* value_17 = (void *)0;
             {
                 String s = value_16;
-                value_17 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_17 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_15, value_17, &(type[0]));
+            zir_foreign_compiler_go_backend__fprintf(value_15, value_17, &(type[0]));
             if ((binding->c_header)[0] != 0 && binding->go_field != 0) {
                 String value_19 = StringLiteral("void");
                 uint8_t* value_20 = (void *)0;
                 {
                     String s = value_19;
-                    value_20 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_20 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                bool value_22 = zir_f_daa84719ffd73ec0_strcmp(&(binding->ret[0]), value_20) != 0;
+                bool value_22 = zir_foreign_compiler_go_backend__strcmp(&(binding->ret[0]), value_20) != 0;
                 int32_t value_23 = 0;
                 if (!value_22) {
                     value_23 = 1;
@@ -6723,7 +5979,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                     uint8_t* value_26 = (void *)0;
                     {
                         String s = value_25;
-                        value_26 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_26 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     uint8_t* value_28 = (void *)0;
                     if ((binding->go_receiver)[0] != 0) {
@@ -6731,7 +5987,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_30 = (void *)0;
                         {
                             String s = value_29;
-                            value_30 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_30 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_28 = value_30;
                     } else {
@@ -6739,7 +5995,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_33 = (void *)0;
                         {
                             String s = value_32;
-                            value_33 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_33 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_28 = value_33;
                     }
@@ -6750,7 +6006,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_38 = (void *)0;
                         {
                             String s = value_37;
-                            value_38 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_38 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_36 = value_38;
                     } else {
@@ -6758,7 +6014,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_41 = (void *)0;
                         {
                             String s = value_40;
-                            value_41 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_41 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_36 = value_41;
                     }
@@ -6770,7 +6026,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_47 = (void *)0;
                         {
                             String s = value_46;
-                            value_47 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_47 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_45 = value_47;
                     } else {
@@ -6778,18 +6034,18 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_50 = (void *)0;
                         {
                             String s = value_49;
-                            value_50 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_50 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_45 = value_50;
                     }
-                    zir_f_daa84719ffd73ec0_fprintf(value_24, value_26, value_35, &(binding->go[0]), &(value_type[0]), value_43, value_44, value_45);
+                    zir_foreign_compiler_go_backend__fprintf(value_24, value_26, value_35, &(binding->go[0]), &(value_type[0]), value_43, value_44, value_45);
                 } else {
                     void* value_52 = out;
                     String value_53 = StringLiteral("result := %s.%s\n\treturn (%s)(%sresult%s)\n");
                     uint8_t* value_54 = (void *)0;
                     {
                         String s = value_53;
-                        value_54 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_54 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     uint8_t* value_56 = (void *)0;
                     if ((binding->go_receiver)[0] != 0) {
@@ -6797,7 +6053,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_58 = (void *)0;
                         {
                             String s = value_57;
-                            value_58 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_58 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_56 = value_58;
                     } else {
@@ -6805,7 +6061,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_61 = (void *)0;
                         {
                             String s = value_60;
-                            value_61 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_61 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_56 = value_61;
                     }
@@ -6816,7 +6072,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_66 = (void *)0;
                         {
                             String s = value_65;
-                            value_66 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_66 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_64 = value_66;
                     } else {
@@ -6824,7 +6080,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_69 = (void *)0;
                         {
                             String s = value_68;
-                            value_69 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_69 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_64 = value_69;
                     }
@@ -6835,7 +6091,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_74 = (void *)0;
                         {
                             String s = value_73;
-                            value_74 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_74 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_72 = value_74;
                     } else {
@@ -6843,19 +6099,19 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_77 = (void *)0;
                         {
                             String s = value_76;
-                            value_77 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_77 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_72 = value_77;
                     }
-                    zir_f_daa84719ffd73ec0_fprintf(value_52, value_54, value_63, &(binding->go[0]), &(type[0]), value_71, value_72);
+                    zir_foreign_compiler_go_backend__fprintf(value_52, value_54, value_63, &(binding->go[0]), &(type[0]), value_71, value_72);
                 }
                 String value_79 = StringLiteral("}\n\n");
                 uint8_t* value_80 = (void *)0;
                 {
                     String s = value_79;
-                    value_80 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_80 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_fputs(value_80, out);
+                zir_foreign_compiler_go_backend__fputs(value_80, out);
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
             }
@@ -6863,25 +6119,25 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
             uint8_t* value_83 = (void *)0;
             {
                 String s = value_82;
-                value_83 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_83 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            if (zir_f_daa84719ffd73ec0_strcmp(&(binding->ret[0]), value_83) != 0) {
+            if (zir_foreign_compiler_go_backend__strcmp(&(binding->ret[0]), value_83) != 0) {
                 String value_85 = StringLiteral("result := ");
                 uint8_t* value_86 = (void *)0;
                 {
                     String s = value_85;
-                    value_86 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_86 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_fputs(value_86, out);
+                zir_foreign_compiler_go_backend__fputs(value_86, out);
             }
             void* value_88 = out;
             String value_89 = StringLiteral("C.%s(");
             uint8_t* value_90 = (void *)0;
             {
                 String s = value_89;
-                value_90 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_90 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_88, value_90, &(binding->c_symbol[0]));
+            zir_foreign_compiler_go_backend__fprintf(value_88, value_90, &(binding->c_symbol[0]));
             {
                 int32_t p = 0;
                 while (true) {
@@ -6894,7 +6150,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                     uint8_t* value_94 = (void *)0;
                     {
                         String s = value_93;
-                        value_94 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_94 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     uint8_t* value_96 = (void *)0;
                     if (p != 0) {
@@ -6902,7 +6158,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_98 = (void *)0;
                         {
                             String s = value_97;
-                            value_98 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_98 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_96 = value_98;
                     } else {
@@ -6910,7 +6166,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_101 = (void *)0;
                         {
                             String s = value_100;
-                            value_101 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_101 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_96 = value_101;
                     }
@@ -6921,7 +6177,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_106 = (void *)0;
                         {
                             String s = value_105;
-                            value_106 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_106 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_104 = value_106;
                     } else {
@@ -6929,7 +6185,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_109 = (void *)0;
                         {
                             String s = value_108;
-                            value_109 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_109 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_104 = value_109;
                     }
@@ -6941,7 +6197,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_115 = (void *)0;
                         {
                             String s = value_114;
-                            value_115 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_115 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_113 = value_115;
                     } else {
@@ -6949,11 +6205,11 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                         uint8_t* value_118 = (void *)0;
                         {
                             String s = value_117;
-                            value_118 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_118 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_113 = value_118;
                     }
-                    zir_f_daa84719ffd73ec0_fprintf(value_92, value_94, value_103, &(type[0]), value_111, value_112, value_113);
+                    zir_foreign_compiler_go_backend__fprintf(value_92, value_94, value_103, &(type[0]), value_111, value_112, value_113);
                     p = (int32_t)((uint32_t)p + 1u);
                 }
             }
@@ -6961,23 +6217,23 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
             uint8_t* value_121 = (void *)0;
             {
                 String s = value_120;
-                value_121 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_121 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fputs(value_121, out);
+            zir_foreign_compiler_go_backend__fputs(value_121, out);
             String value_123 = StringLiteral("void");
             uint8_t* value_124 = (void *)0;
             {
                 String s = value_123;
-                value_124 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_124 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            if (zir_f_daa84719ffd73ec0_strcmp(&(binding->ret[0]), value_124) != 0) {
+            if (zir_foreign_compiler_go_backend__strcmp(&(binding->ret[0]), value_124) != 0) {
                 compiler_go_backend_require_go_type(ctx, &(binding->ret[0]), &(type[0]), (256) * (sizeof(uint8_t)), module->span);
                 void* value_126 = out;
                 String value_127 = StringLiteral("\treturn (%s)(%sresult%s)\n");
                 uint8_t* value_128 = (void *)0;
                 {
                     String s = value_127;
-                    value_128 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_128 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 uint8_t* value_130 = (void *)0;
                 if ((binding->ret)[0] == 42) {
@@ -6985,7 +6241,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                     uint8_t* value_132 = (void *)0;
                     {
                         String s = value_131;
-                        value_132 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_132 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_130 = value_132;
                 } else {
@@ -6993,7 +6249,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                     uint8_t* value_135 = (void *)0;
                     {
                         String s = value_134;
-                        value_135 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_135 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_130 = value_135;
                 }
@@ -7004,7 +6260,7 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                     uint8_t* value_140 = (void *)0;
                     {
                         String s = value_139;
-                        value_140 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_140 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_138 = value_140;
                 } else {
@@ -7012,19 +6268,19 @@ compiler_go_backend_emit_go_c_adapters(GoLowerState* ctx, void* out, ZirModule* 
                     uint8_t* value_143 = (void *)0;
                     {
                         String s = value_142;
-                        value_143 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_143 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_138 = value_143;
                 }
-                zir_f_daa84719ffd73ec0_fprintf(value_126, value_128, &(type[0]), value_137, value_138);
+                zir_foreign_compiler_go_backend__fprintf(value_126, value_128, &(type[0]), value_137, value_138);
             }
             String value_145 = StringLiteral("}\n\n");
             uint8_t* value_146 = (void *)0;
             {
                 String s = value_145;
-                value_146 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_146 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fputs(value_146, out);
+            zir_foreign_compiler_go_backend__fputs(value_146, out);
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -7038,54 +6294,54 @@ compiler_go_backend_emit_go_c_header_stub(GoLowerState* ctx, ZirProgram** progra
         return 0;
     }
     uint8_t companion[1024] = {0};
-    size_t length = zir_f_daa84719ffd73ec0_strlen(path);
+    size_t length = zir_foreign_compiler_go_backend__strlen(path);
     if (length < (size_t)(3LL) || length + (size_t)(6LL) >= ((1024) * (sizeof(uint8_t)))) {
         ZirSourceSpan value_1 = module->span;
         String value_2 = StringLiteral("zir_go.import");
         uint8_t* value_3 = (void *)0;
         {
             String s = value_2;
-            value_3 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_3 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
         String value_5 = StringLiteral("cgo companion output path exceeds limit");
         uint8_t* value_6 = (void *)0;
         {
             String s = value_5;
-            value_6 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_6 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_Diagnostic(value_1, value_3, value_6);
+        zir_foreign_compiler_go_backend__Diagnostic(value_1, value_3, value_6);
         return 1;
     }
     String value_8 = StringLiteral("%.*s.nocgo.go");
     uint8_t* value_9 = (void *)0;
     {
         String s = value_8;
-        value_9 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_9 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_snprintf(&(companion[0]), (1024) * (sizeof(uint8_t)), value_9, (int32_t)((length - (size_t)(3LL))), path);
-    zir_f_daa84719ffd73ec0_GeneratedOutputRecord(&(companion[0]));
+    zir_foreign_compiler_go_backend__snprintf(&(companion[0]), (1024) * (sizeof(uint8_t)), value_9, (int32_t)((length - (size_t)(3LL))), path);
+    zir_foreign_compiler_go_backend__GeneratedOutputRecord(&(companion[0]));
     String value_11 = StringLiteral("wb");
     uint8_t* value_12 = (void *)0;
     {
         String s = value_11;
-        value_12 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_12 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    void* out = zir_f_daa84719ffd73ec0_fopen(&(companion[0]), value_12);
+    void* out = zir_foreign_compiler_go_backend__fopen(&(companion[0]), value_12);
     if (out == ((void *)0)) {
         ZirSourceSpan value_14 = module->span;
         String value_15 = StringLiteral("zir_go.import");
         uint8_t* value_16 = (void *)0;
         {
             String s = value_15;
-            value_16 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_16 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
         String value_18 = StringLiteral("cannot create cgo companion: %s");
         uint8_t* value_19 = (void *)0;
         {
             String s = value_18;
-            value_19 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_19 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_Diagnostic(value_14, value_16, value_19, &(companion[0]));
+        zir_foreign_compiler_go_backend__Diagnostic(value_14, value_16, value_19, &(companion[0]));
         return 1;
     }
     void* value_21 = out;
@@ -7093,9 +6349,9 @@ compiler_go_backend_emit_go_c_header_stub(GoLowerState* ctx, ZirProgram** progra
     uint8_t* value_23 = (void *)0;
     {
         String s = value_22;
-        value_23 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_23 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_fprintf(value_21, value_23, &(module->source_path[0]), package);
+    zir_foreign_compiler_go_backend__fprintf(value_21, value_23, &(module->source_path[0]), package);
     {
         int32_t i = 0;
         while (true) {
@@ -7103,10 +6359,10 @@ compiler_go_backend_emit_go_c_header_stub(GoLowerState* ctx, ZirProgram** progra
                 break;
             }
             uint8_t foreign_package[1024] = {0};
-            bool value_25 = zir_f_daa84719ffd73ec0_GoForeignCallParts(&(((module->types[i]).foreign_target)[0]), &(foreign_package[0]), (1024) * (sizeof(uint8_t)), (uint8_t*)(((void *)0)), (size_t)(0LL), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
+            bool value_25 = zir_foreign_compiler_go_backend__GoForeignCallParts(&(((module->types[i]).foreign_target)[0]), &(foreign_package[0]), (1024) * (sizeof(uint8_t)), (uint8_t*)(((void *)0)), (size_t)(0LL), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
             bool value_26 = !value_25;
             if (!value_26) {
-                bool value_27 = zir_f_daa84719ffd73ec0_GoCHeader(&(foreign_package[0]), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
+                bool value_27 = zir_foreign_compiler_go_backend__GoCHeader(&(foreign_package[0]), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
                 value_26 = !value_27;
             }
             if (value_26) {
@@ -7114,7 +6370,7 @@ compiler_go_backend_emit_go_c_header_stub(GoLowerState* ctx, ZirProgram** progra
                 continue;
             }
             uint8_t native[256] = {0};
-            zir_f_daa84719ffd73ec0_NativeTypeName(module, &(module->types[i]), &(native[0]), (256) * (sizeof(uint8_t)));
+            zir_foreign_compiler_go_backend__NativeTypeName(module, &(module->types[i]), &(native[0]), (256) * (sizeof(uint8_t)));
             if (compiler_go_backend_synthetic_type_emitted(ctx, programs, program_index, module_index, &(module->types[i]), &(native[0])) != 0) {
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
@@ -7124,9 +6380,9 @@ compiler_go_backend_emit_go_c_header_stub(GoLowerState* ctx, ZirProgram** progra
             uint8_t* value_30 = (void *)0;
             {
                 String s = value_29;
-                value_30 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_30 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_28, value_30, &(native[0]));
+            zir_foreign_compiler_go_backend__fprintf(value_28, value_30, &(native[0]));
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -7143,15 +6399,15 @@ compiler_go_backend_emit_go_c_header_stub(GoLowerState* ctx, ZirProgram** progra
             }
             uint8_t name[256] = {0};
             uint8_t type[256] = {0};
-            zir_f_daa84719ffd73ec0_camel_ident(&(binding->source[0]), &(name[0]), (256) * (sizeof(uint8_t)));
+            zir_foreign_compiler_go_backend__camel_ident(&(binding->source[0]), &(name[0]), (256) * (sizeof(uint8_t)));
             void* value_32 = out;
             String value_33 = StringLiteral("func %s_%s(");
             uint8_t* value_34 = (void *)0;
             {
                 String s = value_33;
-                value_34 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_34 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_32, value_34, &(ctx->g_guard[0]), &(name[0]));
+            zir_foreign_compiler_go_backend__fprintf(value_32, value_34, &(ctx->g_guard[0]), &(name[0]));
             {
                 int32_t p = 0;
                 while (true) {
@@ -7164,7 +6420,7 @@ compiler_go_backend_emit_go_c_header_stub(GoLowerState* ctx, ZirProgram** progra
                     uint8_t* value_38 = (void *)0;
                     {
                         String s = value_37;
-                        value_38 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_38 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     uint8_t* value_40 = (void *)0;
                     if (p != 0) {
@@ -7172,7 +6428,7 @@ compiler_go_backend_emit_go_c_header_stub(GoLowerState* ctx, ZirProgram** progra
                         uint8_t* value_42 = (void *)0;
                         {
                             String s = value_41;
-                            value_42 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_42 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_40 = value_42;
                     } else {
@@ -7180,11 +6436,11 @@ compiler_go_backend_emit_go_c_header_stub(GoLowerState* ctx, ZirProgram** progra
                         uint8_t* value_45 = (void *)0;
                         {
                             String s = value_44;
-                            value_45 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_45 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_40 = value_45;
                     }
-                    zir_f_daa84719ffd73ec0_fprintf(value_36, value_38, value_40, p, &(type[0]));
+                    zir_foreign_compiler_go_backend__fprintf(value_36, value_38, value_40, p, &(type[0]));
                     p = (int32_t)((uint32_t)p + 1u);
                 }
             }
@@ -7194,20 +6450,20 @@ compiler_go_backend_emit_go_c_header_stub(GoLowerState* ctx, ZirProgram** progra
             uint8_t* value_49 = (void *)0;
             {
                 String s = value_48;
-                value_49 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_49 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_47, value_49, &(type[0]));
+            zir_foreign_compiler_go_backend__fprintf(value_47, value_49, &(type[0]));
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    bool value_51 = zir_f_daa84719ffd73ec0_ferror(out) != 0;
+    bool value_51 = zir_foreign_compiler_go_backend__ferror(out) != 0;
     int32_t value_52 = 0;
     if (value_51) {
         value_52 = 1;
     }
     int32_t failed = value_52;
     int32_t value_53 = failed;
-    bool value_54 = zir_f_daa84719ffd73ec0_fclose(out) != 0;
+    bool value_54 = zir_foreign_compiler_go_backend__fclose(out) != 0;
     int32_t value_55 = 0;
     if (value_54) {
         value_55 = 1;
@@ -7219,15 +6475,15 @@ compiler_go_backend_emit_go_c_header_stub(GoLowerState* ctx, ZirProgram** progra
         uint8_t* value_58 = (void *)0;
         {
             String s = value_57;
-            value_58 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_58 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
         String value_60 = StringLiteral("cannot finish cgo companion: %s");
         uint8_t* value_61 = (void *)0;
         {
             String s = value_60;
-            value_61 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_61 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_Diagnostic(value_56, value_58, value_61, &(companion[0]));
+        zir_foreign_compiler_go_backend__Diagnostic(value_56, value_58, value_61, &(companion[0]));
     }
     return failed;
 }
@@ -7240,54 +6496,54 @@ compiler_go_backend_emit_go_c_header_implementation(GoLowerState* ctx, ZirProgra
         return 0;
     }
     uint8_t companion[1024] = {0};
-    size_t length = zir_f_daa84719ffd73ec0_strlen(path);
+    size_t length = zir_foreign_compiler_go_backend__strlen(path);
     if (length < (size_t)(3LL) || length + (size_t)(4LL) >= ((1024) * (sizeof(uint8_t)))) {
         ZirSourceSpan value_1 = module->span;
         String value_2 = StringLiteral("zir_go.import");
         uint8_t* value_3 = (void *)0;
         {
             String s = value_2;
-            value_3 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_3 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
         String value_5 = StringLiteral("cgo companion output path exceeds limit");
         uint8_t* value_6 = (void *)0;
         {
             String s = value_5;
-            value_6 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_6 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_Diagnostic(value_1, value_3, value_6);
+        zir_foreign_compiler_go_backend__Diagnostic(value_1, value_3, value_6);
         return 1;
     }
     String value_8 = StringLiteral("%.*s.cgo.go");
     uint8_t* value_9 = (void *)0;
     {
         String s = value_8;
-        value_9 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_9 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_snprintf(&(companion[0]), (1024) * (sizeof(uint8_t)), value_9, (int32_t)((length - (size_t)(3LL))), path);
-    zir_f_daa84719ffd73ec0_GeneratedOutputRecord(&(companion[0]));
+    zir_foreign_compiler_go_backend__snprintf(&(companion[0]), (1024) * (sizeof(uint8_t)), value_9, (int32_t)((length - (size_t)(3LL))), path);
+    zir_foreign_compiler_go_backend__GeneratedOutputRecord(&(companion[0]));
     String value_11 = StringLiteral("wb");
     uint8_t* value_12 = (void *)0;
     {
         String s = value_11;
-        value_12 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_12 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    void* out = zir_f_daa84719ffd73ec0_fopen(&(companion[0]), value_12);
+    void* out = zir_foreign_compiler_go_backend__fopen(&(companion[0]), value_12);
     if (out == ((void *)0)) {
         ZirSourceSpan value_14 = module->span;
         String value_15 = StringLiteral("zir_go.import");
         uint8_t* value_16 = (void *)0;
         {
             String s = value_15;
-            value_16 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_16 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
         String value_18 = StringLiteral("cannot create cgo companion: %s");
         uint8_t* value_19 = (void *)0;
         {
             String s = value_18;
-            value_19 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_19 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_Diagnostic(value_14, value_16, value_19, &(companion[0]));
+        zir_foreign_compiler_go_backend__Diagnostic(value_14, value_16, value_19, &(companion[0]));
         return 1;
     }
     void* value_21 = out;
@@ -7295,17 +6551,17 @@ compiler_go_backend_emit_go_c_header_implementation(GoLowerState* ctx, ZirProgra
     uint8_t* value_23 = (void *)0;
     {
         String s = value_22;
-        value_23 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_23 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_fprintf(value_21, value_23, &(module->source_path[0]), package);
+    zir_foreign_compiler_go_backend__fprintf(value_21, value_23, &(module->source_path[0]), package);
     compiler_go_backend_emit_go_c_preamble(ctx, out, module);
     String value_25 = StringLiteral("import \"unsafe\"\n\nvar _ unsafe.Pointer\n\n");
     uint8_t* value_26 = (void *)0;
     {
         String s = value_25;
-        value_26 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_26 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_fputs(value_26, out);
+    zir_foreign_compiler_go_backend__fputs(value_26, out);
     {
         int32_t i = 0;
         while (true) {
@@ -7316,17 +6572,17 @@ compiler_go_backend_emit_go_c_header_implementation(GoLowerState* ctx, ZirProgra
             uint8_t foreign_package[1024] = {0};
             uint8_t symbol[256] = {0};
             uint8_t native[256] = {0};
-            bool value_28 = zir_f_daa84719ffd73ec0_GoForeignCallParts(&(type->foreign_target[0]), &(foreign_package[0]), (1024) * (sizeof(uint8_t)), (uint8_t*)(((void *)0)), (size_t)(0LL), &(symbol[0]), (256) * (sizeof(uint8_t))) != 0;
+            bool value_28 = zir_foreign_compiler_go_backend__GoForeignCallParts(&(type->foreign_target[0]), &(foreign_package[0]), (1024) * (sizeof(uint8_t)), (uint8_t*)(((void *)0)), (size_t)(0LL), &(symbol[0]), (256) * (sizeof(uint8_t))) != 0;
             bool value_29 = !value_28;
             if (!value_29) {
-                bool value_30 = zir_f_daa84719ffd73ec0_GoCHeader(&(foreign_package[0]), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
+                bool value_30 = zir_foreign_compiler_go_backend__GoCHeader(&(foreign_package[0]), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
                 value_29 = !value_30;
             }
             if (value_29) {
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
             }
-            zir_f_daa84719ffd73ec0_NativeTypeName(module, type, &(native[0]), (256) * (sizeof(uint8_t)));
+            zir_foreign_compiler_go_backend__NativeTypeName(module, type, &(native[0]), (256) * (sizeof(uint8_t)));
             if (compiler_go_backend_synthetic_type_emitted(ctx, programs, program_index, module_index, type, &(native[0])) != 0) {
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
@@ -7336,21 +6592,21 @@ compiler_go_backend_emit_go_c_header_implementation(GoLowerState* ctx, ZirProgra
             uint8_t* value_33 = (void *)0;
             {
                 String s = value_32;
-                value_33 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_33 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_31, value_33, &(native[0]), &(symbol[0]));
+            zir_foreign_compiler_go_backend__fprintf(value_31, value_33, &(native[0]), &(symbol[0]));
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
     compiler_go_backend_emit_go_c_adapters(ctx, out, module);
-    bool value_35 = zir_f_daa84719ffd73ec0_ferror(out) != 0;
+    bool value_35 = zir_foreign_compiler_go_backend__ferror(out) != 0;
     int32_t value_36 = 0;
     if (value_35) {
         value_36 = 1;
     }
     int32_t failed = value_36;
     int32_t value_37 = failed;
-    bool value_38 = zir_f_daa84719ffd73ec0_fclose(out) != 0;
+    bool value_38 = zir_foreign_compiler_go_backend__fclose(out) != 0;
     int32_t value_39 = 0;
     if (value_38) {
         value_39 = 1;
@@ -7362,15 +6618,15 @@ compiler_go_backend_emit_go_c_header_implementation(GoLowerState* ctx, ZirProgra
         uint8_t* value_42 = (void *)0;
         {
             String s = value_41;
-            value_42 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_42 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
         String value_44 = StringLiteral("cannot finish cgo companion: %s");
         uint8_t* value_45 = (void *)0;
         {
             String s = value_44;
-            value_45 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_45 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_Diagnostic(value_40, value_42, value_45, &(companion[0]));
+        zir_foreign_compiler_go_backend__Diagnostic(value_40, value_42, value_45, &(companion[0]));
     }
     return failed;
 }
@@ -7390,7 +6646,7 @@ compiler_go_backend_emit_go_cgo_availability(GoLowerState* ctx, ZirModule* modul
             uint8_t* value_1 = (void *)0;
             {
                 String s = value_0;
-                value_1 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_1 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
             uint8_t* value_3 = (void *)0;
             if (enabled != 0) {
@@ -7398,7 +6654,7 @@ compiler_go_backend_emit_go_cgo_availability(GoLowerState* ctx, ZirModule* modul
                 uint8_t* value_5 = (void *)0;
                 {
                     String s = value_4;
-                    value_5 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_5 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 value_3 = value_5;
             } else {
@@ -7406,58 +6662,58 @@ compiler_go_backend_emit_go_cgo_availability(GoLowerState* ctx, ZirModule* modul
                 uint8_t* value_8 = (void *)0;
                 {
                     String s = value_7;
-                    value_8 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_8 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 value_3 = value_8;
             }
-            int32_t length = zir_f_daa84719ffd73ec0_snprintf(&(path[0]), (1024) * (sizeof(uint8_t)), value_1, directory, value_3);
+            int32_t length = zir_foreign_compiler_go_backend__snprintf(&(path[0]), (1024) * (sizeof(uint8_t)), value_1, directory, value_3);
             if (length < 0 || (size_t)(length) >= ((1024) * (sizeof(uint8_t)))) {
                 ZirSourceSpan value_10 = module->span;
                 String value_11 = StringLiteral("zir_go.import");
                 uint8_t* value_12 = (void *)0;
                 {
                     String s = value_11;
-                    value_12 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_12 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 String value_14 = StringLiteral("cgo availability output path exceeds limit");
                 uint8_t* value_15 = (void *)0;
                 {
                     String s = value_14;
-                    value_15 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_15 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_Diagnostic(value_10, value_12, value_15);
+                zir_foreign_compiler_go_backend__Diagnostic(value_10, value_12, value_15);
                 return 1;
             }
-            zir_f_daa84719ffd73ec0_GeneratedOutputRecord(&(path[0]));
+            zir_foreign_compiler_go_backend__GeneratedOutputRecord(&(path[0]));
             String value_17 = StringLiteral("wb");
             uint8_t* value_18 = (void *)0;
             {
                 String s = value_17;
-                value_18 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_18 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            void* out = zir_f_daa84719ffd73ec0_fopen(&(path[0]), value_18);
+            void* out = zir_foreign_compiler_go_backend__fopen(&(path[0]), value_18);
             if (out == ((void *)0)) {
                 ZirSourceSpan value_20 = module->span;
                 String value_21 = StringLiteral("zir_go.import");
                 uint8_t* value_22 = (void *)0;
                 {
                     String s = value_21;
-                    value_22 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_22 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 String value_24 = StringLiteral("cannot create cgo availability: %s");
                 uint8_t* value_25 = (void *)0;
                 {
                     String s = value_24;
-                    value_25 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_25 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_Diagnostic(value_20, value_22, value_25, &(path[0]));
+                zir_foreign_compiler_go_backend__Diagnostic(value_20, value_22, value_25, &(path[0]));
                 return 1;
             }
             String value_27 = StringLiteral("// Code generated by zi2go from native Go availability. DO NOT EDIT.\n//go:build %scgo\n\npackage %s\n\nconst zirGoCgoEnabled = %s\n");
             uint8_t* value_28 = (void *)0;
             {
                 String s = value_27;
-                value_28 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_28 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
             uint8_t* value_30 = (void *)0;
             if (enabled != 0) {
@@ -7465,7 +6721,7 @@ compiler_go_backend_emit_go_cgo_availability(GoLowerState* ctx, ZirModule* modul
                 uint8_t* value_32 = (void *)0;
                 {
                     String s = value_31;
-                    value_32 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_32 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 value_30 = value_32;
             } else {
@@ -7473,7 +6729,7 @@ compiler_go_backend_emit_go_cgo_availability(GoLowerState* ctx, ZirModule* modul
                 uint8_t* value_35 = (void *)0;
                 {
                     String s = value_34;
-                    value_35 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_35 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 value_30 = value_35;
             }
@@ -7484,7 +6740,7 @@ compiler_go_backend_emit_go_cgo_availability(GoLowerState* ctx, ZirModule* modul
                 uint8_t* value_40 = (void *)0;
                 {
                     String s = value_39;
-                    value_40 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_40 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 value_38 = value_40;
             } else {
@@ -7492,18 +6748,18 @@ compiler_go_backend_emit_go_cgo_availability(GoLowerState* ctx, ZirModule* modul
                 uint8_t* value_43 = (void *)0;
                 {
                     String s = value_42;
-                    value_43 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_43 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 value_38 = value_43;
             }
-            zir_f_daa84719ffd73ec0_fprintf(out, value_28, value_37, package, value_38);
-            bool value_45 = zir_f_daa84719ffd73ec0_ferror(out) != 0;
+            zir_foreign_compiler_go_backend__fprintf(out, value_28, value_37, package, value_38);
+            bool value_45 = zir_foreign_compiler_go_backend__ferror(out) != 0;
             int32_t value_46 = 0;
             if (value_45) {
                 value_46 = 1;
             }
             int32_t failed = value_46;
-            bool value_47 = zir_f_daa84719ffd73ec0_fclose(out) != 0;
+            bool value_47 = zir_foreign_compiler_go_backend__fclose(out) != 0;
             int32_t value_48 = 0;
             if (value_47) {
                 value_48 = 1;
@@ -7515,15 +6771,15 @@ compiler_go_backend_emit_go_cgo_availability(GoLowerState* ctx, ZirModule* modul
                 uint8_t* value_51 = (void *)0;
                 {
                     String s = value_50;
-                    value_51 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_51 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 String value_53 = StringLiteral("cannot finish cgo availability: %s");
                 uint8_t* value_54 = (void *)0;
                 {
                     String s = value_53;
-                    value_54 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_54 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_Diagnostic(value_49, value_51, value_54, &(path[0]));
+                zir_foreign_compiler_go_backend__Diagnostic(value_49, value_51, value_54, &(path[0]));
                 return 1;
             }
             enabled = (int32_t)((uint32_t)enabled + 1u);
@@ -7600,25 +6856,25 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
             }
             uint8_t result_type[256] = {0};
             uint8_t name[256] = {0};
-            ZirType* record = zir_f_daa84719ffd73ec0_CFindType(module, &(binding->ret[0]), (ZirModule**)(((void *)0)));
+            ZirType* record = zir_foreign_compiler_go_backend__CFindType(module, &(binding->ret[0]), (ZirModule**)(((void *)0)));
             String value_24 = StringLiteral("void");
             uint8_t* value_25 = (void *)0;
             {
                 String s = value_24;
-                value_25 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_25 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            if (zir_f_daa84719ffd73ec0_strcmp(&(binding->ret[0]), value_25) != 0) {
+            if (zir_foreign_compiler_go_backend__strcmp(&(binding->ret[0]), value_25) != 0) {
                 compiler_go_backend_require_go_type(ctx, &(binding->ret[0]), &(result_type[0]), (256) * (sizeof(uint8_t)), module->span);
             }
-            zir_f_daa84719ffd73ec0_camel_ident(&(binding->source[0]), &(name[0]), (256) * (sizeof(uint8_t)));
+            zir_foreign_compiler_go_backend__camel_ident(&(binding->source[0]), &(name[0]), (256) * (sizeof(uint8_t)));
             void* value_27 = out;
             String value_28 = StringLiteral("func %s_%s(");
             uint8_t* value_29 = (void *)0;
             {
                 String s = value_28;
-                value_29 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_29 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_27, value_29, &(ctx->g_guard[0]), &(name[0]));
+            zir_foreign_compiler_go_backend__fprintf(value_27, value_29, &(ctx->g_guard[0]), &(name[0]));
             {
                 int32_t p = 0;
                 while (true) {
@@ -7627,14 +6883,14 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                     }
                     uint8_t parameter[256] = {0};
                     uint8_t type[256] = {0};
-                    zir_f_daa84719ffd73ec0_camel_ident((binding->parameters->items[p]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
+                    zir_foreign_compiler_go_backend__camel_ident((binding->parameters->items[p]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
                     compiler_go_backend_require_go_type(ctx, (binding->parameters->items[p]).type, &(type[0]), (256) * (sizeof(uint8_t)), module->span);
                     void* value_31 = out;
                     String value_32 = StringLiteral("%s%s %s");
                     uint8_t* value_33 = (void *)0;
                     {
                         String s = value_32;
-                        value_33 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_33 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     uint8_t* value_35 = (void *)0;
                     if (p != 0) {
@@ -7642,7 +6898,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                         uint8_t* value_37 = (void *)0;
                         {
                             String s = value_36;
-                            value_37 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_37 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_35 = value_37;
                     } else {
@@ -7650,11 +6906,11 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                         uint8_t* value_40 = (void *)0;
                         {
                             String s = value_39;
-                            value_40 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_40 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_35 = value_40;
                     }
-                    zir_f_daa84719ffd73ec0_fprintf(value_31, value_33, value_35, &(parameter[0]), &(type[0]));
+                    zir_foreign_compiler_go_backend__fprintf(value_31, value_33, value_35, &(parameter[0]), &(type[0]));
                     p = (int32_t)((uint32_t)p + 1u);
                 }
             }
@@ -7663,17 +6919,17 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
             uint8_t* value_44 = (void *)0;
             {
                 String s = value_43;
-                value_44 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_44 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_42, value_44, &(result_type[0]));
+            zir_foreign_compiler_go_backend__fprintf(value_42, value_44, &(result_type[0]));
             if (compiler_go_backend_go_package_initializer(ctx, binding) != 0) {
                 String value_46 = StringLiteral("\t// Native Go imports initialize the package before this package starts.\n}\n\n");
                 uint8_t* value_47 = (void *)0;
                 {
                     String s = value_46;
-                    value_47 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_47 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_fputs(value_47, out);
+                zir_foreign_compiler_go_backend__fputs(value_47, out);
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
             }
@@ -7682,30 +6938,30 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                 uint8_t* value_50 = (void *)0;
                 {
                     String s = value_49;
-                    value_50 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_50 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_fputs(value_50, out);
+                zir_foreign_compiler_go_backend__fputs(value_50, out);
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
             }
             if (compiler_go_backend_go_builtin_retain(ctx, binding) != 0) {
                 uint8_t parameter[256] = {0};
-                zir_f_daa84719ffd73ec0_camel_ident((binding->parameters->items[0]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
+                zir_foreign_compiler_go_backend__camel_ident((binding->parameters->items[0]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
                 void* value_52 = out;
                 String value_53 = StringLiteral("\treturn %s\n}\n\n");
                 uint8_t* value_54 = (void *)0;
                 {
                     String s = value_53;
-                    value_54 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_54 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_fprintf(value_52, value_54, &(parameter[0]));
+                zir_foreign_compiler_go_backend__fprintf(value_52, value_54, &(parameter[0]));
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
             }
             if (compiler_go_backend_go_builtin_bind(ctx, binding) != 0) {
                 ZirModule* owner = (ZirModule*)(((void *)0));
-                ZirType* procedure = zir_f_daa84719ffd73ec0_CFindType(module, &(binding->ret[0]), &(owner));
-                zir_e93613178cb7063a_ZirParameters* arguments = zir_f_daa84719ffd73ec0_ParametersOf(&(procedure->body[0]));
+                ZirType* procedure = zir_foreign_compiler_go_backend__CFindType(module, &(binding->ret[0]), &(owner));
+                compiler_go_backend_ZirParameters* arguments = zir_foreign_compiler_go_backend__ParametersOf(&(procedure->body[0]));
                 ZirModule* saved_scope = ctx->type_scope;
                 ZirModule** value_56 = &(ctx->type_scope);
                 ZirModule* value_57 = (void *)0;
@@ -7719,9 +6975,9 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                 uint8_t* value_59 = (void *)0;
                 {
                     String s = value_58;
-                    value_59 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_59 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_fputs(value_59, out);
+                zir_foreign_compiler_go_backend__fputs(value_59, out);
                 {
                     int32_t p = 0;
                     while (true) {
@@ -7735,7 +6991,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                         uint8_t* value_63 = (void *)0;
                         {
                             String s = value_62;
-                            value_63 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_63 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         uint8_t* value_65 = (void *)0;
                         if (p != 0) {
@@ -7743,7 +6999,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                             uint8_t* value_67 = (void *)0;
                             {
                                 String s = value_66;
-                                value_67 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_67 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
                             value_65 = value_67;
                         } else {
@@ -7751,11 +7007,11 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                             uint8_t* value_70 = (void *)0;
                             {
                                 String s = value_69;
-                                value_70 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_70 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
                             value_65 = value_70;
                         }
-                        zir_f_daa84719ffd73ec0_fprintf(value_61, value_63, value_65, p, &(native_type[0]));
+                        zir_foreign_compiler_go_backend__fprintf(value_61, value_63, value_65, p, &(native_type[0]));
                         p = (int32_t)((uint32_t)p + 1u);
                     }
                 }
@@ -7768,7 +7024,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                 uint8_t* value_75 = (void *)0;
                 {
                     String s = value_74;
-                    value_75 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_75 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 uint8_t* value_77 = (void *)0;
                 if ((native_result)[0] != 0) {
@@ -7776,7 +7032,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                     uint8_t* value_79 = (void *)0;
                     {
                         String s = value_78;
-                        value_79 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_79 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_77 = value_79;
                 } else {
@@ -7784,34 +7040,34 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                     uint8_t* value_82 = (void *)0;
                     {
                         String s = value_81;
-                        value_82 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_82 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_77 = value_82;
                 }
-                zir_f_daa84719ffd73ec0_fprintf(value_73, value_75, &(native_result[0]), value_77);
+                zir_foreign_compiler_go_backend__fprintf(value_73, value_75, &(native_result[0]), value_77);
                 uint8_t parameter[256] = {0};
-                zir_f_daa84719ffd73ec0_camel_ident((binding->parameters->items[0]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
+                zir_foreign_compiler_go_backend__camel_ident((binding->parameters->items[0]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
                 void* value_84 = out;
                 String value_85 = StringLiteral("%s(");
                 uint8_t* value_86 = (void *)0;
                 {
                     String s = value_85;
-                    value_86 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_86 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_fprintf(value_84, value_86, &(parameter[0]));
+                zir_foreign_compiler_go_backend__fprintf(value_84, value_86, &(parameter[0]));
                 {
                     int32_t p = 1;
                     while (true) {
                         if (!(p < binding->pcount)) {
                             break;
                         }
-                        zir_f_daa84719ffd73ec0_camel_ident((binding->parameters->items[p]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
+                        zir_foreign_compiler_go_backend__camel_ident((binding->parameters->items[p]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
                         void* value_88 = out;
                         String value_89 = StringLiteral("%s%s");
                         uint8_t* value_90 = (void *)0;
                         {
                             String s = value_89;
-                            value_90 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_90 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         uint8_t* value_92 = (void *)0;
                         if (p > 1) {
@@ -7819,7 +7075,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                             uint8_t* value_94 = (void *)0;
                             {
                                 String s = value_93;
-                                value_94 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_94 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
                             value_92 = value_94;
                         } else {
@@ -7827,11 +7083,11 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                             uint8_t* value_97 = (void *)0;
                             {
                                 String s = value_96;
-                                value_97 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_97 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
                             value_92 = value_97;
                         }
-                        zir_f_daa84719ffd73ec0_fprintf(value_88, value_90, value_92, &(parameter[0]));
+                        zir_foreign_compiler_go_backend__fprintf(value_88, value_90, value_92, &(parameter[0]));
                         p = (int32_t)((uint32_t)p + 1u);
                     }
                 }
@@ -7846,9 +7102,9 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                         uint8_t* value_101 = (void *)0;
                         {
                             String s = value_100;
-                            value_101 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_101 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_fprintf(value_99, value_101, p);
+                        zir_foreign_compiler_go_backend__fprintf(value_99, value_101, p);
                         p = (int32_t)((uint32_t)p + 1u);
                     }
                 }
@@ -7856,66 +7112,66 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                 uint8_t* value_104 = (void *)0;
                 {
                     String s = value_103;
-                    value_104 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_104 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_fputs(value_104, out);
+                zir_foreign_compiler_go_backend__fputs(value_104, out);
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
             }
             if (compiler_go_backend_go_builtin_nil_check(ctx, binding) != 0) {
                 uint8_t parameter[256] = {0};
-                zir_f_daa84719ffd73ec0_camel_ident((binding->parameters->items[0]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
+                zir_foreign_compiler_go_backend__camel_ident((binding->parameters->items[0]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
                 void* value_106 = out;
                 String value_107 = StringLiteral("\treturn %s == nil\n}\n\n");
                 uint8_t* value_108 = (void *)0;
                 {
                     String s = value_107;
-                    value_108 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_108 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_fprintf(value_106, value_108, &(parameter[0]));
+                zir_foreign_compiler_go_backend__fprintf(value_106, value_108, &(parameter[0]));
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
             }
             bool value_110 = compiler_go_backend_go_builtin_assertion(ctx, binding) != 0;
             if (value_110 && !(binding->go_results != 0)) {
                 uint8_t parameter[256] = {0};
-                zir_f_daa84719ffd73ec0_camel_ident((binding->parameters->items[0]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
+                zir_foreign_compiler_go_backend__camel_ident((binding->parameters->items[0]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
                 void* value_111 = out;
                 String value_112 = StringLiteral("\treturn %s.(%s)\n}\n\n");
                 uint8_t* value_113 = (void *)0;
                 {
                     String s = value_112;
-                    value_113 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_113 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_fprintf(value_111, value_113, &(parameter[0]), &(result_type[0]));
+                zir_foreign_compiler_go_backend__fprintf(value_111, value_113, &(parameter[0]), &(result_type[0]));
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
             }
             bool value_115 = compiler_go_backend_go_builtin_method(ctx, binding) != 0;
             if (value_115 || compiler_go_backend_go_builtin_callback(ctx, binding) != 0) {
                 uint8_t parameter[256] = {0};
-                zir_f_daa84719ffd73ec0_camel_ident((binding->parameters->items[0]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
+                zir_foreign_compiler_go_backend__camel_ident((binding->parameters->items[0]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
                 void* value_116 = out;
                 String value_117 = StringLiteral("\t%s%s%s%s(");
                 uint8_t* value_118 = (void *)0;
                 {
                     String s = value_117;
-                    value_118 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_118 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 String value_120 = StringLiteral("spawn");
                 uint8_t* value_121 = (void *)0;
                 {
                     String s = value_120;
-                    value_121 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_121 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                bool value_123 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go[0]), value_121) != 0;
+                bool value_123 = zir_foreign_compiler_go_backend__strcmp(&(binding->go[0]), value_121) != 0;
                 uint8_t* value_124 = (void *)0;
                 if (!value_123) {
                     String value_125 = StringLiteral("go ");
                     uint8_t* value_126 = (void *)0;
                     {
                         String s = value_125;
-                        value_126 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_126 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_124 = value_126;
                 } else {
@@ -7925,7 +7181,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                         uint8_t* value_130 = (void *)0;
                         {
                             String s = value_129;
-                            value_130 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_130 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_128 = value_130;
                     } else {
@@ -7933,7 +7189,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                         uint8_t* value_133 = (void *)0;
                         {
                             String s = value_132;
-                            value_133 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_133 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_128 = value_133;
                     }
@@ -7947,7 +7203,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                     uint8_t* value_139 = (void *)0;
                     {
                         String s = value_138;
-                        value_139 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_139 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_137 = value_139;
                 } else {
@@ -7955,7 +7211,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                     uint8_t* value_142 = (void *)0;
                     {
                         String s = value_141;
-                        value_142 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_142 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_137 = value_142;
                 }
@@ -7967,26 +7223,26 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                     uint8_t* value_148 = (void *)0;
                     {
                         String s = value_147;
-                        value_148 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_148 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_146 = value_148;
                 } else {
                     value_146 = &(binding->go[0]);
                 }
-                zir_f_daa84719ffd73ec0_fprintf(value_116, value_118, value_135, &(parameter[0]), value_144, value_146);
+                zir_foreign_compiler_go_backend__fprintf(value_116, value_118, value_135, &(parameter[0]), value_144, value_146);
                 {
                     int32_t p = 1;
                     while (true) {
                         if (!(p < binding->pcount)) {
                             break;
                         }
-                        zir_f_daa84719ffd73ec0_camel_ident((binding->parameters->items[p]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
+                        zir_foreign_compiler_go_backend__camel_ident((binding->parameters->items[p]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
                         void* value_150 = out;
                         String value_151 = StringLiteral("%s%s");
                         uint8_t* value_152 = (void *)0;
                         {
                             String s = value_151;
-                            value_152 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_152 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         uint8_t* value_154 = (void *)0;
                         if (p > 1) {
@@ -7994,7 +7250,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                             uint8_t* value_156 = (void *)0;
                             {
                                 String s = value_155;
-                                value_156 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_156 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
                             value_154 = value_156;
                         } else {
@@ -8002,11 +7258,11 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                             uint8_t* value_159 = (void *)0;
                             {
                                 String s = value_158;
-                                value_159 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_159 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
                             value_154 = value_159;
                         }
-                        zir_f_daa84719ffd73ec0_fprintf(value_150, value_152, value_154, &(parameter[0]));
+                        zir_foreign_compiler_go_backend__fprintf(value_150, value_152, value_154, &(parameter[0]));
                         p = (int32_t)((uint32_t)p + 1u);
                     }
                 }
@@ -8014,9 +7270,9 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                 uint8_t* value_162 = (void *)0;
                 {
                     String s = value_161;
-                    value_162 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_162 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_fputs(value_162, out);
+                zir_foreign_compiler_go_backend__fputs(value_162, out);
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
             }
@@ -8025,9 +7281,9 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                 uint8_t* value_165 = (void *)0;
                 {
                     String s = value_164;
-                    value_165 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_165 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                bool value_167 = zir_f_daa84719ffd73ec0_strcmp(&(binding->ret[0]), value_165) != 0;
+                bool value_167 = zir_foreign_compiler_go_backend__strcmp(&(binding->ret[0]), value_165) != 0;
                 int32_t value_168 = 0;
                 if (!value_167) {
                     value_168 = 1;
@@ -8039,32 +7295,32 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                     uint8_t* value_170 = (void *)0;
                     {
                         String s = value_169;
-                        value_170 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_170 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
-                    zir_f_daa84719ffd73ec0_snprintf(&(receiver[0]), (256) * (sizeof(uint8_t)), value_170, &(binding->go_import_alias[0]));
+                    zir_foreign_compiler_go_backend__snprintf(&(receiver[0]), (256) * (sizeof(uint8_t)), value_170, &(binding->go_import_alias[0]));
                 } else {
-                    zir_f_daa84719ffd73ec0_camel_ident((binding->parameters->items[0]).name, &(receiver[0]), (256) * (sizeof(uint8_t)));
+                    zir_foreign_compiler_go_backend__camel_ident((binding->parameters->items[0]).name, &(receiver[0]), (256) * (sizeof(uint8_t)));
                 }
                 if (setter != 0) {
                     uint8_t value[256] = {0};
-                    zir_f_daa84719ffd73ec0_camel_ident((binding->parameters->items[((int32_t)((uint32_t)(binding->pcount) - 1u))]).name, &(value[0]), (256) * (sizeof(uint8_t)));
+                    zir_foreign_compiler_go_backend__camel_ident((binding->parameters->items[((int32_t)((uint32_t)(binding->pcount) - 1u))]).name, &(value[0]), (256) * (sizeof(uint8_t)));
                     void* value_172 = out;
                     String value_173 = StringLiteral("\t%s.%s = %s\n}\n\n");
                     uint8_t* value_174 = (void *)0;
                     {
                         String s = value_173;
-                        value_174 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_174 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
-                    zir_f_daa84719ffd73ec0_fprintf(value_172, value_174, &(receiver[0]), &(binding->go[0]), &(value[0]));
+                    zir_foreign_compiler_go_backend__fprintf(value_172, value_174, &(receiver[0]), &(binding->go[0]), &(value[0]));
                 } else {
                     void* value_176 = out;
                     String value_177 = StringLiteral("\treturn %s.%s\n}\n\n");
                     uint8_t* value_178 = (void *)0;
                     {
                         String s = value_177;
-                        value_178 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_178 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
-                    zir_f_daa84719ffd73ec0_fprintf(value_176, value_178, &(receiver[0]), &(binding->go[0]));
+                    zir_foreign_compiler_go_backend__fprintf(value_176, value_178, &(receiver[0]), &(binding->go[0]));
                 }
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
@@ -8076,7 +7332,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                 uint8_t* value_182 = (void *)0;
                 {
                     String s = value_181;
-                    value_182 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_182 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 uint8_t* value_184 = (void *)0;
                 if ((result_type)[0] != 0) {
@@ -8084,7 +7340,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                     uint8_t* value_186 = (void *)0;
                     {
                         String s = value_185;
-                        value_186 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_186 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_184 = value_186;
                 } else {
@@ -8092,18 +7348,18 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                     uint8_t* value_189 = (void *)0;
                     {
                         String s = value_188;
-                        value_189 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_189 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_184 = value_189;
                 }
-                zir_f_daa84719ffd73ec0_fprintf(value_180, value_182, value_184);
+                zir_foreign_compiler_go_backend__fprintf(value_180, value_182, value_184);
                 if (receiver[0] != 0) {
                     void* value_191 = out;
                     String value_192 = StringLiteral("(%s%s.%s).%s(");
                     uint8_t* value_193 = (void *)0;
                     {
                         String s = value_192;
-                        value_193 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_193 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     uint8_t* value_195 = (void *)0;
                     if (receiver[0] == 42) {
@@ -8111,7 +7367,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                         uint8_t* value_197 = (void *)0;
                         {
                             String s = value_196;
-                            value_197 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_197 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_195 = value_197;
                     } else {
@@ -8119,7 +7375,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                         uint8_t* value_200 = (void *)0;
                         {
                             String s = value_199;
-                            value_200 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_200 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_195 = value_200;
                     }
@@ -8127,16 +7383,16 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                     if (receiver[0] == 42) {
                         value_202 = 1;
                     }
-                    zir_f_daa84719ffd73ec0_fprintf(value_191, value_193, value_195, &(binding->go_import_alias[0]), (uint8_t*)(((size_t)(receiver) + (value_202 * sizeof(uint8_t)))), &(binding->go[0]));
+                    zir_foreign_compiler_go_backend__fprintf(value_191, value_193, value_195, &(binding->go_import_alias[0]), (uint8_t*)(((size_t)(receiver) + (value_202 * sizeof(uint8_t)))), &(binding->go[0]));
                 } else {
                     void* value_203 = out;
                     String value_204 = StringLiteral("%s.%s(");
                     uint8_t* value_205 = (void *)0;
                     {
                         String s = value_204;
-                        value_205 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_205 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
-                    zir_f_daa84719ffd73ec0_fprintf(value_203, value_205, &(binding->go_import_alias[0]), &(binding->go[0]));
+                    zir_foreign_compiler_go_backend__fprintf(value_203, value_205, &(binding->go_import_alias[0]), &(binding->go[0]));
                 }
                 {
                     int32_t p = 0;
@@ -8145,13 +7401,13 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                             break;
                         }
                         uint8_t parameter[256] = {0};
-                        zir_f_daa84719ffd73ec0_camel_ident((binding->parameters->items[p]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
+                        zir_foreign_compiler_go_backend__camel_ident((binding->parameters->items[p]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
                         void* value_207 = out;
                         String value_208 = StringLiteral("%s%s%s");
                         uint8_t* value_209 = (void *)0;
                         {
                             String s = value_208;
-                            value_209 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_209 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         uint8_t* value_211 = (void *)0;
                         if (p != 0) {
@@ -8159,7 +7415,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                             uint8_t* value_213 = (void *)0;
                             {
                                 String s = value_212;
-                                value_213 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_213 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
                             value_211 = value_213;
                         } else {
@@ -8167,7 +7423,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                             uint8_t* value_216 = (void *)0;
                             {
                                 String s = value_215;
-                                value_216 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_216 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
                             value_211 = value_216;
                         }
@@ -8178,7 +7434,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                             uint8_t* value_221 = (void *)0;
                             {
                                 String s = value_220;
-                                value_221 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_221 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
                             value_219 = value_221;
                         } else {
@@ -8186,11 +7442,11 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                             uint8_t* value_224 = (void *)0;
                             {
                                 String s = value_223;
-                                value_224 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_224 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
                             value_219 = value_224;
                         }
-                        zir_f_daa84719ffd73ec0_fprintf(value_207, value_209, value_218, &(parameter[0]), value_219);
+                        zir_foreign_compiler_go_backend__fprintf(value_207, value_209, value_218, &(parameter[0]), value_219);
                         p = (int32_t)((uint32_t)p + 1u);
                     }
                 }
@@ -8198,9 +7454,9 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                 uint8_t* value_227 = (void *)0;
                 {
                     String s = value_226;
-                    value_227 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_227 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_fputs(value_227, out);
+                zir_foreign_compiler_go_backend__fputs(value_227, out);
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
             }
@@ -8209,19 +7465,19 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
             uint8_t* value_231 = (void *)0;
             {
                 String s = value_230;
-                value_231 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_231 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fprintf(value_229, value_231, &(result_type[0]));
+            zir_foreign_compiler_go_backend__fprintf(value_229, value_231, &(result_type[0]));
             size_t offset = (size_t)(0LL);
             ZirTypeField field = {0};
             int32_t fields = 0;
             while (true) {
-                bool value_233 = zir_f_daa84719ffd73ec0_TypeNextField(record, &(offset), &(field)) == 1;
+                bool value_233 = zir_foreign_compiler_go_backend__TypeNextField(record, &(offset), &(field)) == 1;
                 if (!value_233) {
                     break;
                 }
                 uint8_t member[256] = {0};
-                zir_f_daa84719ffd73ec0_go_field_ident(&(field.name[0]), &(member[0]), (256) * (sizeof(uint8_t)));
+                zir_foreign_compiler_go_backend__go_field_ident(&(field.name[0]), &(member[0]), (256) * (sizeof(uint8_t)));
                 int32_t post62 = fields;
                 fields = (int32_t)((uint32_t)fields + 1u);
                 void* value_234 = out;
@@ -8229,7 +7485,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                 uint8_t* value_236 = (void *)0;
                 {
                     String s = value_235;
-                    value_236 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_236 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 uint8_t* value_238 = (void *)0;
                 if (post62 != 0) {
@@ -8237,7 +7493,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                     uint8_t* value_240 = (void *)0;
                     {
                         String s = value_239;
-                        value_240 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_240 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_238 = value_240;
                 } else {
@@ -8245,11 +7501,11 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                     uint8_t* value_243 = (void *)0;
                     {
                         String s = value_242;
-                        value_243 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_243 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_238 = value_243;
                 }
-                zir_f_daa84719ffd73ec0_fprintf(value_234, value_236, value_238, &(member[0]));
+                zir_foreign_compiler_go_backend__fprintf(value_234, value_236, value_238, &(member[0]));
             }
             bool value_245 = binding->direct_go != 0;
             bool value_246 = value_245;
@@ -8258,9 +7514,9 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                 uint8_t* value_248 = (void *)0;
                 {
                     String s = value_247;
-                    value_248 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_248 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                bool value_250 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go_import_path[0]), value_248) != 0;
+                bool value_250 = zir_foreign_compiler_go_backend__strcmp(&(binding->go_import_path[0]), value_248) != 0;
                 value_246 = !value_250;
             }
             bool value_251 = value_246;
@@ -8270,26 +7526,26 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                 uint8_t* value_254 = (void *)0;
                 {
                     String s = value_253;
-                    value_254 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_254 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                bool value_256 = zir_f_daa84719ffd73ec0_strcmp(&(binding->go[0]), value_254) != 0;
+                bool value_256 = zir_foreign_compiler_go_backend__strcmp(&(binding->go[0]), value_254) != 0;
                 value_252 = !value_256;
             }
             if (value_252) {
                 uint8_t parameter[256] = {0};
                 uint8_t asserted[256] = {0};
                 offset = (size_t)(0LL);
-                zir_f_daa84719ffd73ec0_TypeNextField(record, &(offset), &(field));
+                zir_foreign_compiler_go_backend__TypeNextField(record, &(offset), &(field));
                 compiler_go_backend_require_go_type(ctx, &(field.type[0]), &(asserted[0]), (256) * (sizeof(uint8_t)), module->span);
-                zir_f_daa84719ffd73ec0_camel_ident((binding->parameters->items[0]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
+                zir_foreign_compiler_go_backend__camel_ident((binding->parameters->items[0]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
                 void* value_257 = out;
                 String value_258 = StringLiteral(" = %s.(%s)\n\treturn result\n}\n\n");
                 uint8_t* value_259 = (void *)0;
                 {
                     String s = value_258;
-                    value_259 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_259 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_fprintf(value_257, value_259, &(parameter[0]), &(asserted[0]));
+                zir_foreign_compiler_go_backend__fprintf(value_257, value_259, &(parameter[0]), &(asserted[0]));
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
             }
@@ -8300,7 +7556,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                 uint8_t* value_263 = (void *)0;
                 {
                     String s = value_262;
-                    value_263 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_263 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
                 uint8_t* value_265 = (void *)0;
                 if (receiver[0] == 42) {
@@ -8308,7 +7564,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                     uint8_t* value_267 = (void *)0;
                     {
                         String s = value_266;
-                        value_267 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_267 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_265 = value_267;
                 } else {
@@ -8316,7 +7572,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                     uint8_t* value_270 = (void *)0;
                     {
                         String s = value_269;
-                        value_270 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_270 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     value_265 = value_270;
                 }
@@ -8324,16 +7580,16 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                 if (receiver[0] == 42) {
                     value_272 = 1;
                 }
-                zir_f_daa84719ffd73ec0_fprintf(value_261, value_263, value_265, &(binding->go_import_alias[0]), (uint8_t*)(((size_t)(receiver) + (value_272 * sizeof(uint8_t)))), &(binding->go[0]));
+                zir_foreign_compiler_go_backend__fprintf(value_261, value_263, value_265, &(binding->go_import_alias[0]), (uint8_t*)(((size_t)(receiver) + (value_272 * sizeof(uint8_t)))), &(binding->go[0]));
             } else {
                 void* value_273 = out;
                 String value_274 = StringLiteral(" = %s.%s(");
                 uint8_t* value_275 = (void *)0;
                 {
                     String s = value_274;
-                    value_275 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_275 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_fprintf(value_273, value_275, &(binding->go_import_alias[0]), &(binding->go[0]));
+                zir_foreign_compiler_go_backend__fprintf(value_273, value_275, &(binding->go_import_alias[0]), &(binding->go[0]));
             }
             {
                 int32_t p = 0;
@@ -8342,13 +7598,13 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                         break;
                     }
                     uint8_t parameter[256] = {0};
-                    zir_f_daa84719ffd73ec0_camel_ident((binding->parameters->items[p]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
+                    zir_foreign_compiler_go_backend__camel_ident((binding->parameters->items[p]).name, &(parameter[0]), (256) * (sizeof(uint8_t)));
                     void* value_277 = out;
                     String value_278 = StringLiteral("%s%s%s");
                     uint8_t* value_279 = (void *)0;
                     {
                         String s = value_278;
-                        value_279 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_279 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     uint8_t* value_281 = (void *)0;
                     if (p != 0) {
@@ -8356,7 +7612,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                         uint8_t* value_283 = (void *)0;
                         {
                             String s = value_282;
-                            value_283 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_283 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_281 = value_283;
                     } else {
@@ -8364,7 +7620,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                         uint8_t* value_286 = (void *)0;
                         {
                             String s = value_285;
-                            value_286 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_286 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_281 = value_286;
                     }
@@ -8375,7 +7631,7 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                         uint8_t* value_291 = (void *)0;
                         {
                             String s = value_290;
-                            value_291 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_291 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_289 = value_291;
                     } else {
@@ -8383,11 +7639,11 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
                         uint8_t* value_294 = (void *)0;
                         {
                             String s = value_293;
-                            value_294 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_294 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         value_289 = value_294;
                     }
-                    zir_f_daa84719ffd73ec0_fprintf(value_277, value_279, value_288, &(parameter[0]), value_289);
+                    zir_foreign_compiler_go_backend__fprintf(value_277, value_279, value_288, &(parameter[0]), value_289);
                     p = (int32_t)((uint32_t)p + 1u);
                 }
             }
@@ -8395,9 +7651,9 @@ compiler_go_backend_emit_go_foreign_adapters(GoLowerState* ctx, void* out, ZirMo
             uint8_t* value_297 = (void *)0;
             {
                 String s = value_296;
-                value_297 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                value_297 = ((compiler_go_backend_StaticText*)(&(s)))->data;
             }
-            zir_f_daa84719ffd73ec0_fputs(value_297, out);
+            zir_foreign_compiler_go_backend__fputs(value_297, out);
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -8412,31 +7668,31 @@ compiler_go_backend_emit_field_tag(GoLowerState* ctx, void* out, ZirTypeField* f
     }
     uint8_t bytes[512] = {0};
     size_t length = 0;
-    bool value_0 = zir_f_daa84719ffd73ec0_DecodeStringLiteral(&(field->go_tag[0]), &(bytes[0]), (512) * (sizeof(uint8_t)), &(length)) != 0;
+    bool value_0 = zir_foreign_compiler_go_backend__DecodeStringLiteral(&(field->go_tag[0]), &(bytes[0]), (512) * (sizeof(uint8_t)), &(length)) != 0;
     if (!value_0) {
         ZirSourceSpan value_1 = span;
         String value_2 = StringLiteral("zir_go.type");
         uint8_t* value_3 = (void *)0;
         {
             String s = value_2;
-            value_3 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_3 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
         String value_5 = StringLiteral("invalid Go field tag: %s");
         uint8_t* value_6 = (void *)0;
         {
             String s = value_5;
-            value_6 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+            value_6 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
-        zir_f_daa84719ffd73ec0_Diagnostic(value_1, value_3, value_6, &(field->name[0]));
-        zir_f_daa84719ffd73ec0_exit(1);
+        zir_foreign_compiler_go_backend__Diagnostic(value_1, value_3, value_6, &(field->name[0]));
+        zir_foreign_compiler_go_backend__exit(1);
     }
     String value_8 = StringLiteral(" \"");
     uint8_t* value_9 = (void *)0;
     {
         String s = value_8;
-        value_9 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_9 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_fputs(value_9, out);
+    zir_foreign_compiler_go_backend__fputs(value_9, out);
     {
         size_t i = (size_t)(0LL);
         while (true) {
@@ -8450,9 +7706,9 @@ compiler_go_backend_emit_field_tag(GoLowerState* ctx, void* out, ZirTypeField* f
                 uint8_t* value_13 = (void *)0;
                 {
                     String s = value_12;
-                    value_13 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                    value_13 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                 }
-                zir_f_daa84719ffd73ec0_fprintf(value_11, value_13, byte);
+                zir_foreign_compiler_go_backend__fprintf(value_11, value_13, byte);
             } else {
                 if (byte < 32 || byte == 127) {
                     void* value_15 = out;
@@ -8460,26 +7716,26 @@ compiler_go_backend_emit_field_tag(GoLowerState* ctx, void* out, ZirTypeField* f
                     uint8_t* value_17 = (void *)0;
                     {
                         String s = value_16;
-                        value_17 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_17 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
-                    zir_f_daa84719ffd73ec0_fprintf(value_15, value_17, byte);
+                    zir_foreign_compiler_go_backend__fprintf(value_15, value_17, byte);
                 } else {
-                    zir_f_daa84719ffd73ec0_fputc((int32_t)(byte), out);
+                    zir_foreign_compiler_go_backend__fputc((int32_t)(byte), out);
                 }
             }
             i = i + 1;
         }
     }
-    zir_f_daa84719ffd73ec0_fputc(34, out);
+    zir_foreign_compiler_go_backend__fputc(34, out);
 }
 
 static int32_t
 compiler_go_backend_go_startup_calls_host(GoLowerState* ctx, ZirModule* module, ZirFunction* start)
 {
     (void)ctx;
-    void* value_0 = zir_f_daa84719ffd73ec0_AllocateOrExit((size_t)(4096LL) * sizeof(void *));
+    void* value_0 = zir_foreign_compiler_go_backend__AllocateOrExit((size_t)(4096LL) * sizeof(void *));
     ZirModule** owners = (ZirModule**)(value_0);
-    void* value_1 = zir_f_daa84719ffd73ec0_AllocateOrExit((size_t)(4096LL) * sizeof(void *));
+    void* value_1 = zir_foreign_compiler_go_backend__AllocateOrExit((size_t)(4096LL) * sizeof(void *));
     ZirFunction** pending = (ZirFunction**)(value_1);
     int32_t count = 0;
     int32_t next = 0;
@@ -8522,7 +7778,7 @@ compiler_go_backend_go_startup_calls_host(GoLowerState* ctx, ZirModule* module, 
                     x = (int32_t)((uint32_t)x + 1u);
                     continue;
                 }
-                if (zir_f_daa84719ffd73ec0_CResolveFunction(owner, (uint8_t*)e->name, &(callee_owner), &(callee)) != 1) {
+                if (zir_foreign_compiler_go_backend__CResolveFunction(owner, (uint8_t*)e->name, &(callee_owner), &(callee)) != 1) {
                     {
                         int32_t i = 0;
                         while (true) {
@@ -8533,7 +7789,7 @@ compiler_go_backend_go_startup_calls_host(GoLowerState* ctx, ZirModule* module, 
                             bool value_6 = value_5;
                             bool value_7 = value_6;
                             if (value_7) {
-                                bool value_8 = zir_f_daa84719ffd73ec0_strcmp(&(((owner->imports[i]).name)[0]), (uint8_t*)e->name) != 0;
+                                bool value_8 = zir_foreign_compiler_go_backend__strcmp(&(((owner->imports[i]).name)[0]), (uint8_t*)e->name) != 0;
                                 value_7 = !value_8;
                             }
                             if (value_7) {
@@ -8578,8 +7834,8 @@ compiler_go_backend_go_startup_calls_host(GoLowerState* ctx, ZirModule* module, 
             }
         }
     }
-    zir_f_daa84719ffd73ec0_free((void*)(owners));
-    zir_f_daa84719ffd73ec0_free((void*)(pending));
+    zir_foreign_compiler_go_backend__free((void*)(owners));
+    zir_foreign_compiler_go_backend__free((void*)(pending));
     return found;
 }
 
@@ -8595,7 +7851,7 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
     if (!value_0) {
         return 1;
     }
-    zir_f_daa84719ffd73ec0_GoSimdBegin();
+    zir_foreign_compiler_go_backend__GoSimdBegin();
     {
         int32_t pi = 0;
         while (true) {
@@ -8612,10 +7868,10 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                     ZirModule* m = &(prog->modules[mi]);
                     uint8_t guard[256] = {0};
                     void* f = (void *)0;
-                    zir_0eae4a02a9048d94_TextStream stream = {0};
+                    compiler_go_backend_TextStream stream = {0};
                     uint8_t* text = (uint8_t*)(((void *)0));
                     size_t length = (size_t)(0LL);
-                    zir_f_daa84719ffd73ec0_NativeGoModuleIdentity(progs, prog_count, m, &(buffers->stem[0]), (512) * (sizeof(uint8_t)), &(guard[0]), (256) * (sizeof(uint8_t)));
+                    zir_foreign_compiler_go_backend__NativeGoModuleIdentity(progs, prog_count, m, &(buffers->stem[0]), (512) * (sizeof(uint8_t)), &(guard[0]), (256) * (sizeof(uint8_t)));
                     {
                         int32_t fi = 0;
                         while (true) {
@@ -8629,21 +7885,21 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t* value_4 = (void *)0;
                                 {
                                     String s = value_3;
-                                    value_4 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_4 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
                                 String value_6 = StringLiteral("Go global startup cannot call a host before binding");
                                 uint8_t* value_7 = (void *)0;
                                 {
                                     String s = value_6;
-                                    value_7 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_7 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_Diagnostic(value_2, value_4, value_7);
+                                zir_foreign_compiler_go_backend__Diagnostic(value_2, value_4, value_7);
                                 return 1;
                             }
                             fi = (int32_t)((uint32_t)fi + 1u);
                         }
                     }
-                    size_t stem_length = zir_f_daa84719ffd73ec0_strlen(&(buffers->stem[0]));
+                    size_t stem_length = zir_foreign_compiler_go_backend__strlen(&(buffers->stem[0]));
                     bool value_9 = stem_length >= (size_t)(5LL);
                     bool value_10 = value_9;
                     if (value_10) {
@@ -8653,9 +7909,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         uint8_t* value_14 = (void *)0;
                         {
                             String s = value_13;
-                            value_14 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_14 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        bool value_16 = zir_f_daa84719ffd73ec0_strcmp(value_12, value_14) != 0;
+                        bool value_16 = zir_foreign_compiler_go_backend__strcmp(value_12, value_14) != 0;
                         value_10 = !value_16;
                     }
                     int32_t value_17 = 0;
@@ -8668,7 +7924,7 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                     uint8_t* value_19 = (void *)0;
                     {
                         String s = value_18;
-                        value_19 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_19 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
                     uint8_t* value_21 = out_dir;
                     uint8_t* value_22 = (void *)0;
@@ -8679,7 +7935,7 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             uint8_t* value_25 = (void *)0;
                             {
                                 String s = value_24;
-                                value_25 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_25 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
                             value_23 = value_25;
                         } else {
@@ -8687,7 +7943,7 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             uint8_t* value_28 = (void *)0;
                             {
                                 String s = value_27;
-                                value_28 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_28 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
                             value_23 = value_28;
                         }
@@ -8699,7 +7955,7 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             uint8_t* value_32 = (void *)0;
                             {
                                 String s = value_31;
-                                value_32 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_32 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
                             value_30 = value_32;
                         } else {
@@ -8707,25 +7963,25 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             uint8_t* value_35 = (void *)0;
                             {
                                 String s = value_34;
-                                value_35 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_35 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
                             value_30 = value_35;
                         }
                         value_22 = value_30;
                     }
-                    zir_f_daa84719ffd73ec0_snprintf(&(buffers->path[0]), (1024) * (sizeof(uint8_t)), value_19, value_21, &(buffers->stem[0]), value_22);
+                    zir_foreign_compiler_go_backend__snprintf(&(buffers->path[0]), (1024) * (sizeof(uint8_t)), value_19, value_21, &(buffers->stem[0]), value_22);
                     compiler_go_backend_mkdir_parent(ctx, &(buffers->path[0]));
-                    f = zir_f_daa84719ffd73ec0_TextStreamOpen(&(stream), &(text), &(length));
+                    f = zir_foreign_compiler_go_backend__TextStreamOpen(&(stream), &(text), &(length));
                     {
                         uint8_t prefix[264] = {0};
                         String value_37 = StringLiteral("%s_ziran");
                         uint8_t* value_38 = (void *)0;
                         {
                             String s = value_37;
-                            value_38 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_38 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_snprintf(&(prefix[0]), (264) * (sizeof(uint8_t)), value_38, &(guard[0]));
-                        zir_f_daa84719ffd73ec0_EmitConstantTablesBegin(&(prefix[0]), (int32_t)(((ZirTarget)(1))));
+                        zir_foreign_compiler_go_backend__snprintf(&(prefix[0]), (264) * (sizeof(uint8_t)), value_38, &(guard[0]));
+                        zir_foreign_compiler_go_backend__EmitConstantTablesBegin(&(prefix[0]), (int32_t)(((ZirTarget)(1))));
                     }
                     if (f == ((void *)0)) {
                         ZirSourceSpan value_40 = m->span;
@@ -8733,15 +7989,15 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         uint8_t* value_42 = (void *)0;
                         {
                             String s = value_41;
-                            value_42 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_42 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         String value_44 = StringLiteral("cannot create Go output: %s");
                         uint8_t* value_45 = (void *)0;
                         {
                             String s = value_44;
-                            value_45 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_45 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_Diagnostic(value_40, value_42, value_45, &(buffers->path[0]));
+                        zir_foreign_compiler_go_backend__Diagnostic(value_40, value_42, value_45, &(buffers->path[0]));
                         return 1;
                     }
                     ZirModule** value_47 = &(ctx->type_scope);
@@ -8767,17 +8023,17 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                     uint8_t* value_52 = (void *)0;
                     {
                         String s = value_51;
-                        value_52 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_52 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
-                    zir_f_daa84719ffd73ec0_fprintf(value_50, value_52, &(m->source_path[0]));
+                    zir_foreign_compiler_go_backend__fprintf(value_50, value_52, &(m->source_path[0]));
                     void* value_54 = f;
                     String value_55 = StringLiteral("package %s\n\n");
                     uint8_t* value_56 = (void *)0;
                     {
                         String s = value_55;
-                        value_56 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_56 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
-                    zir_f_daa84719ffd73ec0_fprintf(value_54, value_56, pkg);
+                    zir_foreign_compiler_go_backend__fprintf(value_54, value_56, pkg);
                     int32_t header_module = compiler_go_backend_go_module_has_headers(ctx, m);
                     if (!(header_module != 0)) {
                         compiler_go_backend_emit_go_c_preamble(ctx, f, m);
@@ -8844,9 +8100,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                         uint8_t* value_69 = (void *)0;
                                         {
                                             String s = value_68;
-                                            value_69 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                            value_69 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
-                                        bool value_71 = zir_f_daa84719ffd73ec0_strcmp(value_67, value_69) != 0;
+                                        bool value_71 = zir_foreign_compiler_go_backend__strcmp(value_67, value_69) != 0;
                                         bool value_72 = !value_71;
                                         if (!value_72) {
                                             uint8_t* value_73 = (uint8_t*)expr->name;
@@ -8854,9 +8110,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                             uint8_t* value_75 = (void *)0;
                                             {
                                                 String s = value_74;
-                                                value_75 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                                value_75 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                             }
-                                            bool value_77 = zir_f_daa84719ffd73ec0_strcmp(value_73, value_75) != 0;
+                                            bool value_77 = zir_foreign_compiler_go_backend__strcmp(value_73, value_75) != 0;
                                             bool value_78 = !value_77;
                                             if (!value_78) {
                                                 uint8_t* value_79 = (uint8_t*)expr->name;
@@ -8864,9 +8120,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                                 uint8_t* value_81 = (void *)0;
                                                 {
                                                     String s = value_80;
-                                                    value_81 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                                    value_81 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                                 }
-                                                bool value_83 = zir_f_daa84719ffd73ec0_strcmp(value_79, value_81) != 0;
+                                                bool value_83 = zir_foreign_compiler_go_backend__strcmp(value_79, value_81) != 0;
                                                 value_78 = !value_83;
                                             }
                                             value_72 = value_78;
@@ -8905,9 +8161,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                         uint8_t* value_89 = (void *)0;
                                         {
                                             String s = value_88;
-                                            value_89 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                            value_89 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
-                                        bool value_91 = zir_f_daa84719ffd73ec0_strcmp(value_87, value_89) != 0;
+                                        bool value_91 = zir_foreign_compiler_go_backend__strcmp(value_87, value_89) != 0;
                                         value_86 = !value_91;
                                     }
                                     if (value_86) {
@@ -8936,7 +8192,7 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     ZirExpr* expr = &(((m->functions[fi]).exprs)[ei]);
                                     int32_t value_92 = 0;
                                     if (((ZirExprKind)(expr->kind)) == ((ZirExprKind)(5))) {
-                                        int32_t value_93 = zir_f_daa84719ffd73ec0_BitBuiltin((uint8_t*)expr->name);
+                                        int32_t value_93 = zir_foreign_compiler_go_backend__BitBuiltin((uint8_t*)expr->name);
                                         value_92 = value_93;
                                     } else {
                                         value_92 = 0;
@@ -8946,7 +8202,7 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     bool value_95 = value_94;
                                     if (value_95) {
                                         bool value_96 = op != 4;
-                                        bool value_97 = value_96 || zir_f_daa84719ffd73ec0_ScalarByteWidth((uint8_t*)expr->type) != (size_t)(1LL);
+                                        bool value_97 = value_96 || zir_foreign_compiler_go_backend__ScalarByteWidth((uint8_t*)expr->type) != (size_t)(1LL);
                                         value_95 = value_97;
                                     }
                                     if (value_95) {
@@ -8980,9 +8236,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                         uint8_t* value_102 = (void *)0;
                                         {
                                             String s = value_101;
-                                            value_102 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                            value_102 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
-                                        bool value_104 = zir_f_daa84719ffd73ec0_strcmp(value_100, value_102) != 0;
+                                        bool value_104 = zir_foreign_compiler_go_backend__strcmp(value_100, value_102) != 0;
                                         value_99 = !value_104;
                                     }
                                     if (value_99) {
@@ -9010,9 +8266,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         uint8_t* value_109 = (void *)0;
                         {
                             String s = value_108;
-                            value_109 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_109 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_snprintf(&(buffers->imports[post66][0]), (1288) * (sizeof(uint8_t)), value_109);
+                        zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post66][0]), (1288) * (sizeof(uint8_t)), value_109);
                     }
                     if (float_helper != 0 || sqrt_calls != 0) {
                         int32_t post67 = import_count;
@@ -9021,9 +8277,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         uint8_t* value_112 = (void *)0;
                         {
                             String s = value_111;
-                            value_112 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_112 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_snprintf(&(buffers->imports[post67][0]), (1288) * (sizeof(uint8_t)), value_112);
+                        zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post67][0]), (1288) * (sizeof(uint8_t)), value_112);
                     }
                     if (bit_calls != 0) {
                         int32_t post68 = import_count;
@@ -9032,9 +8288,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         uint8_t* value_115 = (void *)0;
                         {
                             String s = value_114;
-                            value_115 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_115 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_snprintf(&(buffers->imports[post68][0]), (1288) * (sizeof(uint8_t)), value_115);
+                        zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post68][0]), (1288) * (sizeof(uint8_t)), value_115);
                     }
                     if (float_helper != 0) {
                         int32_t post69 = import_count;
@@ -9043,9 +8299,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         uint8_t* value_118 = (void *)0;
                         {
                             String s = value_117;
-                            value_118 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_118 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_snprintf(&(buffers->imports[post69][0]), (1288) * (sizeof(uint8_t)), value_118);
+                        zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post69][0]), (1288) * (sizeof(uint8_t)), value_118);
                     }
                     bool value_120 = pointer_index != 0 || ctx->g_union_unsafe != 0;
                     bool value_121 = value_120;
@@ -9060,9 +8316,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         uint8_t* value_124 = (void *)0;
                         {
                             String s = value_123;
-                            value_124 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_124 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_snprintf(&(buffers->imports[post70][0]), (1288) * (sizeof(uint8_t)), value_124);
+                        zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post70][0]), (1288) * (sizeof(uint8_t)), value_124);
                     }
                     {
                         int32_t i = 0;
@@ -9080,9 +8336,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t* value_131 = (void *)0;
                                 {
                                     String s = value_130;
-                                    value_131 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_131 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                bool value_133 = zir_f_daa84719ffd73ec0_strcmp(&(((ctx->g_externs[i]).go_import_path)[0]), value_131) != 0;
+                                bool value_133 = zir_foreign_compiler_go_backend__strcmp(&(((ctx->g_externs[i]).go_import_path)[0]), value_131) != 0;
                                 value_129 = !value_133;
                             }
                             if (value_129) {
@@ -9103,7 +8359,7 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     }
                                     bool value_137 = value_135 && (!((ctx->g_externs[j]).go_field != 0) || !(((ctx->g_externs[j]).go_receiver)[0] != 0));
                                     bool value_138 = value_137;
-                                    if (value_138 && zir_f_daa84719ffd73ec0_strcmp(&(((ctx->g_externs[j]).go_import_path)[0]), &(((ctx->g_externs[i]).go_import_path)[0])) == 0) {
+                                    if (value_138 && zir_foreign_compiler_go_backend__strcmp(&(((ctx->g_externs[j]).go_import_path)[0]), &(((ctx->g_externs[i]).go_import_path)[0])) == 0) {
                                         duplicate = 1;
                                         break;
                                     }
@@ -9117,9 +8373,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t* value_140 = (void *)0;
                                 {
                                     String s = value_139;
-                                    value_140 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_140 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_snprintf(&(buffers->imports[post71][0]), (1288) * (sizeof(uint8_t)), value_140, &(((ctx->g_externs[i]).go_import_alias)[0]), &(((ctx->g_externs[i]).go_import_path)[0]));
+                                zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post71][0]), (1288) * (sizeof(uint8_t)), value_140, &(((ctx->g_externs[i]).go_import_alias)[0]), &(((ctx->g_externs[i]).go_import_path)[0]));
                             }
                             i = (int32_t)((uint32_t)i + 1u);
                         }
@@ -9145,25 +8401,25 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t* value_145 = (void *)0;
                                 {
                                     String s = value_144;
-                                    value_145 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_145 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
                                 String value_147 = StringLiteral("invalid foreign Go type");
                                 uint8_t* value_148 = (void *)0;
                                 {
                                     String s = value_147;
-                                    value_148 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_148 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_Diagnostic(value_143, value_145, value_148);
+                                zir_foreign_compiler_go_backend__Diagnostic(value_143, value_145, value_148);
                                 return 1;
                             }
                             String value_150 = StringLiteral("builtin");
                             uint8_t* value_151 = (void *)0;
                             {
                                 String s = value_150;
-                                value_151 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_151 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            bool value_153 = zir_f_daa84719ffd73ec0_strcmp(&(path[0]), value_151) != 0;
-                            if (!value_153 || zir_f_daa84719ffd73ec0_GoCHeader(&(path[0]), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0) {
+                            bool value_153 = zir_foreign_compiler_go_backend__strcmp(&(path[0]), value_151) != 0;
+                            if (!value_153 || zir_foreign_compiler_go_backend__GoCHeader(&(path[0]), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0) {
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
@@ -9171,9 +8427,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             uint8_t* value_155 = (void *)0;
                             {
                                 String s = value_154;
-                                value_155 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_155 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_snprintf(&(declaration[0]), (1288) * (sizeof(uint8_t)), value_155, &(alias[0]), &(path[0]));
+                            zir_foreign_compiler_go_backend__snprintf(&(declaration[0]), (1288) * (sizeof(uint8_t)), value_155, &(alias[0]), &(path[0]));
                             int32_t duplicate = 0;
                             {
                                 int32_t j = 0;
@@ -9181,7 +8437,7 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     if (!(j < import_count)) {
                                         break;
                                     }
-                                    bool value_157 = zir_f_daa84719ffd73ec0_strcmp(&(declaration[0]), &(buffers->imports[j][0])) != 0;
+                                    bool value_157 = zir_foreign_compiler_go_backend__strcmp(&(declaration[0]), &(buffers->imports[j][0])) != 0;
                                     if (!value_157) {
                                         duplicate = 1;
                                     }
@@ -9195,20 +8451,20 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     uint8_t* value_160 = (void *)0;
                                     {
                                         String s = value_159;
-                                        value_160 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_160 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
                                     String value_162 = StringLiteral("too many Go imports");
                                     uint8_t* value_163 = (void *)0;
                                     {
                                         String s = value_162;
-                                        value_163 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_163 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_f_daa84719ffd73ec0_Diagnostic(value_158, value_160, value_163);
+                                    zir_foreign_compiler_go_backend__Diagnostic(value_158, value_160, value_163);
                                     return 1;
                                 }
                                 int32_t post72 = import_count;
                                 import_count = (int32_t)((uint32_t)import_count + 1u);
-                                zir_f_daa84719ffd73ec0_copy_text(&(buffers->imports[post72][0]), (1288) * (sizeof(uint8_t)), &(declaration[0]));
+                                zir_foreign_compiler_go_backend__copy_text(&(buffers->imports[post72][0]), (1288) * (sizeof(uint8_t)), &(declaration[0]));
                             }
                             i = (int32_t)((uint32_t)i + 1u);
                         }
@@ -9230,9 +8486,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             uint8_t* value_167 = (void *)0;
                             {
                                 String s = value_166;
-                                value_167 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_167 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_snprintf(&(quoted[0]), (1028) * (sizeof(uint8_t)), value_167, &(binding->go_import_path[0]));
+                            zir_foreign_compiler_go_backend__snprintf(&(quoted[0]), (1028) * (sizeof(uint8_t)), value_167, &(binding->go_import_path[0]));
                             int32_t duplicate = 0;
                             {
                                 int32_t j = 0;
@@ -9240,7 +8496,7 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     if (!(j < import_count)) {
                                         break;
                                     }
-                                    uint8_t* value_169 = zir_f_daa84719ffd73ec0_strstr(&(buffers->imports[j][0]), &(quoted[0]));
+                                    uint8_t* value_169 = zir_foreign_compiler_go_backend__strstr(&(buffers->imports[j][0]), &(quoted[0]));
                                     if (value_169 != ((void *)0)) {
                                         duplicate = 1;
                                     }
@@ -9257,15 +8513,15 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t* value_172 = (void *)0;
                                 {
                                     String s = value_171;
-                                    value_172 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_172 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
                                 String value_174 = StringLiteral("too many Go imports");
                                 uint8_t* value_175 = (void *)0;
                                 {
                                     String s = value_174;
-                                    value_175 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_175 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_Diagnostic(value_170, value_172, value_175);
+                                zir_foreign_compiler_go_backend__Diagnostic(value_170, value_172, value_175);
                                 return 1;
                             }
                             int32_t post73 = import_count;
@@ -9274,9 +8530,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             uint8_t* value_178 = (void *)0;
                             {
                                 String s = value_177;
-                                value_178 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_178 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_snprintf(&(buffers->imports[post73][0]), (1288) * (sizeof(uint8_t)), value_178, &(quoted[0]));
+                            zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post73][0]), (1288) * (sizeof(uint8_t)), value_178, &(quoted[0]));
                             i = (int32_t)((uint32_t)i + 1u);
                         }
                     }
@@ -9292,9 +8548,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t* value_181 = (void *)0;
                                 {
                                     String s = value_180;
-                                    value_181 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_181 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                bool value_183 = zir_f_daa84719ffd73ec0_strcmp(&(buffers->imports[i][0]), value_181) != 0;
+                                bool value_183 = zir_foreign_compiler_go_backend__strcmp(&(buffers->imports[i][0]), value_181) != 0;
                                 if (!value_183) {
                                     present = 1;
                                 }
@@ -9308,15 +8564,15 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t* value_186 = (void *)0;
                                 {
                                     String s = value_185;
-                                    value_186 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_186 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
                                 String value_188 = StringLiteral("too many Go imports");
                                 uint8_t* value_189 = (void *)0;
                                 {
                                     String s = value_188;
-                                    value_189 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_189 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_Diagnostic(value_184, value_186, value_189);
+                                zir_foreign_compiler_go_backend__Diagnostic(value_184, value_186, value_189);
                                 return 1;
                             }
                             int32_t post74 = import_count;
@@ -9325,9 +8581,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             uint8_t* value_192 = (void *)0;
                             {
                                 String s = value_191;
-                                value_192 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_192 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_copy_text(&(buffers->imports[post74][0]), (1288) * (sizeof(uint8_t)), value_192);
+                            zir_foreign_compiler_go_backend__copy_text(&(buffers->imports[post74][0]), (1288) * (sizeof(uint8_t)), value_192);
                         }
                     }
                     {
@@ -9349,18 +8605,18 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         uint8_t* value_197 = (void *)0;
                         {
                             String s = value_196;
-                            value_197 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_197 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_fprintf(value_195, value_197, &(buffers->imports[0][0]));
+                        zir_foreign_compiler_go_backend__fprintf(value_195, value_197, &(buffers->imports[0][0]));
                     } else {
                         if (import_count > 1) {
                             String value_199 = StringLiteral("import (\n");
                             uint8_t* value_200 = (void *)0;
                             {
                                 String s = value_199;
-                                value_200 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_200 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_fputs(value_200, f);
+                            zir_foreign_compiler_go_backend__fputs(value_200, f);
                             {
                                 int32_t i = 0;
                                 while (true) {
@@ -9372,9 +8628,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     uint8_t* value_204 = (void *)0;
                                     {
                                         String s = value_203;
-                                        value_204 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_204 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_f_daa84719ffd73ec0_fprintf(value_202, value_204, &(buffers->imports[i][0]));
+                                    zir_foreign_compiler_go_backend__fprintf(value_202, value_204, &(buffers->imports[i][0]));
                                     i = (int32_t)((uint32_t)i + 1u);
                                 }
                             }
@@ -9382,9 +8638,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             uint8_t* value_207 = (void *)0;
                             {
                                 String s = value_206;
-                                value_207 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_207 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_fputs(value_207, f);
+                            zir_foreign_compiler_go_backend__fputs(value_207, f);
                         }
                     }
                     bool value_209 = assembly_unsafe != 0;
@@ -9398,9 +8654,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         uint8_t* value_213 = (void *)0;
                         {
                             String s = value_212;
-                            value_213 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_213 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_fputs(value_213, f);
+                        zir_foreign_compiler_go_backend__fputs(value_213, f);
                     }
                     bool value_215 = pi == 0 && mi == 0;
                     if (value_215 && compiler_go_backend_go_uses_caller_location(ctx, progs, prog_count) != 0) {
@@ -9408,9 +8664,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         uint8_t* value_217 = (void *)0;
                         {
                             String s = value_216;
-                            value_217 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_217 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_fputs(value_217, f);
+                        zir_foreign_compiler_go_backend__fputs(value_217, f);
                     }
                     {
                         int32_t i = 0;
@@ -9425,15 +8681,15 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t* value_221 = (void *)0;
                                 {
                                     String s = value_220;
-                                    value_221 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_221 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_fprintf(value_219, value_221, &(imp->target[0]));
+                                zir_foreign_compiler_go_backend__fprintf(value_219, value_221, &(imp->target[0]));
                             }
                             i = (int32_t)((uint32_t)i + 1u);
                         }
                     }
                     if (float_helper != 0) {
-                        zir_f_daa84719ffd73ec0_EmitGoPrintSupport(f);
+                        zir_foreign_compiler_go_backend__EmitGoPrintSupport(f);
                     }
                     {
                         int32_t first_host = -1;
@@ -9461,17 +8717,17 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             uint8_t* value_225 = (void *)0;
                             {
                                 String s = value_224;
-                                value_225 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_225 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_fprintf(value_223, value_225, &(guard[0]));
+                            zir_foreign_compiler_go_backend__fprintf(value_223, value_225, &(guard[0]));
                             void* value_227 = f;
                             String value_228 = StringLiteral(" embedding Go program.\ntype %sHost interface {\n");
                             uint8_t* value_229 = (void *)0;
                             {
                                 String s = value_228;
-                                value_229 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_229 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_fprintf(value_227, value_229, &(guard[0]));
+                            zir_foreign_compiler_go_backend__fprintf(value_227, value_229, &(guard[0]));
                             {
                                 int32_t i = 0;
                                 while (true) {
@@ -9489,9 +8745,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     uint8_t* value_233 = (void *)0;
                                     {
                                         String s = value_232;
-                                        value_233 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_233 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_f_daa84719ffd73ec0_fprintf(value_231, value_233, &(ex->go[0]));
+                                    zir_foreign_compiler_go_backend__fprintf(value_231, value_233, &(ex->go[0]));
                                     {
                                         int32_t a = 0;
                                         while (true) {
@@ -9499,14 +8755,14 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                                 break;
                                             }
                                             uint8_t aname[256] = {0};
-                                            zir_f_daa84719ffd73ec0_camel_ident((ex->parameters->items[a]).name, &(aname[0]), (256) * (sizeof(uint8_t)));
+                                            zir_foreign_compiler_go_backend__camel_ident((ex->parameters->items[a]).name, &(aname[0]), (256) * (sizeof(uint8_t)));
                                             compiler_go_backend_require_go_type(ctx, (ex->parameters->items[a]).type, &(gt[0]), (256) * (sizeof(uint8_t)), m->span);
                                             void* value_235 = f;
                                             String value_236 = StringLiteral("%s%s %s");
                                             uint8_t* value_237 = (void *)0;
                                             {
                                                 String s = value_236;
-                                                value_237 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                                value_237 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                             }
                                             uint8_t* value_239 = (void *)0;
                                             if (a > 0) {
@@ -9514,7 +8770,7 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                                 uint8_t* value_241 = (void *)0;
                                                 {
                                                     String s = value_240;
-                                                    value_241 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                                    value_241 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                                 }
                                                 value_239 = value_241;
                                             } else {
@@ -9522,11 +8778,11 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                                 uint8_t* value_244 = (void *)0;
                                                 {
                                                     String s = value_243;
-                                                    value_244 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                                    value_244 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                                 }
                                                 value_239 = value_244;
                                             }
-                                            zir_f_daa84719ffd73ec0_fprintf(value_235, value_237, value_239, &(aname[0]), &(gt[0]));
+                                            zir_foreign_compiler_go_backend__fprintf(value_235, value_237, value_239, &(aname[0]), &(gt[0]));
                                             a = (int32_t)((uint32_t)a + 1u);
                                         }
                                     }
@@ -9535,9 +8791,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     uint8_t* value_248 = (void *)0;
                                     {
                                         String s = value_247;
-                                        value_248 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_248 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_f_daa84719ffd73ec0_fprintf(value_246, value_248);
+                                    zir_foreign_compiler_go_backend__fprintf(value_246, value_248);
                                     compiler_go_backend_require_go_type(ctx, &(ex->ret[0]), &(gt[0]), (256) * (sizeof(uint8_t)), m->span);
                                     if ((gt)[0] != 0) {
                                         void* value_250 = f;
@@ -9545,18 +8801,18 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                         uint8_t* value_252 = (void *)0;
                                         {
                                             String s = value_251;
-                                            value_252 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                            value_252 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
-                                        zir_f_daa84719ffd73ec0_fprintf(value_250, value_252, &(gt[0]));
+                                        zir_foreign_compiler_go_backend__fprintf(value_250, value_252, &(gt[0]));
                                     }
                                     void* value_254 = f;
                                     String value_255 = StringLiteral("\n");
                                     uint8_t* value_256 = (void *)0;
                                     {
                                         String s = value_255;
-                                        value_256 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_256 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_f_daa84719ffd73ec0_fprintf(value_254, value_256);
+                                    zir_foreign_compiler_go_backend__fprintf(value_254, value_256);
                                     i = (int32_t)((uint32_t)i + 1u);
                                 }
                             }
@@ -9565,41 +8821,41 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             uint8_t* value_260 = (void *)0;
                             {
                                 String s = value_259;
-                                value_260 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_260 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_fprintf(value_258, value_260);
+                            zir_foreign_compiler_go_backend__fprintf(value_258, value_260);
                             void* value_262 = f;
                             String value_263 = StringLiteral("var %s %sHost\n\n");
                             uint8_t* value_264 = (void *)0;
                             {
                                 String s = value_263;
-                                value_264 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_264 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_fprintf(value_262, value_264, &(((ctx->g_externs[first_host]).host_var)[0]), &(guard[0]));
+                            zir_foreign_compiler_go_backend__fprintf(value_262, value_264, &(((ctx->g_externs[first_host]).host_var)[0]), &(guard[0]));
                             void* value_266 = f;
                             String value_267 = StringLiteral("// Set%sHost wires the '#foreign host_api' bridge before");
                             uint8_t* value_268 = (void *)0;
                             {
                                 String s = value_267;
-                                value_268 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_268 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_fprintf(value_266, value_268, &(guard[0]));
+                            zir_foreign_compiler_go_backend__fprintf(value_266, value_268, &(guard[0]));
                             void* value_270 = f;
                             String value_271 = StringLiteral(" the first frame runs.\nfunc Set%sHost(host %sHost)");
                             uint8_t* value_272 = (void *)0;
                             {
                                 String s = value_271;
-                                value_272 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_272 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_fprintf(value_270, value_272, &(guard[0]), &(guard[0]));
+                            zir_foreign_compiler_go_backend__fprintf(value_270, value_272, &(guard[0]), &(guard[0]));
                             void* value_274 = f;
                             String value_275 = StringLiteral(" {\n\t%s = host\n}\n\n");
                             uint8_t* value_276 = (void *)0;
                             {
                                 String s = value_275;
-                                value_276 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_276 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_fprintf(value_274, value_276, &(((ctx->g_externs[first_host]).host_var)[0]));
+                            zir_foreign_compiler_go_backend__fprintf(value_274, value_276, &(((ctx->g_externs[first_host]).host_var)[0]));
                         }
                     }
                     int32_t enum_idx = 0;
@@ -9611,7 +8867,7 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             }
                             ZirType* t = &(m->types[i]);
                             uint8_t native[256] = {0};
-                            zir_f_daa84719ffd73ec0_NativeTypeName(m, t, &(native[0]), (256) * (sizeof(uint8_t)));
+                            zir_foreign_compiler_go_backend__NativeTypeName(m, t, &(native[0]), (256) * (sizeof(uint8_t)));
                             if (compiler_go_backend_synthetic_type_emitted(ctx, progs, pi, mi, t, &(native[0])) != 0) {
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
@@ -9621,22 +8877,22 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t value[128] = {0};
                                 uint8_t go_key[256] = {0};
                                 uint8_t go_value[256] = {0};
-                                bool value_278 = zir_f_daa84719ffd73ec0_MapTypeParts(m, &(t->name[0]), &(key[0]), (128) * (sizeof(uint8_t)), &(value[0]), (128) * (sizeof(uint8_t))) != 0;
+                                bool value_278 = zir_foreign_compiler_go_backend__MapTypeParts(m, &(t->name[0]), &(key[0]), (128) * (sizeof(uint8_t)), &(value[0]), (128) * (sizeof(uint8_t))) != 0;
                                 if (!value_278) {
                                     ZirSourceSpan value_279 = t->span;
                                     String value_280 = StringLiteral("zir_go.type");
                                     uint8_t* value_281 = (void *)0;
                                     {
                                         String s = value_280;
-                                        value_281 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_281 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
                                     String value_283 = StringLiteral("invalid Map type");
                                     uint8_t* value_284 = (void *)0;
                                     {
                                         String s = value_283;
-                                        value_284 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_284 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_f_daa84719ffd73ec0_Diagnostic(value_279, value_281, value_284);
+                                    zir_foreign_compiler_go_backend__Diagnostic(value_279, value_281, value_284);
                                     return 1;
                                 }
                                 compiler_go_backend_require_go_type(ctx, &(key[0]), &(go_key[0]), (256) * (sizeof(uint8_t)), t->span);
@@ -9646,16 +8902,16 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t* value_288 = (void *)0;
                                 {
                                     String s = value_287;
-                                    value_288 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_288 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_fprintf(value_286, value_288, &(native[0]), &(go_key[0]), &(go_value[0]));
+                                zir_foreign_compiler_go_backend__fprintf(value_286, value_288, &(native[0]), &(go_key[0]), &(go_value[0]));
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
                             if ((t->foreign_target)[0] != 0) {
                                 uint8_t foreign_package[1024] = {0};
-                                bool value_290 = zir_f_daa84719ffd73ec0_GoForeignCallParts(&(t->foreign_target[0]), &(foreign_package[0]), (1024) * (sizeof(uint8_t)), (uint8_t*)(((void *)0)), (size_t)(0LL), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
-                                if (value_290 && zir_f_daa84719ffd73ec0_GoCHeader(&(foreign_package[0]), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0) {
+                                bool value_290 = zir_foreign_compiler_go_backend__GoForeignCallParts(&(t->foreign_target[0]), &(foreign_package[0]), (1024) * (sizeof(uint8_t)), (uint8_t*)(((void *)0)), (size_t)(0LL), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
+                                if (value_290 && zir_foreign_compiler_go_backend__GoCHeader(&(foreign_package[0]), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0) {
                                     i = (int32_t)((uint32_t)i + 1u);
                                     continue;
                                 }
@@ -9667,22 +8923,22 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t* value_293 = (void *)0;
                                 {
                                     String s = value_292;
-                                    value_293 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_293 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
                                 String value_295 = StringLiteral("builtin");
                                 uint8_t* value_296 = (void *)0;
                                 {
                                     String s = value_295;
-                                    value_296 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_296 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                bool value_298 = zir_f_daa84719ffd73ec0_strcmp(&(path[0]), value_296) != 0;
+                                bool value_298 = zir_foreign_compiler_go_backend__strcmp(&(path[0]), value_296) != 0;
                                 uint8_t* value_299 = (void *)0;
                                 if (!value_298) {
                                     String value_300 = StringLiteral("");
                                     uint8_t* value_301 = (void *)0;
                                     {
                                         String s = value_300;
-                                        value_301 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_301 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
                                     value_299 = value_301;
                                 } else {
@@ -9693,16 +8949,16 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t* value_305 = (void *)0;
                                 {
                                     String s = value_304;
-                                    value_305 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_305 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                bool value_307 = zir_f_daa84719ffd73ec0_strcmp(&(path[0]), value_305) != 0;
+                                bool value_307 = zir_foreign_compiler_go_backend__strcmp(&(path[0]), value_305) != 0;
                                 uint8_t* value_308 = (void *)0;
                                 if (!value_307) {
                                     String value_309 = StringLiteral("");
                                     uint8_t* value_310 = (void *)0;
                                     {
                                         String s = value_309;
-                                        value_310 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_310 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
                                     value_308 = value_310;
                                 } else {
@@ -9710,13 +8966,13 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     uint8_t* value_313 = (void *)0;
                                     {
                                         String s = value_312;
-                                        value_313 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_313 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
                                     value_308 = value_313;
                                 }
                                 uint8_t* value_315 = value_308;
-                                uint8_t* value_316 = zir_f_daa84719ffd73ec0_strrchr(&(t->foreign_target[0]), 46);
-                                zir_f_daa84719ffd73ec0_fprintf(value_291, value_293, &(native[0]), value_303, value_315, (uint8_t*)(((size_t)(value_316) + ((size_t)(1LL) * sizeof(uint8_t)))));
+                                uint8_t* value_316 = zir_foreign_compiler_go_backend__strrchr(&(t->foreign_target[0]), 46);
+                                zir_foreign_compiler_go_backend__fprintf(value_291, value_293, &(native[0]), value_303, value_315, (uint8_t*)(((size_t)(value_316) + ((size_t)(1LL) * sizeof(uint8_t)))));
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
@@ -9726,12 +8982,12 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 size_t size = (size_t)(0LL);
                                 size_t alignment = (size_t)(1LL);
                                 while (true) {
-                                    bool value_317 = zir_f_daa84719ffd73ec0_TypeNextField(t, &(offset), &(field)) == 1;
+                                    bool value_317 = zir_foreign_compiler_go_backend__TypeNextField(t, &(offset), &(field)) == 1;
                                     if (!value_317) {
                                         break;
                                     }
                                     uint8_t* backing = &(field.type[0]);
-                                    ZirType* enumeration = zir_f_daa84719ffd73ec0_CFindType(m, &(field.type[0]), (ZirModule**)(((void *)0)));
+                                    ZirType* enumeration = zir_foreign_compiler_go_backend__CFindType(m, &(field.type[0]), (ZirModule**)(((void *)0)));
                                     if (enumeration != (ZirType*)(((void *)0)) && enumeration->is_enum != 0) {
                                         backing = &(enumeration->enum_backing[0]);
                                     }
@@ -9742,16 +8998,16 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                         uint8_t* value_320 = (void *)0;
                                         {
                                             String s = value_319;
-                                            value_320 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                            value_320 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
                                         String value_322 = StringLiteral("Go unions support scalar fields only: %s");
                                         uint8_t* value_323 = (void *)0;
                                         {
                                             String s = value_322;
-                                            value_323 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                            value_323 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
-                                        zir_f_daa84719ffd73ec0_Diagnostic(value_318, value_320, value_323, &(field.name[0]));
-                                        zir_f_daa84719ffd73ec0_exit(1);
+                                        zir_foreign_compiler_go_backend__Diagnostic(value_318, value_320, value_323, &(field.name[0]));
+                                        zir_foreign_compiler_go_backend__exit(1);
                                     }
                                     if (width > size) {
                                         size = width;
@@ -9768,9 +9024,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t* value_327 = (void *)0;
                                 {
                                     String s = value_326;
-                                    value_327 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_327 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_fprintf(value_325, value_327, &(native[0]), alignment * (size_t)(8LL), size);
+                                zir_foreign_compiler_go_backend__fprintf(value_325, value_327, &(native[0]), alignment * (size_t)(8LL), size);
                                 int32_t* value_329 = &(ctx->g_union_unsafe);
                                 (*value_329) = 1;
                                 i = (int32_t)((uint32_t)i + 1u);
@@ -9787,18 +9043,18 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     uint8_t* value_332 = (void *)0;
                                     {
                                         String s = value_331;
-                                        value_332 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_332 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
                                     String value_334 = StringLiteral("#c_call procedure types require the native C target");
                                     uint8_t* value_335 = (void *)0;
                                     {
                                         String s = value_334;
-                                        value_335 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_335 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_f_daa84719ffd73ec0_Diagnostic(value_330, value_332, value_335);
-                                    zir_f_daa84719ffd73ec0_exit(1);
+                                    zir_foreign_compiler_go_backend__Diagnostic(value_330, value_332, value_335);
+                                    zir_foreign_compiler_go_backend__exit(1);
                                 }
-                                zir_f_daa84719ffd73ec0_EmitSlotType(f, t, (int32_t)(((ZirTarget)(1))), compiler_go_backend_resolve_slot_type, (void*)(ctx));
+                                zir_foreign_compiler_go_backend__EmitSlotType(f, t, (int32_t)(((ZirTarget)(1))), compiler_go_backend_resolve_slot_type, (void*)(ctx));
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
@@ -9823,33 +9079,33 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     uint8_t* value_339 = (void *)0;
                                     {
                                         String s = value_338;
-                                        value_339 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_339 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
                                     String value_341 = StringLiteral("invalid enum backing type");
                                     uint8_t* value_342 = (void *)0;
                                     {
                                         String s = value_341;
-                                        value_342 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_342 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_f_daa84719ffd73ec0_Diagnostic(value_337, value_339, value_342);
-                                    zir_f_daa84719ffd73ec0_exit(1);
+                                    zir_foreign_compiler_go_backend__Diagnostic(value_337, value_339, value_342);
+                                    zir_foreign_compiler_go_backend__exit(1);
                                 }
                                 void* value_344 = f;
                                 String value_345 = StringLiteral("type %s %s\n\n");
                                 uint8_t* value_346 = (void *)0;
                                 {
                                     String s = value_345;
-                                    value_346 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_346 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_fprintf(value_344, value_346, &(e->go_type[0]), backing);
+                                zir_foreign_compiler_go_backend__fprintf(value_344, value_346, &(e->go_type[0]), backing);
                                 void* value_348 = f;
                                 String value_349 = StringLiteral("const (\n");
                                 uint8_t* value_350 = (void *)0;
                                 {
                                     String s = value_349;
-                                    value_350 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_350 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_fprintf(value_348, value_350);
+                                zir_foreign_compiler_go_backend__fprintf(value_348, value_350);
                                 {
                                     int32_t mI = 0;
                                     while (true) {
@@ -9865,17 +9121,17 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                                 uint8_t* value_353 = (void *)0;
                                                 {
                                                     String s = value_352;
-                                                    value_353 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                                    value_353 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                                 }
-                                                zir_f_daa84719ffd73ec0_snprintf(&(buffers->val[0]), (8192) * (sizeof(uint8_t)), value_353);
+                                                zir_foreign_compiler_go_backend__snprintf(&(buffers->val[0]), (8192) * (sizeof(uint8_t)), value_353);
                                             } else {
                                                 String value_355 = StringLiteral("%s + 1");
                                                 uint8_t* value_356 = (void *)0;
                                                 {
                                                     String s = value_355;
-                                                    value_356 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                                    value_356 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                                 }
-                                                zir_f_daa84719ffd73ec0_snprintf(&(buffers->val[0]), (8192) * (sizeof(uint8_t)), value_356, &(((e->members[((int32_t)((uint32_t)mI - 1u))]).go)[0]));
+                                                zir_foreign_compiler_go_backend__snprintf(&(buffers->val[0]), (8192) * (sizeof(uint8_t)), value_356, &(((e->members[((int32_t)((uint32_t)mI - 1u))]).go)[0]));
                                             }
                                         }
                                         void* value_358 = f;
@@ -9883,9 +9139,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                         uint8_t* value_360 = (void *)0;
                                         {
                                             String s = value_359;
-                                            value_360 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                            value_360 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
-                                        zir_f_daa84719ffd73ec0_fprintf(value_358, value_360, &(mem->go[0]), &(buffers->val[0]));
+                                        zir_foreign_compiler_go_backend__fprintf(value_358, value_360, &(mem->go[0]), &(buffers->val[0]));
                                         mI = (int32_t)((uint32_t)mI + 1u);
                                     }
                                 }
@@ -9894,16 +9150,16 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t* value_364 = (void *)0;
                                 {
                                     String s = value_363;
-                                    value_364 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_364 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_fprintf(value_362, value_364);
+                                zir_foreign_compiler_go_backend__fprintf(value_362, value_364);
                             } else {
                                 void* value_366 = f;
                                 String value_367 = StringLiteral("type %s %sstruct {\n");
                                 uint8_t* value_368 = (void *)0;
                                 {
                                     String s = value_367;
-                                    value_368 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_368 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
                                 uint8_t* value_370 = (void *)0;
                                 if (t->is_go_anonymous != 0) {
@@ -9911,7 +9167,7 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     uint8_t* value_372 = (void *)0;
                                     {
                                         String s = value_371;
-                                        value_372 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_372 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
                                     value_370 = value_372;
                                 } else {
@@ -9919,34 +9175,34 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     uint8_t* value_375 = (void *)0;
                                     {
                                         String s = value_374;
-                                        value_375 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_375 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
                                     value_370 = value_375;
                                 }
-                                zir_f_daa84719ffd73ec0_fprintf(value_366, value_368, &(native[0]), value_370);
+                                zir_foreign_compiler_go_backend__fprintf(value_366, value_368, &(native[0]), value_370);
                                 {
                                     size_t offset = (size_t)(0LL);
                                     ZirTypeField field = {0};
                                     int32_t status = 0;
                                     while (true) {
-                                        status = zir_f_daa84719ffd73ec0_TypeNextField(t, &(offset), &(field));
+                                        status = zir_foreign_compiler_go_backend__TypeNextField(t, &(offset), &(field));
                                         if (!(status == 1)) {
                                             break;
                                         }
                                         uint8_t fname[256] = {0};
                                         uint8_t gt[256] = {0};
-                                        zir_f_daa84719ffd73ec0_go_field_ident(&(field.name[0]), &(fname[0]), (256) * (sizeof(uint8_t)));
+                                        zir_foreign_compiler_go_backend__go_field_ident(&(field.name[0]), &(fname[0]), (256) * (sizeof(uint8_t)));
                                         compiler_go_backend_require_go_field_type(ctx, t, &(field), &(gt[0]), (256) * (sizeof(uint8_t)));
                                         void* value_377 = f;
                                         String value_378 = StringLiteral("\t%s %s");
                                         uint8_t* value_379 = (void *)0;
                                         {
                                             String s = value_378;
-                                            value_379 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                            value_379 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
-                                        zir_f_daa84719ffd73ec0_fprintf(value_377, value_379, &(fname[0]), &(gt[0]));
+                                        zir_foreign_compiler_go_backend__fprintf(value_377, value_379, &(fname[0]), &(gt[0]));
                                         compiler_go_backend_emit_field_tag(ctx, f, &(field), t->span);
-                                        zir_f_daa84719ffd73ec0_fputc(10, f);
+                                        zir_foreign_compiler_go_backend__fputc(10, f);
                                     }
                                     if (status < 0) {
                                         ZirSourceSpan value_381 = t->span;
@@ -9954,16 +9210,16 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                         uint8_t* value_383 = (void *)0;
                                         {
                                             String s = value_382;
-                                            value_383 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                            value_383 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
                                         String value_385 = StringLiteral("malformed field in %s");
                                         uint8_t* value_386 = (void *)0;
                                         {
                                             String s = value_385;
-                                            value_386 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                            value_386 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
-                                        zir_f_daa84719ffd73ec0_Diagnostic(value_381, value_383, value_386, &(t->name[0]));
-                                        zir_f_daa84719ffd73ec0_exit(1);
+                                        zir_foreign_compiler_go_backend__Diagnostic(value_381, value_383, value_386, &(t->name[0]));
+                                        zir_foreign_compiler_go_backend__exit(1);
                                     }
                                 }
                                 void* value_388 = f;
@@ -9971,9 +9227,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t* value_390 = (void *)0;
                                 {
                                     String s = value_389;
-                                    value_390 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_390 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_fprintf(value_388, value_390);
+                                zir_foreign_compiler_go_backend__fprintf(value_388, value_390);
                             }
                             i = (int32_t)((uint32_t)i + 1u);
                         }
@@ -9989,9 +9245,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 break;
                             }
                             uint8_t cname[256] = {0};
-                            uint8_t* value = zir_f_daa84719ffd73ec0_skip_ws((uint8_t*)(m->defines[i]).value);
-                            zir_f_daa84719ffd73ec0_TargetDefineName(m, (int32_t)(((ZirTarget)(1))), &(((m->defines[i]).name)[0]), &(cname[0]), (256) * (sizeof(uint8_t)));
-                            if (zir_f_daa84719ffd73ec0_ArrayTypeAlias(value) != 0) {
+                            uint8_t* value = zir_foreign_compiler_go_backend__skip_ws((uint8_t*)(m->defines[i]).value);
+                            zir_foreign_compiler_go_backend__TargetDefineName(m, (int32_t)(((ZirTarget)(1))), &(((m->defines[i]).name)[0]), &(cname[0]), (256) * (sizeof(uint8_t)));
+                            if (zir_foreign_compiler_go_backend__ArrayTypeAlias(value) != 0) {
                                 uint8_t aliased[256] = {0};
                                 compiler_go_backend_require_go_type(ctx, value, &(aliased[0]), (256) * (sizeof(uint8_t)), (m->defines[i]).span);
                                 void* value_392 = f;
@@ -9999,56 +9255,56 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t* value_394 = (void *)0;
                                 {
                                     String s = value_393;
-                                    value_394 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_394 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_fprintf(value_392, value_394, &(cname[0]), &(aliased[0]));
+                                zir_foreign_compiler_go_backend__fprintf(value_392, value_394, &(cname[0]), &(aliased[0]));
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
-                            if (zir_f_daa84719ffd73ec0_DefineIsAggregate(m, &(m->defines[i])) != 0) {
+                            if (zir_foreign_compiler_go_backend__DefineIsAggregate(m, &(m->defines[i])) != 0) {
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
-                            if (zir_f_daa84719ffd73ec0_strlen(value) >= (size_t)(2048LL)) {
-                                size_t capacity = (zir_f_daa84719ffd73ec0_strlen(value) * (size_t)(4LL)) + (size_t)(64LL);
-                                void* value_396 = zir_f_daa84719ffd73ec0_malloc(capacity);
+                            if (zir_foreign_compiler_go_backend__strlen(value) >= (size_t)(2048LL)) {
+                                size_t capacity = (zir_foreign_compiler_go_backend__strlen(value) * (size_t)(4LL)) + (size_t)(64LL);
+                                void* value_396 = zir_foreign_compiler_go_backend__malloc(capacity);
                                 uint8_t* literal = (uint8_t*)(value_396);
                                 if (literal == (uint8_t*)(((void *)0))) {
-                                    zir_f_daa84719ffd73ec0_exit(1);
+                                    zir_foreign_compiler_go_backend__exit(1);
                                 }
                                 String value_397 = StringLiteral("string");
                                 uint8_t* value_398 = (void *)0;
                                 {
                                     String s = value_397;
-                                    value_398 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_398 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                bool value_400 = zir_f_daa84719ffd73ec0_ScalarLiteral(value_398, value, (int32_t)(((ZirTarget)(1))), (m->defines[i]).span, literal, capacity) != 0;
+                                bool value_400 = zir_foreign_compiler_go_backend__ScalarLiteral(value_398, value, (int32_t)(((ZirTarget)(1))), (m->defines[i]).span, literal, capacity) != 0;
                                 if (!value_400) {
                                     ZirSourceSpan value_401 = (m->defines[i]).span;
                                     String value_402 = StringLiteral("zir_go.global");
                                     uint8_t* value_403 = (void *)0;
                                     {
                                         String s = value_402;
-                                        value_403 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_403 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
                                     String value_405 = StringLiteral("cannot lower long constant %s");
                                     uint8_t* value_406 = (void *)0;
                                     {
                                         String s = value_405;
-                                        value_406 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_406 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_f_daa84719ffd73ec0_Diagnostic(value_401, value_403, value_406, &(((m->defines[i]).name)[0]));
-                                    zir_f_daa84719ffd73ec0_exit(1);
+                                    zir_foreign_compiler_go_backend__Diagnostic(value_401, value_403, value_406, &(((m->defines[i]).name)[0]));
+                                    zir_foreign_compiler_go_backend__exit(1);
                                 }
                                 void* value_408 = f;
                                 String value_409 = StringLiteral("const %s = %s\n");
                                 uint8_t* value_410 = (void *)0;
                                 {
                                     String s = value_409;
-                                    value_410 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_410 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_fprintf(value_408, value_410, &(cname[0]), literal);
-                                zir_f_daa84719ffd73ec0_free((void*)(literal));
+                                zir_foreign_compiler_go_backend__fprintf(value_408, value_410, &(cname[0]), literal);
+                                zir_foreign_compiler_go_backend__free((void*)(literal));
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
@@ -10058,9 +9314,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             uint8_t* value_414 = (void *)0;
                             {
                                 String s = value_413;
-                                value_414 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_414 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_fprintf(value_412, value_414, &(cname[0]), &(buffers->cval[0]));
+                            zir_foreign_compiler_go_backend__fprintf(value_412, value_414, &(cname[0]), &(buffers->cval[0]));
                             i = (int32_t)((uint32_t)i + 1u);
                         }
                     }
@@ -10073,79 +9329,79 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             ZirGlobal* g = &(m->globals[i]);
                             uint8_t gname[256] = {0};
                             uint8_t gt[256] = {0};
-                            zir_f_daa84719ffd73ec0_TargetGlobalName(m, (int32_t)(((ZirTarget)(1))), &(g->name[0]), &(gname[0]), (256) * (sizeof(uint8_t)));
+                            zir_foreign_compiler_go_backend__TargetGlobalName(m, (int32_t)(((ZirTarget)(1))), &(g->name[0]), &(gname[0]), (256) * (sizeof(uint8_t)));
                             compiler_go_backend_require_go_type(ctx, &(g->type[0]), &(gt[0]), (256) * (sizeof(uint8_t)), g->span);
-                            bool value_416 = zir_f_daa84719ffd73ec0_strlen((uint8_t*)g->init) >= (size_t)(2048LL);
+                            bool value_416 = zir_foreign_compiler_go_backend__strlen((uint8_t*)g->init) >= (size_t)(2048LL);
                             bool value_417 = value_416;
                             if (value_417) {
                                 String value_418 = StringLiteral("string");
                                 uint8_t* value_419 = (void *)0;
                                 {
                                     String s = value_418;
-                                    value_419 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_419 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                bool value_421 = zir_f_daa84719ffd73ec0_strcmp(&(g->type[0]), value_419) != 0;
+                                bool value_421 = zir_foreign_compiler_go_backend__strcmp(&(g->type[0]), value_419) != 0;
                                 value_417 = !value_421;
                             }
                             if (value_417) {
-                                size_t capacity = (zir_f_daa84719ffd73ec0_strlen((uint8_t*)g->init) * (size_t)(4LL)) + (size_t)(64LL);
-                                void* value_422 = zir_f_daa84719ffd73ec0_malloc(capacity);
+                                size_t capacity = (zir_foreign_compiler_go_backend__strlen((uint8_t*)g->init) * (size_t)(4LL)) + (size_t)(64LL);
+                                void* value_422 = zir_foreign_compiler_go_backend__malloc(capacity);
                                 uint8_t* literal = (uint8_t*)(value_422);
                                 if (literal == (uint8_t*)(((void *)0))) {
-                                    zir_f_daa84719ffd73ec0_exit(1);
+                                    zir_foreign_compiler_go_backend__exit(1);
                                 }
-                                bool value_423 = zir_f_daa84719ffd73ec0_ScalarLiteral(&(g->type[0]), (uint8_t*)g->init, (int32_t)(((ZirTarget)(1))), g->span, literal, capacity) != 0;
+                                bool value_423 = zir_foreign_compiler_go_backend__ScalarLiteral(&(g->type[0]), (uint8_t*)g->init, (int32_t)(((ZirTarget)(1))), g->span, literal, capacity) != 0;
                                 if (!value_423) {
                                     ZirSourceSpan value_424 = g->span;
                                     String value_425 = StringLiteral("zir_go.global");
                                     uint8_t* value_426 = (void *)0;
                                     {
                                         String s = value_425;
-                                        value_426 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_426 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
                                     String value_428 = StringLiteral("cannot lower long global %s");
                                     uint8_t* value_429 = (void *)0;
                                     {
                                         String s = value_428;
-                                        value_429 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_429 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_f_daa84719ffd73ec0_Diagnostic(value_424, value_426, value_429, &(g->name[0]));
-                                    zir_f_daa84719ffd73ec0_exit(1);
+                                    zir_foreign_compiler_go_backend__Diagnostic(value_424, value_426, value_429, &(g->name[0]));
+                                    zir_foreign_compiler_go_backend__exit(1);
                                 }
                                 void* value_431 = f;
                                 String value_432 = StringLiteral("var %s %s = %s\n");
                                 uint8_t* value_433 = (void *)0;
                                 {
                                     String s = value_432;
-                                    value_433 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_433 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_fprintf(value_431, value_433, &(gname[0]), &(gt[0]), literal);
-                                zir_f_daa84719ffd73ec0_free((void*)(literal));
+                                zir_foreign_compiler_go_backend__fprintf(value_431, value_433, &(gname[0]), &(gt[0]), literal);
+                                zir_foreign_compiler_go_backend__free((void*)(literal));
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
                             uint8_t* compound_text = (uint8_t*)(((void *)0));
-                            bool value_435 = zir_f_daa84719ffd73ec0_ScalarLiteral(&(g->type[0]), (uint8_t*)g->init, (int32_t)(((ZirTarget)(1))), g->span, &(buffers->ginit[0]), (8192) * (sizeof(uint8_t))) != 0;
+                            bool value_435 = zir_foreign_compiler_go_backend__ScalarLiteral(&(g->type[0]), (uint8_t*)g->init, (int32_t)(((ZirTarget)(1))), g->span, &(buffers->ginit[0]), (8192) * (sizeof(uint8_t))) != 0;
                             if (!value_435) {
                                 int32_t compound = 0;
                                 GlobalRewrite rewrite = {.state = ctx, .global = g};
-                                compound_text = zir_f_daa84719ffd73ec0_EmitGlobalInitializerText(m, g, (int32_t)(((ZirTarget)(1))), compiler_go_backend_rewrite_global_scalar, compiler_go_backend_rewrite_global_type, compiler_go_backend_rewrite_global_field, (void*)(&(rewrite)), &(compound));
+                                compound_text = zir_foreign_compiler_go_backend__EmitGlobalInitializerText(m, g, (int32_t)(((ZirTarget)(1))), compiler_go_backend_rewrite_global_scalar, compiler_go_backend_rewrite_global_type, compiler_go_backend_rewrite_global_field, (void*)(&(rewrite)), &(compound));
                                 if (compound < 0) {
                                     ZirSourceSpan value_436 = g->span;
                                     String value_437 = StringLiteral("zir_go.global");
                                     uint8_t* value_438 = (void *)0;
                                     {
                                         String s = value_437;
-                                        value_438 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_438 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
                                     String value_440 = StringLiteral("cannot lower compound global initializer: %s");
                                     uint8_t* value_441 = (void *)0;
                                     {
                                         String s = value_440;
-                                        value_441 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_441 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_f_daa84719ffd73ec0_Diagnostic(value_436, value_438, value_441, &(g->name[0]));
-                                    zir_f_daa84719ffd73ec0_exit(1);
+                                    zir_foreign_compiler_go_backend__Diagnostic(value_436, value_438, value_441, &(g->name[0]));
+                                    zir_foreign_compiler_go_backend__exit(1);
                                 }
                                 if (compound == 0) {
                                     compiler_go_backend_tx_expr(ctx, m, (uint8_t*)g->init, &(buffers->ginit[0]), (8192) * (sizeof(uint8_t)));
@@ -10165,18 +9421,18 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     uint8_t* value_446 = (void *)0;
                                     {
                                         String s = value_445;
-                                        value_446 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_446 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_f_daa84719ffd73ec0_fprintf(value_444, value_446, &(gname[0]), &(gt[0]), ginit);
+                                    zir_foreign_compiler_go_backend__fprintf(value_444, value_446, &(gname[0]), &(gt[0]), ginit);
                                 } else {
                                     void* value_448 = f;
                                     String value_449 = StringLiteral("var %s %s = %s\n");
                                     uint8_t* value_450 = (void *)0;
                                     {
                                         String s = value_449;
-                                        value_450 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_450 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_f_daa84719ffd73ec0_fprintf(value_448, value_450, &(gname[0]), &(gt[0]), ginit);
+                                    zir_foreign_compiler_go_backend__fprintf(value_448, value_450, &(gname[0]), &(gt[0]), ginit);
                                 }
                             } else {
                                 void* value_452 = f;
@@ -10184,15 +9440,15 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t* value_454 = (void *)0;
                                 {
                                     String s = value_453;
-                                    value_454 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_454 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_f_daa84719ffd73ec0_fprintf(value_452, value_454, &(gname[0]), &(gt[0]));
+                                zir_foreign_compiler_go_backend__fprintf(value_452, value_454, &(gname[0]), &(gt[0]));
                             }
-                            zir_f_daa84719ffd73ec0_free((void*)(compound_text));
+                            zir_foreign_compiler_go_backend__free((void*)(compound_text));
                             i = (int32_t)((uint32_t)i + 1u);
                         }
                     }
-                    GoAssembly* assembly = zir_f_daa84719ffd73ec0_GoAssemblyOpen(progs, prog_count, m);
+                    GoAssembly* assembly = zir_foreign_compiler_go_backend__GoAssemblyOpen(progs, prog_count, m);
                     {
                         int32_t i = 0;
                         while (true) {
@@ -10219,15 +9475,15 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             i = (int32_t)((uint32_t)i + 1u);
                         }
                     }
-                    if (zir_f_daa84719ffd73ec0_ModuleNeedsStartup(m) != 0) {
+                    if (zir_foreign_compiler_go_backend__ModuleNeedsStartup(m) != 0) {
                         void* value_456 = f;
                         String value_457 = StringLiteral("var %s_ziranInitState uint8\nfunc %s_ziranInit() {\n\tif %s_ziranInitState == 2 { return }\n\tif %s_ziranInitState == 1 { panic(\"cyclic module startup\") }\n\t%s_ziranInitState = 1\n");
                         uint8_t* value_458 = (void *)0;
                         {
                             String s = value_457;
-                            value_458 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_458 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_fprintf(value_456, value_458, &(guard[0]), &(guard[0]), &(guard[0]), &(guard[0]), &(guard[0]));
+                        zir_foreign_compiler_go_backend__fprintf(value_456, value_458, &(guard[0]), &(guard[0]), &(guard[0]), &(guard[0]), &(guard[0]));
                         {
                             int32_t i = 0;
                             while (true) {
@@ -10235,17 +9491,17 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     break;
                                 }
                                 ZirModule* dependency = (ZirModule*)(m->imports[i]).resolved_module;
-                                if (zir_f_daa84719ffd73ec0_ModuleNeedsStartup(dependency) != 0) {
+                                if (zir_foreign_compiler_go_backend__ModuleNeedsStartup(dependency) != 0) {
                                     uint8_t dep_guard[256] = {0};
-                                    zir_f_daa84719ffd73ec0_NativeGoModuleIdentity(progs, prog_count, dependency, &(buffers->stem_2[0]), (1024) * (sizeof(uint8_t)), &(dep_guard[0]), (256) * (sizeof(uint8_t)));
+                                    zir_foreign_compiler_go_backend__NativeGoModuleIdentity(progs, prog_count, dependency, &(buffers->stem_2[0]), (1024) * (sizeof(uint8_t)), &(dep_guard[0]), (256) * (sizeof(uint8_t)));
                                     void* value_460 = f;
                                     String value_461 = StringLiteral("\t%s_ziranInit()\n");
                                     uint8_t* value_462 = (void *)0;
                                     {
                                         String s = value_461;
-                                        value_462 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_462 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_f_daa84719ffd73ec0_fprintf(value_460, value_462, &(dep_guard[0]));
+                                    zir_foreign_compiler_go_backend__fprintf(value_460, value_462, &(dep_guard[0]));
                                 }
                                 i = (int32_t)((uint32_t)i + 1u);
                             }
@@ -10258,15 +9514,15 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 }
                                 if ((m->functions[i]).is_global_initializer != 0) {
                                     uint8_t name[256] = {0};
-                                    zir_f_daa84719ffd73ec0_camel_ident(&(((m->functions[i]).name)[0]), &(name[0]), (256) * (sizeof(uint8_t)));
+                                    zir_foreign_compiler_go_backend__camel_ident(&(((m->functions[i]).name)[0]), &(name[0]), (256) * (sizeof(uint8_t)));
                                     void* value_464 = f;
                                     String value_465 = StringLiteral("\t%s_%s()\n");
                                     uint8_t* value_466 = (void *)0;
                                     {
                                         String s = value_465;
-                                        value_466 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                        value_466 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_f_daa84719ffd73ec0_fprintf(value_464, value_466, &(guard[0]), &(name[0]));
+                                    zir_foreign_compiler_go_backend__fprintf(value_464, value_466, &(guard[0]), &(name[0]));
                                 }
                                 i = (int32_t)((uint32_t)i + 1u);
                             }
@@ -10276,87 +9532,87 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         uint8_t* value_470 = (void *)0;
                         {
                             String s = value_469;
-                            value_470 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_470 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_fprintf(value_468, value_470, &(guard[0]));
+                        zir_foreign_compiler_go_backend__fprintf(value_468, value_470, &(guard[0]));
                         if (startup_count != 0) {
                             void* value_472 = f;
                             String value_473 = StringLiteral("func init() { %s_ziranInit() }\n\n");
                             uint8_t* value_474 = (void *)0;
                             {
                                 String s = value_473;
-                                value_474 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                value_474 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_f_daa84719ffd73ec0_fprintf(value_472, value_474, &(guard[0]));
+                            zir_foreign_compiler_go_backend__fprintf(value_472, value_474, &(guard[0]));
                         }
                     }
                     {
-                        uint8_t* tables = zir_f_daa84719ffd73ec0_EmitConstantTablesEnd();
+                        uint8_t* tables = zir_foreign_compiler_go_backend__EmitConstantTablesEnd();
                         if (tables != (uint8_t*)(((void *)0)) && tables[0] != 0) {
-                            zir_f_daa84719ffd73ec0_fputs(tables, f);
+                            zir_foreign_compiler_go_backend__fputs(tables, f);
                         }
-                        zir_f_daa84719ffd73ec0_free((void*)(tables));
+                        zir_foreign_compiler_go_backend__free((void*)(tables));
                     }
-                    if (zir_f_daa84719ffd73ec0_TextStreamClose(&(stream)) != 0) {
+                    if (zir_foreign_compiler_go_backend__TextStreamClose(&(stream)) != 0) {
                         ZirSourceSpan value_476 = m->span;
                         String value_477 = StringLiteral("zir_go.global");
                         uint8_t* value_478 = (void *)0;
                         {
                             String s = value_477;
-                            value_478 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_478 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         String value_480 = StringLiteral("cannot finish Go output: %s");
                         uint8_t* value_481 = (void *)0;
                         {
                             String s = value_480;
-                            value_481 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_481 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_Diagnostic(value_476, value_478, value_481, &(buffers->path[0]));
-                        zir_f_daa84719ffd73ec0_GoAssemblyClose(assembly);
+                        zir_foreign_compiler_go_backend__Diagnostic(value_476, value_478, value_481, &(buffers->path[0]));
+                        zir_foreign_compiler_go_backend__GoAssemblyClose(assembly);
                         return 1;
                     }
-                    zir_0eae4a02a9048d94_TextStream helper_stream = {0};
+                    compiler_go_backend_TextStream helper_stream = {0};
                     uint8_t* helpers = (uint8_t*)(((void *)0));
                     size_t helper_length = (size_t)(0LL);
-                    f = zir_f_daa84719ffd73ec0_TextStreamOpen(&(helper_stream), &(helpers), &(helper_length));
+                    f = zir_foreign_compiler_go_backend__TextStreamOpen(&(helper_stream), &(helpers), &(helper_length));
                     if (f == ((void *)0)) {
-                        zir_f_daa84719ffd73ec0_free((void*)(text));
+                        zir_foreign_compiler_go_backend__free((void*)(text));
                         ZirSourceSpan value_483 = m->span;
                         String value_484 = StringLiteral("zir_go.global");
                         uint8_t* value_485 = (void *)0;
                         {
                             String s = value_484;
-                            value_485 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_485 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         String value_487 = StringLiteral("cannot create Go output: %s");
                         uint8_t* value_488 = (void *)0;
                         {
                             String s = value_487;
-                            value_488 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_488 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_Diagnostic(value_483, value_485, value_488, &(buffers->path[0]));
-                        zir_f_daa84719ffd73ec0_GoAssemblyClose(assembly);
+                        zir_foreign_compiler_go_backend__Diagnostic(value_483, value_485, value_488, &(buffers->path[0]));
+                        zir_foreign_compiler_go_backend__GoAssemblyClose(assembly);
                         return 1;
                     }
-                    zir_f_daa84719ffd73ec0_EmitGoNumberHelpers(f, text, &(number_helpers));
-                    zir_f_daa84719ffd73ec0_GoSimdCollect(text);
-                    if (zir_f_daa84719ffd73ec0_TextStreamClose(&(helper_stream)) != 0) {
-                        zir_f_daa84719ffd73ec0_free((void*)(text));
+                    zir_foreign_compiler_go_backend__EmitGoNumberHelpers(f, text, &(number_helpers));
+                    zir_foreign_compiler_go_backend__GoSimdCollect(text);
+                    if (zir_foreign_compiler_go_backend__TextStreamClose(&(helper_stream)) != 0) {
+                        zir_foreign_compiler_go_backend__free((void*)(text));
                         ZirSourceSpan value_490 = m->span;
                         String value_491 = StringLiteral("zir_go.global");
                         uint8_t* value_492 = (void *)0;
                         {
                             String s = value_491;
-                            value_492 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_492 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         String value_494 = StringLiteral("cannot finish Go output: %s");
                         uint8_t* value_495 = (void *)0;
                         {
                             String s = value_494;
-                            value_495 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_495 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_Diagnostic(value_490, value_492, value_495, &(buffers->path[0]));
-                        zir_f_daa84719ffd73ec0_GoAssemblyClose(assembly);
+                        zir_foreign_compiler_go_backend__Diagnostic(value_490, value_492, value_495, &(buffers->path[0]));
+                        zir_foreign_compiler_go_backend__GoAssemblyClose(assembly);
                         return 1;
                     }
                     uint8_t* value_497 = (void *)0;
@@ -10381,42 +9637,42 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         size_t* value_500 = &(remaining[0]);
                         (*value_500) = (*value_500) - 1;
                     }
-                    zir_f_daa84719ffd73ec0_GeneratedOutputRecord(&(buffers->path[0]));
+                    zir_foreign_compiler_go_backend__GeneratedOutputRecord(&(buffers->path[0]));
                     String value_501 = StringLiteral("wb");
                     uint8_t* value_502 = (void *)0;
                     {
                         String s = value_501;
-                        value_502 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                        value_502 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
-                    void* output = zir_f_daa84719ffd73ec0_fopen(&(buffers->path[0]), value_502);
+                    void* output = zir_foreign_compiler_go_backend__fopen(&(buffers->path[0]), value_502);
                     if (output == ((void *)0)) {
                         ZirSourceSpan value_504 = m->span;
                         String value_505 = StringLiteral("zir_go.global");
                         uint8_t* value_506 = (void *)0;
                         {
                             String s = value_505;
-                            value_506 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_506 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         String value_508 = StringLiteral("cannot create Go output: %s");
                         uint8_t* value_509 = (void *)0;
                         {
                             String s = value_508;
-                            value_509 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_509 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_Diagnostic(value_504, value_506, value_509, &(buffers->path[0]));
-                        zir_f_daa84719ffd73ec0_free((void*)(text));
-                        zir_f_daa84719ffd73ec0_free((void*)(helpers));
-                        zir_f_daa84719ffd73ec0_GoAssemblyClose(assembly);
+                        zir_foreign_compiler_go_backend__Diagnostic(value_504, value_506, value_509, &(buffers->path[0]));
+                        zir_foreign_compiler_go_backend__free((void*)(text));
+                        zir_foreign_compiler_go_backend__free((void*)(helpers));
+                        zir_foreign_compiler_go_backend__GoAssemblyClose(assembly);
                         return 1;
                     }
-                    size_t value_511 = zir_f_daa84719ffd73ec0_fwrite((void*)(text), (size_t)(1LL), length, output);
+                    size_t value_511 = zir_foreign_compiler_go_backend__fwrite((void*)(text), (size_t)(1LL), length, output);
                     int32_t value_512 = 0;
                     if (value_511 != length) {
                         value_512 = 1;
                     }
                     int32_t failed = value_512;
                     if (!(failed != 0) && helper_length != 0) {
-                        size_t value_513 = zir_f_daa84719ffd73ec0_fwrite((void*)(helpers), (size_t)(1LL), helper_length, output);
+                        size_t value_513 = zir_foreign_compiler_go_backend__fwrite((void*)(helpers), (size_t)(1LL), helper_length, output);
                         int32_t value_514 = 0;
                         if (value_513 != helper_length) {
                             value_514 = 1;
@@ -10424,42 +9680,42 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         failed = value_514;
                     }
                     int32_t value_515 = failed;
-                    bool value_516 = zir_f_daa84719ffd73ec0_fclose(output) != 0;
+                    bool value_516 = zir_foreign_compiler_go_backend__fclose(output) != 0;
                     int32_t value_517 = 0;
                     if (value_516) {
                         value_517 = 1;
                     }
                     failed = (int32_t)((uint32_t)value_515 | (uint32_t)value_517);
-                    zir_f_daa84719ffd73ec0_free((void*)(text));
-                    zir_f_daa84719ffd73ec0_free((void*)(helpers));
+                    zir_foreign_compiler_go_backend__free((void*)(text));
+                    zir_foreign_compiler_go_backend__free((void*)(helpers));
                     if (failed != 0) {
                         ZirSourceSpan value_518 = m->span;
                         String value_519 = StringLiteral("zir_go.global");
                         uint8_t* value_520 = (void *)0;
                         {
                             String s = value_519;
-                            value_520 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_520 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
                         String value_522 = StringLiteral("cannot finish Go output: %s");
                         uint8_t* value_523 = (void *)0;
                         {
                             String s = value_522;
-                            value_523 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                            value_523 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_f_daa84719ffd73ec0_Diagnostic(value_518, value_520, value_523, &(buffers->path[0]));
-                        zir_f_daa84719ffd73ec0_GoAssemblyClose(assembly);
+                        zir_foreign_compiler_go_backend__Diagnostic(value_518, value_520, value_523, &(buffers->path[0]));
+                        zir_foreign_compiler_go_backend__GoAssemblyClose(assembly);
                         return 1;
                     }
                     if (compiler_go_backend_emit_go_c_header_stub(ctx, progs, pi, mi, m, &(buffers->path[0]), pkg) != 0) {
-                        zir_f_daa84719ffd73ec0_GoAssemblyClose(assembly);
+                        zir_foreign_compiler_go_backend__GoAssemblyClose(assembly);
                         return 1;
                     }
                     if (compiler_go_backend_emit_go_c_header_implementation(ctx, progs, pi, mi, m, &(buffers->path[0]), pkg) != 0) {
-                        zir_f_daa84719ffd73ec0_GoAssemblyClose(assembly);
+                        zir_foreign_compiler_go_backend__GoAssemblyClose(assembly);
                         return 1;
                     }
-                    int32_t assembly_failed = zir_f_daa84719ffd73ec0_GoAssemblyWrite(assembly, &(buffers->path[0]), pkg);
-                    zir_f_daa84719ffd73ec0_GoAssemblyClose(assembly);
+                    int32_t assembly_failed = zir_foreign_compiler_go_backend__GoAssemblyWrite(assembly, &(buffers->path[0]), pkg);
+                    zir_foreign_compiler_go_backend__GoAssemblyClose(assembly);
                     if (assembly_failed != 0) {
                         return 1;
                     }
@@ -10469,11 +9725,11 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
             pi = (int32_t)((uint32_t)pi + 1u);
         }
     }
-    if (zir_f_daa84719ffd73ec0_GoSimdWrite(out_dir, pkg) != 0) {
+    if (zir_foreign_compiler_go_backend__GoSimdWrite(out_dir, pkg) != 0) {
         return 1;
     }
     bool value_525 = assembly_present != 0 && prog_count != 0 && (progs[0])->module_count != 0;
-    if (value_525 && zir_f_daa84719ffd73ec0_GoAssemblyAvailability(out_dir, pkg, (((progs[0])->modules)[0]).span) != 0) {
+    if (value_525 && zir_foreign_compiler_go_backend__GoAssemblyAvailability(out_dir, pkg, (((progs[0])->modules)[0]).span) != 0) {
         return 1;
     }
     {
@@ -10502,9 +9758,9 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t* value_529 = (void *)0;
                                 {
                                     String s = value_528;
-                                    value_529 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+                                    value_529 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                bool value_531 = zir_f_daa84719ffd73ec0_strcmp(&(((module->imports[i]).target)[0]), value_529) != 0;
+                                bool value_531 = zir_foreign_compiler_go_backend__strcmp(&(((module->imports[i]).target)[0]), value_529) != 0;
                                 value_527 = !value_531;
                             }
                             if (value_527) {
@@ -10525,26 +9781,26 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
 static int32_t
 compiler_go_backend_LowerInState(GoLowerState* ctx, ZirProgram** progs, int32_t prog_count, uint8_t* root, uint8_t* out_dir, uint8_t* pkg, int32_t no_main)
 {
-    void* scratch_hint = zir_f_daa84719ffd73ec0_CompilerContextScratch((void*)(&(go_lower_in_context_scratch_key)), compiler_go_backend_FreeBuffer);
-    void* value_0 = zir_f_daa84719ffd73ec0_CompilerScratchTake(scratch_hint);
+    void* scratch_hint = zir_foreign_compiler_go_backend__CompilerContextScratch((void*)(&(go_lower_in_context_scratch_key)), compiler_go_backend_FreeBuffer);
+    void* value_0 = zir_foreign_compiler_go_backend__CompilerScratchTake(scratch_hint);
     GoLowerBuffers* buffers = (GoLowerBuffers*)(value_0);
     if (!(buffers != ((void *)0))) {
-        void* value_1 = zir_f_daa84719ffd73ec0_AllocateOrExit(sizeof(GoLowerBuffers));
+        void* value_1 = zir_foreign_compiler_go_backend__AllocateOrExit(sizeof(GoLowerBuffers));
         buffers = (GoLowerBuffers*)(value_1);
     }
-    uint64_t profile_started = zir_f_daa84719ffd73ec0_ProfileStart();
+    uint64_t profile_started = zir_foreign_compiler_go_backend__ProfileStart();
     int32_t returned = compiler_go_backend_go_lower_with_buffers(ctx, progs, prog_count, root, out_dir, pkg, no_main, buffers);
     compiler_go_backend_clear_enum_context(ctx);
     String value_2 = StringLiteral("emit.go");
     uint8_t* value_3 = (void *)0;
     {
         String s = value_2;
-        value_3 = ((zir_aa1b8ecd2a55fd1d_StaticText*)(&(s)))->data;
+        value_3 = ((compiler_go_backend_StaticText*)(&(s)))->data;
     }
-    zir_f_daa84719ffd73ec0_ProfileEnd(value_3, profile_started);
-    bool value_5 = zir_f_daa84719ffd73ec0_CompilerScratchPut(scratch_hint, (void*)(buffers)) != 0;
+    zir_foreign_compiler_go_backend__ProfileEnd(value_3, profile_started);
+    bool value_5 = zir_foreign_compiler_go_backend__CompilerScratchPut(scratch_hint, (void*)(buffers)) != 0;
     if (!value_5) {
-        zir_f_daa84719ffd73ec0_free((void*)(buffers));
+        zir_foreign_compiler_go_backend__free((void*)(buffers));
     }
     return returned;
 }
@@ -10558,44 +9814,44 @@ compiler_go_backend_LowerSelected(GoLowerState* ctx, ZirProgram** progs, int32_t
     } else {
         value_0 = (void *)0;
     }
-    void* previous = zir_f_daa84719ffd73ec0_CompilerContextSelect(value_0);
+    void* previous = zir_foreign_compiler_go_backend__CompilerContextSelect(value_0);
     int32_t result = compiler_go_backend_LowerInState(ctx, progs, prog_count, root, out_dir, pkg, no_main);
-    zir_f_daa84719ffd73ec0_CompilerContextSelect(previous);
+    zir_foreign_compiler_go_backend__CompilerContextSelect(previous);
     return result;
 }
 
 static void
 compiler_go_backend_FreeBuffer(void* memory)
 {
-    zir_f_daa84719ffd73ec0_free(memory);
+    zir_foreign_compiler_go_backend__free(memory);
 }
 
 int32_t
 go_lower_in_context(ZirProgram** programs, int32_t count, uint8_t* root, uint8_t* output, uint8_t* package, int32_t no_main)
 {
-    void* value_0 = zir_f_daa84719ffd73ec0_AllocateOrExit(sizeof(GoLowerState));
+    void* value_0 = zir_foreign_compiler_go_backend__AllocateOrExit(sizeof(GoLowerState));
     GoLowerState* ctx = (GoLowerState*)(value_0);
-    zir_f_daa84719ffd73ec0_memset((void*)(ctx), 0, sizeof(GoLowerState));
+    zir_foreign_compiler_go_backend__memset((void*)(ctx), 0, sizeof(GoLowerState));
     int32_t result = compiler_go_backend_LowerInState(ctx, programs, count, root, output, package, no_main);
-    zir_f_daa84719ffd73ec0_free((void*)(ctx));
+    zir_foreign_compiler_go_backend__free((void*)(ctx));
     return result;
 }
 
 int32_t
 go_lower(ZirProgram** programs, int32_t count, uint8_t* root, uint8_t* output, uint8_t* package, int32_t no_main)
 {
-    void* value_0 = zir_f_daa84719ffd73ec0_AllocateOrExit(sizeof(GoLowerState));
+    void* value_0 = zir_foreign_compiler_go_backend__AllocateOrExit(sizeof(GoLowerState));
     GoLowerState* ctx = (GoLowerState*)(value_0);
-    zir_f_daa84719ffd73ec0_memset((void*)(ctx), 0, sizeof(GoLowerState));
+    zir_foreign_compiler_go_backend__memset((void*)(ctx), 0, sizeof(GoLowerState));
     int32_t result = compiler_go_backend_LowerSelected(ctx, programs, count, root, output, package, no_main);
-    zir_f_daa84719ffd73ec0_free((void*)(ctx));
+    zir_foreign_compiler_go_backend__free((void*)(ctx));
     return result;
 }
 
 static int32_t
 compiler_go_backend_EmitGoAssemblyBlock(void* out, ZirModule* module, ZirFunction* function, int32_t statement, void* context)
 {
-    return zir_f_daa84719ffd73ec0_GoAssemblyBlock(out, module, function, statement, context);
+    return zir_foreign_compiler_go_backend__GoAssemblyBlock(out, module, function, statement, context);
 }
 
 #include <stdlib.h>

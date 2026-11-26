@@ -3,148 +3,60 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "compiler_overlay.h"
-#ifndef ZIR_FOREIGN_zir_f_335dd7f1df777077_S15OverlayStateAddress_abf1ebab
-#define ZIR_FOREIGN_zir_f_335dd7f1df777077_S15OverlayStateAddress_abf1ebab
 #ifdef __APPLE__
-S15OverlayState* zir_foreign_zir_f_335dd7f1df777077_S15OverlayStateAddress(void) __asm__("_S15OverlayStateAddress");
+S15OverlayState* zir_foreign_compiler_overlay__S15OverlayStateAddress(void) __asm__("_S15OverlayStateAddress");
 #else
-S15OverlayState* zir_foreign_zir_f_335dd7f1df777077_S15OverlayStateAddress(void) __asm__("S15OverlayStateAddress");
+S15OverlayState* zir_foreign_compiler_overlay__S15OverlayStateAddress(void) __asm__("S15OverlayStateAddress");
 #endif
-static S15OverlayState*
-zir_f_335dd7f1df777077_S15OverlayStateAddress(void)
-{
-    return zir_foreign_zir_f_335dd7f1df777077_S15OverlayStateAddress();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_335dd7f1df777077_free_c75930da
-#define ZIR_FOREIGN_zir_f_335dd7f1df777077_free_c75930da
 #ifdef __APPLE__
-void zir_foreign_zir_f_335dd7f1df777077_free(void* ziran_keyword___ptr_0) __asm__("_free");
+void zir_foreign_compiler_overlay__free(void* ziran_keyword___ptr_0) __asm__("_free");
 #else
-void zir_foreign_zir_f_335dd7f1df777077_free(void* ziran_keyword___ptr_0) __asm__("free");
+void zir_foreign_compiler_overlay__free(void* ziran_keyword___ptr_0) __asm__("free");
 #endif
-static void
-zir_f_335dd7f1df777077_free(void* ziran_keyword___ptr_0)
-{
-    zir_foreign_zir_f_335dd7f1df777077_free(ziran_keyword___ptr_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_335dd7f1df777077_memchr_4ab2f3e7
-#define ZIR_FOREIGN_zir_f_335dd7f1df777077_memchr_4ab2f3e7
 #ifdef __APPLE__
-void* zir_foreign_zir_f_335dd7f1df777077_memchr(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("_memchr");
+void* zir_foreign_compiler_overlay__memchr(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("_memchr");
 #else
-void* zir_foreign_zir_f_335dd7f1df777077_memchr(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("memchr");
+void* zir_foreign_compiler_overlay__memchr(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("memchr");
 #endif
-static void*
-zir_f_335dd7f1df777077_memchr(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_335dd7f1df777077_memchr(ziran_keyword___s_0, ziran_keyword___c_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_335dd7f1df777077_realloc_88719d39
-#define ZIR_FOREIGN_zir_f_335dd7f1df777077_realloc_88719d39
 #ifdef __APPLE__
-void* zir_foreign_zir_f_335dd7f1df777077_realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0) __asm__("_realloc");
+void* zir_foreign_compiler_overlay__realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0) __asm__("_realloc");
 #else
-void* zir_foreign_zir_f_335dd7f1df777077_realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0) __asm__("realloc");
+void* zir_foreign_compiler_overlay__realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0) __asm__("realloc");
 #endif
-static void*
-zir_f_335dd7f1df777077_realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0)
-{
-    return zir_foreign_zir_f_335dd7f1df777077_realloc(ziran_keyword___ptr_0, ziran_keyword___size_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_335dd7f1df777077_S15RealPath_2f0c2dd2
-#define ZIR_FOREIGN_zir_f_335dd7f1df777077_S15RealPath_2f0c2dd2
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_335dd7f1df777077_S15RealPath(uint8_t* ziran_keyword___name_0, uint8_t* ziran_keyword___resolved_0) __asm__("_S15RealPath");
+uint8_t* zir_foreign_compiler_overlay__S15RealPath(uint8_t* ziran_keyword___name_0, uint8_t* ziran_keyword___resolved_0) __asm__("_S15RealPath");
 #else
-uint8_t* zir_foreign_zir_f_335dd7f1df777077_S15RealPath(uint8_t* ziran_keyword___name_0, uint8_t* ziran_keyword___resolved_0) __asm__("S15RealPath");
+uint8_t* zir_foreign_compiler_overlay__S15RealPath(uint8_t* ziran_keyword___name_0, uint8_t* ziran_keyword___resolved_0) __asm__("S15RealPath");
 #endif
-static uint8_t*
-zir_f_335dd7f1df777077_S15RealPath(uint8_t* ziran_keyword___name_0, uint8_t* ziran_keyword___resolved_0)
-{
-    return zir_foreign_zir_f_335dd7f1df777077_S15RealPath(ziran_keyword___name_0, ziran_keyword___resolved_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_335dd7f1df777077_strcmp_b1a4f317
-#define ZIR_FOREIGN_zir_f_335dd7f1df777077_strcmp_b1a4f317
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_335dd7f1df777077_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("_strcmp");
+int32_t zir_foreign_compiler_overlay__strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("_strcmp");
 #else
-int32_t zir_foreign_zir_f_335dd7f1df777077_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("strcmp");
+int32_t zir_foreign_compiler_overlay__strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("strcmp");
 #endif
-static int32_t
-zir_f_335dd7f1df777077_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0)
-{
-    return zir_foreign_zir_f_335dd7f1df777077_strcmp(ziran_keyword___s1_0, ziran_keyword___s2_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_335dd7f1df777077_strlen_b24a2871
-#define ZIR_FOREIGN_zir_f_335dd7f1df777077_strlen_b24a2871
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_335dd7f1df777077_strlen(uint8_t* ziran_keyword___s_0) __asm__("_strlen");
+size_t zir_foreign_compiler_overlay__strlen(uint8_t* ziran_keyword___s_0) __asm__("_strlen");
 #else
-size_t zir_foreign_zir_f_335dd7f1df777077_strlen(uint8_t* ziran_keyword___s_0) __asm__("strlen");
+size_t zir_foreign_compiler_overlay__strlen(uint8_t* ziran_keyword___s_0) __asm__("strlen");
 #endif
-static size_t
-zir_f_335dd7f1df777077_strlen(uint8_t* ziran_keyword___s_0)
-{
-    return zir_foreign_zir_f_335dd7f1df777077_strlen(ziran_keyword___s_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_335dd7f1df777077_strncmp_5281c9d0
-#define ZIR_FOREIGN_zir_f_335dd7f1df777077_strncmp_5281c9d0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_335dd7f1df777077_strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("_strncmp");
+int32_t zir_foreign_compiler_overlay__strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("_strncmp");
 #else
-int32_t zir_foreign_zir_f_335dd7f1df777077_strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("strncmp");
+int32_t zir_foreign_compiler_overlay__strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("strncmp");
 #endif
-static int32_t
-zir_f_335dd7f1df777077_strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_335dd7f1df777077_strncmp(ziran_keyword___s1_0, ziran_keyword___s2_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_335dd7f1df777077_CompilerStandardError_3c6e87fb
-#define ZIR_FOREIGN_zir_f_335dd7f1df777077_CompilerStandardError_3c6e87fb
 #ifdef __APPLE__
-void* zir_foreign_zir_f_335dd7f1df777077_CompilerStandardError(void) __asm__("_CompilerStandardError");
+void* zir_foreign_compiler_overlay__CompilerStandardError(void) __asm__("_CompilerStandardError");
 #else
-void* zir_foreign_zir_f_335dd7f1df777077_CompilerStandardError(void) __asm__("CompilerStandardError");
+void* zir_foreign_compiler_overlay__CompilerStandardError(void) __asm__("CompilerStandardError");
 #endif
-static void*
-zir_f_335dd7f1df777077_CompilerStandardError(void)
-{
-    return zir_foreign_zir_f_335dd7f1df777077_CompilerStandardError();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_335dd7f1df777077_S15HostOS_5a280e09
-#define ZIR_FOREIGN_zir_f_335dd7f1df777077_S15HostOS_5a280e09
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_335dd7f1df777077_S15HostOS(void) __asm__("_S15HostOS");
+int32_t zir_foreign_compiler_overlay__S15HostOS(void) __asm__("_S15HostOS");
 #else
-int32_t zir_foreign_zir_f_335dd7f1df777077_S15HostOS(void) __asm__("S15HostOS");
+int32_t zir_foreign_compiler_overlay__S15HostOS(void) __asm__("S15HostOS");
 #endif
-static int32_t
-zir_f_335dd7f1df777077_S15HostOS(void)
-{
-    return zir_foreign_zir_f_335dd7f1df777077_S15HostOS();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_335dd7f1df777077_S15WindowsFullPath_5a530ec8
-#define ZIR_FOREIGN_zir_f_335dd7f1df777077_S15WindowsFullPath_5a530ec8
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_335dd7f1df777077_S15WindowsFullPath(uint8_t* path) __asm__("_S15WindowsFullPath");
+uint8_t* zir_foreign_compiler_overlay__S15WindowsFullPath(uint8_t* path) __asm__("_S15WindowsFullPath");
 #else
-uint8_t* zir_foreign_zir_f_335dd7f1df777077_S15WindowsFullPath(uint8_t* path) __asm__("S15WindowsFullPath");
-#endif
-static uint8_t*
-zir_f_335dd7f1df777077_S15WindowsFullPath(uint8_t* path)
-{
-    return zir_foreign_zir_f_335dd7f1df777077_S15WindowsFullPath(path);
-}
+uint8_t* zir_foreign_compiler_overlay__S15WindowsFullPath(uint8_t* path) __asm__("S15WindowsFullPath");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -159,23 +71,23 @@ static uint8_t* compiler_overlay_canonical_path(uint8_t* path) ZIRAN_MAYBE_UNUSE
 int32_t
 SourceOverlayBegin(uint8_t* path, uint8_t* source, size_t count)
 {
-    S15OverlayState* value_0 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_0 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     bool value_1 = value_0->path != ((void *)0) || !(path != ((void *)0)) || !(source != ((void *)0));
     bool value_2 = value_1;
     if (!value_2) {
-        void* value_3 = zir_f_335dd7f1df777077_memchr((void*)(source), 0, count);
+        void* value_3 = zir_foreign_compiler_overlay__memchr((void*)(source), 0, count);
         value_2 = (value_3 != ((void *)0));
     }
     if (value_2 || source[count] != 0) {
         return 0;
     }
-    S15OverlayState* value_4 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_4 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     uint8_t** value_5 = &(value_4->path);
     (*value_5) = path;
-    S15OverlayState* value_6 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_6 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     uint8_t** value_7 = &(value_6->source);
     (*value_7) = source;
-    S15OverlayState* value_8 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_8 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     size_t* value_9 = &(value_8->count);
     (*value_9) = count;
     return 1;
@@ -184,30 +96,30 @@ SourceOverlayBegin(uint8_t* path, uint8_t* source, size_t count)
 uint8_t*
 SourceOverlayRead(uint8_t* path, size_t* count)
 {
-    S15OverlayState* value_0 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_0 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     bool value_1 = !(value_0->path != ((void *)0));
     bool value_2 = value_1;
     if (!value_2) {
-        S15OverlayState* value_3 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
-        bool value_4 = zir_f_335dd7f1df777077_strcmp(path, value_3->path) != 0;
+        S15OverlayState* value_3 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
+        bool value_4 = zir_foreign_compiler_overlay__strcmp(path, value_3->path) != 0;
         value_2 = value_4;
     }
     if (value_2) {
         return (void *)0;
     }
-    S15OverlayState* value_5 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_5 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     compiler_context_types_S15SupportSet0(count, value_5->count);
-    S15OverlayState* value_6 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_6 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     return value_6->source;
 }
 
 void
 SourceOverlayRestrict(uint8_t* root, uint8_t* standard)
 {
-    S15OverlayState* value_0 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_0 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     uint8_t** value_1 = &(value_0->root);
     (*value_1) = root;
-    S15OverlayState* value_2 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_2 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     uint8_t** value_3 = &(value_2->standard);
     (*value_3) = standard;
 }
@@ -218,10 +130,10 @@ compiler_overlay_within(uint8_t* path, uint8_t* root)
     if (!(root != ((void *)0))) {
         return 0;
     }
-    size_t n = zir_f_335dd7f1df777077_strlen(root);
+    size_t n = zir_foreign_compiler_overlay__strlen(root);
     bool value_0 = n != 0;
     if (value_0) {
-        bool value_1 = zir_f_335dd7f1df777077_strncmp(path, root, n) != 0;
+        bool value_1 = zir_foreign_compiler_overlay__strncmp(path, root, n) != 0;
         value_0 = !value_1;
     }
     int32_t value_2 = 0;
@@ -234,27 +146,27 @@ compiler_overlay_within(uint8_t* path, uint8_t* root)
 int32_t
 SourceOverlayPermitRoot(uint8_t* root)
 {
-    S15OverlayState* value_0 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_0 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     if (!(value_0->path != ((void *)0)) || !(root != ((void *)0))) {
         return 0;
     }
-    S15OverlayState* value_1 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_1 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     if (value_1->roots_count == 2147483647) {
         return 0;
     }
-    S15OverlayState* value_2 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_2 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     void* value_3 = (void*)(value_2->roots);
-    S15OverlayState* value_4 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
-    void* value_5 = zir_f_335dd7f1df777077_realloc(value_3, ((size_t)(value_4->roots_count) + (size_t)(1LL)) * (size_t)(sizeof(void *)));
+    S15OverlayState* value_4 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
+    void* value_5 = zir_foreign_compiler_overlay__realloc(value_3, ((size_t)(value_4->roots_count) + (size_t)(1LL)) * (size_t)(sizeof(void *)));
     uint8_t** roots = (uint8_t**)(value_5);
     if (!(roots != ((void *)0))) {
         return 0;
     }
-    S15OverlayState* value_6 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_6 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     uint8_t*** value_7 = &(value_6->roots);
     (*value_7) = roots;
-    S15OverlayState* value_8 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
-    S15OverlayState* value_9 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_8 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
+    S15OverlayState* value_9 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     int32_t value_10 = compiler_context_types_S15SupportPost1(&(value_9->roots_count));
     uint8_t** value_11 = &(value_8->roots[value_10]);
     (*value_11) = root;
@@ -265,8 +177,8 @@ static uint8_t*
 compiler_overlay_canonical_path(uint8_t* path)
 {
     uint8_t* result = (void *)0;
-    if (zir_f_335dd7f1df777077_S15HostOS() == 1) {
-        result = zir_f_335dd7f1df777077_S15WindowsFullPath(path);
+    if (zir_foreign_compiler_overlay__S15HostOS() == 1) {
+        result = zir_foreign_compiler_overlay__S15WindowsFullPath(path);
         uint8_t* p = result;
         while (p != ((void *)0) && p[0] != 0) {
             if (p[0] == 92) {
@@ -277,17 +189,17 @@ compiler_overlay_canonical_path(uint8_t* path)
         }
         return result;
     }
-    return zir_f_335dd7f1df777077_S15RealPath(path, (void *)0);
+    return zir_foreign_compiler_overlay__S15RealPath(path, (void *)0);
 }
 
 int32_t
 SourceOverlayAllowed(uint8_t* path)
 {
-    S15OverlayState* value_0 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_0 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     bool value_1 = !(value_0->path != ((void *)0));
     bool value_2 = value_1;
     if (!value_2) {
-        S15OverlayState* value_3 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+        S15OverlayState* value_3 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
         value_2 = !(value_3->root != ((void *)0));
     }
     if (value_2) {
@@ -297,11 +209,11 @@ SourceOverlayAllowed(uint8_t* path)
     bool value_4 = canonical != ((void *)0);
     bool value_5 = value_4;
     if (value_5) {
-        S15OverlayState* value_6 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+        S15OverlayState* value_6 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
         bool value_7 = compiler_overlay_within(canonical, value_6->root) != 0;
         bool value_8 = value_7;
         if (!value_8) {
-            S15OverlayState* value_9 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+            S15OverlayState* value_9 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
             bool value_10 = compiler_overlay_within(canonical, value_9->standard) != 0;
             value_8 = value_10;
         }
@@ -319,46 +231,46 @@ SourceOverlayAllowed(uint8_t* path)
             bool value_13 = value_12;
             if (value_13) {
                 int32_t value_14 = i;
-                S15OverlayState* value_15 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+                S15OverlayState* value_15 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
                 value_13 = (value_14 < value_15->roots_count);
             }
             bool check_loop_60 = value_13;
             if (!check_loop_60) {
                 break;
             }
-            S15OverlayState* value_16 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+            S15OverlayState* value_16 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
             allowed = compiler_overlay_within(canonical, value_16->roots[i]);
             compiler_context_types_S15SupportPost1(&(i));
         }
     }
-    zir_f_335dd7f1df777077_free((void*)(canonical));
+    zir_foreign_compiler_overlay__free((void*)(canonical));
     return allowed;
 }
 
 void
 SourceOverlayEnd(void)
 {
-    S15OverlayState* value_0 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_0 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     uint8_t** value_1 = &(value_0->root);
     (*value_1) = (void *)0;
-    S15OverlayState* value_2 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_2 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     uint8_t** value_3 = &(value_2->standard);
     (*value_3) = (void *)0;
-    S15OverlayState* value_4 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_4 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     int32_t* value_5 = &(value_4->roots_count);
     (*value_5) = 0;
-    S15OverlayState* value_6 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
-    zir_f_335dd7f1df777077_free((void*)(value_6->roots));
-    S15OverlayState* value_7 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_6 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
+    zir_foreign_compiler_overlay__free((void*)(value_6->roots));
+    S15OverlayState* value_7 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     uint8_t*** value_8 = &(value_7->roots);
     (*value_8) = (void *)0;
-    S15OverlayState* value_9 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_9 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     uint8_t** value_10 = &(value_9->path);
     (*value_10) = (void *)0;
-    S15OverlayState* value_11 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_11 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     uint8_t** value_12 = &(value_11->source);
     (*value_12) = (void *)0;
-    S15OverlayState* value_13 = zir_f_335dd7f1df777077_S15OverlayStateAddress();
+    S15OverlayState* value_13 = zir_foreign_compiler_overlay__S15OverlayStateAddress();
     size_t* value_14 = &(value_13->count);
     (*value_14) = (size_t)(0LL);
 }

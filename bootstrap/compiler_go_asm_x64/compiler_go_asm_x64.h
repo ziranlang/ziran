@@ -20,7 +20,7 @@ typedef struct GoConditionMapping GoConditionMapping;
 typedef struct GoInstructionMapping GoInstructionMapping;
 typedef struct TextStream TextStream;
 #ifdef ZIRAN_COMPILER_GO_ASM_X64_H_PRIVATE
-typedef struct zir_864cbb866cab2a47_StaticText zir_864cbb866cab2a47_StaticText;
+typedef struct compiler_go_asm_x64_StaticText compiler_go_asm_x64_StaticText;
 #endif
 
 struct AssemblyOperand {
@@ -95,7 +95,7 @@ struct TextStream {
 };
 #ifdef ZIRAN_COMPILER_GO_ASM_X64_H_PRIVATE
 
-struct zir_864cbb866cab2a47_StaticText {
+struct compiler_go_asm_x64_StaticText {
     uint8_t* data;
     size_t length;
 };

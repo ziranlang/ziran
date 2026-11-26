@@ -1274,70 +1274,11 @@ ExtractExternSignature :: (imp: *IR.ZirImport, ret: *u8, ret_size: usize, args: 
     }
 }
 
-ExternCallArgs :: (fn: *IR.ZirFunction, args: *u8, dst: *u8, dst_size: usize) {
-    p := args
-    start := args
-    depth: s32 = 0
-    first := true
-    n: usize = 0
-    dst[0] = 0
-    if args == null || args[0] == 0 || strcmp(args, CStr("void")) == 0 { return }
-    while true {
-        if p[0] == #char "(" || p[0] == #char "[" || p[0] == #char "{" { depth += 1 }
-        else if p[0] == #char ")" || p[0] == #char "]" || p[0] == #char "}" { depth -= 1 }
-        if (p[0] == #char "," && depth == 0) || p[0] == 0 {
-            colon := start
-            name_start := start
-            while name_start[0] == #char " " || name_start[0] == #char "\t" { name_start = PtrAdd(name_start, 1) }
-            while cast(usize)colon < cast(usize)p && colon[0] != #char ":" { colon = PtrAdd(colon, 1) }
-            name_end := colon
-            while cast(usize)name_end > cast(usize)name_start &&
-                  (PtrAdd(name_end, cast(usize)-1)[0] == #char " " || PtrAdd(name_end, cast(usize)-1)[0] == #char "\t") {
-                name_end = PtrAdd(name_end, cast(usize)-1)
-            }
-            if cast(usize)colon < cast(usize)p && cast(usize)name_end > cast(usize)name_start {
-                name: [LOWER_NAME_MAX]u8
-                binding: [LOWER_NAME_MAX]u8
-                length := cast(usize)name_end - cast(usize)name_start
-                if length >= LOWER_NAME_MAX { length = LOWER_NAME_MAX - 1 }
-                memcpy(cast(*void)*name[0], cast(*void)name_start, length)
-                name[length] = 0
-                TargetBindingName(fn, .ZIR_C, *name[0], *binding[0], LOWER_NAME_MAX)
-                rem := ifx dst_size > n then dst_size - n else cast(usize)0
-                n += cast(usize)snprintf(PtrAdd(dst, n), rem, CStr("%s%s"), ifx first then CStr("") else CStr(", "), *binding[0])
-                first = false
-            }
-            if p[0] == 0 { break }
-            start = PtrAdd(p, 1)
-        }
-        p = PtrAdd(p, 1)
-    }
-}
-
 EmitExternPrototypeBuffers :: struct {
     cargs: [LOWER_TEXT_MAX]u8
     abi_args: [LOWER_TEXT_MAX]u8
     conv: [LOWER_TEXT_MAX]u8
-    binding_args: [LOWER_TEXT_MAX]u8
     abi: IR.ZirFunction
-    call: [LOWER_TEXT_MAX]u8
-}
-
-ForeignBindingHash :: (symbol: *u8, ret: *u8, args: *u8) -> u32 {
-    hash: u32 = 2166136261
-    parts: [3]*u8
-    parts[0] = symbol
-    parts[1] = ret
-    parts[2] = args
-    for part: cast(s32)0..2 {
-        at := parts[part]
-        while at[0] != 0 {
-            hash = (hash ^ cast(u32)at[0]) * 16777619
-            at = PtrAdd(at, 1)
-        }
-        hash = (hash ^ cast(u32)#char "|") * 16777619
-    }
-    return hash
 }
 
 EmitExternPrototype :: (c: *void, m: *IR.ZirModule, imp: *IR.ZirImport) {
@@ -1358,28 +1299,11 @@ EmitExternPrototype :: (c: *void, m: *IR.ZirModule, imp: *IR.ZirImport) {
     if ArrayElementType(*ret[0], null, 0, null) != 0 { copy_text(*ret[0], LOWER_NAME_MAX, CStr("void")) }
     ret_s := ifx ret[0] != 0 then *ret[0] else CStr("void")
     if CExternSymbol(imp, *symbol[0], LOWER_NAME_MAX) {
-        foreign_name: [LOWER_NAME_MAX * 2]u8
         local_name: [LOWER_NAME_MAX]u8
         NativeCForeignName(m, imp, *local_name[0], LOWER_NAME_MAX)
-        ConvertArgs(m, null, *buffers.abi_args[0], *buffers.binding_args[0], LOWER_TEXT_MAX, 1)
-        binding := ForeignBindingHash(*symbol[0], ret_s, *buffers.binding_args[0])
-        snprintf(*foreign_name[0], LOWER_NAME_MAX * 2, CStr("zir_foreign_%s"), *local_name[0])
-        fprintf(c, CStr("#ifndef ZIR_FOREIGN_%s_%08x\n#define ZIR_FOREIGN_%s_%08x\n"),
-                *local_name[0], binding, *local_name[0], binding)
-        EmitSymbolDeclaration(c, ret_s, *foreign_name[0], *buffers.conv[0], *symbol[0])
-        if imp.is_varargs != 0 {
-            fprintf(c, CStr("#define %s %s\n#endif\n"), *local_name[0], *foreign_name[0])
-            free(cast(*void)buffers)
-            return
-        }
-        ExternCallArgs(*buffers.abi, *buffers.abi_args[0], *buffers.call[0], LOWER_TEXT_MAX)
-        fprintf(c, CStr("static %s\n%s(%s)\n{\n"), ret_s, *local_name[0], *buffers.conv[0])
-        if ret[0] != 0 && strcmp(*ret[0], CStr("void")) != 0 {
-            fprintf(c, CStr("    return %s(%s);\n"), *foreign_name[0], *buffers.call[0])
-        } else {
-            fprintf(c, CStr("    %s(%s);\n"), *foreign_name[0], *buffers.call[0])
-        }
-        fprintf(c, CStr("}\n#endif\n"))
+        // The checked arguments already have the foreign ABI. Bind their
+        // local name directly to its linker symbol, including varargs.
+        EmitSymbolDeclaration(c, ret_s, *local_name[0], *buffers.conv[0], *symbol[0])
     } else {
         fprintf(c, CStr("%s %s(%s);\n"), ret_s, cname, *buffers.conv[0])
     }
@@ -1391,7 +1315,7 @@ ExternPrototypeNames :: (m: *IR.ZirModule, imp: *IR.ZirImport, names: *u8, size:
     local: [LOWER_NAME_MAX]u8
     if CExternSymbol(imp, *symbol[0], LOWER_NAME_MAX) {
         NativeCForeignName(m, imp, *local[0], LOWER_NAME_MAX)
-        snprintf(names, size, CStr("%s zir_foreign_%s"), *local[0], *local[0])
+        snprintf(names, size, CStr("%s"), *local[0])
     } else if BoundProviderCName(imp, *local[0], LOWER_NAME_MAX) {
         snprintf(names, size, CStr("%s"), *local[0])
     } else {

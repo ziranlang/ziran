@@ -17,527 +17,215 @@ static inline int64_t ZiDivS64(int64_t a, int64_t b, int64_t min) {
 }
 #endif
 #endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_calloc_0c09ffff
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_calloc_0c09ffff
 #ifdef __APPLE__
-void* zir_foreign_zir_f_0038f975c59a7f51_calloc(size_t count, size_t size) __asm__("_calloc");
+void* zir_foreign_compiler_c_emit_call__calloc(size_t count, size_t size) __asm__("_calloc");
 #else
-void* zir_foreign_zir_f_0038f975c59a7f51_calloc(size_t count, size_t size) __asm__("calloc");
+void* zir_foreign_compiler_c_emit_call__calloc(size_t count, size_t size) __asm__("calloc");
 #endif
-static void*
-zir_f_0038f975c59a7f51_calloc(size_t count, size_t size)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_calloc(count, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_free_c75930da
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_free_c75930da
 #ifdef __APPLE__
-void zir_foreign_zir_f_0038f975c59a7f51_free(void* memory) __asm__("_free");
+void zir_foreign_compiler_c_emit_call__free(void* memory) __asm__("_free");
 #else
-void zir_foreign_zir_f_0038f975c59a7f51_free(void* memory) __asm__("free");
+void zir_foreign_compiler_c_emit_call__free(void* memory) __asm__("free");
 #endif
-static void
-zir_f_0038f975c59a7f51_free(void* memory)
-{
-    zir_foreign_zir_f_0038f975c59a7f51_free(memory);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_exit_1120afe9
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_exit_1120afe9
 #ifdef __APPLE__
-void zir_foreign_zir_f_0038f975c59a7f51_exit(int32_t status) __asm__("_exit");
+void zir_foreign_compiler_c_emit_call__exit(int32_t status) __asm__("_exit");
 #else
-void zir_foreign_zir_f_0038f975c59a7f51_exit(int32_t status) __asm__("exit");
+void zir_foreign_compiler_c_emit_call__exit(int32_t status) __asm__("exit");
 #endif
-static void
-zir_f_0038f975c59a7f51_exit(int32_t status)
-{
-    zir_foreign_zir_f_0038f975c59a7f51_exit(status);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_memcpy_d3838e83
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_memcpy_d3838e83
 #ifdef __APPLE__
-void* zir_foreign_zir_f_0038f975c59a7f51_memcpy(void* dst, void* src, size_t count) __asm__("_memcpy");
+void* zir_foreign_compiler_c_emit_call__memcpy(void* dst, void* src, size_t count) __asm__("_memcpy");
 #else
-void* zir_foreign_zir_f_0038f975c59a7f51_memcpy(void* dst, void* src, size_t count) __asm__("memcpy");
+void* zir_foreign_compiler_c_emit_call__memcpy(void* dst, void* src, size_t count) __asm__("memcpy");
 #endif
-static void*
-zir_f_0038f975c59a7f51_memcpy(void* dst, void* src, size_t count)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_memcpy(dst, src, count);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_memmove_f228d238
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_memmove_f228d238
 #ifdef __APPLE__
-void* zir_foreign_zir_f_0038f975c59a7f51_memmove(void* dst, void* src, size_t count) __asm__("_memmove");
+void* zir_foreign_compiler_c_emit_call__memmove(void* dst, void* src, size_t count) __asm__("_memmove");
 #else
-void* zir_foreign_zir_f_0038f975c59a7f51_memmove(void* dst, void* src, size_t count) __asm__("memmove");
+void* zir_foreign_compiler_c_emit_call__memmove(void* dst, void* src, size_t count) __asm__("memmove");
 #endif
-static void*
-zir_f_0038f975c59a7f51_memmove(void* dst, void* src, size_t count)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_memmove(dst, src, count);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_memset_0839e910
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_memset_0839e910
 #ifdef __APPLE__
-void* zir_foreign_zir_f_0038f975c59a7f51_memset(void* dst, int32_t value, size_t count) __asm__("_memset");
+void* zir_foreign_compiler_c_emit_call__memset(void* dst, int32_t value, size_t count) __asm__("_memset");
 #else
-void* zir_foreign_zir_f_0038f975c59a7f51_memset(void* dst, int32_t value, size_t count) __asm__("memset");
+void* zir_foreign_compiler_c_emit_call__memset(void* dst, int32_t value, size_t count) __asm__("memset");
 #endif
-static void*
-zir_f_0038f975c59a7f51_memset(void* dst, int32_t value, size_t count)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_memset(dst, value, count);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_memchr_4ab2f3e7
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_memchr_4ab2f3e7
 #ifdef __APPLE__
-void* zir_foreign_zir_f_0038f975c59a7f51_memchr(void* s, int32_t c, size_t n) __asm__("_memchr");
+void* zir_foreign_compiler_c_emit_call__memchr(void* s, int32_t c, size_t n) __asm__("_memchr");
 #else
-void* zir_foreign_zir_f_0038f975c59a7f51_memchr(void* s, int32_t c, size_t n) __asm__("memchr");
+void* zir_foreign_compiler_c_emit_call__memchr(void* s, int32_t c, size_t n) __asm__("memchr");
 #endif
-static void*
-zir_f_0038f975c59a7f51_memchr(void* s, int32_t c, size_t n)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_memchr(s, c, n);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_strlen_b24a2871
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_strlen_b24a2871
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_0038f975c59a7f51_strlen(uint8_t* s) __asm__("_strlen");
+size_t zir_foreign_compiler_c_emit_call__strlen(uint8_t* s) __asm__("_strlen");
 #else
-size_t zir_foreign_zir_f_0038f975c59a7f51_strlen(uint8_t* s) __asm__("strlen");
+size_t zir_foreign_compiler_c_emit_call__strlen(uint8_t* s) __asm__("strlen");
 #endif
-static size_t
-zir_f_0038f975c59a7f51_strlen(uint8_t* s)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_strlen(s);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_strcmp_b1a4f317
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_strcmp_b1a4f317
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_strcmp(uint8_t* a, uint8_t* b) __asm__("_strcmp");
+int32_t zir_foreign_compiler_c_emit_call__strcmp(uint8_t* a, uint8_t* b) __asm__("_strcmp");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_strcmp(uint8_t* a, uint8_t* b) __asm__("strcmp");
+int32_t zir_foreign_compiler_c_emit_call__strcmp(uint8_t* a, uint8_t* b) __asm__("strcmp");
 #endif
-static int32_t
-zir_f_0038f975c59a7f51_strcmp(uint8_t* a, uint8_t* b)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_strcmp(a, b);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_strncmp_5281c9d0
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_strncmp_5281c9d0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_strncmp(uint8_t* a, uint8_t* b, size_t n) __asm__("_strncmp");
+int32_t zir_foreign_compiler_c_emit_call__strncmp(uint8_t* a, uint8_t* b, size_t n) __asm__("_strncmp");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_strncmp(uint8_t* a, uint8_t* b, size_t n) __asm__("strncmp");
+int32_t zir_foreign_compiler_c_emit_call__strncmp(uint8_t* a, uint8_t* b, size_t n) __asm__("strncmp");
 #endif
-static int32_t
-zir_f_0038f975c59a7f51_strncmp(uint8_t* a, uint8_t* b, size_t n)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_strncmp(a, b, n);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_strchr_35c1c732
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_strchr_35c1c732
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_0038f975c59a7f51_strchr(uint8_t* s, int32_t c) __asm__("_strchr");
+uint8_t* zir_foreign_compiler_c_emit_call__strchr(uint8_t* s, int32_t c) __asm__("_strchr");
 #else
-uint8_t* zir_foreign_zir_f_0038f975c59a7f51_strchr(uint8_t* s, int32_t c) __asm__("strchr");
+uint8_t* zir_foreign_compiler_c_emit_call__strchr(uint8_t* s, int32_t c) __asm__("strchr");
 #endif
-static uint8_t*
-zir_f_0038f975c59a7f51_strchr(uint8_t* s, int32_t c)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_strchr(s, c);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_snprintf_7c8971c5
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_snprintf_7c8971c5
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_snprintf(uint8_t* out, size_t size, uint8_t* fmt, ...) __asm__("_snprintf");
+int32_t zir_foreign_compiler_c_emit_call__snprintf(uint8_t* out, size_t size, uint8_t* fmt, ...) __asm__("_snprintf");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_snprintf(uint8_t* out, size_t size, uint8_t* fmt, ...) __asm__("snprintf");
+int32_t zir_foreign_compiler_c_emit_call__snprintf(uint8_t* out, size_t size, uint8_t* fmt, ...) __asm__("snprintf");
 #endif
-#define zir_f_0038f975c59a7f51_snprintf zir_foreign_zir_f_0038f975c59a7f51_snprintf
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_fprintf_83feebb0
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_fprintf_83feebb0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_fprintf(void* stream, uint8_t* fmt, ...) __asm__("_fprintf");
+int32_t zir_foreign_compiler_c_emit_call__fprintf(void* stream, uint8_t* fmt, ...) __asm__("_fprintf");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_fprintf(void* stream, uint8_t* fmt, ...) __asm__("fprintf");
+int32_t zir_foreign_compiler_c_emit_call__fprintf(void* stream, uint8_t* fmt, ...) __asm__("fprintf");
 #endif
-#define zir_f_0038f975c59a7f51_fprintf zir_foreign_zir_f_0038f975c59a7f51_fprintf
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_fputs_28723a01
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_fputs_28723a01
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_fputs(uint8_t* s, void* stream) __asm__("_fputs");
+int32_t zir_foreign_compiler_c_emit_call__fputs(uint8_t* s, void* stream) __asm__("_fputs");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_fputs(uint8_t* s, void* stream) __asm__("fputs");
+int32_t zir_foreign_compiler_c_emit_call__fputs(uint8_t* s, void* stream) __asm__("fputs");
 #endif
-static int32_t
-zir_f_0038f975c59a7f51_fputs(uint8_t* s, void* stream)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_fputs(s, stream);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_CTypeHasZeroArray_e9e2cfe3
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_CTypeHasZeroArray_e9e2cfe3
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_CTypeHasZeroArray(ZirModule* module, uint8_t* type) __asm__("_TypeHasZeroArray");
+int32_t zir_foreign_compiler_c_emit_call__CTypeHasZeroArray(ZirModule* module, uint8_t* type) __asm__("_TypeHasZeroArray");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_CTypeHasZeroArray(ZirModule* module, uint8_t* type) __asm__("TypeHasZeroArray");
+int32_t zir_foreign_compiler_c_emit_call__CTypeHasZeroArray(ZirModule* module, uint8_t* type) __asm__("TypeHasZeroArray");
 #endif
-static int32_t
-zir_f_0038f975c59a7f51_CTypeHasZeroArray(ZirModule* module, uint8_t* type)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_CTypeHasZeroArray(module, type);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_AllocateOrExit_5810995e
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_AllocateOrExit_5810995e
 #ifdef __APPLE__
-void* zir_foreign_zir_f_0038f975c59a7f51_AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
+void* zir_foreign_compiler_c_emit_call__AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
 #else
-void* zir_foreign_zir_f_0038f975c59a7f51_AllocateOrExit(size_t size) __asm__("AllocateOrExit");
+void* zir_foreign_compiler_c_emit_call__AllocateOrExit(size_t size) __asm__("AllocateOrExit");
 #endif
-static void*
-zir_f_0038f975c59a7f51_AllocateOrExit(size_t size)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_AllocateOrExit(size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_Diagnostic_78ef33bb
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_Diagnostic_78ef33bb
 #ifdef __APPLE__
-void zir_foreign_zir_f_0038f975c59a7f51_Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* fmt, ...) __asm__("_Diagnostic");
+void zir_foreign_compiler_c_emit_call__Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* fmt, ...) __asm__("_Diagnostic");
 #else
-void zir_foreign_zir_f_0038f975c59a7f51_Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* fmt, ...) __asm__("Diagnostic");
+void zir_foreign_compiler_c_emit_call__Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* fmt, ...) __asm__("Diagnostic");
 #endif
-#define zir_f_0038f975c59a7f51_Diagnostic zir_foreign_zir_f_0038f975c59a7f51_Diagnostic
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_KeepText_81a33958
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_KeepText_81a33958
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_0038f975c59a7f51_KeepText(uint8_t* text) __asm__("_KeepText");
+uint8_t* zir_foreign_compiler_c_emit_call__KeepText(uint8_t* text) __asm__("_KeepText");
 #else
-uint8_t* zir_foreign_zir_f_0038f975c59a7f51_KeepText(uint8_t* text) __asm__("KeepText");
+uint8_t* zir_foreign_compiler_c_emit_call__KeepText(uint8_t* text) __asm__("KeepText");
 #endif
-static uint8_t*
-zir_f_0038f975c59a7f51_KeepText(uint8_t* text)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_KeepText(text);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_copy_text_833bb3c1
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_copy_text_833bb3c1
 #ifdef __APPLE__
-void zir_foreign_zir_f_0038f975c59a7f51_copy_text(uint8_t* dst, size_t size, uint8_t* src) __asm__("_copy_text");
+void zir_foreign_compiler_c_emit_call__copy_text(uint8_t* dst, size_t size, uint8_t* src) __asm__("_copy_text");
 #else
-void zir_foreign_zir_f_0038f975c59a7f51_copy_text(uint8_t* dst, size_t size, uint8_t* src) __asm__("copy_text");
+void zir_foreign_compiler_c_emit_call__copy_text(uint8_t* dst, size_t size, uint8_t* src) __asm__("copy_text");
 #endif
-static void
-zir_f_0038f975c59a7f51_copy_text(uint8_t* dst, size_t size, uint8_t* src)
-{
-    zir_foreign_zir_f_0038f975c59a7f51_copy_text(dst, size, src);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_skip_ws_02fa5432
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_skip_ws_02fa5432
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_0038f975c59a7f51_skip_ws(uint8_t* s) __asm__("_skip_ws");
+uint8_t* zir_foreign_compiler_c_emit_call__skip_ws(uint8_t* s) __asm__("_skip_ws");
 #else
-uint8_t* zir_foreign_zir_f_0038f975c59a7f51_skip_ws(uint8_t* s) __asm__("skip_ws");
+uint8_t* zir_foreign_compiler_c_emit_call__skip_ws(uint8_t* s) __asm__("skip_ws");
 #endif
-static uint8_t*
-zir_f_0038f975c59a7f51_skip_ws(uint8_t* s)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_skip_ws(s);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_trim_in_place_e8316ed2
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_trim_in_place_e8316ed2
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_0038f975c59a7f51_trim_in_place(uint8_t* s) __asm__("_trim_in_place");
+uint8_t* zir_foreign_compiler_c_emit_call__trim_in_place(uint8_t* s) __asm__("_trim_in_place");
 #else
-uint8_t* zir_foreign_zir_f_0038f975c59a7f51_trim_in_place(uint8_t* s) __asm__("trim_in_place");
+uint8_t* zir_foreign_compiler_c_emit_call__trim_in_place(uint8_t* s) __asm__("trim_in_place");
 #endif
-static uint8_t*
-zir_f_0038f975c59a7f51_trim_in_place(uint8_t* s)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_trim_in_place(s);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_split_top_level_c66cacd8
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_split_top_level_c66cacd8
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_split_top_level(uint8_t* s, uint8_t* parts, int32_t max, size_t part_size) __asm__("_split_top_level");
+int32_t zir_foreign_compiler_c_emit_call__split_top_level(uint8_t* s, uint8_t* parts, int32_t max, size_t part_size) __asm__("_split_top_level");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_split_top_level(uint8_t* s, uint8_t* parts, int32_t max, size_t part_size) __asm__("split_top_level");
+int32_t zir_foreign_compiler_c_emit_call__split_top_level(uint8_t* s, uint8_t* parts, int32_t max, size_t part_size) __asm__("split_top_level");
 #endif
-static int32_t
-zir_f_0038f975c59a7f51_split_top_level(uint8_t* s, uint8_t* parts, int32_t max, size_t part_size)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_split_top_level(s, parts, max, part_size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_ArrayElementType_7810fd9e
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_ArrayElementType_7810fd9e
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_ArrayElementType(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity) __asm__("_ArrayElementType");
+int32_t zir_foreign_compiler_c_emit_call__ArrayElementType(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity) __asm__("_ArrayElementType");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_ArrayElementType(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity) __asm__("ArrayElementType");
+int32_t zir_foreign_compiler_c_emit_call__ArrayElementType(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity) __asm__("ArrayElementType");
 #endif
-static int32_t
-zir_f_0038f975c59a7f51_ArrayElementType(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_ArrayElementType(type, element, size, capacity);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_ArrayValueType_14e14d7e
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_ArrayValueType_14e14d7e
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_ArrayValueType(uint8_t* type) __asm__("_ArrayValueType");
+int32_t zir_foreign_compiler_c_emit_call__ArrayValueType(uint8_t* type) __asm__("_ArrayValueType");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_ArrayValueType(uint8_t* type) __asm__("ArrayValueType");
+int32_t zir_foreign_compiler_c_emit_call__ArrayValueType(uint8_t* type) __asm__("ArrayValueType");
 #endif
-static int32_t
-zir_f_0038f975c59a7f51_ArrayValueType(uint8_t* type)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_ArrayValueType(type);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_ScalarType_9055c366
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_ScalarType_9055c366
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_0038f975c59a7f51_ScalarType(uint8_t* type) __asm__("_ScalarType");
+uint8_t* zir_foreign_compiler_c_emit_call__ScalarType(uint8_t* type) __asm__("_ScalarType");
 #else
-uint8_t* zir_foreign_zir_f_0038f975c59a7f51_ScalarType(uint8_t* type) __asm__("ScalarType");
+uint8_t* zir_foreign_compiler_c_emit_call__ScalarType(uint8_t* type) __asm__("ScalarType");
 #endif
-static uint8_t*
-zir_f_0038f975c59a7f51_ScalarType(uint8_t* type)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_ScalarType(type);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_CFindType_2a8e44a3
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_CFindType_2a8e44a3
 #ifdef __APPLE__
-ZirType* zir_foreign_zir_f_0038f975c59a7f51_CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("_FindType");
+ZirType* zir_foreign_compiler_c_emit_call__CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("_FindType");
 #else
-ZirType* zir_foreign_zir_f_0038f975c59a7f51_CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("FindType");
+ZirType* zir_foreign_compiler_c_emit_call__CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("FindType");
 #endif
-static ZirType*
-zir_f_0038f975c59a7f51_CFindType(ZirModule* module, uint8_t* name, ZirModule** owner)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_CFindType(module, name, owner);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_CTypeNextField_37a0826c
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_CTypeNextField_37a0826c
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_CTypeNextField(ZirType* record, size_t* offset, ZirTypeField* field) __asm__("_TypeNextField");
+int32_t zir_foreign_compiler_c_emit_call__CTypeNextField(ZirType* record, size_t* offset, ZirTypeField* field) __asm__("_TypeNextField");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_CTypeNextField(ZirType* record, size_t* offset, ZirTypeField* field) __asm__("TypeNextField");
+int32_t zir_foreign_compiler_c_emit_call__CTypeNextField(ZirType* record, size_t* offset, ZirTypeField* field) __asm__("TypeNextField");
 #endif
-static int32_t
-zir_f_0038f975c59a7f51_CTypeNextField(ZirType* record, size_t* offset, ZirTypeField* field)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_CTypeNextField(record, offset, field);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_CResolveFunction_08b348f2
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_CResolveFunction_08b348f2
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_CResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** fn) __asm__("_ResolveFunction");
+int32_t zir_foreign_compiler_c_emit_call__CResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** fn) __asm__("_ResolveFunction");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_CResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** fn) __asm__("ResolveFunction");
+int32_t zir_foreign_compiler_c_emit_call__CResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** fn) __asm__("ResolveFunction");
 #endif
-static int32_t
-zir_f_0038f975c59a7f51_CResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** fn)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_CResolveFunction(module, name, owner, fn);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_CanEmitBody_d0951ec5
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_CanEmitBody_d0951ec5
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_CanEmitBody(ZirModule* module, ZirFunction* fn) __asm__("_CanEmitBody");
+int32_t zir_foreign_compiler_c_emit_call__CanEmitBody(ZirModule* module, ZirFunction* fn) __asm__("_CanEmitBody");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_CanEmitBody(ZirModule* module, ZirFunction* fn) __asm__("CanEmitBody");
+int32_t zir_foreign_compiler_c_emit_call__CanEmitBody(ZirModule* module, ZirFunction* fn) __asm__("CanEmitBody");
 #endif
-static int32_t
-zir_f_0038f975c59a7f51_CanEmitBody(ZirModule* module, ZirFunction* fn)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_CanEmitBody(module, fn);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_DecodeStringLiteral_a7c0151e
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_DecodeStringLiteral_a7c0151e
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_DecodeStringLiteral(uint8_t* source, uint8_t* out, size_t capacity, size_t* length) __asm__("_DecodeStringLiteral");
+int32_t zir_foreign_compiler_c_emit_call__DecodeStringLiteral(uint8_t* source, uint8_t* out, size_t capacity, size_t* length) __asm__("_DecodeStringLiteral");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_DecodeStringLiteral(uint8_t* source, uint8_t* out, size_t capacity, size_t* length) __asm__("DecodeStringLiteral");
+int32_t zir_foreign_compiler_c_emit_call__DecodeStringLiteral(uint8_t* source, uint8_t* out, size_t capacity, size_t* length) __asm__("DecodeStringLiteral");
 #endif
-static int32_t
-zir_f_0038f975c59a7f51_DecodeStringLiteral(uint8_t* source, uint8_t* out, size_t capacity, size_t* length)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_DecodeStringLiteral(source, out, capacity, length);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_CompilerParseExprTyped_4b6c2a98
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_CompilerParseExprTyped_4b6c2a98
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_CompilerParseExprTyped(ZirFunction* fn, ZirModule* module, void* text, ZirSourceSpan span, void* expected) __asm__("_CompilerParseExprTyped");
+int32_t zir_foreign_compiler_c_emit_call__CompilerParseExprTyped(ZirFunction* fn, ZirModule* module, void* text, ZirSourceSpan span, void* expected) __asm__("_CompilerParseExprTyped");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_CompilerParseExprTyped(ZirFunction* fn, ZirModule* module, void* text, ZirSourceSpan span, void* expected) __asm__("CompilerParseExprTyped");
+int32_t zir_foreign_compiler_c_emit_call__CompilerParseExprTyped(ZirFunction* fn, ZirModule* module, void* text, ZirSourceSpan span, void* expected) __asm__("CompilerParseExprTyped");
 #endif
-static int32_t
-zir_f_0038f975c59a7f51_CompilerParseExprTyped(ZirFunction* fn, ZirModule* module, void* text, ZirSourceSpan span, void* expected)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_CompilerParseExprTyped(fn, module, text, span, expected);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_PrintFormatPieces_15dd69ad
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_PrintFormatPieces_15dd69ad
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_PrintFormatPieces(uint8_t* fmt, PrintPiece* pieces, int32_t capacity) __asm__("_PrintFormatPieces");
+int32_t zir_foreign_compiler_c_emit_call__PrintFormatPieces(uint8_t* fmt, PrintPiece* pieces, int32_t capacity) __asm__("_PrintFormatPieces");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_PrintFormatPieces(uint8_t* fmt, PrintPiece* pieces, int32_t capacity) __asm__("PrintFormatPieces");
+int32_t zir_foreign_compiler_c_emit_call__PrintFormatPieces(uint8_t* fmt, PrintPiece* pieces, int32_t capacity) __asm__("PrintFormatPieces");
 #endif
-static int32_t
-zir_f_0038f975c59a7f51_PrintFormatPieces(uint8_t* fmt, PrintPiece* pieces, int32_t capacity)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_PrintFormatPieces(fmt, pieces, capacity);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_emit_expr_a98e15a8
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_emit_expr_a98e15a8
 #ifdef __APPLE__
-void zir_foreign_zir_f_0038f975c59a7f51_emit_expr(Emitter* e, int32_t index, uint8_t* expected, uint8_t* out, size_t size) __asm__("_zir_emit_emit_expr");
+void zir_foreign_compiler_c_emit_call__emit_expr(Emitter* e, int32_t index, uint8_t* expected, uint8_t* out, size_t size) __asm__("_zir_emit_emit_expr");
 #else
-void zir_foreign_zir_f_0038f975c59a7f51_emit_expr(Emitter* e, int32_t index, uint8_t* expected, uint8_t* out, size_t size) __asm__("zir_emit_emit_expr");
+void zir_foreign_compiler_c_emit_call__emit_expr(Emitter* e, int32_t index, uint8_t* expected, uint8_t* out, size_t size) __asm__("zir_emit_emit_expr");
 #endif
-static void
-zir_f_0038f975c59a7f51_emit_expr(Emitter* e, int32_t index, uint8_t* expected, uint8_t* out, size_t size)
-{
-    zir_foreign_zir_f_0038f975c59a7f51_emit_expr(e, index, expected, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_SimdTierCopyCall_dca254e2
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_SimdTierCopyCall_dca254e2
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_SimdTierCopyCall(Emitter* e, ZirExpr* call) __asm__("_zir_emit_SimdTierCopyCall");
+int32_t zir_foreign_compiler_c_emit_call__SimdTierCopyCall(Emitter* e, ZirExpr* call) __asm__("_zir_emit_SimdTierCopyCall");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_SimdTierCopyCall(Emitter* e, ZirExpr* call) __asm__("zir_emit_SimdTierCopyCall");
+int32_t zir_foreign_compiler_c_emit_call__SimdTierCopyCall(Emitter* e, ZirExpr* call) __asm__("zir_emit_SimdTierCopyCall");
 #endif
-static int32_t
-zir_f_0038f975c59a7f51_SimdTierCopyCall(Emitter* e, ZirExpr* call)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_SimdTierCopyCall(e, call);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_CCanonical_946d361a
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_CCanonical_946d361a
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_0038f975c59a7f51_CCanonical(uint8_t* type) __asm__("_zir_emit_canonical");
+uint8_t* zir_foreign_compiler_c_emit_call__CCanonical(uint8_t* type) __asm__("_zir_emit_canonical");
 #else
-uint8_t* zir_foreign_zir_f_0038f975c59a7f51_CCanonical(uint8_t* type) __asm__("zir_emit_canonical");
+uint8_t* zir_foreign_compiler_c_emit_call__CCanonical(uint8_t* type) __asm__("zir_emit_canonical");
 #endif
-static uint8_t*
-zir_f_0038f975c59a7f51_CCanonical(uint8_t* type)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_CCanonical(type);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_CSlotNativeType_094b2d16
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_CSlotNativeType_094b2d16
 #ifdef __APPLE__
-void zir_foreign_zir_f_0038f975c59a7f51_CSlotNativeType(uint8_t* source, ZirTarget target, uint8_t* out, size_t size) __asm__("_zir_emit_slot_native_type");
+void zir_foreign_compiler_c_emit_call__CSlotNativeType(uint8_t* source, ZirTarget target, uint8_t* out, size_t size) __asm__("_zir_emit_slot_native_type");
 #else
-void zir_foreign_zir_f_0038f975c59a7f51_CSlotNativeType(uint8_t* source, ZirTarget target, uint8_t* out, size_t size) __asm__("zir_emit_slot_native_type");
+void zir_foreign_compiler_c_emit_call__CSlotNativeType(uint8_t* source, ZirTarget target, uint8_t* out, size_t size) __asm__("zir_emit_slot_native_type");
 #endif
-static void
-zir_f_0038f975c59a7f51_CSlotNativeType(uint8_t* source, ZirTarget target, uint8_t* out, size_t size)
-{
-    zir_foreign_zir_f_0038f975c59a7f51_CSlotNativeType(source, target, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_CSlotTypeAtUse_072d0438
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_CSlotTypeAtUse_072d0438
 #ifdef __APPLE__
-void zir_foreign_zir_f_0038f975c59a7f51_CSlotTypeAtUse(uint8_t* source, ZirTarget target, ZirResolveTarget resolve_type, void* context, uint8_t* out, size_t size) __asm__("_zir_emit_slot_type_at_use");
+void zir_foreign_compiler_c_emit_call__CSlotTypeAtUse(uint8_t* source, ZirTarget target, ZirResolveTarget resolve_type, void* context, uint8_t* out, size_t size) __asm__("_zir_emit_slot_type_at_use");
 #else
-void zir_foreign_zir_f_0038f975c59a7f51_CSlotTypeAtUse(uint8_t* source, ZirTarget target, ZirResolveTarget resolve_type, void* context, uint8_t* out, size_t size) __asm__("zir_emit_slot_type_at_use");
+void zir_foreign_compiler_c_emit_call__CSlotTypeAtUse(uint8_t* source, ZirTarget target, ZirResolveTarget resolve_type, void* context, uint8_t* out, size_t size) __asm__("zir_emit_slot_type_at_use");
 #endif
-static void
-zir_f_0038f975c59a7f51_CSlotTypeAtUse(uint8_t* source, ZirTarget target, ZirResolveTarget resolve_type, void* context, uint8_t* out, size_t size)
-{
-    zir_foreign_zir_f_0038f975c59a7f51_CSlotTypeAtUse(source, target, resolve_type, 
-context, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_CEnumType_367a90f8
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_CEnumType_367a90f8
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_CEnumType(ZirModule* module, uint8_t* type) __asm__("_zir_emit_enum_type");
+int32_t zir_foreign_compiler_c_emit_call__CEnumType(ZirModule* module, uint8_t* type) __asm__("_zir_emit_enum_type");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_CEnumType(ZirModule* module, uint8_t* type) __asm__("zir_emit_enum_type");
+int32_t zir_foreign_compiler_c_emit_call__CEnumType(ZirModule* module, uint8_t* type) __asm__("zir_emit_enum_type");
 #endif
-static int32_t
-zir_f_0038f975c59a7f51_CEnumType(ZirModule* module, uint8_t* type)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_CEnumType(module, type);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_CNumberPrefix_dd5b5b66
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_CNumberPrefix_dd5b5b66
 #ifdef __APPLE__
-void zir_foreign_zir_f_0038f975c59a7f51_CNumberPrefix(ZirModule* module, uint8_t* out, size_t size) __asm__("_zir_emit_number_prefix");
+void zir_foreign_compiler_c_emit_call__CNativeFunctionName(ZirModule* module, ZirFunction* fn, uint8_t* out, size_t size) __asm__("_NativeCFunctionName");
 #else
-void zir_foreign_zir_f_0038f975c59a7f51_CNumberPrefix(ZirModule* module, uint8_t* out, size_t size) __asm__("zir_emit_number_prefix");
+void zir_foreign_compiler_c_emit_call__CNativeFunctionName(ZirModule* module, ZirFunction* fn, uint8_t* out, size_t size) __asm__("NativeCFunctionName");
 #endif
-static void
-zir_f_0038f975c59a7f51_CNumberPrefix(ZirModule* module, uint8_t* out, size_t size)
-{
-    zir_foreign_zir_f_0038f975c59a7f51_CNumberPrefix(module, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_CTargetFieldName_2b081e2f
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_CTargetFieldName_2b081e2f
 #ifdef __APPLE__
-void zir_foreign_zir_f_0038f975c59a7f51_CTargetFieldName(ZirType* record, ZirTarget target, uint8_t* name, uint8_t* out, size_t size) __asm__("_TargetFieldName");
+void zir_foreign_compiler_c_emit_call__CNumberPrefix(ZirModule* module, uint8_t* out, size_t size) __asm__("_zir_emit_number_prefix");
 #else
-void zir_foreign_zir_f_0038f975c59a7f51_CTargetFieldName(ZirType* record, ZirTarget target, uint8_t* name, uint8_t* out, size_t size) __asm__("TargetFieldName");
+void zir_foreign_compiler_c_emit_call__CNumberPrefix(ZirModule* module, uint8_t* out, size_t size) __asm__("zir_emit_number_prefix");
 #endif
-static void
-zir_f_0038f975c59a7f51_CTargetFieldName(ZirType* record, ZirTarget target, uint8_t* name, uint8_t* out, size_t size)
-{
-    zir_foreign_zir_f_0038f975c59a7f51_CTargetFieldName(record, target, name, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0038f975c59a7f51_CNativeGoType_a9528c12
-#define ZIR_FOREIGN_zir_f_0038f975c59a7f51_CNativeGoType_a9528c12
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0038f975c59a7f51_CNativeGoType(ZirModule* module, uint8_t* type, uint8_t* dst, size_t dst_size) __asm__("_NativeGoType");
+void zir_foreign_compiler_c_emit_call__CTargetFieldName(ZirType* record, ZirTarget target, uint8_t* name, uint8_t* out, size_t size) __asm__("_TargetFieldName");
 #else
-int32_t zir_foreign_zir_f_0038f975c59a7f51_CNativeGoType(ZirModule* module, uint8_t* type, uint8_t* dst, size_t dst_size) __asm__("NativeGoType");
+void zir_foreign_compiler_c_emit_call__CTargetFieldName(ZirType* record, ZirTarget target, uint8_t* name, uint8_t* out, size_t size) __asm__("TargetFieldName");
 #endif
-static int32_t
-zir_f_0038f975c59a7f51_CNativeGoType(ZirModule* module, uint8_t* type, uint8_t* dst, size_t dst_size)
-{
-    return zir_foreign_zir_f_0038f975c59a7f51_CNativeGoType(module, type, dst, dst_size);
-}
+#ifdef __APPLE__
+int32_t zir_foreign_compiler_c_emit_call__CNativeGoType(ZirModule* module, uint8_t* type, uint8_t* dst, size_t dst_size) __asm__("_NativeGoType");
+#else
+int32_t zir_foreign_compiler_c_emit_call__CNativeGoType(ZirModule* module, uint8_t* type, uint8_t* dst, size_t dst_size) __asm__("NativeGoType");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -577,7 +265,7 @@ static bool compiler_c_emit_call_PostfixExpression(uint8_t* text) ZIRAN_MAYBE_UN
 static uint8_t*
 compiler_c_emit_call_CStr(String s)
 {
-    return ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+    return ((compiler_c_emit_call_StaticText*)(&(s)))->data;
 }
 
 static uint8_t*
@@ -602,7 +290,7 @@ compiler_c_emit_call_FunctionArgs(ZirFunction* fn)
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
     }
     return value_1;
 }
@@ -634,16 +322,16 @@ compiler_c_emit_call_CheckFormat(int32_t n, size_t size)
         uint8_t* value_1 = (void *)0;
         {
             String s = value_0;
-            value_1 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_1 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
         String value_3 = StringLiteral("generated expression exceeds output limit");
         uint8_t* value_4 = (void *)0;
         {
             String s = value_3;
-            value_4 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_4 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
-        zir_f_0038f975c59a7f51_Diagnostic(zero_span, value_1, value_4);
-        zir_f_0038f975c59a7f51_exit(1);
+        zir_foreign_compiler_c_emit_call__Diagnostic(zero_span, value_1, value_4);
+        zir_foreign_compiler_c_emit_call__exit(1);
     }
     return n;
 }
@@ -657,7 +345,7 @@ compiler_c_emit_call_EmitIndent(Emitter* e)
         uint8_t* value_2 = (void *)0;
         {
             String s = value_1;
-            value_2 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_2 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
         value_0 = value_2;
     } else {
@@ -665,7 +353,7 @@ compiler_c_emit_call_EmitIndent(Emitter* e)
         uint8_t* value_5 = (void *)0;
         {
             String s = value_4;
-            value_5 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_5 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
         value_0 = value_5;
     }
@@ -675,7 +363,7 @@ compiler_c_emit_call_EmitIndent(Emitter* e)
         int32_t range_last_1 = (int32_t)((uint32_t)(e->indent) - 1u);
         int32_t i = range_first_1;
         if (i <= range_last_1) for (;;) {
-            zir_f_0038f975c59a7f51_fputs(unit, e->out);
+            zir_foreign_compiler_c_emit_call__fputs(unit, e->out);
             if (i == range_last_1) {
                 break;
             }
@@ -688,15 +376,15 @@ static void
 compiler_c_emit_call_GlobalSlotWrapperName(ZirModule* module, ZirGlobal* global, int32_t index, uint8_t* out, size_t size)
 {
     uint8_t prefix[256] = {0};
-    zir_f_0038f975c59a7f51_CNumberPrefix(module, &(prefix[0]), 256);
+    zir_foreign_compiler_c_emit_call__CNumberPrefix(module, &(prefix[0]), 256);
     int64_t offset = ZiDivS64((int64_t)(((size_t)(global) - (size_t)(module->globals))), sizeof(ZirGlobal), INT64_MIN);
     String value_0 = StringLiteral("%s_global_slot_%lld_%d");
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
     }
-    compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(out, size, value_1, &(prefix[0]), offset, index), size);
+    compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(out, size, value_1, &(prefix[0]), offset, index), size);
 }
 
 static bool
@@ -717,9 +405,9 @@ compiler_c_emit_call_AppendText(uint8_t* out, size_t size, size_t* used, uint8_t
     uint8_t* value_5 = (void *)0;
     {
         String s = value_4;
-        value_5 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+        value_5 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
     }
-    int32_t written = zir_f_0038f975c59a7f51_snprintf(value_1, value_3, value_5, text);
+    int32_t written = zir_foreign_compiler_c_emit_call__snprintf(value_1, value_3, value_5, text);
     if (written < 0 || (size_t)(written) >= size - *(used)) {
         return false;
     }
@@ -734,9 +422,9 @@ compiler_c_emit_call_GlobalField(ZirType* record, uint8_t* name, int32_t ordinal
     ZirTypeField field = {0};
     size_t offset = 0;
     int32_t position = 0;
-    while (zir_f_0038f975c59a7f51_CTypeNextField(record, &(offset), &(field)) == 1) {
+    while (zir_foreign_compiler_c_emit_call__CTypeNextField(record, &(offset), &(field)) == 1) {
         bool value_0 = name[0] != 0;
-        bool value_1 = value_0 && zir_f_0038f975c59a7f51_strcmp(name, &(field.name[0])) == 0;
+        bool value_1 = value_0 && zir_foreign_compiler_c_emit_call__strcmp(name, &(field.name[0])) == 0;
         if (value_1 || (name[0] == 0 && position == ordinal)) {
             ZirTypeField* value_2 = &((*(found)));
             (*value_2) = field;
@@ -750,12 +438,12 @@ compiler_c_emit_call_GlobalField(ZirType* record, uint8_t* name, int32_t ordinal
 static ZirType*
 compiler_c_emit_call_GlobalFunctionSlot(ZirModule* module, ZirModule* scope, uint8_t* type, ZirExpr* expr)
 {
-    ZirType* slot = zir_f_0038f975c59a7f51_CFindType(scope, type, (void *)0);
+    ZirType* slot = zir_foreign_compiler_c_emit_call__CFindType(scope, type, (void *)0);
     ZirModule* owner = (void *)0;
     ZirFunction* declaration = (void *)0;
     bool value_0 = slot == ((void *)0) || slot->is_procedure_type == 0 || (((ZirExprKind)(expr->kind)) != ((ZirExprKind)(1)) && ((ZirExprKind)(expr->kind)) != ((ZirExprKind)(8)));
     bool value_1 = value_0;
-    bool value_2 = value_1 || zir_f_0038f975c59a7f51_CResolveFunction(module, (uint8_t*)expr->text, &(owner), &(declaration)) != 1;
+    bool value_2 = value_1 || zir_foreign_compiler_c_emit_call__CResolveFunction(module, (uint8_t*)expr->text, &(owner), &(declaration)) != 1;
     if (value_2 || declaration->is_extern != 0) {
         return (void *)0;
     }
@@ -766,8 +454,8 @@ static bool
 compiler_c_emit_call_GlobalTypeAtUse(ZirModule* module, ZirModule* scope, uint8_t* type, uint8_t* out, size_t size)
 {
     uint8_t element[128] = {0};
-    if (zir_f_0038f975c59a7f51_ArrayElementType(type, &(element[0]), 128, (void *)0) != 0) {
-        uint8_t* close = zir_f_0038f975c59a7f51_strchr(type, 93);
+    if (zir_foreign_compiler_c_emit_call__ArrayElementType(type, &(element[0]), 128, (void *)0) != 0) {
+        uint8_t* close = zir_foreign_compiler_c_emit_call__strchr(type, 93);
         uint8_t mapped[128] = {0};
         bool value_0 = close == ((void *)0);
         bool value_1 = value_0;
@@ -785,21 +473,21 @@ compiler_c_emit_call_GlobalTypeAtUse(ZirModule* module, ZirModule* scope, uint8_
         uint8_t* value_6 = (void *)0;
         {
             String s = value_5;
-            value_6 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_6 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
-        int32_t written = zir_f_0038f975c59a7f51_snprintf(value_3, value_4, value_6, plen, type, &(mapped[0]));
+        int32_t written = zir_foreign_compiler_c_emit_call__snprintf(value_3, value_4, value_6, plen, type, &(mapped[0]));
         return written >= 0 && (size_t)(written) < size;
     }
-    ZirType* declared = zir_f_0038f975c59a7f51_CFindType(scope, type, (void *)0);
+    ZirType* declared = zir_foreign_compiler_c_emit_call__CFindType(scope, type, (void *)0);
     bool value_8 = scope == module || declared == ((void *)0);
     bool value_9 = value_8;
     if (!value_9) {
-        ZirType* value_10 = zir_f_0038f975c59a7f51_CFindType(module, type, (void *)0);
+        ZirType* value_10 = zir_foreign_compiler_c_emit_call__CFindType(module, type, (void *)0);
         value_9 = (value_10 == declared);
     }
     if (value_9) {
-        zir_f_0038f975c59a7f51_copy_text(out, size, type);
-        size_t value_11 = zir_f_0038f975c59a7f51_strlen(type);
+        zir_foreign_compiler_c_emit_call__copy_text(out, size, type);
+        size_t value_11 = zir_foreign_compiler_c_emit_call__strlen(type);
         return value_11 < size;
     }
     {
@@ -821,13 +509,13 @@ compiler_c_emit_call_GlobalTypeAtUse(ZirModule* module, ZirModule* scope, uint8_
             uint8_t* value_15 = (void *)0;
             {
                 String s = value_14;
-                value_15 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_15 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            int32_t written = zir_f_0038f975c59a7f51_snprintf(value_12, value_13, value_15, &(imp->name[0]), type);
+            int32_t written = zir_foreign_compiler_c_emit_call__snprintf(value_12, value_13, value_15, &(imp->name[0]), type);
             bool value_17 = written >= 0 && (size_t)(written) < size;
             bool value_18 = value_17;
             if (value_18) {
-                ZirType* value_19 = zir_f_0038f975c59a7f51_CFindType(module, out, (void *)0);
+                ZirType* value_19 = zir_foreign_compiler_c_emit_call__CFindType(module, out, (void *)0);
                 value_18 = (value_19 == declared);
             }
             if (value_18) {
@@ -853,9 +541,9 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
         uint8_t element[128] = {0};
         ZirType* record = (void *)0;
         ZirModule* record_owner = (void *)0;
-        bool is_array = zir_f_0038f975c59a7f51_ArrayElementType(type, &(element[0]), 128, (void *)0) != 0;
+        bool is_array = zir_foreign_compiler_c_emit_call__ArrayElementType(type, &(element[0]), 128, (void *)0) != 0;
         if (!is_array) {
-            record = zir_f_0038f975c59a7f51_CFindType(scope, type, &(record_owner));
+            record = zir_foreign_compiler_c_emit_call__CFindType(scope, type, &(record_owner));
         }
         if (!is_array && (record == ((void *)0) || record->is_enum != 0 || record->is_procedure_type != 0 || record->is_union != 0)) {
             return false;
@@ -892,7 +580,7 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
                 uint8_t* value_16 = (void *)0;
                 {
                     String s = value_15;
-                    value_16 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_16 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
                 bool value_18 = compiler_c_emit_call_AppendText(value_12, value_13, value_14, value_16);
                 value_11 = !value_18;
@@ -908,7 +596,7 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
             uint8_t* value_23 = (void *)0;
             {
                 String s = value_22;
-                value_23 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_23 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
             bool value_25 = compiler_c_emit_call_AppendText(value_19, value_20, value_21, value_23);
             if (!value_25) {
@@ -945,7 +633,7 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
                 uint8_t* value_37 = (void *)0;
                 {
                     String s = value_36;
-                    value_37 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_37 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
                 bool value_39 = compiler_c_emit_call_AppendText(value_33, value_34, value_35, value_37);
                 value_32 = !value_39;
@@ -960,7 +648,7 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
                     ZirGlobalFieldRewrite value_40 = emit->field_name;
                     value_40(record, &(field.name[0]), &(mapped[0]), 128 * 2, emit->context);
                 } else {
-                    zir_f_0038f975c59a7f51_CTargetFieldName(record, (ZirTarget)(emit->target), &(field.name[0]), &(mapped[0]), 128 * 2);
+                    zir_foreign_compiler_c_emit_call__CTargetFieldName(record, (ZirTarget)(emit->target), &(field.name[0]), &(mapped[0]), 128 * 2);
                 }
                 if (((ZirTarget)(emit->target)) == ((ZirTarget)(1))) {
                     bool value_41 = compiler_c_emit_call_AppendText(out, size, used, &(mapped[0]));
@@ -973,7 +661,7 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
                         uint8_t* value_47 = (void *)0;
                         {
                             String s = value_46;
-                            value_47 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                            value_47 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                         }
                         bool value_49 = compiler_c_emit_call_AppendText(value_43, value_44, value_45, value_47);
                         value_42 = !value_49;
@@ -989,7 +677,7 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
                     uint8_t* value_54 = (void *)0;
                     {
                         String s = value_53;
-                        value_54 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                        value_54 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
                     bool value_56 = compiler_c_emit_call_AppendText(value_50, value_51, value_52, value_54);
                     bool value_57 = !value_56;
@@ -1006,7 +694,7 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
                         uint8_t* value_64 = (void *)0;
                         {
                             String s = value_63;
-                            value_64 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                            value_64 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                         }
                         bool value_66 = compiler_c_emit_call_AppendText(value_60, value_61, value_62, value_64);
                         value_59 = !value_66;
@@ -1031,7 +719,7 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
             child = entry->next_sibling;
         }
         bool value_69 = position == 0 && ((ZirTarget)(emit->target)) != ((ZirTarget)(1));
-        bool value_70 = value_69 && zir_f_0038f975c59a7f51_CTypeHasZeroArray(emit->module, type) == 0;
+        bool value_70 = value_69 && zir_foreign_compiler_c_emit_call__CTypeHasZeroArray(emit->module, type) == 0;
         bool value_71 = value_70;
         bool value_72 = value_71;
         if (value_72) {
@@ -1042,7 +730,7 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
             uint8_t* value_77 = (void *)0;
             {
                 String s = value_76;
-                value_77 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_77 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
             bool value_79 = compiler_c_emit_call_AppendText(value_73, value_74, value_75, value_77);
             value_72 = !value_79;
@@ -1057,7 +745,7 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
         uint8_t* value_84 = (void *)0;
         {
             String s = value_83;
-            value_84 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_84 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
         return compiler_c_emit_call_AppendText(value_80, value_81, value_82, value_84);
     }
@@ -1067,28 +755,28 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
             if (emit->scalar == NULL) {
                 return false;
             }
-            void* value_86 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+            void* value_86 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
             uint8_t* call_buf = (uint8_t*)(value_86);
-            void* value_87 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+            void* value_87 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
             uint8_t* res_buf = (uint8_t*)(value_87);
             uint8_t* value_88 = call_buf;
             String value_89 = StringLiteral("%s()");
             uint8_t* value_90 = (void *)0;
             {
                 String s = value_89;
-                value_90 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_90 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(value_88, 4096, value_90, (uint8_t*)expr->text), 4096);
+            compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(value_88, 4096, value_90, (uint8_t*)expr->text), 4096);
             ZirGlobalScalarRewrite value_92 = emit->scalar;
             if (value_92(emit->module, call_buf, res_buf, 4096, emit->context) == 0) {
                 bool cleanup_return_0 = false;
                 {
-                    zir_f_0038f975c59a7f51_free((void*)(call_buf));
-                    zir_f_0038f975c59a7f51_free((void*)(res_buf));
+                    zir_foreign_compiler_c_emit_call__free((void*)(call_buf));
+                    zir_foreign_compiler_c_emit_call__free((void*)(res_buf));
                 }
                 return cleanup_return_0;
             }
-            size_t length = zir_f_0038f975c59a7f51_strlen(res_buf);
+            size_t length = zir_foreign_compiler_c_emit_call__strlen(res_buf);
             bool value_93 = length < 2;
             bool value_94 = value_93;
             if (!value_94) {
@@ -1103,16 +791,16 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
                 uint8_t* value_99 = (void *)0;
                 {
                     String s = value_98;
-                    value_99 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_99 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
-                bool value_101 = zir_f_0038f975c59a7f51_strcmp(value_96, value_99) != 0;
+                bool value_101 = zir_foreign_compiler_c_emit_call__strcmp(value_96, value_99) != 0;
                 value_94 = value_101;
             }
             if (value_94) {
                 bool cleanup_return_1 = false;
                 {
-                    zir_f_0038f975c59a7f51_free((void*)(call_buf));
-                    zir_f_0038f975c59a7f51_free((void*)(res_buf));
+                    zir_foreign_compiler_c_emit_call__free((void*)(call_buf));
+                    zir_foreign_compiler_c_emit_call__free((void*)(res_buf));
                 }
                 return cleanup_return_1;
             }
@@ -1120,8 +808,8 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
             (*value_102) = 0;
             bool cleanup_return_2 = compiler_c_emit_call_AppendText(out, size, used, res_buf);
             {
-                zir_f_0038f975c59a7f51_free((void*)(call_buf));
-                zir_f_0038f975c59a7f51_free((void*)(res_buf));
+                zir_foreign_compiler_c_emit_call__free((void*)(call_buf));
+                zir_foreign_compiler_c_emit_call__free((void*)(res_buf));
             }
             return cleanup_return_2;
         }
@@ -1133,7 +821,7 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
             uint8_t* value_105 = (void *)0;
             {
                 String s = value_104;
-                value_105 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_105 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
             value_103 = value_105;
         } else {
@@ -1141,7 +829,7 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
             uint8_t* value_108 = (void *)0;
             {
                 String s = value_107;
-                value_108 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_108 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
             value_103 = value_108;
         }
@@ -1157,14 +845,14 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
             uint8_t* value_117 = (void *)0;
             {
                 String s = value_116;
-                value_117 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_117 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
             bool value_119 = compiler_c_emit_call_AppendText(value_113, value_114, value_115, value_117);
             value_112 = value_119;
         }
         return value_112;
     }
-    void* value_120 = zir_f_0038f975c59a7f51_AllocateOrExit(4096 * 2);
+    void* value_120 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096 * 2);
     uint8_t* scalar_buf = (uint8_t*)(value_120);
     if (ScalarLiteral(type, (uint8_t*)expr->text, (ZirTarget)(emit->target), emit->span, scalar_buf, 4096 * 2) == 0) {
         bool value_121 = emit->scalar == NULL;
@@ -1177,14 +865,14 @@ compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t inde
         if (value_122) {
             bool cleanup_return_3 = false;
             {
-                zir_f_0038f975c59a7f51_free((void*)(scalar_buf));
+                zir_foreign_compiler_c_emit_call__free((void*)(scalar_buf));
             }
             return cleanup_return_3;
         }
     }
     bool cleanup_return_4 = compiler_c_emit_call_AppendText(out, size, used, scalar_buf);
     {
-        zir_f_0038f975c59a7f51_free((void*)(scalar_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(scalar_buf));
     }
     return cleanup_return_4;
 }
@@ -1195,12 +883,12 @@ EmitGlobalInitializer(ZirModule* module, ZirGlobal* global, ZirTarget target, Zi
     if (size == 0 || global->init[0] == 0) {
         return 0;
     }
-    void* value_0 = zir_f_0038f975c59a7f51_AllocateOrExit(sizeof(ZirFunction));
+    void* value_0 = zir_foreign_compiler_c_emit_call__AllocateOrExit(sizeof(ZirFunction));
     ZirFunction* probe = (ZirFunction*)(value_0);
-    zir_f_0038f975c59a7f51_memset((void*)(probe), 0, sizeof(ZirFunction));
+    zir_foreign_compiler_c_emit_call__memset((void*)(probe), 0, sizeof(ZirFunction));
     uint8_t* value_1 = &(out[0]);
     (*value_1) = 0;
-    int32_t root = zir_f_0038f975c59a7f51_CompilerParseExprTyped(probe, module, (void*)(((uint8_t*)global->init)), global->span, (void*)(&(global->type[0])));
+    int32_t root = zir_foreign_compiler_c_emit_call__CompilerParseExprTyped(probe, module, (void*)(((uint8_t*)global->init)), global->span, (void*)(&(global->type[0])));
     bool value_2 = root < 0;
     bool value_3 = value_2;
     if (!value_3) {
@@ -1213,17 +901,17 @@ EmitGlobalInitializer(ZirModule* module, ZirGlobal* global, ZirTarget target, Zi
         value_3 = value_5;
     }
     if (value_3) {
-        zir_f_0038f975c59a7f51_free((void*)(probe->exprs));
+        zir_foreign_compiler_c_emit_call__free((void*)(probe->exprs));
         int32_t cleanup_return_0 = 0;
         {
-            zir_f_0038f975c59a7f51_free((void*)(probe));
+            zir_foreign_compiler_c_emit_call__free((void*)(probe));
         }
         return cleanup_return_0;
     }
     GlobalLiteralEmit emit = {.module = module, .global = global, .probe = probe, .target = target, .span = global->span, .scalar = scalar, .type_name = type_name, .field_name = field_name, .context = context};
     size_t used = 0;
     bool ok = compiler_c_emit_call_EmitGlobalLiteralNode(&(emit), root, module, &(global->type[0]), out, size, &(used), 0);
-    zir_f_0038f975c59a7f51_free((void*)(probe->exprs));
+    zir_foreign_compiler_c_emit_call__free((void*)(probe->exprs));
     int32_t value_7 = 0;
     if (ok) {
         value_7 = 1;
@@ -1232,7 +920,7 @@ EmitGlobalInitializer(ZirModule* module, ZirGlobal* global, ZirTarget target, Zi
     }
     int32_t cleanup_return_1 = value_7;
     {
-        zir_f_0038f975c59a7f51_free((void*)(probe));
+        zir_foreign_compiler_c_emit_call__free((void*)(probe));
     }
     return cleanup_return_1;
 }
@@ -1240,9 +928,9 @@ EmitGlobalInitializer(ZirModule* module, ZirGlobal* global, ZirTarget target, Zi
 uint8_t*
 EmitGlobalInitializerText(ZirModule* module, ZirGlobal* global, ZirTarget target, ZirGlobalScalarRewrite scalar, ZirGlobalTypeRewrite type_name, ZirGlobalFieldRewrite field_name, void* context, int32_t* status)
 {
-    size_t size = (zir_f_0038f975c59a7f51_strlen((uint8_t*)global->init) * 4) + 4096;
+    size_t size = (zir_foreign_compiler_c_emit_call__strlen((uint8_t*)global->init) * 4) + 4096;
     for (int64_t attempt = 0LL; attempt <= 1LL; attempt++) {
-        void* value_0 = zir_f_0038f975c59a7f51_AllocateOrExit(size);
+        void* value_0 = zir_foreign_compiler_c_emit_call__AllocateOrExit(size);
         uint8_t* text = (uint8_t*)(value_0);
         int32_t* value_1 = &((*(status)));
         int32_t value_2 = EmitGlobalInitializer(module, global, target, scalar, type_name, field_name, context, text, size);
@@ -1250,7 +938,7 @@ EmitGlobalInitializerText(ZirModule* module, ZirGlobal* global, ZirTarget target
         if (*(status) == 1) {
             return text;
         }
-        zir_f_0038f975c59a7f51_free((void*)(text));
+        zir_foreign_compiler_c_emit_call__free((void*)(text));
         if (*(status) == 0) {
             return (void *)0;
         }
@@ -1267,11 +955,11 @@ compiler_c_emit_call_GlobalTypeHoldsSlot(ZirModule* scope, uint8_t* type, int32_
     if (depth > 32) {
         return true;
     }
-    ZirType* declared = zir_f_0038f975c59a7f51_CFindType(scope, type, &(owner));
+    ZirType* declared = zir_foreign_compiler_c_emit_call__CFindType(scope, type, &(owner));
     if (declared != ((void *)0) && declared->is_procedure_type != 0) {
         return true;
     }
-    if (zir_f_0038f975c59a7f51_ArrayElementType(type, &(element[0]), 128, (void *)0) != 0) {
+    if (zir_foreign_compiler_c_emit_call__ArrayElementType(type, &(element[0]), 128, (void *)0) != 0) {
         return compiler_c_emit_call_GlobalTypeHoldsSlot(scope, &(element[0]), (int32_t)((uint32_t)depth + 1u));
     }
     if (declared == ((void *)0)) {
@@ -1286,7 +974,7 @@ compiler_c_emit_call_GlobalTypeHoldsSlot(ZirModule* scope, uint8_t* type, int32_
         value_0 = scope;
     }
     ZirModule* next_scope = value_0;
-    while (zir_f_0038f975c59a7f51_CTypeNextField(declared, &(offset), &(field)) == 1) {
+    while (zir_foreign_compiler_c_emit_call__CTypeNextField(declared, &(offset), &(field)) == 1) {
         if (compiler_c_emit_call_GlobalTypeHoldsSlot(next_scope, &(field.type[0]), (int32_t)((uint32_t)depth + 1u))) {
             return true;
         }
@@ -1304,12 +992,12 @@ compiler_c_emit_call_EmitGlobalSlotWrappersNode(void* out, ZirModule* module, Zi
     if (((ZirExprKind)(value->kind)) == ((ZirExprKind)(12))) {
         uint8_t element[128] = {0};
         ZirModule* record_owner = (void *)0;
-        bool is_array = zir_f_0038f975c59a7f51_ArrayElementType(type, &(element[0]), 128, (void *)0) != 0;
+        bool is_array = zir_foreign_compiler_c_emit_call__ArrayElementType(type, &(element[0]), 128, (void *)0) != 0;
         ZirType* value_0 = (void *)0;
         if (is_array) {
             value_0 = (void *)0;
         } else {
-            ZirType* value_1 = zir_f_0038f975c59a7f51_CFindType(scope, type, &(record_owner));
+            ZirType* value_1 = zir_foreign_compiler_c_emit_call__CFindType(scope, type, &(record_owner));
             value_0 = value_1;
         }
         ZirType* record = value_0;
@@ -1356,16 +1044,16 @@ compiler_c_emit_call_EmitGlobalSlotWrappersNode(void* out, ZirModule* module, Zi
     if (slot == ((void *)0) || slot->is_c_call != 0) {
         return;
     }
-    void* value_10 = zir_f_0038f975c59a7f51_AllocateOrExit((size_t)(262144LL));
+    void* value_10 = zir_foreign_compiler_c_emit_call__AllocateOrExit((size_t)(262144LL));
     uint8_t* parameters = (uint8_t*)(value_10);
-    void* value_11 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_11 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* call_buf = (uint8_t*)(value_11);
-    void* value_12 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_12 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* res_buf = (uint8_t*)(value_12);
-    uint8_t* value_13 = zir_f_0038f975c59a7f51_skip_ws(&(slot->body[0]));
+    uint8_t* value_13 = zir_foreign_compiler_c_emit_call__skip_ws(&(slot->body[0]));
     int32_t value_14 = 0;
     if (value_13[0] != 0) {
-        int32_t value_15 = zir_f_0038f975c59a7f51_split_top_level(&(slot->body[0]), parameters, 64, 4096);
+        int32_t value_15 = zir_foreign_compiler_c_emit_call__split_top_level(&(slot->body[0]), parameters, 64, 4096);
         value_14 = value_15;
     } else {
         value_14 = 0;
@@ -1374,7 +1062,7 @@ compiler_c_emit_call_EmitGlobalSlotWrappersNode(void* out, ZirModule* module, Zi
     uint8_t wrapper[128] = {0};
     uint8_t result_type[128] = {0};
     uint8_t resolved_result[128] = {0};
-    zir_f_0038f975c59a7f51_CSlotNativeType(&(slot->procedure_return_type[0]), target, &(result_type[0]), 128);
+    zir_foreign_compiler_c_emit_call__CSlotNativeType(&(slot->procedure_return_type[0]), target, &(result_type[0]), 128);
     ZirResolveTarget value_16 = resolver;
     value_16(context, &(result_type[0]), &(resolved_result[0]), 128);
     compiler_c_emit_call_GlobalSlotWrapperName(module, global, index, &(wrapper[0]), 128);
@@ -1383,17 +1071,17 @@ compiler_c_emit_call_EmitGlobalSlotWrappersNode(void* out, ZirModule* module, Zi
     uint8_t* value_19 = (void *)0;
     {
         String s = value_18;
-        value_19 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+        value_19 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
     }
-    zir_f_0038f975c59a7f51_fprintf(value_17, value_19, &(resolved_result[0]), &(wrapper[0]));
+    zir_foreign_compiler_c_emit_call__fprintf(value_17, value_19, &(resolved_result[0]), &(wrapper[0]));
     uint8_t* value_21 = call_buf;
     String value_22 = StringLiteral("%s(");
     uint8_t* value_23 = (void *)0;
     {
         String s = value_22;
-        value_23 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+        value_23 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
     }
-    int32_t value_25 = compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(value_21, 4096, value_23, (uint8_t*)value->text), 4096);
+    int32_t value_25 = compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(value_21, 4096, value_23, (uint8_t*)value->text), 4096);
     size_t length = (size_t)(value_25);
     {
         int32_t range_first_40 = 0;
@@ -1408,7 +1096,7 @@ compiler_c_emit_call_EmitGlobalSlotWrappersNode(void* out, ZirModule* module, Zi
                 value_27 = (uint8_t*)(((size_t)(p) + n));
             }
             uint8_t* param = value_27;
-            uint8_t* separator = zir_f_0038f975c59a7f51_strchr(param, 58);
+            uint8_t* separator = zir_foreign_compiler_c_emit_call__strchr(param, 58);
             if (separator == ((void *)0)) {
                 break;
             }
@@ -1418,10 +1106,10 @@ compiler_c_emit_call_EmitGlobalSlotWrappersNode(void* out, ZirModule* module, Zi
                 size_t n = 1;
                 value_29 = (uint8_t*)(((size_t)(p) + n));
             }
-            uint8_t* source = zir_f_0038f975c59a7f51_skip_ws(value_29);
+            uint8_t* source = zir_foreign_compiler_c_emit_call__skip_ws(value_29);
             uint8_t native_type[128] = {0};
             uint8_t resolved_type[128] = {0};
-            zir_f_0038f975c59a7f51_CSlotNativeType(source, target, &(native_type[0]), 128);
+            zir_foreign_compiler_c_emit_call__CSlotNativeType(source, target, &(native_type[0]), 128);
             ZirResolveTarget value_31 = resolver;
             value_31(context, &(native_type[0]), &(resolved_type[0]), 128);
             void* value_32 = out;
@@ -1429,16 +1117,16 @@ compiler_c_emit_call_EmitGlobalSlotWrappersNode(void* out, ZirModule* module, Zi
             uint8_t* value_34 = (void *)0;
             {
                 String s = value_33;
-                value_34 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_34 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            zir_f_0038f975c59a7f51_fprintf(value_32, value_34, &(resolved_type[0]), argument);
+            zir_foreign_compiler_c_emit_call__fprintf(value_32, value_34, &(resolved_type[0]), argument);
             uint8_t* value_36 = (void *)0;
             if (argument != 0) {
                 String value_37 = StringLiteral(", ");
                 uint8_t* value_38 = (void *)0;
                 {
                     String s = value_37;
-                    value_38 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_38 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
                 value_36 = value_38;
             } else {
@@ -1446,7 +1134,7 @@ compiler_c_emit_call_EmitGlobalSlotWrappersNode(void* out, ZirModule* module, Zi
                 uint8_t* value_41 = (void *)0;
                 {
                     String s = value_40;
-                    value_41 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_41 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
                 value_36 = value_41;
             }
@@ -1463,9 +1151,9 @@ compiler_c_emit_call_EmitGlobalSlotWrappersNode(void* out, ZirModule* module, Zi
             uint8_t* value_48 = (void *)0;
             {
                 String s = value_47;
-                value_48 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_48 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            int32_t value_50 = zir_f_0038f975c59a7f51_snprintf(value_44, value_46, value_48, sep, argument);
+            int32_t value_50 = zir_foreign_compiler_c_emit_call__snprintf(value_44, value_46, value_48, sep, argument);
             int32_t value_51 = compiler_c_emit_call_CheckFormat(value_50, 4096 - length);
             length = value_43 + (size_t)(value_51);
             if (argument == range_last_40) {
@@ -1485,9 +1173,9 @@ compiler_c_emit_call_EmitGlobalSlotWrappersNode(void* out, ZirModule* module, Zi
     uint8_t* value_56 = (void *)0;
     {
         String s = value_55;
-        value_56 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+        value_56 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
     }
-    int32_t value_58 = zir_f_0038f975c59a7f51_snprintf(value_52, value_54, value_56);
+    int32_t value_58 = zir_foreign_compiler_c_emit_call__snprintf(value_52, value_54, value_56);
     compiler_c_emit_call_CheckFormat(value_58, 4096 - length);
     ZirResolveTarget value_59 = resolver;
     value_59(context, call_buf, res_buf, 4096);
@@ -1495,16 +1183,16 @@ compiler_c_emit_call_EmitGlobalSlotWrappersNode(void* out, ZirModule* module, Zi
     uint8_t* value_61 = (void *)0;
     {
         String s = value_60;
-        value_61 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+        value_61 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
     }
-    bool value_63 = zir_f_0038f975c59a7f51_strcmp(&(slot->procedure_return_type[0]), value_61) != 0;
+    bool value_63 = zir_foreign_compiler_c_emit_call__strcmp(&(slot->procedure_return_type[0]), value_61) != 0;
     uint8_t* value_64 = (void *)0;
     if (value_63) {
         String value_65 = StringLiteral("return ");
         uint8_t* value_66 = (void *)0;
         {
             String s = value_65;
-            value_66 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_66 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
         value_64 = value_66;
     } else {
@@ -1512,7 +1200,7 @@ compiler_c_emit_call_EmitGlobalSlotWrappersNode(void* out, ZirModule* module, Zi
         uint8_t* value_69 = (void *)0;
         {
             String s = value_68;
-            value_69 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_69 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
         value_64 = value_69;
     }
@@ -1522,13 +1210,13 @@ compiler_c_emit_call_EmitGlobalSlotWrappersNode(void* out, ZirModule* module, Zi
     uint8_t* value_73 = (void *)0;
     {
         String s = value_72;
-        value_73 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+        value_73 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
     }
-    zir_f_0038f975c59a7f51_fprintf(value_71, value_73, ret_kw, res_buf);
+    zir_foreign_compiler_c_emit_call__fprintf(value_71, value_73, ret_kw, res_buf);
     {
-        zir_f_0038f975c59a7f51_free((void*)(parameters));
-        zir_f_0038f975c59a7f51_free((void*)(call_buf));
-        zir_f_0038f975c59a7f51_free((void*)(res_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(parameters));
+        zir_foreign_compiler_c_emit_call__free((void*)(call_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(res_buf));
     }
 }
 
@@ -1544,16 +1232,16 @@ EmitGlobalSlotWrappers(void* out, ZirModule* module, ZirGlobal* global, ZirTarge
     if (value_1) {
         return;
     }
-    void* value_3 = zir_f_0038f975c59a7f51_AllocateOrExit(sizeof(ZirFunction));
+    void* value_3 = zir_foreign_compiler_c_emit_call__AllocateOrExit(sizeof(ZirFunction));
     ZirFunction* probe = (ZirFunction*)(value_3);
-    zir_f_0038f975c59a7f51_memset((void*)(probe), 0, sizeof(ZirFunction));
-    int32_t root = zir_f_0038f975c59a7f51_CompilerParseExprTyped(probe, module, (void*)(((uint8_t*)global->init)), global->span, (void*)(&(global->type[0])));
+    zir_foreign_compiler_c_emit_call__memset((void*)(probe), 0, sizeof(ZirFunction));
+    int32_t root = zir_foreign_compiler_c_emit_call__CompilerParseExprTyped(probe, module, (void*)(((uint8_t*)global->init)), global->span, (void*)(&(global->type[0])));
     if (root >= 0) {
         compiler_c_emit_call_EmitGlobalSlotWrappersNode(out, module, global, probe, root, module, &(global->type[0]), target, resolver, context, 0);
     }
-    zir_f_0038f975c59a7f51_free((void*)(probe->exprs));
+    zir_foreign_compiler_c_emit_call__free((void*)(probe->exprs));
     {
-        zir_f_0038f975c59a7f51_free((void*)(probe));
+        zir_foreign_compiler_c_emit_call__free((void*)(probe));
     }
 }
 
@@ -1562,14 +1250,14 @@ compiler_c_emit_call_CallParameterType(Emitter* e, ZirExpr* call, int32_t ordina
 {
     uint8_t* signature = (void *)0;
     if (call->slot_type[0] != 0) {
-        ZirType* slot = zir_f_0038f975c59a7f51_CFindType(e->module, (uint8_t*)call->slot_type, (void *)0);
+        ZirType* slot = zir_foreign_compiler_c_emit_call__CFindType(e->module, (uint8_t*)call->slot_type, (void *)0);
         if (slot != ((void *)0) && slot->is_procedure_type != 0) {
             signature = &(slot->body[0]);
         }
     } else {
         ZirModule* owner = (void *)0;
         ZirFunction* function = (void *)0;
-        bool value_0 = zir_f_0038f975c59a7f51_CResolveFunction(e->module, (uint8_t*)call->name, &(owner), &(function)) == 1;
+        bool value_0 = zir_foreign_compiler_c_emit_call__CResolveFunction(e->module, (uint8_t*)call->name, &(owner), &(function)) == 1;
         if (value_0 && function != ((void *)0)) {
             uint8_t* value_1 = (void *)0;
             {
@@ -1582,7 +1270,7 @@ compiler_c_emit_call_CallParameterType(Emitter* e, ZirExpr* call, int32_t ordina
                 uint8_t* value_4 = (void *)0;
                 {
                     String s = value_3;
-                    value_4 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_4 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
                 value_1 = value_4;
             value_2: ;
@@ -1595,7 +1283,7 @@ compiler_c_emit_call_CallParameterType(Emitter* e, ZirExpr* call, int32_t ordina
                 int32_t i = range_first_14;
                 if (i <= range_last_14) for (;;) {
                     bool value_6 = ((ZirImportKind)((e->module->imports[i]).kind)) == ((ZirImportKind)(3));
-                    if (value_6 && zir_f_0038f975c59a7f51_strcmp(&(((e->module->imports[i]).name)[0]), (uint8_t*)call->name) == 0) {
+                    if (value_6 && zir_foreign_compiler_c_emit_call__strcmp(&(((e->module->imports[i]).name)[0]), (uint8_t*)call->name) == 0) {
                         signature = &(((e->module->imports[i]).args)[0]);
                         break;
                     }
@@ -1610,12 +1298,12 @@ compiler_c_emit_call_CallParameterType(Emitter* e, ZirExpr* call, int32_t ordina
     if (signature == ((void *)0) || signature[0] == 0) {
         return;
     }
-    void* value_7 = zir_f_0038f975c59a7f51_calloc(64, 4096);
+    void* value_7 = zir_foreign_compiler_c_emit_call__calloc(64, 4096);
     uint8_t* parts = (uint8_t*)(value_7);
     if (parts == ((void *)0)) {
         return;
     }
-    int32_t count = zir_f_0038f975c59a7f51_split_top_level(signature, parts, 64, 4096);
+    int32_t count = zir_foreign_compiler_c_emit_call__split_top_level(signature, parts, 64, 4096);
     if (ordinal >= 0 && ordinal < count) {
         size_t value_8 = (size_t)(ordinal) * 4096;
         uint8_t* value_9 = (void *)0;
@@ -1625,7 +1313,7 @@ compiler_c_emit_call_CallParameterType(Emitter* e, ZirExpr* call, int32_t ordina
             value_9 = (uint8_t*)(((size_t)(p) + n));
         }
         uint8_t* part = value_9;
-        uint8_t* colon = zir_f_0038f975c59a7f51_strchr(part, 58);
+        uint8_t* colon = zir_foreign_compiler_c_emit_call__strchr(part, 58);
         if (colon != ((void *)0)) {
             uint8_t* value_11 = (void *)0;
             {
@@ -1633,13 +1321,13 @@ compiler_c_emit_call_CallParameterType(Emitter* e, ZirExpr* call, int32_t ordina
                 size_t n = 1;
                 value_11 = (uint8_t*)(((size_t)(p) + n));
             }
-            uint8_t* val = zir_f_0038f975c59a7f51_skip_ws(value_11);
-            zir_f_0038f975c59a7f51_trim_in_place(val);
-            zir_f_0038f975c59a7f51_copy_text(out, size, val);
+            uint8_t* val = zir_foreign_compiler_c_emit_call__skip_ws(value_11);
+            zir_foreign_compiler_c_emit_call__trim_in_place(val);
+            zir_foreign_compiler_c_emit_call__copy_text(out, size, val);
         }
     }
     {
-        zir_f_0038f975c59a7f51_free((void*)(parts));
+        zir_foreign_compiler_c_emit_call__free((void*)(parts));
     }
 }
 
@@ -1649,13 +1337,13 @@ compiler_c_emit_call_ArrayArgumentCopiedByCallee(Emitter* e, ZirExpr* call, int3
     ZirExpr* value = &(e->fn->exprs[argument]);
     bool value_0 = ((ZirTarget)(e->target)) != ((ZirTarget)(0)) || call->slot_type[0] != 0 || ((ZirExprKind)(value->kind)) != ((ZirExprKind)(1));
     bool value_1 = value_0 || ((uint8_t*)value->name) == ((void *)0);
-    if (value_1 || zir_f_0038f975c59a7f51_ArrayValueType(zir_f_0038f975c59a7f51_CCanonical((uint8_t*)value->type)) == 0) {
+    if (value_1 || zir_foreign_compiler_c_emit_call__ArrayValueType(zir_foreign_compiler_c_emit_call__CCanonical((uint8_t*)value->type)) == 0) {
         return false;
     }
     bool local = false;
     int32_t i = (int32_t)((uint32_t)(e->local_count) - 1u);
     while (i >= 0 && !local) {
-        if (zir_f_0038f975c59a7f51_strcmp(&(((e->locals[i]).name)[0]), (uint8_t*)value->name) == 0) {
+        if (zir_foreign_compiler_c_emit_call__strcmp(&(((e->locals[i]).name)[0]), (uint8_t*)value->name) == 0) {
             local = ((e->locals[i]).alias)[0] == 0;
         }
         i = (int32_t)((uint32_t)i - 1u);
@@ -1663,9 +1351,9 @@ compiler_c_emit_call_ArrayArgumentCopiedByCallee(Emitter* e, ZirExpr* call, int3
     ZirModule* owner = (void *)0;
     ZirFunction* function = (void *)0;
     bool value_2 = !local;
-    bool value_3 = value_2 || zir_f_0038f975c59a7f51_CResolveFunction(e->module, (uint8_t*)call->name, &(owner), &(function)) != 1;
+    bool value_3 = value_2 || zir_foreign_compiler_c_emit_call__CResolveFunction(e->module, (uint8_t*)call->name, &(owner), &(function)) != 1;
     bool value_4 = value_3 || function == ((void *)0) || owner == ((void *)0);
-    if (value_4 || zir_f_0038f975c59a7f51_CanEmitBody(owner, function) == 0) {
+    if (value_4 || zir_foreign_compiler_c_emit_call__CanEmitBody(owner, function) == 0) {
         return false;
     }
     uint8_t parameter[128] = {0};
@@ -1675,8 +1363,8 @@ compiler_c_emit_call_ArrayArgumentCopiedByCallee(Emitter* e, ZirExpr* call, int3
     bool value_6 = (parameter)[0] != 0;
     bool value_7 = value_6;
     if (value_7) {
-        uint8_t* value_8 = zir_f_0038f975c59a7f51_CCanonical(&(parameter[0]));
-        bool value_9 = zir_f_0038f975c59a7f51_strcmp(value_8, zir_f_0038f975c59a7f51_CCanonical((uint8_t*)value->type)) == 0;
+        uint8_t* value_8 = zir_foreign_compiler_c_emit_call__CCanonical(&(parameter[0]));
+        bool value_9 = zir_foreign_compiler_c_emit_call__strcmp(value_8, zir_foreign_compiler_c_emit_call__CCanonical((uint8_t*)value->type)) == 0;
         value_7 = value_9;
     }
     return value_7;
@@ -1695,7 +1383,7 @@ compiler_c_emit_call_ReplaceCallPlaceholders(uint8_t* text, uint8_t* arguments, 
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
     }
     uint8_t* prefix = value_1;
     size_t plen = 18;
@@ -1729,7 +1417,7 @@ compiler_c_emit_call_ReplaceCallPlaceholders(uint8_t* text, uint8_t* arguments, 
             }
             value_6 = !value_11;
         }
-        if (value_6 && zir_f_0038f975c59a7f51_strncmp(p, prefix, plen) == 0) {
+        if (value_6 && zir_foreign_compiler_c_emit_call__strncmp(p, prefix, plen) == 0) {
             while (end[0] >= 48 && end[0] <= 57) {
                 ordinal = (int32_t)(((uint32_t)ordinal * 10u) + (uint32_t)(((uint8_t)((uint32_t)(end[0]) - 48u))));
                 uint8_t* value_13 = (void *)0;
@@ -1760,7 +1448,7 @@ compiler_c_emit_call_ReplaceCallPlaceholders(uint8_t* text, uint8_t* arguments, 
                 value_20 = (uint8_t*)(((size_t)(p) + n));
             }
             uint8_t* arg = value_20;
-            size_t alen = zir_f_0038f975c59a7f51_strlen(arg);
+            size_t alen = zir_foreign_compiler_c_emit_call__strlen(arg);
             if (used + alen >= size) {
                 break;
             }
@@ -1770,7 +1458,7 @@ compiler_c_emit_call_ReplaceCallPlaceholders(uint8_t* text, uint8_t* arguments, 
                 size_t n = used;
                 value_22 = (uint8_t*)(((size_t)(p) + n));
             }
-            zir_f_0038f975c59a7f51_memcpy((void*)(value_22), (void*)(arg), alen);
+            zir_foreign_compiler_c_emit_call__memcpy((void*)(value_22), (void*)(arg), alen);
             used = used + alen;
             p = end;
             continue;
@@ -1805,7 +1493,7 @@ compiler_c_emit_call_LocalStorageRoot(ZirFunction* fn, int32_t index, uint8_t* n
     }
     ZirExpr* expr = &(fn->exprs[index]);
     if (((ZirExprKind)(expr->kind)) == ((ZirExprKind)(1))) {
-        return zir_f_0038f975c59a7f51_strcmp((uint8_t*)expr->name, name) == 0;
+        return zir_foreign_compiler_c_emit_call__strcmp((uint8_t*)expr->name, name) == 0;
     }
     bool value_0 = ((ZirExprKind)(expr->kind)) == ((ZirExprKind)(8)) || ((ZirExprKind)(expr->kind)) == ((ZirExprKind)(10));
     if (value_0 || ((ZirExprKind)(expr->kind)) == ((ZirExprKind)(11))) {
@@ -1835,7 +1523,7 @@ zir_emit_call_can_change(Emitter* e, int32_t index)
             int32_t range_last_9 = (int32_t)((uint32_t)(e->module->define_count) - 1u);
             int32_t i = range_first_9;
             if (i <= range_last_9) for (;;) {
-                if (zir_f_0038f975c59a7f51_strcmp(&(((e->module->defines[i]).name)[0]), (uint8_t*)expr->name) == 0) {
+                if (zir_foreign_compiler_c_emit_call__strcmp(&(((e->module->defines[i]).name)[0]), (uint8_t*)expr->name) == 0) {
                     return 0;
                 }
                 if (i == range_last_9) {
@@ -1850,7 +1538,7 @@ zir_emit_call_can_change(Emitter* e, int32_t index)
             int32_t range_last_15 = (int32_t)((uint32_t)(e->local_count) - 1u);
             int32_t i = range_first_15;
             if (i <= range_last_15) for (;;) {
-                if (zir_f_0038f975c59a7f51_strcmp(&(((e->locals[i]).name)[0]), (uint8_t*)expr->name) == 0) {
+                if (zir_foreign_compiler_c_emit_call__strcmp(&(((e->locals[i]).name)[0]), (uint8_t*)expr->name) == 0) {
                     local = true;
                     break;
                 }
@@ -1877,9 +1565,9 @@ zir_emit_call_can_change(Emitter* e, int32_t index)
                     uint8_t* value_5 = (void *)0;
                     {
                         String s = value_4;
-                        value_5 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                        value_5 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
-                    bool value_7 = zir_f_0038f975c59a7f51_strcmp(value_3, value_5) != 0;
+                    bool value_7 = zir_foreign_compiler_c_emit_call__strcmp(value_3, value_5) != 0;
                     value_2 = value_7;
                 }
                 bool value_8 = value_2;
@@ -1893,9 +1581,9 @@ zir_emit_call_can_change(Emitter* e, int32_t index)
                     uint8_t* value_12 = (void *)0;
                     {
                         String s = value_11;
-                        value_12 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                        value_12 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
-                    bool value_14 = zir_f_0038f975c59a7f51_strcmp(&(other->op[0]), value_12) == 0;
+                    bool value_14 = zir_foreign_compiler_c_emit_call__strcmp(&(other->op[0]), value_12) == 0;
                     value_10 = value_14;
                 }
                 bool value_15 = value_10;
@@ -1940,18 +1628,18 @@ zir_emit_call_can_change(Emitter* e, int32_t index)
         uint8_t* value_25 = (void *)0;
         {
             String s = value_24;
-            value_25 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_25 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
-        if (zir_f_0038f975c59a7f51_strcmp(&(expr->op[0]), value_25) == 0) {
+        if (zir_foreign_compiler_c_emit_call__strcmp(&(expr->op[0]), value_25) == 0) {
             return 1;
         }
         String value_27 = StringLiteral("&");
         uint8_t* value_28 = (void *)0;
         {
             String s = value_27;
-            value_28 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_28 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
-        bool value_30 = zir_f_0038f975c59a7f51_strcmp(&(expr->op[0]), value_28) != 0;
+        bool value_30 = zir_foreign_compiler_c_emit_call__strcmp(&(expr->op[0]), value_28) != 0;
         bool value_31 = value_30 && zir_emit_call_can_change(e, expr->right) != 0;
         int32_t value_32 = 0;
         if (value_31) {
@@ -1978,17 +1666,17 @@ zir_emit_call_can_change(Emitter* e, int32_t index)
 void
 zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* out, size_t size)
 {
-    void* value_0 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_0 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* text_buf = (uint8_t*)(value_0);
-    void* value_1 = zir_f_0038f975c59a7f51_calloc(64, 128);
+    void* value_1 = zir_foreign_compiler_c_emit_call__calloc(64, 128);
     uint8_t* arguments = (uint8_t*)(value_1);
-    void* value_2 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_2 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* source_buf = (uint8_t*)(value_2);
-    void* value_3 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_3 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* arg_buf = (uint8_t*)(value_3);
-    void* value_4 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_4 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* plain_buf = (uint8_t*)(value_4);
-    void* value_5 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_5 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* resolved_buf = (uint8_t*)(value_5);
     int32_t count = 0;
     int32_t argument_count = 0;
@@ -2009,28 +1697,28 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
         } else {
             uint8_t* value_6 = &(source_buf[0]);
             (*value_6) = 0;
-            zir_f_0038f975c59a7f51_emit_expr(e, expr->left, (uint8_t*)expr->slot_type, source_buf, 4096);
+            zir_foreign_compiler_c_emit_call__emit_expr(e, expr->left, (uint8_t*)expr->slot_type, source_buf, 4096);
         }
         zir_emit_declare(e, &(callable[0]), (uint8_t*)expr->slot_type, source_buf);
         if (((ZirTarget)(e->target)) == ((ZirTarget)(0))) {
-            ZirType* slot = zir_f_0038f975c59a7f51_CFindType(e->module, (uint8_t*)expr->slot_type, (void *)0);
+            ZirType* slot = zir_foreign_compiler_c_emit_call__CFindType(e->module, (uint8_t*)expr->slot_type, (void *)0);
             if (slot != ((void *)0) && slot->is_c_call != 0) {
                 String value_7 = StringLiteral("%s(");
                 uint8_t* value_8 = (void *)0;
                 {
                     String s = value_7;
-                    value_8 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_8 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
-                int32_t value_10 = compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(text_buf, 4096, value_8, &(callable[0])), 4096);
+                int32_t value_10 = compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(text_buf, 4096, value_8, &(callable[0])), 4096);
                 n = (size_t)(value_10);
             } else {
                 String value_11 = StringLiteral("%s.call(%s.context");
                 uint8_t* value_12 = (void *)0;
                 {
                     String s = value_11;
-                    value_12 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_12 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
-                int32_t value_14 = compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(text_buf, 4096, value_12, &(callable[0]), &(callable[0])), 4096);
+                int32_t value_14 = compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(text_buf, 4096, value_12, &(callable[0]), &(callable[0])), 4096);
                 n = (size_t)(value_14);
                 count = 1;
             }
@@ -2039,9 +1727,9 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
             uint8_t* value_16 = (void *)0;
             {
                 String s = value_15;
-                value_16 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_16 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            int32_t value_18 = compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(text_buf, 4096, value_16, &(callable[0])), 4096);
+            int32_t value_18 = compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(text_buf, 4096, value_16, &(callable[0])), 4096);
             n = (size_t)(value_18);
         }
     } else {
@@ -2049,9 +1737,9 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
         uint8_t* value_20 = (void *)0;
         {
             String s = value_19;
-            value_20 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_20 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
-        int32_t value_22 = compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(text_buf, 4096, value_20, (uint8_t*)expr->name), 4096);
+        int32_t value_22 = compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(text_buf, 4096, value_20, (uint8_t*)expr->name), 4096);
         n = (size_t)(value_22);
     }
     if (array_result != ((void *)0)) {
@@ -2061,7 +1749,7 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
             uint8_t* value_25 = (void *)0;
             {
                 String s = value_24;
-                value_25 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_25 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
             value_23 = value_25;
         } else {
@@ -2069,7 +1757,7 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
             uint8_t* value_28 = (void *)0;
             {
                 String s = value_27;
-                value_28 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_28 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
             value_23 = value_28;
         }
@@ -2086,9 +1774,9 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
         uint8_t* value_35 = (void *)0;
         {
             String s = value_34;
-            value_35 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_35 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
-        int32_t value_37 = compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(value_32, 4096 - n, value_35, sep, array_result), 4096 - n);
+        int32_t value_37 = compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(value_32, 4096 - n, value_35, sep, array_result), 4096 - n);
         n = value_30 + (size_t)(value_37);
         count = (int32_t)((uint32_t)count + 1u);
     }
@@ -2108,28 +1796,28 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
             uint8_t* value_42 = (void *)0;
             {
                 String s = value_41;
-                value_42 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_42 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
             zir_emit_fatal(expr, value_42);
         }
         uint8_t argument_type[128] = {0};
-        zir_f_0038f975c59a7f51_copy_text(&(argument_type[0]), 128, (uint8_t*)(e->fn->exprs[child]).type);
+        zir_foreign_compiler_c_emit_call__copy_text(&(argument_type[0]), 128, (uint8_t*)(e->fn->exprs[child]).type);
         String value_44 = StringLiteral("null");
         uint8_t* value_45 = (void *)0;
         {
             String s = value_44;
-            value_45 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_45 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
-        bool value_47 = zir_f_0038f975c59a7f51_strcmp(&(argument_type[0]), value_45) == 0;
+        bool value_47 = zir_foreign_compiler_c_emit_call__strcmp(&(argument_type[0]), value_45) == 0;
         bool value_48 = value_47;
         if (!value_48) {
             String value_49 = StringLiteral("integer");
             uint8_t* value_50 = (void *)0;
             {
                 String s = value_49;
-                value_50 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_50 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            bool value_52 = zir_f_0038f975c59a7f51_strcmp(&(argument_type[0]), value_50) == 0;
+            bool value_52 = zir_foreign_compiler_c_emit_call__strcmp(&(argument_type[0]), value_50) == 0;
             value_48 = value_52;
         }
         if (value_48) {
@@ -2141,21 +1829,21 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
             uint8_t* value_55 = (void *)0;
             {
                 String s = value_54;
-                value_55 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_55 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            bool value_57 = zir_f_0038f975c59a7f51_strcmp(&(argument_type[0]), value_55) == 0;
+            bool value_57 = zir_foreign_compiler_c_emit_call__strcmp(&(argument_type[0]), value_55) == 0;
             bool value_58 = value_57;
             if (!value_58) {
-                bool value_59 = zir_f_0038f975c59a7f51_CEnumType(e->module, &(parameter_type[0])) != 0;
+                bool value_59 = zir_foreign_compiler_c_emit_call__CEnumType(e->module, &(parameter_type[0])) != 0;
                 bool value_60 = value_59;
                 if (value_60) {
-                    ZirType* value_61 = zir_f_0038f975c59a7f51_CFindType(e->module, &(parameter_type[0]), (void *)0);
+                    ZirType* value_61 = zir_foreign_compiler_c_emit_call__CFindType(e->module, &(parameter_type[0]), (void *)0);
                     value_60 = (value_61->is_enum_flags != 0);
                 }
                 value_58 = value_60;
             }
             if (value_58) {
-                zir_f_0038f975c59a7f51_copy_text(&(argument_type[0]), 128, &(parameter_type[0]));
+                zir_foreign_compiler_c_emit_call__copy_text(&(argument_type[0]), 128, &(parameter_type[0]));
             }
         }
         int32_t later_calls = 0;
@@ -2192,7 +1880,7 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
         int32_t* value_73 = &(e->braced_initializer);
         bool value_74 = ((ZirTarget)(e->target)) == ((ZirTarget)(1)) && ((ZirExprKind)((e->fn->exprs[child]).kind)) == ((ZirExprKind)(12));
         bool value_75 = value_74;
-        bool value_76 = value_75 && zir_f_0038f975c59a7f51_ArrayValueType(zir_f_0038f975c59a7f51_CCanonical(&(argument_type[0]))) != 0;
+        bool value_76 = value_75 && zir_foreign_compiler_c_emit_call__ArrayValueType(zir_foreign_compiler_c_emit_call__CCanonical(&(argument_type[0]))) != 0;
         int32_t value_77 = 0;
         if (value_76) {
             value_77 = 1;
@@ -2200,7 +1888,7 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
             value_77 = 0;
         }
         (*value_73) = value_77;
-        zir_f_0038f975c59a7f51_emit_expr(e, child, &(argument_type[0]), arg_buf, 4096);
+        zir_foreign_compiler_c_emit_call__emit_expr(e, child, &(argument_type[0]), arg_buf, 4096);
         bool value_78 = later_calls != 0 && zir_emit_call_can_change(e, child) != 0;
         bool value_79 = value_78;
         if (!value_79) {
@@ -2208,7 +1896,7 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
             bool value_81 = value_80;
             if (value_81) {
                 bool value_82 = has_named && zir_emit_expression_calls(e->fn, child) != 0;
-                bool value_83 = value_82 || zir_f_0038f975c59a7f51_strlen(arg_buf) >= 128;
+                bool value_83 = value_82 || zir_foreign_compiler_c_emit_call__strlen(arg_buf) >= 128;
                 value_81 = value_83;
             }
             value_79 = value_81;
@@ -2217,9 +1905,9 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
             uint8_t captured[128] = {0};
             zir_emit_fresh(e, &(captured[0]));
             zir_emit_declare(e, &(captured[0]), &(argument_type[0]), arg_buf);
-            zir_f_0038f975c59a7f51_copy_text(arg_buf, 4096, &(captured[0]));
+            zir_foreign_compiler_c_emit_call__copy_text(arg_buf, 4096, &(captured[0]));
         }
-        zir_f_0038f975c59a7f51_copy_text(arg_slot, 128, zir_emit_bare(arg_buf, plain_buf, 4096));
+        zir_foreign_compiler_c_emit_call__copy_text(arg_slot, 128, zir_emit_bare(arg_buf, plain_buf, 4096));
         argument_count = (int32_t)((uint32_t)argument_count + 1u);
         child = (e->fn->exprs[child]).next_sibling;
     }
@@ -2241,7 +1929,7 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
                 uint8_t* value_88 = (void *)0;
                 {
                     String s = value_87;
-                    value_88 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_88 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
                 zir_emit_fatal(expr, value_88);
             }
@@ -2250,16 +1938,16 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
             uint8_t* value_91 = (void *)0;
             {
                 String s = value_90;
-                value_91 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_91 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(&(placeholder[0]), 128, value_91, ordinal), 128);
+            compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(&(placeholder[0]), 128, value_91, ordinal), 128);
             uint8_t* value_93 = (void *)0;
             if (count != 0) {
                 String value_94 = StringLiteral(", ");
                 uint8_t* value_95 = (void *)0;
                 {
                     String s = value_94;
-                    value_95 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_95 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
                 value_93 = value_95;
             } else {
@@ -2267,7 +1955,7 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
                 uint8_t* value_98 = (void *)0;
                 {
                     String s = value_97;
-                    value_98 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_98 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
                 value_93 = value_98;
             }
@@ -2291,9 +1979,9 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
             uint8_t* value_106 = (void *)0;
             {
                 String s = value_105;
-                value_106 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_106 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            int32_t value_108 = compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(value_103, 4096 - n, value_106, sep, item), 4096 - n);
+            int32_t value_108 = compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(value_103, 4096 - n, value_106, sep, item), 4096 - n);
             n = value_101 + (size_t)(value_108);
             count = (int32_t)((uint32_t)count + 1u);
             if (ordinal == range_last_89) {
@@ -2313,26 +2001,26 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
     uint8_t* value_113 = (void *)0;
     {
         String s = value_112;
-        value_113 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+        value_113 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
     }
-    compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(value_110, 4096 - n, value_113), 4096 - n);
+    compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(value_110, 4096 - n, value_113), 4096 - n);
     if (expr->slot_type[0] != 0) {
-        zir_f_0038f975c59a7f51_copy_text(out, size, text_buf);
+        zir_foreign_compiler_c_emit_call__copy_text(out, size, text_buf);
         {
-            zir_f_0038f975c59a7f51_free((void*)(text_buf));
-            zir_f_0038f975c59a7f51_free((void*)(arguments));
-            zir_f_0038f975c59a7f51_free((void*)(source_buf));
-            zir_f_0038f975c59a7f51_free((void*)(arg_buf));
-            zir_f_0038f975c59a7f51_free((void*)(plain_buf));
-            zir_f_0038f975c59a7f51_free((void*)(resolved_buf));
+            zir_foreign_compiler_c_emit_call__free((void*)(text_buf));
+            zir_foreign_compiler_c_emit_call__free((void*)(arguments));
+            zir_foreign_compiler_c_emit_call__free((void*)(source_buf));
+            zir_foreign_compiler_c_emit_call__free((void*)(arg_buf));
+            zir_foreign_compiler_c_emit_call__free((void*)(plain_buf));
+            zir_foreign_compiler_c_emit_call__free((void*)(resolved_buf));
         }
         return;
     }
     ZirResolveTarget value_115 = e->resolve;
     value_115(e->context, text_buf, resolved_buf, 4096);
-    if (zir_f_0038f975c59a7f51_SimdTierCopyCall(e, expr) != 0) {
+    if (zir_foreign_compiler_c_emit_call__SimdTierCopyCall(e, expr) != 0) {
         size_t name_len = 0;
-        size_t length = zir_f_0038f975c59a7f51_strlen(resolved_buf);
+        size_t length = zir_foreign_compiler_c_emit_call__strlen(resolved_buf);
         while (true) {
             uint8_t value_116 = resolved_buf[name_len];
             bool value_117 = false;
@@ -2348,7 +2036,7 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
             uint8_t* value_120 = (void *)0;
             {
                 String s = value_119;
-                value_120 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_120 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
             zir_emit_fatal(expr, value_120);
         }
@@ -2356,16 +2044,16 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
         uint8_t* value_123 = (void *)0;
         {
             String s = value_122;
-            value_123 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_123 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
-        compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(source_buf, 4096, value_123, e->simd_tier), 4096);
-        size_t added = zir_f_0038f975c59a7f51_strlen(source_buf);
+        compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(source_buf, 4096, value_123, e->simd_tier), 4096);
+        size_t added = zir_foreign_compiler_c_emit_call__strlen(source_buf);
         if (length + added >= 4096) {
             String value_125 = StringLiteral("call text too long for a SIMD tier copy");
             uint8_t* value_126 = (void *)0;
             {
                 String s = value_125;
-                value_126 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_126 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
             zir_emit_fatal(expr, value_126);
         }
@@ -2382,53 +2070,52 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
             size_t n = name_len;
             value_131 = (uint8_t*)(((size_t)(p) + n));
         }
-        zir_f_0038f975c59a7f51_memmove((void*)(value_129), (void*)(value_131), (length - name_len) + 1);
+        zir_foreign_compiler_c_emit_call__memmove((void*)(value_129), (void*)(value_131), (length - name_len) + 1);
         uint8_t* value_133 = (void *)0;
         {
             uint8_t* p = resolved_buf;
             size_t n = name_len;
             value_133 = (uint8_t*)(((size_t)(p) + n));
         }
-        zir_f_0038f975c59a7f51_memcpy((void*)(value_133), (void*)(source_buf), added);
+        zir_foreign_compiler_c_emit_call__memcpy((void*)(value_133), (void*)(source_buf), added);
     }
     compiler_c_emit_call_ReplaceCallPlaceholders(resolved_buf, arguments, argument_count, out, size);
     {
-        zir_f_0038f975c59a7f51_free((void*)(text_buf));
-        zir_f_0038f975c59a7f51_free((void*)(arguments));
-        zir_f_0038f975c59a7f51_free((void*)(source_buf));
-        zir_f_0038f975c59a7f51_free((void*)(arg_buf));
-        zir_f_0038f975c59a7f51_free((void*)(plain_buf));
-        zir_f_0038f975c59a7f51_free((void*)(resolved_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(text_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(arguments));
+        zir_foreign_compiler_c_emit_call__free((void*)(source_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(arg_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(plain_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(resolved_buf));
     }
 }
 
 static void
 compiler_c_emit_call_SlotWrapperName(ZirModule* module, ZirFunction* fn, int32_t index, uint8_t* out, size_t size)
 {
-    uint8_t prefix[256] = {0};
-    zir_f_0038f975c59a7f51_CNumberPrefix(module, &(prefix[0]), 256);
-    int64_t offset = ZiDivS64((int64_t)(((size_t)(fn) - (size_t)(module->functions))), sizeof(ZirFunction), INT64_MIN);
-    String value_0 = StringLiteral("%s_slot_%lld_%d");
+    uint8_t caller[256] = {0};
+    zir_foreign_compiler_c_emit_call__CNativeFunctionName(module, fn, &(caller[0]), 256);
+    String value_0 = StringLiteral("%s_callback_%d");
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
     }
-    compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(out, size, value_1, &(prefix[0]), offset, index), size);
+    compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(out, size, value_1, &(caller[0]), index), size);
 }
 
 void
 EmitSlotWrappers(void* out, ZirModule* module, ZirFunction* fn, ZirTarget target, ZirResolveTarget resolver, void* context)
 {
     bool value_0 = target != ((ZirTarget)(0));
-    if (value_0 || zir_f_0038f975c59a7f51_CanEmitBody(module, fn) == 0) {
+    if (value_0 || zir_foreign_compiler_c_emit_call__CanEmitBody(module, fn) == 0) {
         return;
     }
-    void* value_1 = zir_f_0038f975c59a7f51_AllocateOrExit((size_t)(262144LL));
+    void* value_1 = zir_foreign_compiler_c_emit_call__AllocateOrExit((size_t)(262144LL));
     uint8_t* parameters = (uint8_t*)(value_1);
-    void* value_2 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_2 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* call_buf = (uint8_t*)(value_2);
-    void* value_3 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_3 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* res_buf = (uint8_t*)(value_3);
     {
         int32_t range_first_6 = 0;
@@ -2444,7 +2131,7 @@ EmitSlotWrappers(void* out, ZirModule* module, ZirFunction* fn, ZirTarget target
                 continue;
             }
             ZirModule* slot_owner = (void *)0;
-            ZirType* slot = zir_f_0038f975c59a7f51_CFindType(module, (uint8_t*)value->type, &(slot_owner));
+            ZirType* slot = zir_foreign_compiler_c_emit_call__CFindType(module, (uint8_t*)value->type, &(slot_owner));
             if (slot == ((void *)0) || slot->is_c_call != 0) {
                 if (index == range_last_6) {
                     break;
@@ -2452,10 +2139,10 @@ EmitSlotWrappers(void* out, ZirModule* module, ZirFunction* fn, ZirTarget target
                 index = (int32_t)((uint32_t)index + 1u);
                 continue;
             }
-            uint8_t* value_4 = zir_f_0038f975c59a7f51_skip_ws(&(slot->body[0]));
+            uint8_t* value_4 = zir_foreign_compiler_c_emit_call__skip_ws(&(slot->body[0]));
             int32_t value_5 = 0;
             if (value_4[0] != 0) {
-                int32_t value_6 = zir_f_0038f975c59a7f51_split_top_level(&(slot->body[0]), parameters, 64, 4096);
+                int32_t value_6 = zir_foreign_compiler_c_emit_call__split_top_level(&(slot->body[0]), parameters, 64, 4096);
                 value_5 = value_6;
             } else {
                 value_5 = 0;
@@ -2463,24 +2150,24 @@ EmitSlotWrappers(void* out, ZirModule* module, ZirFunction* fn, ZirTarget target
             int32_t count = value_5;
             uint8_t wrapper[128] = {0};
             uint8_t resolved_result[128] = {0};
-            zir_f_0038f975c59a7f51_CSlotTypeAtUse(&(slot->procedure_return_type[0]), target, zir_emit_resolve_type_at_use, (void*)(slot_owner), &(resolved_result[0]), 128);
+            zir_foreign_compiler_c_emit_call__CSlotTypeAtUse(&(slot->procedure_return_type[0]), target, zir_emit_resolve_type_at_use, (void*)(slot_owner), &(resolved_result[0]), 128);
             compiler_c_emit_call_SlotWrapperName(module, fn, index, &(wrapper[0]), 128);
             void* value_7 = out;
             String value_8 = StringLiteral("static %s %s(void *context");
             uint8_t* value_9 = (void *)0;
             {
                 String s = value_8;
-                value_9 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_9 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            zir_f_0038f975c59a7f51_fprintf(value_7, value_9, &(resolved_result[0]), &(wrapper[0]));
+            zir_foreign_compiler_c_emit_call__fprintf(value_7, value_9, &(resolved_result[0]), &(wrapper[0]));
             uint8_t* value_11 = call_buf;
             String value_12 = StringLiteral("%s(");
             uint8_t* value_13 = (void *)0;
             {
                 String s = value_12;
-                value_13 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_13 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            int32_t value_15 = compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(value_11, 4096, value_13, (uint8_t*)value->name), 4096);
+            int32_t value_15 = compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(value_11, 4096, value_13, (uint8_t*)value->name), 4096);
             size_t length = (size_t)(value_15);
             {
                 int32_t range_first_23 = 0;
@@ -2495,31 +2182,31 @@ EmitSlotWrappers(void* out, ZirModule* module, ZirFunction* fn, ZirTarget target
                         value_17 = (uint8_t*)(((size_t)(p) + n));
                     }
                     uint8_t* param = value_17;
-                    uint8_t* value_19 = zir_f_0038f975c59a7f51_strchr(param, 58);
+                    uint8_t* value_19 = zir_foreign_compiler_c_emit_call__strchr(param, 58);
                     uint8_t* value_20 = (void *)0;
                     {
                         uint8_t* p = value_19;
                         size_t n = 1;
                         value_20 = (uint8_t*)(((size_t)(p) + n));
                     }
-                    uint8_t* source = zir_f_0038f975c59a7f51_skip_ws(value_20);
+                    uint8_t* source = zir_foreign_compiler_c_emit_call__skip_ws(value_20);
                     uint8_t resolved_type[128] = {0};
-                    zir_f_0038f975c59a7f51_CSlotTypeAtUse(source, target, zir_emit_resolve_type_at_use, (void*)(slot_owner), &(resolved_type[0]), 128);
+                    zir_foreign_compiler_c_emit_call__CSlotTypeAtUse(source, target, zir_emit_resolve_type_at_use, (void*)(slot_owner), &(resolved_type[0]), 128);
                     void* value_22 = out;
                     String value_23 = StringLiteral(", %s slot_arg_%d");
                     uint8_t* value_24 = (void *)0;
                     {
                         String s = value_23;
-                        value_24 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                        value_24 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
-                    zir_f_0038f975c59a7f51_fprintf(value_22, value_24, &(resolved_type[0]), argument);
+                    zir_foreign_compiler_c_emit_call__fprintf(value_22, value_24, &(resolved_type[0]), argument);
                     uint8_t* value_26 = (void *)0;
                     if (argument != 0) {
                         String value_27 = StringLiteral(", ");
                         uint8_t* value_28 = (void *)0;
                         {
                             String s = value_27;
-                            value_28 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                            value_28 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                         }
                         value_26 = value_28;
                     } else {
@@ -2527,7 +2214,7 @@ EmitSlotWrappers(void* out, ZirModule* module, ZirFunction* fn, ZirTarget target
                         uint8_t* value_31 = (void *)0;
                         {
                             String s = value_30;
-                            value_31 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                            value_31 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                         }
                         value_26 = value_31;
                     }
@@ -2544,9 +2231,9 @@ EmitSlotWrappers(void* out, ZirModule* module, ZirFunction* fn, ZirTarget target
                     uint8_t* value_38 = (void *)0;
                     {
                         String s = value_37;
-                        value_38 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                        value_38 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
-                    int32_t value_40 = zir_f_0038f975c59a7f51_snprintf(value_34, value_36, value_38, sep, argument);
+                    int32_t value_40 = zir_foreign_compiler_c_emit_call__snprintf(value_34, value_36, value_38, sep, argument);
                     int32_t value_41 = compiler_c_emit_call_CheckFormat(value_40, 4096 - length);
                     length = value_33 + (size_t)(value_41);
                     if (argument == range_last_23) {
@@ -2566,9 +2253,9 @@ EmitSlotWrappers(void* out, ZirModule* module, ZirFunction* fn, ZirTarget target
             uint8_t* value_46 = (void *)0;
             {
                 String s = value_45;
-                value_46 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_46 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            int32_t value_48 = zir_f_0038f975c59a7f51_snprintf(value_42, value_44, value_46);
+            int32_t value_48 = zir_foreign_compiler_c_emit_call__snprintf(value_42, value_44, value_46);
             compiler_c_emit_call_CheckFormat(value_48, 4096 - length);
             ZirResolveTarget value_49 = resolver;
             value_49(context, call_buf, res_buf, 4096);
@@ -2576,16 +2263,16 @@ EmitSlotWrappers(void* out, ZirModule* module, ZirFunction* fn, ZirTarget target
             uint8_t* value_51 = (void *)0;
             {
                 String s = value_50;
-                value_51 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_51 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            bool value_53 = zir_f_0038f975c59a7f51_strcmp(&(slot->procedure_return_type[0]), value_51) != 0;
+            bool value_53 = zir_foreign_compiler_c_emit_call__strcmp(&(slot->procedure_return_type[0]), value_51) != 0;
             uint8_t* value_54 = (void *)0;
             if (value_53) {
                 String value_55 = StringLiteral("return ");
                 uint8_t* value_56 = (void *)0;
                 {
                     String s = value_55;
-                    value_56 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_56 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
                 value_54 = value_56;
             } else {
@@ -2593,7 +2280,7 @@ EmitSlotWrappers(void* out, ZirModule* module, ZirFunction* fn, ZirTarget target
                 uint8_t* value_59 = (void *)0;
                 {
                     String s = value_58;
-                    value_59 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_59 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
                 value_54 = value_59;
             }
@@ -2603,9 +2290,9 @@ EmitSlotWrappers(void* out, ZirModule* module, ZirFunction* fn, ZirTarget target
             uint8_t* value_63 = (void *)0;
             {
                 String s = value_62;
-                value_63 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_63 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            zir_f_0038f975c59a7f51_fprintf(value_61, value_63, ret_kw, res_buf);
+            zir_foreign_compiler_c_emit_call__fprintf(value_61, value_63, ret_kw, res_buf);
             if (index == range_last_6) {
                 break;
             }
@@ -2613,28 +2300,28 @@ EmitSlotWrappers(void* out, ZirModule* module, ZirFunction* fn, ZirTarget target
         }
     }
     {
-        zir_f_0038f975c59a7f51_free((void*)(parameters));
-        zir_f_0038f975c59a7f51_free((void*)(call_buf));
-        zir_f_0038f975c59a7f51_free((void*)(res_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(parameters));
+        zir_foreign_compiler_c_emit_call__free((void*)(call_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(res_buf));
     }
 }
 
 void
 zir_emit_emit_function_value(Emitter* e, int32_t index, uint8_t* out, size_t size)
 {
-    void* value_0 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_0 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* call_buf = (uint8_t*)(value_0);
-    void* value_1 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_1 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* res_buf = (uint8_t*)(value_1);
-    void* value_2 = zir_f_0038f975c59a7f51_AllocateOrExit((size_t)(262144LL));
+    void* value_2 = zir_foreign_compiler_c_emit_call__AllocateOrExit((size_t)(262144LL));
     uint8_t* parameters = (uint8_t*)(value_2);
-    void* value_3 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_3 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* args_buf = (uint8_t*)(value_3);
-    void* value_4 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_4 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* sig_buf = (uint8_t*)(value_4);
     ZirExpr* value = &(e->fn->exprs[index]);
     ZirModule* slot_owner = (void *)0;
-    ZirType* slot = zir_f_0038f975c59a7f51_CFindType(e->module, (uint8_t*)value->type, &(slot_owner));
+    ZirType* slot = zir_foreign_compiler_c_emit_call__CFindType(e->module, (uint8_t*)value->type, &(slot_owner));
     if (slot_owner == ((void *)0)) {
         slot_owner = e->module;
     }
@@ -2645,12 +2332,12 @@ zir_emit_emit_function_value(Emitter* e, int32_t index, uint8_t* out, size_t siz
             uint8_t* value_7 = (void *)0;
             {
                 String s = value_6;
-                value_7 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_7 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(value_5, 4096, value_7, (uint8_t*)value->name), 4096);
+            compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(value_5, 4096, value_7, (uint8_t*)value->name), 4096);
             ZirResolveTarget value_9 = e->resolve;
             value_9(e->context, call_buf, res_buf, 4096);
-            size_t length = zir_f_0038f975c59a7f51_strlen(res_buf);
+            size_t length = zir_foreign_compiler_c_emit_call__strlen(res_buf);
             bool value_10 = length >= 2;
             bool value_11 = value_10;
             if (value_11) {
@@ -2665,22 +2352,22 @@ zir_emit_emit_function_value(Emitter* e, int32_t index, uint8_t* out, size_t siz
                 uint8_t* value_16 = (void *)0;
                 {
                     String s = value_15;
-                    value_16 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_16 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
-                bool value_18 = zir_f_0038f975c59a7f51_strcmp(value_13, value_16) == 0;
+                bool value_18 = zir_foreign_compiler_c_emit_call__strcmp(value_13, value_16) == 0;
                 value_11 = value_18;
             }
             if (value_11) {
                 uint8_t* value_19 = &(res_buf[(length - 2)]);
                 (*value_19) = 0;
             }
-            zir_f_0038f975c59a7f51_copy_text(out, size, res_buf);
+            zir_foreign_compiler_c_emit_call__copy_text(out, size, res_buf);
             {
-                zir_f_0038f975c59a7f51_free((void*)(call_buf));
-                zir_f_0038f975c59a7f51_free((void*)(res_buf));
-                zir_f_0038f975c59a7f51_free((void*)(parameters));
-                zir_f_0038f975c59a7f51_free((void*)(args_buf));
-                zir_f_0038f975c59a7f51_free((void*)(sig_buf));
+                zir_foreign_compiler_c_emit_call__free((void*)(call_buf));
+                zir_foreign_compiler_c_emit_call__free((void*)(res_buf));
+                zir_foreign_compiler_c_emit_call__free((void*)(parameters));
+                zir_foreign_compiler_c_emit_call__free((void*)(args_buf));
+                zir_foreign_compiler_c_emit_call__free((void*)(sig_buf));
             }
             return;
         }
@@ -2695,23 +2382,23 @@ zir_emit_emit_function_value(Emitter* e, int32_t index, uint8_t* out, size_t siz
         uint8_t* value_24 = (void *)0;
         {
             String s = value_23;
-            value_24 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_24 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
-        int32_t value_26 = zir_f_0038f975c59a7f51_snprintf(value_21, value_22, value_24, &(native[0]), &(wrapper[0]));
+        int32_t value_26 = zir_foreign_compiler_c_emit_call__snprintf(value_21, value_22, value_24, &(native[0]), &(wrapper[0]));
         compiler_c_emit_call_CheckFormat(value_26, size);
         {
-            zir_f_0038f975c59a7f51_free((void*)(call_buf));
-            zir_f_0038f975c59a7f51_free((void*)(res_buf));
-            zir_f_0038f975c59a7f51_free((void*)(parameters));
-            zir_f_0038f975c59a7f51_free((void*)(args_buf));
-            zir_f_0038f975c59a7f51_free((void*)(sig_buf));
+            zir_foreign_compiler_c_emit_call__free((void*)(call_buf));
+            zir_foreign_compiler_c_emit_call__free((void*)(res_buf));
+            zir_foreign_compiler_c_emit_call__free((void*)(parameters));
+            zir_foreign_compiler_c_emit_call__free((void*)(args_buf));
+            zir_foreign_compiler_c_emit_call__free((void*)(sig_buf));
         }
         return;
     }
-    uint8_t* value_27 = zir_f_0038f975c59a7f51_skip_ws(&(slot->body[0]));
+    uint8_t* value_27 = zir_foreign_compiler_c_emit_call__skip_ws(&(slot->body[0]));
     int32_t value_28 = 0;
     if (value_27[0] != 0) {
-        int32_t value_29 = zir_f_0038f975c59a7f51_split_top_level(&(slot->body[0]), parameters, 64, 4096);
+        int32_t value_29 = zir_foreign_compiler_c_emit_call__split_top_level(&(slot->body[0]), parameters, 64, 4096);
         value_28 = value_29;
     } else {
         value_28 = 0;
@@ -2736,7 +2423,7 @@ zir_emit_emit_function_value(Emitter* e, int32_t index, uint8_t* out, size_t siz
                 uint8_t* value_34 = (void *)0;
                 {
                     String s = value_33;
-                    value_34 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_34 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
                 value_32 = value_34;
             } else {
@@ -2744,7 +2431,7 @@ zir_emit_emit_function_value(Emitter* e, int32_t index, uint8_t* out, size_t siz
                 uint8_t* value_37 = (void *)0;
                 {
                     String s = value_36;
-                    value_37 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_37 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
                 value_32 = value_37;
             }
@@ -2761,9 +2448,9 @@ zir_emit_emit_function_value(Emitter* e, int32_t index, uint8_t* out, size_t siz
             uint8_t* value_44 = (void *)0;
             {
                 String s = value_43;
-                value_44 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_44 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            int32_t value_46 = zir_f_0038f975c59a7f51_snprintf(value_40, value_42, value_44, sep, &(parameter[0]));
+            int32_t value_46 = zir_foreign_compiler_c_emit_call__snprintf(value_40, value_42, value_44, sep, &(parameter[0]));
             int32_t value_47 = compiler_c_emit_call_CheckFormat(value_46, 4096 - length);
             length = value_39 + (size_t)(value_47);
             if (((ZirTarget)(e->target)) == ((ZirTarget)(1))) {
@@ -2775,31 +2462,31 @@ zir_emit_emit_function_value(Emitter* e, int32_t index, uint8_t* out, size_t siz
                     value_49 = (uint8_t*)(((size_t)(p) + n));
                 }
                 uint8_t* param = value_49;
-                uint8_t* value_51 = zir_f_0038f975c59a7f51_strchr(param, 58);
+                uint8_t* value_51 = zir_foreign_compiler_c_emit_call__strchr(param, 58);
                 uint8_t* value_52 = (void *)0;
                 {
                     uint8_t* p = value_51;
                     size_t n = 1;
                     value_52 = (uint8_t*)(((size_t)(p) + n));
                 }
-                uint8_t* source = zir_f_0038f975c59a7f51_skip_ws(value_52);
+                uint8_t* source = zir_foreign_compiler_c_emit_call__skip_ws(value_52);
                 uint8_t type[128] = {0};
-                if (zir_f_0038f975c59a7f51_CNativeGoType(slot_owner, source, &(type[0]), 128) == 0) {
+                if (zir_foreign_compiler_c_emit_call__CNativeGoType(slot_owner, source, &(type[0]), 128) == 0) {
                     ZirSourceSpan value_54 = slot->span;
                     String value_55 = StringLiteral("zir_go.callback");
                     uint8_t* value_56 = (void *)0;
                     {
                         String s = value_55;
-                        value_56 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                        value_56 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
                     String value_58 = StringLiteral("unsupported callback parameter type: %s");
                     uint8_t* value_59 = (void *)0;
                     {
                         String s = value_58;
-                        value_59 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                        value_59 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
-                    zir_f_0038f975c59a7f51_Diagnostic(value_54, value_56, value_59, source);
-                    zir_f_0038f975c59a7f51_exit(1);
+                    zir_foreign_compiler_c_emit_call__Diagnostic(value_54, value_56, value_59, source);
+                    zir_foreign_compiler_c_emit_call__exit(1);
                 }
                 size_t value_61 = sig_len;
                 uint8_t* value_62 = (void *)0;
@@ -2813,9 +2500,9 @@ zir_emit_emit_function_value(Emitter* e, int32_t index, uint8_t* out, size_t siz
                 uint8_t* value_66 = (void *)0;
                 {
                     String s = value_65;
-                    value_66 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_66 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
-                int32_t value_68 = zir_f_0038f975c59a7f51_snprintf(value_62, value_64, value_66, sep, &(parameter[0]), &(type[0]));
+                int32_t value_68 = zir_foreign_compiler_c_emit_call__snprintf(value_62, value_64, value_66, sep, &(parameter[0]), &(type[0]));
                 int32_t value_69 = compiler_c_emit_call_CheckFormat(value_68, 4096 - sig_len);
                 sig_len = value_61 + (size_t)(value_69);
             }
@@ -2830,9 +2517,9 @@ zir_emit_emit_function_value(Emitter* e, int32_t index, uint8_t* out, size_t siz
     uint8_t* value_72 = (void *)0;
     {
         String s = value_71;
-        value_72 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+        value_72 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
     }
-    compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(value_70, 4096, value_72, (uint8_t*)value->name, args_buf), 4096);
+    compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(value_70, 4096, value_72, (uint8_t*)value->name, args_buf), 4096);
     ZirResolveTarget value_74 = e->resolve;
     value_74(e->context, call_buf, res_buf, 4096);
     if (((ZirTarget)(e->target)) == ((ZirTarget)(1))) {
@@ -2843,25 +2530,25 @@ zir_emit_emit_function_value(Emitter* e, int32_t index, uint8_t* out, size_t siz
         uint8_t* value_77 = (void *)0;
         {
             String s = value_76;
-            value_77 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_77 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
-        if (zir_f_0038f975c59a7f51_strcmp(&(slot->procedure_return_type[0]), value_77) != 0) {
-            if (zir_f_0038f975c59a7f51_CNativeGoType(slot_owner, &(slot->procedure_return_type[0]), &(result_type[0]), 128) == 0) {
+        if (zir_foreign_compiler_c_emit_call__strcmp(&(slot->procedure_return_type[0]), value_77) != 0) {
+            if (zir_foreign_compiler_c_emit_call__CNativeGoType(slot_owner, &(slot->procedure_return_type[0]), &(result_type[0]), 128) == 0) {
                 ZirSourceSpan value_79 = slot->span;
                 String value_80 = StringLiteral("zir_go.callback");
                 uint8_t* value_81 = (void *)0;
                 {
                     String s = value_80;
-                    value_81 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_81 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
                 String value_83 = StringLiteral("unsupported callback result type: %s");
                 uint8_t* value_84 = (void *)0;
                 {
                     String s = value_83;
-                    value_84 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_84 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
-                zir_f_0038f975c59a7f51_Diagnostic(value_79, value_81, value_84, &(slot->procedure_return_type[0]));
-                zir_f_0038f975c59a7f51_exit(1);
+                zir_foreign_compiler_c_emit_call__Diagnostic(value_79, value_81, value_84, &(slot->procedure_return_type[0]));
+                zir_foreign_compiler_c_emit_call__exit(1);
             }
         }
         uint8_t* value_86 = (void *)0;
@@ -2870,7 +2557,7 @@ zir_emit_emit_function_value(Emitter* e, int32_t index, uint8_t* out, size_t siz
             uint8_t* value_88 = (void *)0;
             {
                 String s = value_87;
-                value_88 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_88 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
             value_86 = value_88;
         } else {
@@ -2878,7 +2565,7 @@ zir_emit_emit_function_value(Emitter* e, int32_t index, uint8_t* out, size_t siz
             uint8_t* value_91 = (void *)0;
             {
                 String s = value_90;
-                value_91 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_91 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
             value_86 = value_91;
         }
@@ -2889,7 +2576,7 @@ zir_emit_emit_function_value(Emitter* e, int32_t index, uint8_t* out, size_t siz
             uint8_t* value_95 = (void *)0;
             {
                 String s = value_94;
-                value_95 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_95 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
             value_93 = value_95;
         } else {
@@ -2897,7 +2584,7 @@ zir_emit_emit_function_value(Emitter* e, int32_t index, uint8_t* out, size_t siz
             uint8_t* value_98 = (void *)0;
             {
                 String s = value_97;
-                value_98 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_98 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
             value_93 = value_98;
         }
@@ -2908,9 +2595,9 @@ zir_emit_emit_function_value(Emitter* e, int32_t index, uint8_t* out, size_t siz
         uint8_t* value_103 = (void *)0;
         {
             String s = value_102;
-            value_103 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_103 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
-        int32_t value_105 = zir_f_0038f975c59a7f51_snprintf(value_100, value_101, value_103, sig_buf, sp, &(result_type[0]), rk, res_buf);
+        int32_t value_105 = zir_foreign_compiler_c_emit_call__snprintf(value_100, value_101, value_103, sig_buf, sp, &(result_type[0]), rk, res_buf);
         compiler_c_emit_call_CheckFormat(value_105, size);
     } else {
         uint8_t* value_106 = out;
@@ -2919,17 +2606,17 @@ zir_emit_emit_function_value(Emitter* e, int32_t index, uint8_t* out, size_t siz
         uint8_t* value_109 = (void *)0;
         {
             String s = value_108;
-            value_109 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_109 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
-        int32_t value_111 = zir_f_0038f975c59a7f51_snprintf(value_106, value_107, value_109, args_buf, res_buf);
+        int32_t value_111 = zir_foreign_compiler_c_emit_call__snprintf(value_106, value_107, value_109, args_buf, res_buf);
         compiler_c_emit_call_CheckFormat(value_111, size);
     }
     {
-        zir_f_0038f975c59a7f51_free((void*)(call_buf));
-        zir_f_0038f975c59a7f51_free((void*)(res_buf));
-        zir_f_0038f975c59a7f51_free((void*)(parameters));
-        zir_f_0038f975c59a7f51_free((void*)(args_buf));
-        zir_f_0038f975c59a7f51_free((void*)(sig_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(call_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(res_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(parameters));
+        zir_foreign_compiler_c_emit_call__free((void*)(args_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(sig_buf));
     }
 }
 
@@ -2941,7 +2628,7 @@ zir_emit_member_path(ZirFunction* fn, int32_t index)
         return 1;
     }
     if (((ZirExprKind)(expr->kind)) == ((ZirExprKind)(10))) {
-        bool value_0 = zir_f_0038f975c59a7f51_ArrayElementType((uint8_t*)(fn->exprs[expr->left]).type, (void *)0, 0, (void *)0) != 0;
+        bool value_0 = zir_foreign_compiler_c_emit_call__ArrayElementType((uint8_t*)(fn->exprs[expr->left]).type, (void *)0, 0, (void *)0) != 0;
         bool value_1 = value_0 && zir_emit_member_path(fn, expr->left) != 0;
         int32_t value_2 = 0;
         if (value_1) {
@@ -3022,7 +2709,7 @@ compiler_c_emit_call_PrintRunText(PrintRun* run, uint8_t* bytes, size_t length)
 static void
 compiler_c_emit_call_PrintRunValue(PrintRun* run, uint8_t* verb, uint8_t* argument)
 {
-    size_t used = zir_f_0038f975c59a7f51_strlen(&(run->arguments[0]));
+    size_t used = zir_foreign_compiler_c_emit_call__strlen(&(run->arguments[0]));
     uint8_t* c = verb;
     while (c[0] != 0 && run->format_length + 1 < 4096) {
         uint8_t* value_0 = &(run->format[run->format_length]);
@@ -3049,9 +2736,9 @@ compiler_c_emit_call_PrintRunValue(PrintRun* run, uint8_t* verb, uint8_t* argume
     uint8_t* value_9 = (void *)0;
     {
         String s = value_8;
-        value_9 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+        value_9 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
     }
-    int32_t value_11 = zir_f_0038f975c59a7f51_snprintf(value_5, value_7, value_9, argument);
+    int32_t value_11 = zir_foreign_compiler_c_emit_call__snprintf(value_5, value_7, value_9, argument);
     compiler_c_emit_call_CheckFormat(value_11, 4096 - used);
     int32_t* value_12 = &(run->values);
     (*value_12) = (int32_t)((uint32_t)((*value_12)) + 1u);
@@ -3107,9 +2794,9 @@ compiler_c_emit_call_ZiranLiteralOf(uint8_t* bytes, size_t length, uint8_t* out,
             uint8_t* value_13 = (void *)0;
             {
                 String s = value_12;
-                value_13 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_13 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            int32_t value_15 = zir_f_0038f975c59a7f51_snprintf(value_10, size - used, value_13, (uint32_t)(byte));
+            int32_t value_15 = zir_foreign_compiler_c_emit_call__snprintf(value_10, size - used, value_13, (uint32_t)(byte));
             used = value_9 + (size_t)(value_15);
         } else {
             uint8_t* value_16 = &(out[used]);
@@ -3129,12 +2816,12 @@ static void
 compiler_c_emit_call_PrintRunFlush(Emitter* e, PrintRun* run, int32_t format_expr)
 {
     if (run->format_length == 0) {
-        zir_f_0038f975c59a7f51_memset((void*)(run), 0, sizeof(PrintRun));
+        zir_foreign_compiler_c_emit_call__memset((void*)(run), 0, sizeof(PrintRun));
         return;
     }
-    void* value_0 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_0 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* source_buf = (uint8_t*)(value_0);
-    void* value_1 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_1 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* lit_buf = (uint8_t*)(value_1);
     ZirExpr piece = e->fn->exprs[format_expr];
     if (run->values == 0 && ((ZirTarget)(e->target)) == ((ZirTarget)(1))) {
@@ -3143,7 +2830,7 @@ compiler_c_emit_call_PrintRunFlush(Emitter* e, PrintRun* run, int32_t format_exp
         compiler_c_emit_call_ZiranLiteralOf(&(run->format[0]), run->format_length, source_buf, 4096);
     }
     const char ** value_2 = &(piece.text);
-    uint8_t* value_3 = zir_f_0038f975c59a7f51_KeepText(source_buf);
+    uint8_t* value_3 = zir_foreign_compiler_c_emit_call__KeepText(source_buf);
     (*value_2) = (const char *)(value_3);
     EmitStringLiteral(&(piece), (ZirTarget)(e->target), lit_buf, 4096);
     compiler_c_emit_call_EmitIndent(e);
@@ -3154,7 +2841,7 @@ compiler_c_emit_call_PrintRunFlush(Emitter* e, PrintRun* run, int32_t format_exp
             uint8_t* value_6 = (void *)0;
             {
                 String s = value_5;
-                value_6 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_6 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
             value_4 = value_6;
         } else {
@@ -3162,26 +2849,26 @@ compiler_c_emit_call_PrintRunFlush(Emitter* e, PrintRun* run, int32_t format_exp
             uint8_t* value_9 = (void *)0;
             {
                 String s = value_8;
-                value_9 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_9 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
             value_4 = value_9;
         }
         uint8_t* fmt = value_4;
-        zir_f_0038f975c59a7f51_fprintf(e->out, fmt, lit_buf, &(run->arguments[0]));
+        zir_foreign_compiler_c_emit_call__fprintf(e->out, fmt, lit_buf, &(run->arguments[0]));
     } else {
         void* value_11 = e->out;
         String value_12 = StringLiteral("printf(%s%s);\n");
         uint8_t* value_13 = (void *)0;
         {
             String s = value_12;
-            value_13 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_13 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
-        zir_f_0038f975c59a7f51_fprintf(value_11, value_13, lit_buf, &(run->arguments[0]));
+        zir_foreign_compiler_c_emit_call__fprintf(value_11, value_13, lit_buf, &(run->arguments[0]));
     }
-    zir_f_0038f975c59a7f51_memset((void*)(run), 0, sizeof(PrintRun));
+    zir_foreign_compiler_c_emit_call__memset((void*)(run), 0, sizeof(PrintRun));
     {
-        zir_f_0038f975c59a7f51_free((void*)(source_buf));
-        zir_f_0038f975c59a7f51_free((void*)(lit_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(source_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(lit_buf));
     }
 }
 
@@ -3318,35 +3005,35 @@ compiler_c_emit_call_PostfixExpression(uint8_t* text)
 void
 zir_emit_emit_print(Emitter* e, ZirExpr* expr)
 {
-    void* value_0 = zir_f_0038f975c59a7f51_calloc(64, sizeof(PrintPiece));
+    void* value_0 = zir_foreign_compiler_c_emit_call__calloc(64, sizeof(PrintPiece));
     PrintPiece* pieces = (PrintPiece*)(value_0);
-    void* value_1 = zir_f_0038f975c59a7f51_calloc(64, 4096);
+    void* value_1 = zir_foreign_compiler_c_emit_call__calloc(64, 4096);
     uint8_t* values = (uint8_t*)(value_1);
-    void* value_2 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_2 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* val_buf = (uint8_t*)(value_2);
-    void* value_3 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_3 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* lit_buf = (uint8_t*)(value_3);
-    void* value_4 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_4 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* bytes_buf = (uint8_t*)(value_4);
-    void* value_5 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_5 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* operand_buf = (uint8_t*)(value_5);
-    void* value_6 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_6 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* plain_buf = (uint8_t*)(value_6);
-    void* value_7 = zir_f_0038f975c59a7f51_AllocateOrExit(4096);
+    void* value_7 = zir_foreign_compiler_c_emit_call__AllocateOrExit(4096);
     uint8_t* text_buf = (uint8_t*)(value_7);
-    void* value_8 = zir_f_0038f975c59a7f51_calloc(1, sizeof(PrintRun));
+    void* value_8 = zir_foreign_compiler_c_emit_call__calloc(1, sizeof(PrintRun));
     PrintRun* run = (PrintRun*)(value_8);
     int32_t first = expr->first_child;
     int32_t count = -1;
     if (pieces != ((void *)0) && values != ((void *)0) && first >= 0) {
-        count = zir_f_0038f975c59a7f51_PrintFormatPieces((uint8_t*)(e->fn->exprs[first]).text, pieces, 64);
+        count = zir_foreign_compiler_c_emit_call__PrintFormatPieces((uint8_t*)(e->fn->exprs[first]).text, pieces, 64);
     }
     if (count < 0) {
         String value_9 = StringLiteral("invalid checked print format");
         uint8_t* value_10 = (void *)0;
         {
             String s = value_9;
-            value_10 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+            value_10 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
         zir_emit_fatal(expr, value_10);
     }
@@ -3359,11 +3046,11 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
             if (i <= range_last_19) for (;;) {
                 size_t length = 0;
                 bool value_12 = (pieces[i]).is_argument == 0;
-                bool value_13 = value_12 && zir_f_0038f975c59a7f51_DecodeStringLiteral(&(((pieces[i]).literal)[0]), bytes_buf, 4096, &(length)) != 0;
+                bool value_13 = value_12 && zir_foreign_compiler_c_emit_call__DecodeStringLiteral(&(((pieces[i]).literal)[0]), bytes_buf, 4096, &(length)) != 0;
                 bool value_14 = value_13;
                 bool value_15 = value_14;
                 if (value_15) {
-                    void* value_16 = zir_f_0038f975c59a7f51_memchr((void*)(bytes_buf), 0, length);
+                    void* value_16 = zir_foreign_compiler_c_emit_call__memchr((void*)(bytes_buf), 0, length);
                     value_15 = (value_16 != ((void *)0));
                 }
                 if (value_15) {
@@ -3379,7 +3066,7 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
     int32_t capture = 0;
     int32_t child = (e->fn->exprs[first]).next_sibling;
     while (child >= 0) {
-        uint8_t* type = zir_f_0038f975c59a7f51_ScalarType((uint8_t*)(e->fn->exprs[child]).type);
+        uint8_t* type = zir_foreign_compiler_c_emit_call__ScalarType((uint8_t*)(e->fn->exprs[child]).type);
         int32_t value_17 = capture;
         int32_t value_18 = zir_emit_expression_calls(e->fn, child);
         capture = (int32_t)((uint32_t)value_17 | (uint32_t)value_18);
@@ -3390,18 +3077,18 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
             uint8_t* value_22 = (void *)0;
             {
                 String s = value_21;
-                value_22 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_22 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            bool value_24 = zir_f_0038f975c59a7f51_strcmp(type, value_22) == 0;
+            bool value_24 = zir_foreign_compiler_c_emit_call__strcmp(type, value_22) == 0;
             bool value_25 = value_24;
             if (!value_25) {
                 String value_26 = StringLiteral("float64");
                 uint8_t* value_27 = (void *)0;
                 {
                     String s = value_26;
-                    value_27 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_27 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
-                bool value_29 = zir_f_0038f975c59a7f51_strcmp(type, value_27) == 0;
+                bool value_29 = zir_foreign_compiler_c_emit_call__strcmp(type, value_27) == 0;
                 value_25 = value_29;
             }
             value_20 = value_25;
@@ -3419,7 +3106,7 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
         int32_t later_calls = 0;
         int32_t later_reads = 0;
         uint8_t** value_30 = &(types[argument]);
-        (*value_30) = zir_f_0038f975c59a7f51_ScalarType((uint8_t*)(e->fn->exprs[child]).type);
+        (*value_30) = zir_foreign_compiler_c_emit_call__ScalarType((uint8_t*)(e->fn->exprs[child]).type);
         int32_t* value_31 = &(children[argument]);
         (*value_31) = child;
         int32_t next = (e->fn->exprs[child]).next_sibling;
@@ -3441,9 +3128,9 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
                 uint8_t* value_40 = (void *)0;
                 {
                     String s = value_39;
-                    value_40 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_40 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
-                bool value_42 = zir_f_0038f975c59a7f51_strcmp((types)[argument], value_40) != 0;
+                bool value_42 = zir_foreign_compiler_c_emit_call__strcmp((types)[argument], value_40) != 0;
                 value_38 = value_42;
             }
             value_36 = value_38;
@@ -3457,7 +3144,7 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
             value_44 = 0;
         }
         (*value_43) = value_44;
-        zir_f_0038f975c59a7f51_emit_expr(e, child, (uint8_t*)(e->fn->exprs[child]).type, val_buf, 4096);
+        zir_foreign_compiler_c_emit_call__emit_expr(e, child, (uint8_t*)(e->fn->exprs[child]).type, val_buf, 4096);
         size_t value_45 = (size_t)(argument) * 4096;
         uint8_t* value_46 = (void *)0;
         {
@@ -3470,7 +3157,7 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
             zir_emit_fresh(e, slot);
             zir_emit_declare(e, slot, (types)[argument], val_buf);
         } else {
-            zir_f_0038f975c59a7f51_copy_text(slot, 4096, val_buf);
+            zir_foreign_compiler_c_emit_call__copy_text(slot, 4096, val_buf);
         }
         argument = (int32_t)((uint32_t)argument + 1u);
         child = (e->fn->exprs[child]).next_sibling;
@@ -3483,26 +3170,26 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
         if (i <= range_last_66) for (;;) {
             if ((pieces[i]).is_argument == 0) {
                 size_t length = 0;
-                if (zir_f_0038f975c59a7f51_DecodeStringLiteral(&(((pieces[i]).literal)[0]), bytes_buf, 4096, &(length)) == 0) {
+                if (zir_foreign_compiler_c_emit_call__DecodeStringLiteral(&(((pieces[i]).literal)[0]), bytes_buf, 4096, &(length)) == 0) {
                     String value_48 = StringLiteral("invalid checked print format");
                     uint8_t* value_49 = (void *)0;
                     {
                         String s = value_48;
-                        value_49 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                        value_49 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
                     zir_emit_fatal(expr, value_49);
                 }
                 bool value_51 = ((ZirTarget)(e->target)) != ((ZirTarget)(1));
                 bool value_52 = value_51;
                 if (value_52) {
-                    void* value_53 = zir_f_0038f975c59a7f51_memchr((void*)(bytes_buf), 0, length);
+                    void* value_53 = zir_foreign_compiler_c_emit_call__memchr((void*)(bytes_buf), 0, length);
                     value_52 = (value_53 != ((void *)0));
                 }
                 if (value_52) {
                     ZirExpr piece = e->fn->exprs[first];
                     compiler_c_emit_call_PrintRunFlush(e, run, first);
                     const char ** value_54 = &(piece.text);
-                    uint8_t* value_55 = zir_f_0038f975c59a7f51_KeepText(&(((pieces[i]).literal)[0]));
+                    uint8_t* value_55 = zir_foreign_compiler_c_emit_call__KeepText(&(((pieces[i]).literal)[0]));
                     (*value_54) = (const char *)(value_55);
                     EmitStringLiteral(&(piece), (ZirTarget)(e->target), lit_buf, 4096);
                     compiler_c_emit_call_EmitIndent(e);
@@ -3511,9 +3198,9 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
                     uint8_t* value_58 = (void *)0;
                     {
                         String s = value_57;
-                        value_58 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                        value_58 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
-                    zir_f_0038f975c59a7f51_fprintf(value_56, value_58, lit_buf, length);
+                    zir_foreign_compiler_c_emit_call__fprintf(value_56, value_58, lit_buf, length);
                     if (i == range_last_66) {
                         break;
                     }
@@ -3540,13 +3227,13 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
             argument = (int32_t)((uint32_t)argument + 1u);
             if (((ZirExprKind)((e->fn->exprs[child_idx]).kind)) == ((ZirExprKind)(4))) {
                 size_t length = 0;
-                bool value_63 = zir_f_0038f975c59a7f51_DecodeStringLiteral((uint8_t*)(e->fn->exprs[child_idx]).text, bytes_buf, 4096, &(length)) != 0;
+                bool value_63 = zir_foreign_compiler_c_emit_call__DecodeStringLiteral((uint8_t*)(e->fn->exprs[child_idx]).text, bytes_buf, 4096, &(length)) != 0;
                 bool value_64 = value_63;
                 if (value_64) {
                     bool value_65 = ((ZirTarget)(e->target)) == ((ZirTarget)(1));
                     bool value_66 = value_65;
                     if (!value_66) {
-                        void* value_67 = zir_f_0038f975c59a7f51_memchr((void*)(bytes_buf), 0, length);
+                        void* value_67 = zir_foreign_compiler_c_emit_call__memchr((void*)(bytes_buf), 0, length);
                         value_66 = (value_67 == ((void *)0));
                     }
                     value_64 = value_66;
@@ -3561,33 +3248,33 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
                 }
             }
             zir_emit_bare(slot, plain_buf, 4096);
-            zir_f_0038f975c59a7f51_copy_text(slot, 4096, plain_buf);
+            zir_foreign_compiler_c_emit_call__copy_text(slot, 4096, plain_buf);
             uint8_t* name = slot;
             bool value_68 = compiler_c_emit_call_PostfixExpression(name);
             if (value_68 || zir_emit_enclosed(name) != 0) {
-                zir_f_0038f975c59a7f51_copy_text(operand_buf, 4096, name);
+                zir_foreign_compiler_c_emit_call__copy_text(operand_buf, 4096, name);
             } else {
                 String value_69 = StringLiteral("(%s)");
                 uint8_t* value_70 = (void *)0;
                 {
                     String s = value_69;
-                    value_70 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_70 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
-                compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(operand_buf, 4096, value_70, name), 4096);
+                compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(operand_buf, 4096, value_70, name), 4096);
             }
             if (((ZirTarget)(e->target)) == ((ZirTarget)(1))) {
                 String value_72 = StringLiteral("string");
                 uint8_t* value_73 = (void *)0;
                 {
                     String s = value_72;
-                    value_73 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_73 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
-                if (zir_f_0038f975c59a7f51_strcmp(type, value_73) == 0) {
+                if (zir_foreign_compiler_c_emit_call__strcmp(type, value_73) == 0) {
                     String value_75 = StringLiteral("%s");
                     uint8_t* value_76 = (void *)0;
                     {
                         String s = value_75;
-                        value_76 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                        value_76 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
                     compiler_c_emit_call_PrintRunValue(run, value_76, name);
                 } else {
@@ -3595,14 +3282,14 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
                     uint8_t* value_79 = (void *)0;
                     {
                         String s = value_78;
-                        value_79 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                        value_79 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
-                    if (zir_f_0038f975c59a7f51_strcmp(type, value_79) == 0) {
+                    if (zir_foreign_compiler_c_emit_call__strcmp(type, value_79) == 0) {
                         String value_81 = StringLiteral("%t");
                         uint8_t* value_82 = (void *)0;
                         {
                             String s = value_81;
-                            value_82 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                            value_82 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                         }
                         compiler_c_emit_call_PrintRunValue(run, value_82, name);
                     } else {
@@ -3610,18 +3297,18 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
                         uint8_t* value_85 = (void *)0;
                         {
                             String s = value_84;
-                            value_85 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                            value_85 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                         }
-                        bool value_87 = zir_f_0038f975c59a7f51_strcmp(type, value_85) == 0;
+                        bool value_87 = zir_foreign_compiler_c_emit_call__strcmp(type, value_85) == 0;
                         bool value_88 = value_87;
                         if (!value_88) {
                             String value_89 = StringLiteral("float32");
                             uint8_t* value_90 = (void *)0;
                             {
                                 String s = value_89;
-                                value_90 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                                value_90 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                             }
-                            bool value_92 = zir_f_0038f975c59a7f51_strcmp(type, value_90) == 0;
+                            bool value_92 = zir_foreign_compiler_c_emit_call__strcmp(type, value_90) == 0;
                             value_88 = value_92;
                         }
                         if (value_88) {
@@ -3629,16 +3316,16 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
                             uint8_t* value_94 = (void *)0;
                             {
                                 String s = value_93;
-                                value_94 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                                value_94 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                             }
-                            bool value_96 = zir_f_0038f975c59a7f51_strcmp(type, value_94) == 0;
+                            bool value_96 = zir_foreign_compiler_c_emit_call__strcmp(type, value_94) == 0;
                             uint8_t* value_97 = (void *)0;
                             if (value_96) {
                                 String value_98 = StringLiteral("formatFloat(%s, 64)");
                                 uint8_t* value_99 = (void *)0;
                                 {
                                     String s = value_98;
-                                    value_99 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                                    value_99 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                                 }
                                 value_97 = value_99;
                             } else {
@@ -3646,17 +3333,17 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
                                 uint8_t* value_102 = (void *)0;
                                 {
                                     String s = value_101;
-                                    value_102 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                                    value_102 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                                 }
                                 value_97 = value_102;
                             }
                             uint8_t* fmt = value_97;
-                            compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(text_buf, 4096, fmt, name), 4096);
+                            compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(text_buf, 4096, fmt, name), 4096);
                             String value_104 = StringLiteral("%s");
                             uint8_t* value_105 = (void *)0;
                             {
                                 String s = value_104;
-                                value_105 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                                value_105 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                             }
                             compiler_c_emit_call_PrintRunValue(run, value_105, text_buf);
                         } else {
@@ -3664,7 +3351,7 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
                             uint8_t* value_108 = (void *)0;
                             {
                                 String s = value_107;
-                                value_108 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                                value_108 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                             }
                             compiler_c_emit_call_PrintRunValue(run, value_108, name);
                         }
@@ -3680,18 +3367,18 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
             uint8_t* value_111 = (void *)0;
             {
                 String s = value_110;
-                value_111 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                value_111 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            bool value_113 = zir_f_0038f975c59a7f51_strcmp(type, value_111) == 0;
+            bool value_113 = zir_foreign_compiler_c_emit_call__strcmp(type, value_111) == 0;
             bool value_114 = value_113;
             if (!value_114) {
                 String value_115 = StringLiteral("float64");
                 uint8_t* value_116 = (void *)0;
                 {
                     String s = value_115;
-                    value_116 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_116 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
-                bool value_118 = zir_f_0038f975c59a7f51_strcmp(type, value_116) == 0;
+                bool value_118 = zir_foreign_compiler_c_emit_call__strcmp(type, value_116) == 0;
                 value_114 = value_118;
             }
             if (value_114) {
@@ -3701,16 +3388,16 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
                 uint8_t* value_120 = (void *)0;
                 {
                     String s = value_119;
-                    value_120 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_120 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
-                bool value_122 = zir_f_0038f975c59a7f51_strcmp(type, value_120) == 0;
+                bool value_122 = zir_foreign_compiler_c_emit_call__strcmp(type, value_120) == 0;
                 uint8_t* value_123 = (void *)0;
                 if (value_122) {
                     String value_124 = StringLiteral("print_float((double)%s, 1);\n");
                     uint8_t* value_125 = (void *)0;
                     {
                         String s = value_124;
-                        value_125 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                        value_125 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
                     value_123 = value_125;
                 } else {
@@ -3718,32 +3405,32 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
                     uint8_t* value_128 = (void *)0;
                     {
                         String s = value_127;
-                        value_128 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                        value_128 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
                     value_123 = value_128;
                 }
                 uint8_t* fmt = value_123;
-                zir_f_0038f975c59a7f51_fprintf(e->out, fmt, name);
+                zir_foreign_compiler_c_emit_call__fprintf(e->out, fmt, name);
             } else {
                 String value_130 = StringLiteral("string");
                 uint8_t* value_131 = (void *)0;
                 {
                     String s = value_130;
-                    value_131 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                    value_131 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
-                if (zir_f_0038f975c59a7f51_strcmp(type, value_131) == 0) {
+                if (zir_foreign_compiler_c_emit_call__strcmp(type, value_131) == 0) {
                     String value_133 = StringLiteral("(int)%s.length, %s.data");
                     uint8_t* value_134 = (void *)0;
                     {
                         String s = value_133;
-                        value_134 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                        value_134 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
-                    compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(text_buf, 4096, value_134, operand_buf, operand_buf), 4096);
+                    compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(text_buf, 4096, value_134, operand_buf, operand_buf), 4096);
                     String value_136 = StringLiteral("%.*s");
                     uint8_t* value_137 = (void *)0;
                     {
                         String s = value_136;
-                        value_137 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                        value_137 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
                     compiler_c_emit_call_PrintRunValue(run, value_137, text_buf);
                 } else {
@@ -3751,21 +3438,21 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
                     uint8_t* value_140 = (void *)0;
                     {
                         String s = value_139;
-                        value_140 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                        value_140 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
-                    if (zir_f_0038f975c59a7f51_strcmp(type, value_140) == 0) {
+                    if (zir_foreign_compiler_c_emit_call__strcmp(type, value_140) == 0) {
                         String value_142 = StringLiteral("%s \? \"true\" : \"false\"");
                         uint8_t* value_143 = (void *)0;
                         {
                             String s = value_142;
-                            value_143 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                            value_143 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                         }
-                        compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(text_buf, 4096, value_143, operand_buf), 4096);
+                        compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(text_buf, 4096, value_143, operand_buf), 4096);
                         String value_145 = StringLiteral("%s");
                         uint8_t* value_146 = (void *)0;
                         {
                             String s = value_145;
-                            value_146 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                            value_146 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                         }
                         compiler_c_emit_call_PrintRunValue(run, value_146, text_buf);
                     } else {
@@ -3777,17 +3464,17 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
                                 uint8_t* value_149 = (void *)0;
                                 {
                                     String s = value_148;
-                                    value_149 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                                    value_149 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                                 }
-                                compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(text_buf, 4096, value_149, bits), 4096);
+                                compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(text_buf, 4096, value_149, bits), 4096);
                             } else {
                                 String value_151 = StringLiteral("%lldLL");
                                 uint8_t* value_152 = (void *)0;
                                 {
                                     String s = value_151;
-                                    value_152 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                                    value_152 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                                 }
-                                compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(text_buf, 4096, value_152, (int64_t)(bits)), 4096);
+                                compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(text_buf, 4096, value_152, (int64_t)(bits)), 4096);
                             }
                         } else {
                             uint8_t* value_154 = (void *)0;
@@ -3796,7 +3483,7 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
                                 uint8_t* value_156 = (void *)0;
                                 {
                                     String s = value_155;
-                                    value_156 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                                    value_156 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                                 }
                                 value_154 = value_156;
                             } else {
@@ -3804,12 +3491,12 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
                                 uint8_t* value_159 = (void *)0;
                                 {
                                     String s = value_158;
-                                    value_159 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                                    value_159 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                                 }
                                 value_154 = value_159;
                             }
                             uint8_t* fmt = value_154;
-                            compiler_c_emit_call_CheckFormat(zir_f_0038f975c59a7f51_snprintf(text_buf, 4096, fmt, operand_buf), 4096);
+                            compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(text_buf, 4096, fmt, operand_buf), 4096);
                         }
                         uint8_t* value_161 = (void *)0;
                         if (is_unsigned) {
@@ -3817,7 +3504,7 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
                             uint8_t* value_163 = (void *)0;
                             {
                                 String s = value_162;
-                                value_163 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                                value_163 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                             }
                             value_161 = value_163;
                         } else {
@@ -3825,7 +3512,7 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
                             uint8_t* value_166 = (void *)0;
                             {
                                 String s = value_165;
-                                value_166 = ((zir_37c2751cee1902eb_StaticText*)(&(s)))->data;
+                                value_166 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                             }
                             value_161 = value_166;
                         }
@@ -3841,14 +3528,14 @@ zir_emit_emit_print(Emitter* e, ZirExpr* expr)
     }
     compiler_c_emit_call_PrintRunFlush(e, run, first);
     {
-        zir_f_0038f975c59a7f51_free((void*)(pieces));
-        zir_f_0038f975c59a7f51_free((void*)(values));
-        zir_f_0038f975c59a7f51_free((void*)(val_buf));
-        zir_f_0038f975c59a7f51_free((void*)(lit_buf));
-        zir_f_0038f975c59a7f51_free((void*)(bytes_buf));
-        zir_f_0038f975c59a7f51_free((void*)(operand_buf));
-        zir_f_0038f975c59a7f51_free((void*)(plain_buf));
-        zir_f_0038f975c59a7f51_free((void*)(text_buf));
-        zir_f_0038f975c59a7f51_free((void*)(run));
+        zir_foreign_compiler_c_emit_call__free((void*)(pieces));
+        zir_foreign_compiler_c_emit_call__free((void*)(values));
+        zir_foreign_compiler_c_emit_call__free((void*)(val_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(lit_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(bytes_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(operand_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(plain_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(text_buf));
+        zir_foreign_compiler_c_emit_call__free((void*)(run));
     }
 }

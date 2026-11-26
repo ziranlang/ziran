@@ -112,7 +112,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     source := CheckPath(test.work, "sub/app.zi")
     for index: cast(s64)0..15 {
         number := CheckNumber(index); name := ifx index < 10 then CheckConcat("0", number) else number
-        if !NativeWrite(*test, CheckPath(group, CheckConcat("m", CheckConcat(name, ".zi"))), "Read :: () -> s32 { return 1 }\n") { return 1 }
+        if !NativeWrite(*test, CheckPath(group, CheckConcat("m", CheckConcat(name, ".zi"))), "Read :: (value: s32) -> s32 { return value }\n") { return 1 }
     }
     if !NativeWrite(*test, CheckPath(test.work, "base.c"), "int base(void) { return 26; }\n") { return 1 }
     compile := string.[compiler, "-c", CheckPath(test.work, "base.c"), "-o", CheckPath(test.work, "base.o")]; unused NativeRun(*test, compile[:])

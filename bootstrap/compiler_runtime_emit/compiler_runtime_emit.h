@@ -32,7 +32,7 @@ typedef struct ByteDescriptor ByteDescriptor;
 #ifdef ZIRAN_COMPILER_RUNTIME_EMIT_H_PRIVATE
 typedef struct Segment Segment;
 #endif
-typedef struct zir_8e7ef9a1e6f28a8e_Results__string__bool zir_8e7ef9a1e6f28a8e_Results__string__bool;
+typedef struct compiler_runtime_emit_Results__string__bool compiler_runtime_emit_Results__string__bool;
 #ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
 #define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
 typedef struct __type_838711075b90279a __type_838711075b90279a;
@@ -108,7 +108,7 @@ struct Segment {
 };
 #endif
 
-struct zir_8e7ef9a1e6f28a8e_Results__string__bool {
+struct compiler_runtime_emit_Results__string__bool {
     String value_0;
     bool value_1;
 };

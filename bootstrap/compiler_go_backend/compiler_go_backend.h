@@ -60,16 +60,16 @@ typedef struct GoCHeaders GoCHeaders;
 typedef struct GoLowerBuffers GoLowerBuffers;
 #endif
 #ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct zir_0eae4a02a9048d94_TextStream zir_0eae4a02a9048d94_TextStream;
+typedef struct compiler_go_backend_TextStream compiler_go_backend_TextStream;
 #endif
 #ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct zir_16d811ba518a3c8c_ZirParameter zir_16d811ba518a3c8c_ZirParameter;
+typedef struct compiler_go_backend_ZirParameter compiler_go_backend_ZirParameter;
 #endif
 #ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct zir_e93613178cb7063a_ZirParameters zir_e93613178cb7063a_ZirParameters;
+typedef struct compiler_go_backend_ZirParameters compiler_go_backend_ZirParameters;
 #endif
 #ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct zir_aa1b8ecd2a55fd1d_StaticText zir_aa1b8ecd2a55fd1d_StaticText;
+typedef struct compiler_go_backend_StaticText compiler_go_backend_StaticText;
 #endif
 #ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
 typedef struct GoLowerState GoLowerState;
@@ -131,7 +131,7 @@ struct ZirGoExtern {
     uint8_t go[256];
     uint8_t go_import_path[1024];
     uint8_t go_import_alias[256];
-    zir_e93613178cb7063a_ZirParameters* parameters;
+    compiler_go_backend_ZirParameters* parameters;
     int32_t pcount;
     uint8_t ret[256];
     uint8_t host_var[264];
@@ -238,7 +238,7 @@ struct GoLowerBuffers {
 #endif
 #ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
 
-struct zir_0eae4a02a9048d94_TextStream {
+struct compiler_go_backend_TextStream {
     void* file;
     uint8_t* data;
     size_t length;
@@ -248,7 +248,7 @@ struct zir_0eae4a02a9048d94_TextStream {
 #endif
 #ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
 
-struct zir_16d811ba518a3c8c_ZirParameter {
+struct compiler_go_backend_ZirParameter {
     uint8_t* text;
     uint8_t* name;
     uint8_t* type;
@@ -260,14 +260,14 @@ struct zir_16d811ba518a3c8c_ZirParameter {
 #endif
 #ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
 
-struct zir_e93613178cb7063a_ZirParameters {
+struct compiler_go_backend_ZirParameters {
     int32_t count;
-    zir_16d811ba518a3c8c_ZirParameter items[1];
+    compiler_go_backend_ZirParameter items[1];
 };
 #endif
 #ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
 
-struct zir_aa1b8ecd2a55fd1d_StaticText {
+struct compiler_go_backend_StaticText {
     uint8_t* data;
     size_t length;
 };

@@ -17,426 +17,170 @@ static inline uint32_t ZiShl32(uint32_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_AssemblyAlternativeCount_7e407268
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_AssemblyAlternativeCount_7e407268
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_2738118201f5dc0a_AssemblyAlternativeCount(AssemblyVariant* variant) __asm__("_AssemblyAlternativeCount");
+int32_t zir_foreign_compiler_go_asm_x64__AssemblyAlternativeCount(AssemblyVariant* variant) __asm__("_AssemblyAlternativeCount");
 #else
-int32_t zir_foreign_zir_f_2738118201f5dc0a_AssemblyAlternativeCount(AssemblyVariant* variant) __asm__("AssemblyAlternativeCount");
+int32_t zir_foreign_compiler_go_asm_x64__AssemblyAlternativeCount(AssemblyVariant* variant) __asm__("AssemblyAlternativeCount");
 #endif
-static int32_t
-zir_f_2738118201f5dc0a_AssemblyAlternativeCount(AssemblyVariant* variant)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_AssemblyAlternativeCount(variant);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_AssemblyConstraintAlternative_80996e8c
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_AssemblyConstraintAlternative_80996e8c
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_AssemblyConstraintAlternative(uint8_t* constraint, int32_t column) __asm__("_AssemblyConstraintAlternative");
+uint8_t* zir_foreign_compiler_go_asm_x64__AssemblyConstraintAlternative(uint8_t* constraint, int32_t column) __asm__("_AssemblyConstraintAlternative");
 #else
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_AssemblyConstraintAlternative(uint8_t* constraint, int32_t column) __asm__("AssemblyConstraintAlternative");
+uint8_t* zir_foreign_compiler_go_asm_x64__AssemblyConstraintAlternative(uint8_t* constraint, int32_t column) __asm__("AssemblyConstraintAlternative");
 #endif
-static uint8_t*
-zir_f_2738118201f5dc0a_AssemblyConstraintAlternative(uint8_t* constraint, int32_t column)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_AssemblyConstraintAlternative(constraint, column);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_AssemblyTiedOutput_f748ca33
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_AssemblyTiedOutput_f748ca33
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_2738118201f5dc0a_AssemblyTiedOutput(AssemblyVariant* variant, uint8_t* constraint) __asm__("_AssemblyTiedOutput");
+int32_t zir_foreign_compiler_go_asm_x64__AssemblyTiedOutput(AssemblyVariant* variant, uint8_t* constraint) __asm__("_AssemblyTiedOutput");
 #else
-int32_t zir_foreign_zir_f_2738118201f5dc0a_AssemblyTiedOutput(AssemblyVariant* variant, uint8_t* constraint) __asm__("AssemblyTiedOutput");
+int32_t zir_foreign_compiler_go_asm_x64__AssemblyTiedOutput(AssemblyVariant* variant, uint8_t* constraint) __asm__("AssemblyTiedOutput");
 #endif
-static int32_t
-zir_f_2738118201f5dc0a_AssemblyTiedOutput(AssemblyVariant* variant, uint8_t* constraint)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_AssemblyTiedOutput(variant, constraint);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_ScalarType_9055c366
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_ScalarType_9055c366
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_ScalarType(uint8_t* type) __asm__("_ScalarType");
+uint8_t* zir_foreign_compiler_go_asm_x64__ScalarType(uint8_t* type) __asm__("_ScalarType");
 #else
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_ScalarType(uint8_t* type) __asm__("ScalarType");
+uint8_t* zir_foreign_compiler_go_asm_x64__ScalarType(uint8_t* type) __asm__("ScalarType");
 #endif
-static uint8_t*
-zir_f_2738118201f5dc0a_ScalarType(uint8_t* type)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_ScalarType(type);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_ScalarWidthZiran_f0068b96
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_ScalarWidthZiran_f0068b96
 #ifdef __APPLE__
-uint32_t zir_foreign_zir_f_2738118201f5dc0a_ScalarWidthZiran(void* type) __asm__("_ScalarWidthZiran");
+uint32_t zir_foreign_compiler_go_asm_x64__ScalarWidthZiran(void* type) __asm__("_ScalarWidthZiran");
 #else
-uint32_t zir_foreign_zir_f_2738118201f5dc0a_ScalarWidthZiran(void* type) __asm__("ScalarWidthZiran");
+uint32_t zir_foreign_compiler_go_asm_x64__ScalarWidthZiran(void* type) __asm__("ScalarWidthZiran");
 #endif
-static uint32_t
-zir_f_2738118201f5dc0a_ScalarWidthZiran(void* type)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_ScalarWidthZiran(type);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_TargetTypeZiran_68ed1c41
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_TargetTypeZiran_68ed1c41
 #ifdef __APPLE__
-void* zir_foreign_zir_f_2738118201f5dc0a_TargetTypeZiran(void* type, int32_t target) __asm__("_TargetTypeZiran");
+void* zir_foreign_compiler_go_asm_x64__TargetTypeZiran(void* type, int32_t target) __asm__("_TargetTypeZiran");
 #else
-void* zir_foreign_zir_f_2738118201f5dc0a_TargetTypeZiran(void* type, int32_t target) __asm__("TargetTypeZiran");
+void* zir_foreign_compiler_go_asm_x64__TargetTypeZiran(void* type, int32_t target) __asm__("TargetTypeZiran");
 #endif
-static void*
-zir_f_2738118201f5dc0a_TargetTypeZiran(void* type, int32_t target)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_TargetTypeZiran(type, target);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_TextStreamClose_0098f8ba
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_TextStreamClose_0098f8ba
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_2738118201f5dc0a_TextStreamClose(TextStream* stream) __asm__("_ZirTextStreamClose");
+int32_t zir_foreign_compiler_go_asm_x64__TextStreamClose(TextStream* stream) __asm__("_ZirTextStreamClose");
 #else
-int32_t zir_foreign_zir_f_2738118201f5dc0a_TextStreamClose(TextStream* stream) __asm__("ZirTextStreamClose");
+int32_t zir_foreign_compiler_go_asm_x64__TextStreamClose(TextStream* stream) __asm__("ZirTextStreamClose");
 #endif
-static int32_t
-zir_f_2738118201f5dc0a_TextStreamClose(TextStream* stream)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_TextStreamClose(stream);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_TextStreamOpen_19347664
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_TextStreamOpen_19347664
 #ifdef __APPLE__
-void* zir_foreign_zir_f_2738118201f5dc0a_TextStreamOpen(TextStream* stream, uint8_t** text, size_t* size) __asm__("_ZirTextStreamOpen");
+void* zir_foreign_compiler_go_asm_x64__TextStreamOpen(TextStream* stream, uint8_t** text, size_t* size) __asm__("_ZirTextStreamOpen");
 #else
-void* zir_foreign_zir_f_2738118201f5dc0a_TextStreamOpen(TextStream* stream, uint8_t** text, size_t* size) __asm__("ZirTextStreamOpen");
+void* zir_foreign_compiler_go_asm_x64__TextStreamOpen(TextStream* stream, uint8_t** text, size_t* size) __asm__("ZirTextStreamOpen");
 #endif
-static void*
-zir_f_2738118201f5dc0a_TextStreamOpen(TextStream* stream, uint8_t** text, size_t* size)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_TextStreamOpen(stream, text, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_calloc_0c09ffff
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_calloc_0c09ffff
 #ifdef __APPLE__
-void* zir_foreign_zir_f_2738118201f5dc0a_calloc(size_t ziran_keyword___nmemb_0, size_t ziran_keyword___size_0) __asm__("_calloc");
+void* zir_foreign_compiler_go_asm_x64__calloc(size_t ziran_keyword___nmemb_0, size_t ziran_keyword___size_0) __asm__("_calloc");
 #else
-void* zir_foreign_zir_f_2738118201f5dc0a_calloc(size_t ziran_keyword___nmemb_0, size_t ziran_keyword___size_0) __asm__("calloc");
+void* zir_foreign_compiler_go_asm_x64__calloc(size_t ziran_keyword___nmemb_0, size_t ziran_keyword___size_0) __asm__("calloc");
 #endif
-static void*
-zir_f_2738118201f5dc0a_calloc(size_t ziran_keyword___nmemb_0, size_t ziran_keyword___size_0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_calloc(ziran_keyword___nmemb_0, ziran_keyword___size_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_fprintf_83feebb0
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_fprintf_83feebb0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_2738118201f5dc0a_fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_fprintf");
+int32_t zir_foreign_compiler_go_asm_x64__fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_fprintf");
 #else
-int32_t zir_foreign_zir_f_2738118201f5dc0a_fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("fprintf");
+int32_t zir_foreign_compiler_go_asm_x64__fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("fprintf");
 #endif
-#define zir_f_2738118201f5dc0a_fprintf zir_foreign_zir_f_2738118201f5dc0a_fprintf
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_fputc_f9ce5a65
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_fputc_f9ce5a65
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_2738118201f5dc0a_fputc(int32_t ziran_keyword___c_0, void* ziran_keyword___stream_0) __asm__("_fputc");
+int32_t zir_foreign_compiler_go_asm_x64__fputc(int32_t ziran_keyword___c_0, void* ziran_keyword___stream_0) __asm__("_fputc");
 #else
-int32_t zir_foreign_zir_f_2738118201f5dc0a_fputc(int32_t ziran_keyword___c_0, void* ziran_keyword___stream_0) __asm__("fputc");
+int32_t zir_foreign_compiler_go_asm_x64__fputc(int32_t ziran_keyword___c_0, void* ziran_keyword___stream_0) __asm__("fputc");
 #endif
-static int32_t
-zir_f_2738118201f5dc0a_fputc(int32_t ziran_keyword___c_0, void* ziran_keyword___stream_0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_fputc(ziran_keyword___c_0, ziran_keyword___stream_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_fputs_28723a01
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_fputs_28723a01
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_2738118201f5dc0a_fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0) __asm__("_fputs");
+int32_t zir_foreign_compiler_go_asm_x64__fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0) __asm__("_fputs");
 #else
-int32_t zir_foreign_zir_f_2738118201f5dc0a_fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0) __asm__("fputs");
+int32_t zir_foreign_compiler_go_asm_x64__fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0) __asm__("fputs");
 #endif
-static int32_t
-zir_f_2738118201f5dc0a_fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_fputs(ziran_keyword___s_0, ziran_keyword___stream_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_free_c75930da
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_free_c75930da
 #ifdef __APPLE__
-void zir_foreign_zir_f_2738118201f5dc0a_free(void* ziran_keyword___ptr_0) __asm__("_free");
+void zir_foreign_compiler_go_asm_x64__free(void* ziran_keyword___ptr_0) __asm__("_free");
 #else
-void zir_foreign_zir_f_2738118201f5dc0a_free(void* ziran_keyword___ptr_0) __asm__("free");
+void zir_foreign_compiler_go_asm_x64__free(void* ziran_keyword___ptr_0) __asm__("free");
 #endif
-static void
-zir_f_2738118201f5dc0a_free(void* ziran_keyword___ptr_0)
-{
-    zir_foreign_zir_f_2738118201f5dc0a_free(ziran_keyword___ptr_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_isalnum_6f4b98bf
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_isalnum_6f4b98bf
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_2738118201f5dc0a_isalnum(int32_t arg0) __asm__("_isalnum");
+int32_t zir_foreign_compiler_go_asm_x64__isalnum(int32_t arg0) __asm__("_isalnum");
 #else
-int32_t zir_foreign_zir_f_2738118201f5dc0a_isalnum(int32_t arg0) __asm__("isalnum");
+int32_t zir_foreign_compiler_go_asm_x64__isalnum(int32_t arg0) __asm__("isalnum");
 #endif
-static int32_t
-zir_f_2738118201f5dc0a_isalnum(int32_t arg0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_isalnum(arg0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_isdigit_191aad1d
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_isdigit_191aad1d
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_2738118201f5dc0a_isdigit(int32_t arg0) __asm__("_isdigit");
+int32_t zir_foreign_compiler_go_asm_x64__isdigit(int32_t arg0) __asm__("_isdigit");
 #else
-int32_t zir_foreign_zir_f_2738118201f5dc0a_isdigit(int32_t arg0) __asm__("isdigit");
+int32_t zir_foreign_compiler_go_asm_x64__isdigit(int32_t arg0) __asm__("isdigit");
 #endif
-static int32_t
-zir_f_2738118201f5dc0a_isdigit(int32_t arg0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_isdigit(arg0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_isspace_13fa2c18
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_isspace_13fa2c18
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_2738118201f5dc0a_isspace(int32_t arg0) __asm__("_isspace");
+int32_t zir_foreign_compiler_go_asm_x64__isspace(int32_t arg0) __asm__("_isspace");
 #else
-int32_t zir_foreign_zir_f_2738118201f5dc0a_isspace(int32_t arg0) __asm__("isspace");
+int32_t zir_foreign_compiler_go_asm_x64__isspace(int32_t arg0) __asm__("isspace");
 #endif
-static int32_t
-zir_f_2738118201f5dc0a_isspace(int32_t arg0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_isspace(arg0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_malloc_22891b28
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_malloc_22891b28
 #ifdef __APPLE__
-void* zir_foreign_zir_f_2738118201f5dc0a_malloc(size_t ziran_keyword___size_0) __asm__("_malloc");
+void* zir_foreign_compiler_go_asm_x64__malloc(size_t ziran_keyword___size_0) __asm__("_malloc");
 #else
-void* zir_foreign_zir_f_2738118201f5dc0a_malloc(size_t ziran_keyword___size_0) __asm__("malloc");
+void* zir_foreign_compiler_go_asm_x64__malloc(size_t ziran_keyword___size_0) __asm__("malloc");
 #endif
-static void*
-zir_f_2738118201f5dc0a_malloc(size_t ziran_keyword___size_0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_malloc(ziran_keyword___size_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_memcpy_d3838e83
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_memcpy_d3838e83
 #ifdef __APPLE__
-void* zir_foreign_zir_f_2738118201f5dc0a_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("_memcpy");
+void* zir_foreign_compiler_go_asm_x64__memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("_memcpy");
 #else
-void* zir_foreign_zir_f_2738118201f5dc0a_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("memcpy");
+void* zir_foreign_compiler_go_asm_x64__memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("memcpy");
 #endif
-static void*
-zir_f_2738118201f5dc0a_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_memcpy(ziran_keyword___dest_0, ziran_keyword___src_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_realloc_88719d39
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_realloc_88719d39
 #ifdef __APPLE__
-void* zir_foreign_zir_f_2738118201f5dc0a_realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0) __asm__("_realloc");
+void* zir_foreign_compiler_go_asm_x64__realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0) __asm__("_realloc");
 #else
-void* zir_foreign_zir_f_2738118201f5dc0a_realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0) __asm__("realloc");
+void* zir_foreign_compiler_go_asm_x64__realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0) __asm__("realloc");
 #endif
-static void*
-zir_f_2738118201f5dc0a_realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_realloc(ziran_keyword___ptr_0, ziran_keyword___size_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_skip_ws_02fa5432
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_skip_ws_02fa5432
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_skip_ws(uint8_t* s) __asm__("_skip_ws");
+uint8_t* zir_foreign_compiler_go_asm_x64__skip_ws(uint8_t* s) __asm__("_skip_ws");
 #else
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_skip_ws(uint8_t* s) __asm__("skip_ws");
+uint8_t* zir_foreign_compiler_go_asm_x64__skip_ws(uint8_t* s) __asm__("skip_ws");
 #endif
-static uint8_t*
-zir_f_2738118201f5dc0a_skip_ws(uint8_t* s)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_skip_ws(s);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_snprintf_7c8971c5
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_snprintf_7c8971c5
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_2738118201f5dc0a_snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_snprintf");
+int32_t zir_foreign_compiler_go_asm_x64__snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_snprintf");
 #else
-int32_t zir_foreign_zir_f_2738118201f5dc0a_snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("snprintf");
+int32_t zir_foreign_compiler_go_asm_x64__snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("snprintf");
 #endif
-#define zir_f_2738118201f5dc0a_snprintf zir_foreign_zir_f_2738118201f5dc0a_snprintf
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_strchr_35c1c732
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_strchr_35c1c732
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("_strchr");
+uint8_t* zir_foreign_compiler_go_asm_x64__strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("_strchr");
 #else
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strchr");
+uint8_t* zir_foreign_compiler_go_asm_x64__strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strchr");
 #endif
-static uint8_t*
-zir_f_2738118201f5dc0a_strchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_strchr(ziran_keyword___s_0, ziran_keyword___c_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_strcmp_b1a4f317
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_strcmp_b1a4f317
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_2738118201f5dc0a_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("_strcmp");
+int32_t zir_foreign_compiler_go_asm_x64__strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("_strcmp");
 #else
-int32_t zir_foreign_zir_f_2738118201f5dc0a_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("strcmp");
+int32_t zir_foreign_compiler_go_asm_x64__strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("strcmp");
 #endif
-static int32_t
-zir_f_2738118201f5dc0a_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_strcmp(ziran_keyword___s1_0, ziran_keyword___s2_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_strcpy_e6ae563d
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_strcpy_e6ae563d
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_strcpy(uint8_t* ziran_keyword___dest_0, uint8_t* ziran_keyword___src_0) __asm__("_strcpy");
+uint8_t* zir_foreign_compiler_go_asm_x64__strcpy(uint8_t* ziran_keyword___dest_0, uint8_t* ziran_keyword___src_0) __asm__("_strcpy");
 #else
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_strcpy(uint8_t* ziran_keyword___dest_0, uint8_t* ziran_keyword___src_0) __asm__("strcpy");
+uint8_t* zir_foreign_compiler_go_asm_x64__strcpy(uint8_t* ziran_keyword___dest_0, uint8_t* ziran_keyword___src_0) __asm__("strcpy");
 #endif
-static uint8_t*
-zir_f_2738118201f5dc0a_strcpy(uint8_t* ziran_keyword___dest_0, uint8_t* ziran_keyword___src_0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_strcpy(ziran_keyword___dest_0, ziran_keyword___src_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_strdup_6d2d56ca
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_strdup_6d2d56ca
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_strdup(uint8_t* ziran_keyword___s_0) __asm__("_strdup");
+uint8_t* zir_foreign_compiler_go_asm_x64__strdup(uint8_t* ziran_keyword___s_0) __asm__("_strdup");
 #else
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_strdup(uint8_t* ziran_keyword___s_0) __asm__("strdup");
+uint8_t* zir_foreign_compiler_go_asm_x64__strdup(uint8_t* ziran_keyword___s_0) __asm__("strdup");
 #endif
-static uint8_t*
-zir_f_2738118201f5dc0a_strdup(uint8_t* ziran_keyword___s_0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_strdup(ziran_keyword___s_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_strlen_b24a2871
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_strlen_b24a2871
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_2738118201f5dc0a_strlen(uint8_t* ziran_keyword___s_0) __asm__("_strlen");
+size_t zir_foreign_compiler_go_asm_x64__strlen(uint8_t* ziran_keyword___s_0) __asm__("_strlen");
 #else
-size_t zir_foreign_zir_f_2738118201f5dc0a_strlen(uint8_t* ziran_keyword___s_0) __asm__("strlen");
+size_t zir_foreign_compiler_go_asm_x64__strlen(uint8_t* ziran_keyword___s_0) __asm__("strlen");
 #endif
-static size_t
-zir_f_2738118201f5dc0a_strlen(uint8_t* ziran_keyword___s_0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_strlen(ziran_keyword___s_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_strncmp_5281c9d0
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_strncmp_5281c9d0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_2738118201f5dc0a_strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("_strncmp");
+int32_t zir_foreign_compiler_go_asm_x64__strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("_strncmp");
 #else
-int32_t zir_foreign_zir_f_2738118201f5dc0a_strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("strncmp");
+int32_t zir_foreign_compiler_go_asm_x64__strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("strncmp");
 #endif
-static int32_t
-zir_f_2738118201f5dc0a_strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_strncmp(ziran_keyword___s1_0, ziran_keyword___s2_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_strpbrk_e9e96770
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_strpbrk_e9e96770
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_strpbrk(uint8_t* ziran_keyword___s_0, uint8_t* ziran_keyword___accept_0) __asm__("_strpbrk");
+uint8_t* zir_foreign_compiler_go_asm_x64__strpbrk(uint8_t* ziran_keyword___s_0, uint8_t* ziran_keyword___accept_0) __asm__("_strpbrk");
 #else
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_strpbrk(uint8_t* ziran_keyword___s_0, uint8_t* ziran_keyword___accept_0) __asm__("strpbrk");
+uint8_t* zir_foreign_compiler_go_asm_x64__strpbrk(uint8_t* ziran_keyword___s_0, uint8_t* ziran_keyword___accept_0) __asm__("strpbrk");
 #endif
-static uint8_t*
-zir_f_2738118201f5dc0a_strpbrk(uint8_t* ziran_keyword___s_0, uint8_t* ziran_keyword___accept_0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_strpbrk(ziran_keyword___s_0, ziran_keyword___accept_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_strrchr_1eb3f404
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_strrchr_1eb3f404
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("_strrchr");
+uint8_t* zir_foreign_compiler_go_asm_x64__strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("_strrchr");
 #else
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strrchr");
+uint8_t* zir_foreign_compiler_go_asm_x64__strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strrchr");
 #endif
-static uint8_t*
-zir_f_2738118201f5dc0a_strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_strrchr(ziran_keyword___s_0, ziran_keyword___c_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_strtol_25255c81
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_strtol_25255c81
 #ifdef __APPLE__
-int64_t zir_foreign_zir_f_2738118201f5dc0a_strtol(uint8_t* ziran_keyword___nptr_0, uint8_t** ziran_keyword___endptr_0, int32_t ziran_keyword___base_0) __asm__("_strtol");
+int64_t zir_foreign_compiler_go_asm_x64__strtol(uint8_t* ziran_keyword___nptr_0, uint8_t** ziran_keyword___endptr_0, int32_t ziran_keyword___base_0) __asm__("_strtol");
 #else
-int64_t zir_foreign_zir_f_2738118201f5dc0a_strtol(uint8_t* ziran_keyword___nptr_0, uint8_t** ziran_keyword___endptr_0, int32_t ziran_keyword___base_0) __asm__("strtol");
+int64_t zir_foreign_compiler_go_asm_x64__strtol(uint8_t* ziran_keyword___nptr_0, uint8_t** ziran_keyword___endptr_0, int32_t ziran_keyword___base_0) __asm__("strtol");
 #endif
-static int64_t
-zir_f_2738118201f5dc0a_strtol(uint8_t* ziran_keyword___nptr_0, uint8_t** ziran_keyword___endptr_0, int32_t ziran_keyword___base_0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_strtol(ziran_keyword___nptr_0, ziran_keyword___endptr_0, ziran_keyword___base_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_strtoull_cc1c21bf
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_strtoull_cc1c21bf
 #ifdef __APPLE__
-uint64_t zir_foreign_zir_f_2738118201f5dc0a_strtoull(uint8_t* ziran_keyword___nptr_0, uint8_t** ziran_keyword___endptr_0, int32_t ziran_keyword___base_0) __asm__("_strtoull");
+uint64_t zir_foreign_compiler_go_asm_x64__strtoull(uint8_t* ziran_keyword___nptr_0, uint8_t** ziran_keyword___endptr_0, int32_t ziran_keyword___base_0) __asm__("_strtoull");
 #else
-uint64_t zir_foreign_zir_f_2738118201f5dc0a_strtoull(uint8_t* ziran_keyword___nptr_0, uint8_t** ziran_keyword___endptr_0, int32_t ziran_keyword___base_0) __asm__("strtoull");
+uint64_t zir_foreign_compiler_go_asm_x64__strtoull(uint8_t* ziran_keyword___nptr_0, uint8_t** ziran_keyword___endptr_0, int32_t ziran_keyword___base_0) __asm__("strtoull");
 #endif
-static uint64_t
-zir_f_2738118201f5dc0a_strtoull(uint8_t* ziran_keyword___nptr_0, uint8_t** ziran_keyword___endptr_0, int32_t ziran_keyword___base_0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_strtoull(ziran_keyword___nptr_0, ziran_keyword___endptr_0, ziran_keyword___base_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_toupper_7856c897
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_toupper_7856c897
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_2738118201f5dc0a_toupper(int32_t ziran_keyword___c_0) __asm__("_toupper");
+int32_t zir_foreign_compiler_go_asm_x64__toupper(int32_t ziran_keyword___c_0) __asm__("_toupper");
 #else
-int32_t zir_foreign_zir_f_2738118201f5dc0a_toupper(int32_t ziran_keyword___c_0) __asm__("toupper");
+int32_t zir_foreign_compiler_go_asm_x64__toupper(int32_t ziran_keyword___c_0) __asm__("toupper");
 #endif
-static int32_t
-zir_f_2738118201f5dc0a_toupper(int32_t ziran_keyword___c_0)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_toupper(ziran_keyword___c_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_2738118201f5dc0a_trim_in_place_e8316ed2
-#define ZIR_FOREIGN_zir_f_2738118201f5dc0a_trim_in_place_e8316ed2
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_trim_in_place(uint8_t* s) __asm__("_trim_in_place");
+uint8_t* zir_foreign_compiler_go_asm_x64__trim_in_place(uint8_t* s) __asm__("_trim_in_place");
 #else
-uint8_t* zir_foreign_zir_f_2738118201f5dc0a_trim_in_place(uint8_t* s) __asm__("trim_in_place");
-#endif
-static uint8_t*
-zir_f_2738118201f5dc0a_trim_in_place(uint8_t* s)
-{
-    return zir_foreign_zir_f_2738118201f5dc0a_trim_in_place(s);
-}
+uint8_t* zir_foreign_compiler_go_asm_x64__trim_in_place(uint8_t* s) __asm__("trim_in_place");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -468,7 +212,7 @@ static uint8_t* feature_names[14] = {0};
 static uint8_t*
 compiler_go_asm_x64_CStr(String s)
 {
-    return ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+    return ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
 }
 
 static int32_t
@@ -481,9 +225,9 @@ compiler_go_asm_x64_width(uint8_t* type)
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
-    bool value_3 = zir_f_2738118201f5dc0a_strcmp(type, value_1) != 0;
+    bool value_3 = zir_foreign_compiler_go_asm_x64__strcmp(type, value_1) != 0;
     if (!value_3) {
         return 8;
     }
@@ -491,9 +235,9 @@ compiler_go_asm_x64_width(uint8_t* type)
     uint8_t* value_5 = (void *)0;
     {
         String s = value_4;
-        value_5 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_5 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
-    bool value_7 = zir_f_2738118201f5dc0a_strcmp(type, value_5) != 0;
+    bool value_7 = zir_foreign_compiler_go_asm_x64__strcmp(type, value_5) != 0;
     if (!value_7) {
         return 32;
     }
@@ -501,18 +245,18 @@ compiler_go_asm_x64_width(uint8_t* type)
     uint8_t* value_9 = (void *)0;
     {
         String s = value_8;
-        value_9 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_9 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
-    bool value_11 = zir_f_2738118201f5dc0a_strcmp(type, value_9) != 0;
+    bool value_11 = zir_foreign_compiler_go_asm_x64__strcmp(type, value_9) != 0;
     bool value_12 = !value_11;
     if (!value_12) {
         String value_13 = StringLiteral("real");
         uint8_t* value_14 = (void *)0;
         {
             String s = value_13;
-            value_14 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_14 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
-        bool value_16 = zir_f_2738118201f5dc0a_strcmp(type, value_14) != 0;
+        bool value_16 = zir_foreign_compiler_go_asm_x64__strcmp(type, value_14) != 0;
         value_12 = !value_16;
     }
     if (value_12) {
@@ -522,24 +266,24 @@ compiler_go_asm_x64_width(uint8_t* type)
     uint8_t* value_18 = (void *)0;
     {
         String s = value_17;
-        value_18 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_18 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
-    bool value_20 = zir_f_2738118201f5dc0a_strcmp(type, value_18) != 0;
+    bool value_20 = zir_foreign_compiler_go_asm_x64__strcmp(type, value_18) != 0;
     bool value_21 = !value_20;
     if (!value_21) {
         String value_22 = StringLiteral("usize");
         uint8_t* value_23 = (void *)0;
         {
             String s = value_22;
-            value_23 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_23 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
-        bool value_25 = zir_f_2738118201f5dc0a_strcmp(type, value_23) != 0;
+        bool value_25 = zir_foreign_compiler_go_asm_x64__strcmp(type, value_23) != 0;
         value_21 = !value_25;
     }
     if (value_21) {
         return 64;
     }
-    uint32_t value_26 = zir_f_2738118201f5dc0a_ScalarWidthZiran((void*)(type));
+    uint32_t value_26 = zir_foreign_compiler_go_asm_x64__ScalarWidthZiran((void*)(type));
     int32_t bits = (int32_t)(value_26);
     int32_t value_27 = 0;
     if (bits == 8 || bits == 16 || bits == 32 || bits == 64) {
@@ -557,18 +301,18 @@ compiler_go_asm_x64_floating(uint8_t* type)
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
-    bool value_3 = zir_f_2738118201f5dc0a_strcmp(type, value_1) != 0;
+    bool value_3 = zir_foreign_compiler_go_asm_x64__strcmp(type, value_1) != 0;
     bool value_4 = !value_3;
     if (!value_4) {
         String value_5 = StringLiteral("float64");
         uint8_t* value_6 = (void *)0;
         {
             String s = value_5;
-            value_6 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_6 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
-        bool value_8 = zir_f_2738118201f5dc0a_strcmp(type, value_6) != 0;
+        bool value_8 = zir_foreign_compiler_go_asm_x64__strcmp(type, value_6) != 0;
         value_4 = !value_8;
     }
     bool value_9 = value_4;
@@ -577,9 +321,9 @@ compiler_go_asm_x64_floating(uint8_t* type)
         uint8_t* value_11 = (void *)0;
         {
             String s = value_10;
-            value_11 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_11 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
-        bool value_13 = zir_f_2738118201f5dc0a_strcmp(type, value_11) != 0;
+        bool value_13 = zir_foreign_compiler_go_asm_x64__strcmp(type, value_11) != 0;
         value_9 = !value_13;
     }
     int32_t value_14 = 0;
@@ -598,28 +342,28 @@ compiler_go_asm_x64_physical(uint8_t* name, int32_t* bits)
     uint8_t* value_3 = (void *)0;
     {
         String s = value_2;
-        value_3 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_3 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_1[0] = value_3;
     String value_5 = StringLiteral("ax");
     uint8_t* value_6 = (void *)0;
     {
         String s = value_5;
-        value_6 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_6 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_1[1] = value_6;
     String value_8 = StringLiteral("eax");
     uint8_t* value_9 = (void *)0;
     {
         String s = value_8;
-        value_9 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_9 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_1[2] = value_9;
     String value_11 = StringLiteral("rax");
     uint8_t* value_12 = (void *)0;
     {
         String s = value_11;
-        value_12 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_12 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_1[3] = value_12;
     memmove(value_0[0], value_1, sizeof(value_0[0]));
@@ -628,28 +372,28 @@ compiler_go_asm_x64_physical(uint8_t* name, int32_t* bits)
     uint8_t* value_16 = (void *)0;
     {
         String s = value_15;
-        value_16 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_16 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_14[0] = value_16;
     String value_18 = StringLiteral("bx");
     uint8_t* value_19 = (void *)0;
     {
         String s = value_18;
-        value_19 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_19 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_14[1] = value_19;
     String value_21 = StringLiteral("ebx");
     uint8_t* value_22 = (void *)0;
     {
         String s = value_21;
-        value_22 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_22 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_14[2] = value_22;
     String value_24 = StringLiteral("rbx");
     uint8_t* value_25 = (void *)0;
     {
         String s = value_24;
-        value_25 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_25 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_14[3] = value_25;
     memmove(value_0[1], value_14, sizeof(value_0[1]));
@@ -658,28 +402,28 @@ compiler_go_asm_x64_physical(uint8_t* name, int32_t* bits)
     uint8_t* value_29 = (void *)0;
     {
         String s = value_28;
-        value_29 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_29 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_27[0] = value_29;
     String value_31 = StringLiteral("cx");
     uint8_t* value_32 = (void *)0;
     {
         String s = value_31;
-        value_32 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_32 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_27[1] = value_32;
     String value_34 = StringLiteral("ecx");
     uint8_t* value_35 = (void *)0;
     {
         String s = value_34;
-        value_35 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_35 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_27[2] = value_35;
     String value_37 = StringLiteral("rcx");
     uint8_t* value_38 = (void *)0;
     {
         String s = value_37;
-        value_38 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_38 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_27[3] = value_38;
     memmove(value_0[2], value_27, sizeof(value_0[2]));
@@ -688,28 +432,28 @@ compiler_go_asm_x64_physical(uint8_t* name, int32_t* bits)
     uint8_t* value_42 = (void *)0;
     {
         String s = value_41;
-        value_42 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_42 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_40[0] = value_42;
     String value_44 = StringLiteral("dx");
     uint8_t* value_45 = (void *)0;
     {
         String s = value_44;
-        value_45 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_45 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_40[1] = value_45;
     String value_47 = StringLiteral("edx");
     uint8_t* value_48 = (void *)0;
     {
         String s = value_47;
-        value_48 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_48 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_40[2] = value_48;
     String value_50 = StringLiteral("rdx");
     uint8_t* value_51 = (void *)0;
     {
         String s = value_50;
-        value_51 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_51 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_40[3] = value_51;
     memmove(value_0[3], value_40, sizeof(value_0[3]));
@@ -718,28 +462,28 @@ compiler_go_asm_x64_physical(uint8_t* name, int32_t* bits)
     uint8_t* value_55 = (void *)0;
     {
         String s = value_54;
-        value_55 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_55 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_53[0] = value_55;
     String value_57 = StringLiteral("si");
     uint8_t* value_58 = (void *)0;
     {
         String s = value_57;
-        value_58 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_58 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_53[1] = value_58;
     String value_60 = StringLiteral("esi");
     uint8_t* value_61 = (void *)0;
     {
         String s = value_60;
-        value_61 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_61 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_53[2] = value_61;
     String value_63 = StringLiteral("rsi");
     uint8_t* value_64 = (void *)0;
     {
         String s = value_63;
-        value_64 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_64 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_53[3] = value_64;
     memmove(value_0[4], value_53, sizeof(value_0[4]));
@@ -748,28 +492,28 @@ compiler_go_asm_x64_physical(uint8_t* name, int32_t* bits)
     uint8_t* value_68 = (void *)0;
     {
         String s = value_67;
-        value_68 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_68 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_66[0] = value_68;
     String value_70 = StringLiteral("di");
     uint8_t* value_71 = (void *)0;
     {
         String s = value_70;
-        value_71 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_71 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_66[1] = value_71;
     String value_73 = StringLiteral("edi");
     uint8_t* value_74 = (void *)0;
     {
         String s = value_73;
-        value_74 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_74 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_66[2] = value_74;
     String value_76 = StringLiteral("rdi");
     uint8_t* value_77 = (void *)0;
     {
         String s = value_76;
-        value_77 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_77 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_66[3] = value_77;
     memmove(value_0[5], value_66, sizeof(value_0[5]));
@@ -778,28 +522,28 @@ compiler_go_asm_x64_physical(uint8_t* name, int32_t* bits)
     uint8_t* value_81 = (void *)0;
     {
         String s = value_80;
-        value_81 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_81 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_79[0] = value_81;
     String value_83 = StringLiteral("r8w");
     uint8_t* value_84 = (void *)0;
     {
         String s = value_83;
-        value_84 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_84 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_79[1] = value_84;
     String value_86 = StringLiteral("r8d");
     uint8_t* value_87 = (void *)0;
     {
         String s = value_86;
-        value_87 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_87 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_79[2] = value_87;
     String value_89 = StringLiteral("r8");
     uint8_t* value_90 = (void *)0;
     {
         String s = value_89;
-        value_90 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_90 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_79[3] = value_90;
     memmove(value_0[6], value_79, sizeof(value_0[6]));
@@ -808,28 +552,28 @@ compiler_go_asm_x64_physical(uint8_t* name, int32_t* bits)
     uint8_t* value_94 = (void *)0;
     {
         String s = value_93;
-        value_94 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_94 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_92[0] = value_94;
     String value_96 = StringLiteral("r9w");
     uint8_t* value_97 = (void *)0;
     {
         String s = value_96;
-        value_97 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_97 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_92[1] = value_97;
     String value_99 = StringLiteral("r9d");
     uint8_t* value_100 = (void *)0;
     {
         String s = value_99;
-        value_100 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_100 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_92[2] = value_100;
     String value_102 = StringLiteral("r9");
     uint8_t* value_103 = (void *)0;
     {
         String s = value_102;
-        value_103 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_103 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_92[3] = value_103;
     memmove(value_0[7], value_92, sizeof(value_0[7]));
@@ -838,28 +582,28 @@ compiler_go_asm_x64_physical(uint8_t* name, int32_t* bits)
     uint8_t* value_107 = (void *)0;
     {
         String s = value_106;
-        value_107 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_107 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_105[0] = value_107;
     String value_109 = StringLiteral("r10w");
     uint8_t* value_110 = (void *)0;
     {
         String s = value_109;
-        value_110 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_110 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_105[1] = value_110;
     String value_112 = StringLiteral("r10d");
     uint8_t* value_113 = (void *)0;
     {
         String s = value_112;
-        value_113 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_113 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_105[2] = value_113;
     String value_115 = StringLiteral("r10");
     uint8_t* value_116 = (void *)0;
     {
         String s = value_115;
-        value_116 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_116 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_105[3] = value_116;
     memmove(value_0[8], value_105, sizeof(value_0[8]));
@@ -868,28 +612,28 @@ compiler_go_asm_x64_physical(uint8_t* name, int32_t* bits)
     uint8_t* value_120 = (void *)0;
     {
         String s = value_119;
-        value_120 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_120 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_118[0] = value_120;
     String value_122 = StringLiteral("r11w");
     uint8_t* value_123 = (void *)0;
     {
         String s = value_122;
-        value_123 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_123 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_118[1] = value_123;
     String value_125 = StringLiteral("r11d");
     uint8_t* value_126 = (void *)0;
     {
         String s = value_125;
-        value_126 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_126 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_118[2] = value_126;
     String value_128 = StringLiteral("r11");
     uint8_t* value_129 = (void *)0;
     {
         String s = value_128;
-        value_129 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_129 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_118[3] = value_129;
     memmove(value_0[9], value_118, sizeof(value_0[9]));
@@ -898,28 +642,28 @@ compiler_go_asm_x64_physical(uint8_t* name, int32_t* bits)
     uint8_t* value_133 = (void *)0;
     {
         String s = value_132;
-        value_133 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_133 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_131[0] = value_133;
     String value_135 = StringLiteral("r12w");
     uint8_t* value_136 = (void *)0;
     {
         String s = value_135;
-        value_136 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_136 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_131[1] = value_136;
     String value_138 = StringLiteral("r12d");
     uint8_t* value_139 = (void *)0;
     {
         String s = value_138;
-        value_139 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_139 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_131[2] = value_139;
     String value_141 = StringLiteral("r12");
     uint8_t* value_142 = (void *)0;
     {
         String s = value_141;
-        value_142 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_142 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_131[3] = value_142;
     memmove(value_0[10], value_131, sizeof(value_0[10]));
@@ -928,28 +672,28 @@ compiler_go_asm_x64_physical(uint8_t* name, int32_t* bits)
     uint8_t* value_146 = (void *)0;
     {
         String s = value_145;
-        value_146 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_146 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_144[0] = value_146;
     String value_148 = StringLiteral("r13w");
     uint8_t* value_149 = (void *)0;
     {
         String s = value_148;
-        value_149 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_149 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_144[1] = value_149;
     String value_151 = StringLiteral("r13d");
     uint8_t* value_152 = (void *)0;
     {
         String s = value_151;
-        value_152 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_152 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_144[2] = value_152;
     String value_154 = StringLiteral("r13");
     uint8_t* value_155 = (void *)0;
     {
         String s = value_154;
-        value_155 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_155 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_144[3] = value_155;
     memmove(value_0[11], value_144, sizeof(value_0[11]));
@@ -967,7 +711,7 @@ compiler_go_asm_x64_physical(uint8_t* name, int32_t* bits)
                     if (!(w < 4)) {
                         break;
                     }
-                    bool value_157 = zir_f_2738118201f5dc0a_strcmp(name, (aliases[r])[w]) != 0;
+                    bool value_157 = zir_foreign_compiler_go_asm_x64__strcmp(name, (aliases[r])[w]) != 0;
                     if (!value_157) {
                         int32_t* value_158 = &(bits[0]);
                         (*value_158) = (int32_t)ZiShl32(8, (uint64_t)(w), 32);
@@ -990,10 +734,10 @@ compiler_go_asm_x64_physical(uint8_t* name, int32_t* bits)
             uint8_t* value_160 = (void *)0;
             {
                 String s = value_159;
-                value_160 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                value_160 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
             }
-            zir_f_2738118201f5dc0a_snprintf(&(xmm[0]), (16) * (sizeof(uint8_t)), value_160, r);
-            bool value_162 = zir_f_2738118201f5dc0a_strcmp(name, &(xmm[0])) != 0;
+            zir_foreign_compiler_go_asm_x64__snprintf(&(xmm[0]), (16) * (sizeof(uint8_t)), value_160, r);
+            bool value_162 = zir_foreign_compiler_go_asm_x64__strcmp(name, &(xmm[0])) != 0;
             if (!value_162) {
                 int32_t* value_163 = &(bits[0]);
                 (*value_163) = 128;
@@ -1008,12 +752,12 @@ compiler_go_asm_x64_physical(uint8_t* name, int32_t* bits)
 static int32_t
 compiler_go_asm_x64_feature_mask(uint8_t* target, uint64_t* mask)
 {
-    uint8_t* next = zir_f_2738118201f5dc0a_strchr(target, 43);
+    uint8_t* next = zir_foreign_compiler_go_asm_x64__strchr(target, 43);
     size_t value_0 = 0;
     if (next != ((void *)0)) {
         value_0 = (size_t)(((ptrdiff_t)(((size_t)(next) - (size_t)(target))) / (ptrdiff_t)(sizeof(uint8_t))));
     } else {
-        size_t value_1 = zir_f_2738118201f5dc0a_strlen(target);
+        size_t value_1 = zir_foreign_compiler_go_asm_x64__strlen(target);
         value_0 = value_1;
     }
     size_t arch = value_0;
@@ -1023,9 +767,9 @@ compiler_go_asm_x64_feature_mask(uint8_t* target, uint64_t* mask)
         uint8_t* value_4 = (void *)0;
         {
             String s = value_3;
-            value_4 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_4 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
-        bool value_6 = zir_f_2738118201f5dc0a_strncmp(target, value_4, (size_t)(6LL)) != 0;
+        bool value_6 = zir_foreign_compiler_go_asm_x64__strncmp(target, value_4, (size_t)(6LL)) != 0;
         value_2 = value_6;
     }
     if (value_2) {
@@ -1038,12 +782,12 @@ compiler_go_asm_x64_feature_mask(uint8_t* target, uint64_t* mask)
             break;
         }
         uint8_t* start = (uint8_t*)(((size_t)(next) + ((size_t)(1LL) * sizeof(uint8_t))));
-        next = zir_f_2738118201f5dc0a_strchr(start, 43);
+        next = zir_foreign_compiler_go_asm_x64__strchr(start, 43);
         size_t value_8 = 0;
         if (next != ((void *)0)) {
             value_8 = (size_t)(((ptrdiff_t)(((size_t)(next) - (size_t)(start))) / (ptrdiff_t)(sizeof(uint8_t))));
         } else {
-            size_t value_9 = zir_f_2738118201f5dc0a_strlen(start);
+            size_t value_9 = zir_foreign_compiler_go_asm_x64__strlen(start);
             value_8 = value_9;
         }
         size_t length = value_8;
@@ -1054,10 +798,10 @@ compiler_go_asm_x64_feature_mask(uint8_t* target, uint64_t* mask)
                 if (!(i < ((14) * (sizeof(void *))) / sizeof(void *))) {
                     break;
                 }
-                bool value_10 = zir_f_2738118201f5dc0a_strlen((feature_names)[i]) == length;
+                bool value_10 = zir_foreign_compiler_go_asm_x64__strlen((feature_names)[i]) == length;
                 bool value_11 = value_10;
                 if (value_11) {
-                    bool value_12 = zir_f_2738118201f5dc0a_strncmp(start, (feature_names)[i], length) != 0;
+                    bool value_12 = zir_foreign_compiler_go_asm_x64__strncmp(start, (feature_names)[i], length) != 0;
                     value_11 = !value_12;
                 }
                 if (value_11) {
@@ -1084,30 +828,30 @@ compiler_go_asm_x64_allocate_operands(GoAmd64Plan* plan, int32_t column)
     uint32_t used = 0;
     AssemblyVariant* source = &(plan->source);
     uint8_t list[1024] = {0};
-    if (zir_f_2738118201f5dc0a_strlen(source->clobbers) >= ((1024) * (sizeof(uint8_t)))) {
+    if (zir_foreign_compiler_go_asm_x64__strlen(source->clobbers) >= ((1024) * (sizeof(uint8_t)))) {
         return 0;
     }
-    zir_f_2738118201f5dc0a_strcpy(&(list[0]), source->clobbers);
+    zir_foreign_compiler_go_asm_x64__strcpy(&(list[0]), source->clobbers);
     {
         uint8_t* item = &(list[0]);
         while (true) {
             if (!(item != ((void *)0) && item[0] != 0)) {
                 break;
             }
-            uint8_t* end = zir_f_2738118201f5dc0a_strchr(item, 59);
+            uint8_t* end = zir_foreign_compiler_go_asm_x64__strchr(item, 59);
             if (end != ((void *)0)) {
                 uint8_t* value_0 = &(end[0]);
                 (*value_0) = 0;
             }
-            uint8_t* name = zir_f_2738118201f5dc0a_trim_in_place(item);
+            uint8_t* name = zir_foreign_compiler_go_asm_x64__trim_in_place(item);
             uint8_t* value_1 = name;
             String value_2 = StringLiteral("cc");
             uint8_t* value_3 = (void *)0;
             {
                 String s = value_2;
-                value_3 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                value_3 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
             }
-            bool value_5 = zir_f_2738118201f5dc0a_strcmp(value_1, value_3) != 0;
+            bool value_5 = zir_foreign_compiler_go_asm_x64__strcmp(value_1, value_3) != 0;
             bool value_6 = value_5;
             if (value_6) {
                 uint8_t* value_7 = name;
@@ -1115,9 +859,9 @@ compiler_go_asm_x64_allocate_operands(GoAmd64Plan* plan, int32_t column)
                 uint8_t* value_9 = (void *)0;
                 {
                     String s = value_8;
-                    value_9 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_9 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
-                bool value_11 = zir_f_2738118201f5dc0a_strcmp(value_7, value_9) != 0;
+                bool value_11 = zir_foreign_compiler_go_asm_x64__strcmp(value_7, value_9) != 0;
                 value_6 = value_11;
             }
             if (value_6) {
@@ -1150,7 +894,7 @@ compiler_go_asm_x64_allocate_operands(GoAmd64Plan* plan, int32_t column)
             at = (uint8_t*)(((size_t)(at) + ((size_t)(2LL) * sizeof(uint8_t))));
             uint8_t* start = at;
             while (true) {
-                bool value_13 = zir_f_2738118201f5dc0a_isalnum((int32_t)(at[0])) != 0;
+                bool value_13 = zir_foreign_compiler_go_asm_x64__isalnum((int32_t)(at[0])) != 0;
                 if (!value_13) {
                     break;
                 }
@@ -1161,7 +905,7 @@ compiler_go_asm_x64_allocate_operands(GoAmd64Plan* plan, int32_t column)
             if (length == (size_t)(0LL) || length >= ((16) * (sizeof(uint8_t)))) {
                 return 0;
             }
-            zir_f_2738118201f5dc0a_memcpy((void*)(&(name[0])), (void*)(start), length);
+            zir_foreign_compiler_go_asm_x64__memcpy((void*)(&(name[0])), (void*)(start), length);
             uint8_t* value_14 = &(name[length]);
             (*value_14) = 0;
             int32_t bits = 0;
@@ -1185,7 +929,7 @@ compiler_go_asm_x64_allocate_operands(GoAmd64Plan* plan, int32_t column)
             (*value_15) = -1;
             int32_t* value_16 = &(operand->reg);
             (*value_16) = operand->tied;
-            uint8_t* constraint = zir_f_2738118201f5dc0a_AssemblyConstraintAlternative((source->operands[i]).constraint, column);
+            uint8_t* constraint = zir_foreign_compiler_go_asm_x64__AssemblyConstraintAlternative((source->operands[i]).constraint, column);
             while (true) {
                 bool value_17 = constraint[0] != 0;
                 bool value_18 = value_17;
@@ -1194,9 +938,9 @@ compiler_go_asm_x64_allocate_operands(GoAmd64Plan* plan, int32_t column)
                     uint8_t* value_20 = (void *)0;
                     {
                         String s = value_19;
-                        value_20 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                        value_20 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                     }
-                    uint8_t* value_22 = zir_f_2738118201f5dc0a_strchr(value_20, (int32_t)(constraint[0]));
+                    uint8_t* value_22 = zir_foreign_compiler_go_asm_x64__strchr(value_20, (int32_t)(constraint[0]));
                     value_18 = (value_22 != ((void *)0));
                 }
                 if (!value_18) {
@@ -1206,7 +950,7 @@ compiler_go_asm_x64_allocate_operands(GoAmd64Plan* plan, int32_t column)
             }
             if (i >= source->outputs) {
                 int32_t* value_23 = &(operand->tied);
-                int32_t value_24 = zir_f_2738118201f5dc0a_AssemblyTiedOutput(source, constraint);
+                int32_t value_24 = zir_foreign_compiler_go_asm_x64__AssemblyTiedOutput(source, constraint);
                 (*value_23) = value_24;
                 if (operand->tied >= 0) {
                     GoOperand* output = &(plan->operands[operand->tied]);
@@ -1230,17 +974,17 @@ compiler_go_asm_x64_allocate_operands(GoAmd64Plan* plan, int32_t column)
                 }
             }
             int32_t reg = -1;
-            if (zir_f_2738118201f5dc0a_strlen(constraint) == (size_t)(1LL)) {
+            if (zir_foreign_compiler_go_asm_x64__strlen(constraint) == (size_t)(1LL)) {
                 String value_25 = StringLiteral("abcdSD");
                 uint8_t* value_26 = (void *)0;
                 {
                     String s = value_25;
-                    value_26 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_26 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
                 uint8_t* classes = value_26;
                 uint8_t* value_28 = (void *)0;
                 if (constraint[0] != 0) {
-                    uint8_t* value_29 = zir_f_2738118201f5dc0a_strchr(classes, (int32_t)(constraint[0]));
+                    uint8_t* value_29 = zir_foreign_compiler_go_asm_x64__strchr(classes, (int32_t)(constraint[0]));
                     value_28 = value_29;
                 } else {
                     value_28 = (uint8_t*)(((void *)0));
@@ -1265,9 +1009,9 @@ compiler_go_asm_x64_allocate_operands(GoAmd64Plan* plan, int32_t column)
                     uint8_t* value_34 = (void *)0;
                     {
                         String s = value_33;
-                        value_34 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                        value_34 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                     }
-                    bool value_36 = zir_f_2738118201f5dc0a_strcmp(value_32, value_34) != 0;
+                    bool value_36 = zir_foreign_compiler_go_asm_x64__strcmp(value_32, value_34) != 0;
                     bool value_37 = value_36;
                     if (value_37) {
                         uint8_t* value_38 = constraint;
@@ -1275,9 +1019,9 @@ compiler_go_asm_x64_allocate_operands(GoAmd64Plan* plan, int32_t column)
                         uint8_t* value_40 = (void *)0;
                         {
                             String s = value_39;
-                            value_40 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                            value_40 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                         }
-                        bool value_42 = zir_f_2738118201f5dc0a_strcmp(value_38, value_40) != 0;
+                        bool value_42 = zir_foreign_compiler_go_asm_x64__strcmp(value_38, value_40) != 0;
                         value_37 = value_42;
                     }
                     value_31 = value_37;
@@ -1287,9 +1031,9 @@ compiler_go_asm_x64_allocate_operands(GoAmd64Plan* plan, int32_t column)
                     uint8_t* value_45 = (void *)0;
                     {
                         String s = value_44;
-                        value_45 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                        value_45 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                     }
-                    uint8_t* value_47 = zir_f_2738118201f5dc0a_strpbrk(value_43, value_45);
+                    uint8_t* value_47 = zir_foreign_compiler_go_asm_x64__strpbrk(value_43, value_45);
                     value_31 = !(value_47 != ((void *)0));
                 }
                 if (value_31) {
@@ -1362,7 +1106,7 @@ compiler_go_asm_x64_allocate_operands(GoAmd64Plan* plan, int32_t column)
 static uint8_t*
 compiler_go_asm_x64_dialect(uint8_t* text)
 {
-    void* value_0 = zir_f_2738118201f5dc0a_malloc(zir_f_2738118201f5dc0a_strlen(text) + (size_t)(1LL));
+    void* value_0 = zir_foreign_compiler_go_asm_x64__malloc(zir_foreign_compiler_go_asm_x64__strlen(text) + (size_t)(1LL));
     uint8_t* result = (uint8_t*)(value_0);
     if (result == (uint8_t*)(((void *)0))) {
         return (uint8_t*)(((void *)0));
@@ -1384,7 +1128,7 @@ compiler_go_asm_x64_dialect(uint8_t* text)
                 continue;
             }
             if (at[0] == 47 && at[1] == 42) {
-                zir_f_2738118201f5dc0a_free((void*)(result));
+                zir_foreign_compiler_go_asm_x64__free((void*)(result));
                 return (void *)0;
             }
             if (at[0] == 123) {
@@ -1403,7 +1147,7 @@ compiler_go_asm_x64_dialect(uint8_t* text)
                         continue;
                     }
                     if (at[0] == 123) {
-                        zir_f_2738118201f5dc0a_free((void*)(result));
+                        zir_foreign_compiler_go_asm_x64__free((void*)(result));
                         return (void *)0;
                     }
                     size_t post1 = used;
@@ -1419,20 +1163,20 @@ compiler_go_asm_x64_dialect(uint8_t* text)
                             break;
                         }
                         if (at[0] == 123) {
-                            zir_f_2738118201f5dc0a_free((void*)(result));
+                            zir_foreign_compiler_go_asm_x64__free((void*)(result));
                             return (void *)0;
                         }
                         at = (uint8_t*)(((size_t)(at) + sizeof(uint8_t)));
                     }
                 }
                 if (at[0] != 125) {
-                    zir_f_2738118201f5dc0a_free((void*)(result));
+                    zir_foreign_compiler_go_asm_x64__free((void*)(result));
                     return (void *)0;
                 }
                 at = (uint8_t*)(((size_t)(at) + sizeof(uint8_t)));
             } else {
                 if (at[0] == 125) {
-                    zir_f_2738118201f5dc0a_free((void*)(result));
+                    zir_foreign_compiler_go_asm_x64__free((void*)(result));
                     return (void *)0;
                 }
                 size_t post3 = used;
@@ -1461,7 +1205,7 @@ compiler_go_asm_x64_label_token(uint8_t* start, size_t length)
             if (!(i < length)) {
                 break;
             }
-            bool value_0 = zir_f_2738118201f5dc0a_isalnum((int32_t)(start[i])) != 0;
+            bool value_0 = zir_foreign_compiler_go_asm_x64__isalnum((int32_t)(start[i])) != 0;
             if (value_0 || start[i] == 46 || start[i] == 95) {
                 i = i + 1;
                 continue;
@@ -1487,7 +1231,7 @@ compiler_go_asm_x64_labels(GoAmd64Plan* plan, uint8_t* text)
                 break;
             }
             while (true) {
-                bool value_0 = zir_f_2738118201f5dc0a_isspace((int32_t)(at[0])) != 0;
+                bool value_0 = zir_foreign_compiler_go_asm_x64__isspace((int32_t)(at[0])) != 0;
                 if (!(value_0 || at[0] == 59)) {
                     break;
                 }
@@ -1499,7 +1243,7 @@ compiler_go_asm_x64_labels(GoAmd64Plan* plan, uint8_t* text)
                 bool value_1 = end[0] != 0 && end[0] != 58;
                 bool value_2 = value_1;
                 if (value_2) {
-                    bool value_3 = zir_f_2738118201f5dc0a_isspace((int32_t)(end[0])) != 0;
+                    bool value_3 = zir_foreign_compiler_go_asm_x64__isspace((int32_t)(end[0])) != 0;
                     value_2 = !value_3;
                 }
                 if (!(value_2 && end[0] != 59)) {
@@ -1507,27 +1251,27 @@ compiler_go_asm_x64_labels(GoAmd64Plan* plan, uint8_t* text)
                 }
                 end = (uint8_t*)(((size_t)(end) + sizeof(uint8_t)));
             }
-            uint8_t* colon = zir_f_2738118201f5dc0a_skip_ws(end);
+            uint8_t* colon = zir_foreign_compiler_go_asm_x64__skip_ws(end);
             bool value_4 = colon[0] == 58;
             if (value_4 && compiler_go_asm_x64_label_token(begin, (size_t)(((ptrdiff_t)(((size_t)(end) - (size_t)(begin))) / (ptrdiff_t)(sizeof(uint8_t))))) != 0) {
                 if (plan->label_count >= 128) {
                     return 0;
                 }
                 size_t length = (size_t)(((ptrdiff_t)(((size_t)(end) - (size_t)(begin))) / (ptrdiff_t)(sizeof(uint8_t))));
-                void* value_5 = zir_f_2738118201f5dc0a_malloc(length + (size_t)(1LL));
+                void* value_5 = zir_foreign_compiler_go_asm_x64__malloc(length + (size_t)(1LL));
                 uint8_t* name = (uint8_t*)(value_5);
                 if (name == (uint8_t*)(((void *)0))) {
                     return 0;
                 }
-                void* value_6 = zir_f_2738118201f5dc0a_realloc((void*)(plan->labels), (size_t)(((int32_t)((uint32_t)(plan->label_count) + 1u))) * sizeof(GoLabel));
+                void* value_6 = zir_foreign_compiler_go_asm_x64__realloc((void*)(plan->labels), (size_t)(((int32_t)((uint32_t)(plan->label_count) + 1u))) * sizeof(GoLabel));
                 GoLabel* items = (GoLabel*)(value_6);
                 if (items == (GoLabel*)(((void *)0))) {
-                    zir_f_2738118201f5dc0a_free((void*)(name));
+                    zir_foreign_compiler_go_asm_x64__free((void*)(name));
                     return 0;
                 }
                 GoLabel** value_7 = &(plan->labels);
                 (*value_7) = items;
-                zir_f_2738118201f5dc0a_memcpy((void*)(name), (void*)(begin), length);
+                zir_foreign_compiler_go_asm_x64__memcpy((void*)(name), (void*)(begin), length);
                 uint8_t* value_8 = &(name[length]);
                 (*value_8) = 0;
                 int32_t post5 = plan->label_count;
@@ -1552,9 +1296,9 @@ compiler_go_asm_x64_labels(GoAmd64Plan* plan, uint8_t* text)
 static int32_t
 compiler_go_asm_x64_label_reference(GoAmd64Plan* plan, uint8_t* name, size_t position)
 {
-    size_t length = zir_f_2738118201f5dc0a_strlen(name);
+    size_t length = zir_foreign_compiler_go_asm_x64__strlen(name);
     bool value_0 = length > (size_t)(1LL);
-    bool value_1 = value_0 && zir_f_2738118201f5dc0a_isdigit((int32_t)(name[0])) != 0;
+    bool value_1 = value_0 && zir_foreign_compiler_go_asm_x64__isdigit((int32_t)(name[0])) != 0;
     uint8_t value_2 = 0;
     if (value_1) {
         value_2 = name[(length - (size_t)(1LL))];
@@ -1566,7 +1310,7 @@ compiler_go_asm_x64_label_reference(GoAmd64Plan* plan, uint8_t* name, size_t pos
         direction = 0;
     }
     bool value_3 = !(direction != 0);
-    if (value_3 && zir_f_2738118201f5dc0a_isdigit((int32_t)(name[0])) != 0) {
+    if (value_3 && zir_foreign_compiler_go_asm_x64__isdigit((int32_t)(name[0])) != 0) {
         return -1;
     }
     int32_t result = -1;
@@ -1577,7 +1321,7 @@ compiler_go_asm_x64_label_reference(GoAmd64Plan* plan, uint8_t* name, size_t pos
                 break;
             }
             GoLabel* label = &(plan->labels[i]);
-            size_t value_4 = zir_f_2738118201f5dc0a_strlen(label->name);
+            size_t value_4 = zir_foreign_compiler_go_asm_x64__strlen(label->name);
             size_t value_5 = 0;
             if (direction != 0) {
                 value_5 = 1;
@@ -1589,7 +1333,7 @@ compiler_go_asm_x64_label_reference(GoAmd64Plan* plan, uint8_t* name, size_t pos
                 if (direction != 0) {
                     value_8 = 1;
                 }
-                bool value_9 = zir_f_2738118201f5dc0a_strncmp(label->name, name, length - value_8) != 0;
+                bool value_9 = zir_foreign_compiler_go_asm_x64__strncmp(label->name, name, length - value_8) != 0;
                 value_7 = value_9;
             }
             if (value_7) {
@@ -1623,12 +1367,12 @@ compiler_go_asm_x64_argument(GoAmd64Plan* plan, uint8_t* source, GoArgument* arg
     (*value_0) = (GoArgument){.reg = -1};
     if (source[0] == 36) {
         uint8_t* end = (void *)0;
-        zir_f_2738118201f5dc0a_strtoull((uint8_t*)(((size_t)(source) + ((size_t)(1LL) * sizeof(uint8_t)))), &(end), 0);
+        zir_foreign_compiler_go_asm_x64__strtoull((uint8_t*)(((size_t)(source) + ((size_t)(1LL) * sizeof(uint8_t)))), &(end), 0);
         bool value_1 = end == (uint8_t*)(((size_t)(source) + ((size_t)(1LL) * sizeof(uint8_t)))) || end[0] != 0;
-        if (value_1 || zir_f_2738118201f5dc0a_strlen(source) >= ((128) * (sizeof(uint8_t)))) {
+        if (value_1 || zir_foreign_compiler_go_asm_x64__strlen(source) >= ((128) * (sizeof(uint8_t)))) {
             return 0;
         }
-        zir_f_2738118201f5dc0a_strcpy(&(argument->text[0]), source);
+        zir_foreign_compiler_go_asm_x64__strcpy(&(argument->text[0]), source);
         int32_t* value_2 = &(argument->immediate);
         (*value_2) = 1;
         return 1;
@@ -1648,9 +1392,9 @@ compiler_go_asm_x64_argument(GoAmd64Plan* plan, uint8_t* source, GoArgument* arg
                 uint8_t* value_6 = (void *)0;
                 {
                     String s = value_5;
-                    value_6 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_6 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
-                uint8_t* value_8 = zir_f_2738118201f5dc0a_strchr(value_6, (int32_t)(at[0]));
+                uint8_t* value_8 = zir_foreign_compiler_go_asm_x64__strchr(value_6, (int32_t)(at[0]));
                 value_4 = (value_8 != ((void *)0));
             }
             if (value_4) {
@@ -1682,7 +1426,7 @@ compiler_go_asm_x64_argument(GoAmd64Plan* plan, uint8_t* source, GoArgument* arg
             }
             int32_t index = -1;
             if (at[0] == 91) {
-                size_t length = zir_f_2738118201f5dc0a_strlen(at);
+                size_t length = zir_foreign_compiler_go_asm_x64__strlen(at);
                 if (length < (size_t)(3LL) || at[(length - (size_t)(1LL))] != 93) {
                     return 0;
                 }
@@ -1692,11 +1436,11 @@ compiler_go_asm_x64_argument(GoAmd64Plan* plan, uint8_t* source, GoArgument* arg
                         if (!(i < (int32_t)((uint32_t)(plan->source.outputs) + (uint32_t)(plan->source.inputs)))) {
                             break;
                         }
-                        size_t value_13 = zir_f_2738118201f5dc0a_strlen((plan->source.operands[i]).alias);
+                        size_t value_13 = zir_foreign_compiler_go_asm_x64__strlen((plan->source.operands[i]).alias);
                         bool value_14 = value_13 == length - (size_t)(2LL);
                         bool value_15 = value_14;
                         if (value_15) {
-                            bool value_16 = zir_f_2738118201f5dc0a_strncmp((plan->source.operands[i]).alias, (uint8_t*)(((size_t)(at) + ((size_t)(1LL) * sizeof(uint8_t)))), length - (size_t)(2LL)) != 0;
+                            bool value_16 = zir_foreign_compiler_go_asm_x64__strncmp((plan->source.operands[i]).alias, (uint8_t*)(((size_t)(at) + ((size_t)(1LL) * sizeof(uint8_t)))), length - (size_t)(2LL)) != 0;
                             value_15 = !value_16;
                         }
                         if (value_15) {
@@ -1708,7 +1452,7 @@ compiler_go_asm_x64_argument(GoAmd64Plan* plan, uint8_t* source, GoArgument* arg
                 }
             } else {
                 uint8_t* end = (void *)0;
-                int64_t number = zir_f_2738118201f5dc0a_strtol(at, &(end), 10);
+                int64_t number = zir_foreign_compiler_go_asm_x64__strtol(at, &(end), 10);
                 if (end == at || end[0] != 0 || number < 0LL || number >= 30LL) {
                     return 0;
                 }
@@ -1730,9 +1474,9 @@ compiler_go_asm_x64_argument(GoAmd64Plan* plan, uint8_t* source, GoArgument* arg
     uint8_t* value_18 = (void *)0;
     {
         String s = value_17;
-        value_18 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_18 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
-    zir_f_2738118201f5dc0a_snprintf(&(argument->text[0]), (128) * (sizeof(uint8_t)), value_18, (registers)[reg]);
+    zir_foreign_compiler_go_asm_x64__snprintf(&(argument->text[0]), (128) * (sizeof(uint8_t)), value_18, (registers)[reg]);
     if (high != 0) {
         uint8_t* value_20 = &(argument->text[1]);
         (*value_20) = 72;
@@ -1753,14 +1497,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_3 = (void *)0;
     {
         String s = value_2;
-        value_3 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_3 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_1.gnu = value_3;
     String value_5 = StringLiteral("EQ");
     uint8_t* value_6 = (void *)0;
     {
         String s = value_5;
-        value_6 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_6 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_1.go = value_6;
     value_0[0] = value_1;
@@ -1769,14 +1513,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_10 = (void *)0;
     {
         String s = value_9;
-        value_10 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_10 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_8.gnu = value_10;
     String value_12 = StringLiteral("EQ");
     uint8_t* value_13 = (void *)0;
     {
         String s = value_12;
-        value_13 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_13 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_8.go = value_13;
     value_0[1] = value_8;
@@ -1785,14 +1529,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_17 = (void *)0;
     {
         String s = value_16;
-        value_17 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_17 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_15.gnu = value_17;
     String value_19 = StringLiteral("NE");
     uint8_t* value_20 = (void *)0;
     {
         String s = value_19;
-        value_20 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_20 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_15.go = value_20;
     value_0[2] = value_15;
@@ -1801,14 +1545,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_24 = (void *)0;
     {
         String s = value_23;
-        value_24 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_24 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_22.gnu = value_24;
     String value_26 = StringLiteral("NE");
     uint8_t* value_27 = (void *)0;
     {
         String s = value_26;
-        value_27 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_27 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_22.go = value_27;
     value_0[3] = value_22;
@@ -1817,14 +1561,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_31 = (void *)0;
     {
         String s = value_30;
-        value_31 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_31 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_29.gnu = value_31;
     String value_33 = StringLiteral("LT");
     uint8_t* value_34 = (void *)0;
     {
         String s = value_33;
-        value_34 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_34 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_29.go = value_34;
     value_0[4] = value_29;
@@ -1833,14 +1577,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_38 = (void *)0;
     {
         String s = value_37;
-        value_38 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_38 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_36.gnu = value_38;
     String value_40 = StringLiteral("GE");
     uint8_t* value_41 = (void *)0;
     {
         String s = value_40;
-        value_41 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_41 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_36.go = value_41;
     value_0[5] = value_36;
@@ -1849,14 +1593,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_45 = (void *)0;
     {
         String s = value_44;
-        value_45 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_45 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_43.gnu = value_45;
     String value_47 = StringLiteral("LE");
     uint8_t* value_48 = (void *)0;
     {
         String s = value_47;
-        value_48 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_48 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_43.go = value_48;
     value_0[6] = value_43;
@@ -1865,14 +1609,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_52 = (void *)0;
     {
         String s = value_51;
-        value_52 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_52 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_50.gnu = value_52;
     String value_54 = StringLiteral("GT");
     uint8_t* value_55 = (void *)0;
     {
         String s = value_54;
-        value_55 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_55 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_50.go = value_55;
     value_0[7] = value_50;
@@ -1881,14 +1625,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_59 = (void *)0;
     {
         String s = value_58;
-        value_59 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_59 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_57.gnu = value_59;
     String value_61 = StringLiteral("CS");
     uint8_t* value_62 = (void *)0;
     {
         String s = value_61;
-        value_62 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_62 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_57.go = value_62;
     value_0[8] = value_57;
@@ -1897,14 +1641,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_66 = (void *)0;
     {
         String s = value_65;
-        value_66 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_66 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_64.gnu = value_66;
     String value_68 = StringLiteral("CS");
     uint8_t* value_69 = (void *)0;
     {
         String s = value_68;
-        value_69 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_69 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_64.go = value_69;
     value_0[9] = value_64;
@@ -1913,14 +1657,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_73 = (void *)0;
     {
         String s = value_72;
-        value_73 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_73 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_71.gnu = value_73;
     String value_75 = StringLiteral("CS");
     uint8_t* value_76 = (void *)0;
     {
         String s = value_75;
-        value_76 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_76 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_71.go = value_76;
     value_0[10] = value_71;
@@ -1929,14 +1673,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_80 = (void *)0;
     {
         String s = value_79;
-        value_80 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_80 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_78.gnu = value_80;
     String value_82 = StringLiteral("CC");
     uint8_t* value_83 = (void *)0;
     {
         String s = value_82;
-        value_83 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_83 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_78.go = value_83;
     value_0[11] = value_78;
@@ -1945,14 +1689,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_87 = (void *)0;
     {
         String s = value_86;
-        value_87 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_87 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_85.gnu = value_87;
     String value_89 = StringLiteral("CC");
     uint8_t* value_90 = (void *)0;
     {
         String s = value_89;
-        value_90 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_90 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_85.go = value_90;
     value_0[12] = value_85;
@@ -1961,14 +1705,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_94 = (void *)0;
     {
         String s = value_93;
-        value_94 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_94 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_92.gnu = value_94;
     String value_96 = StringLiteral("CC");
     uint8_t* value_97 = (void *)0;
     {
         String s = value_96;
-        value_97 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_97 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_92.go = value_97;
     value_0[13] = value_92;
@@ -1977,14 +1721,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_101 = (void *)0;
     {
         String s = value_100;
-        value_101 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_101 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_99.gnu = value_101;
     String value_103 = StringLiteral("LS");
     uint8_t* value_104 = (void *)0;
     {
         String s = value_103;
-        value_104 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_104 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_99.go = value_104;
     value_0[14] = value_99;
@@ -1993,14 +1737,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_108 = (void *)0;
     {
         String s = value_107;
-        value_108 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_108 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_106.gnu = value_108;
     String value_110 = StringLiteral("LS");
     uint8_t* value_111 = (void *)0;
     {
         String s = value_110;
-        value_111 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_111 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_106.go = value_111;
     value_0[15] = value_106;
@@ -2009,14 +1753,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_115 = (void *)0;
     {
         String s = value_114;
-        value_115 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_115 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_113.gnu = value_115;
     String value_117 = StringLiteral("HI");
     uint8_t* value_118 = (void *)0;
     {
         String s = value_117;
-        value_118 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_118 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_113.go = value_118;
     value_0[16] = value_113;
@@ -2025,14 +1769,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_122 = (void *)0;
     {
         String s = value_121;
-        value_122 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_122 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_120.gnu = value_122;
     String value_124 = StringLiteral("HI");
     uint8_t* value_125 = (void *)0;
     {
         String s = value_124;
-        value_125 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_125 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_120.go = value_125;
     value_0[17] = value_120;
@@ -2041,14 +1785,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_129 = (void *)0;
     {
         String s = value_128;
-        value_129 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_129 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_127.gnu = value_129;
     String value_131 = StringLiteral("MI");
     uint8_t* value_132 = (void *)0;
     {
         String s = value_131;
-        value_132 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_132 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_127.go = value_132;
     value_0[18] = value_127;
@@ -2057,14 +1801,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_136 = (void *)0;
     {
         String s = value_135;
-        value_136 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_136 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_134.gnu = value_136;
     String value_138 = StringLiteral("PL");
     uint8_t* value_139 = (void *)0;
     {
         String s = value_138;
-        value_139 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_139 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_134.go = value_139;
     value_0[19] = value_134;
@@ -2073,14 +1817,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_143 = (void *)0;
     {
         String s = value_142;
-        value_143 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_143 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_141.gnu = value_143;
     String value_145 = StringLiteral("OS");
     uint8_t* value_146 = (void *)0;
     {
         String s = value_145;
-        value_146 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_146 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_141.go = value_146;
     value_0[20] = value_141;
@@ -2089,14 +1833,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_150 = (void *)0;
     {
         String s = value_149;
-        value_150 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_150 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_148.gnu = value_150;
     String value_152 = StringLiteral("OC");
     uint8_t* value_153 = (void *)0;
     {
         String s = value_152;
-        value_153 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_153 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_148.go = value_153;
     value_0[21] = value_148;
@@ -2105,14 +1849,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_157 = (void *)0;
     {
         String s = value_156;
-        value_157 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_157 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_155.gnu = value_157;
     String value_159 = StringLiteral("PS");
     uint8_t* value_160 = (void *)0;
     {
         String s = value_159;
-        value_160 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_160 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_155.go = value_160;
     value_0[22] = value_155;
@@ -2121,14 +1865,14 @@ compiler_go_asm_x64_condition(uint8_t* name)
     uint8_t* value_164 = (void *)0;
     {
         String s = value_163;
-        value_164 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_164 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_162.gnu = value_164;
     String value_166 = StringLiteral("PC");
     uint8_t* value_167 = (void *)0;
     {
         String s = value_166;
-        value_167 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_167 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_162.go = value_167;
     value_0[23] = value_162;
@@ -2140,7 +1884,7 @@ compiler_go_asm_x64_condition(uint8_t* name)
             if (!(i < ((24) * (sizeof(GoConditionMapping))) / sizeof(GoConditionMapping))) {
                 break;
             }
-            bool value_169 = zir_f_2738118201f5dc0a_strcmp(name, (conditions[i]).gnu) != 0;
+            bool value_169 = zir_foreign_compiler_go_asm_x64__strcmp(name, (conditions[i]).gnu) != 0;
             if (!value_169) {
                 return (conditions[i]).go;
             }
@@ -2158,56 +1902,56 @@ compiler_go_asm_x64_arity(uint8_t* name)
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
-        value_2 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_2 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[0] = value_2;
     String value_4 = StringLiteral("dec");
     uint8_t* value_5 = (void *)0;
     {
         String s = value_4;
-        value_5 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_5 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[1] = value_5;
     String value_7 = StringLiteral("neg");
     uint8_t* value_8 = (void *)0;
     {
         String s = value_7;
-        value_8 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_8 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[2] = value_8;
     String value_10 = StringLiteral("not");
     uint8_t* value_11 = (void *)0;
     {
         String s = value_10;
-        value_11 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_11 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[3] = value_11;
     String value_13 = StringLiteral("div");
     uint8_t* value_14 = (void *)0;
     {
         String s = value_13;
-        value_14 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_14 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[4] = value_14;
     String value_16 = StringLiteral("idiv");
     uint8_t* value_17 = (void *)0;
     {
         String s = value_16;
-        value_17 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_17 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[5] = value_17;
     String value_19 = StringLiteral("mul");
     uint8_t* value_20 = (void *)0;
     {
         String s = value_19;
-        value_20 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_20 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[6] = value_20;
     String value_22 = StringLiteral("bswap");
     uint8_t* value_23 = (void *)0;
     {
         String s = value_22;
-        value_23 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_23 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[7] = value_23;
     uint8_t* unary[8] = {0};
@@ -2217,161 +1961,161 @@ compiler_go_asm_x64_arity(uint8_t* name)
     uint8_t* value_27 = (void *)0;
     {
         String s = value_26;
-        value_27 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_27 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[0] = value_27;
     String value_29 = StringLiteral("add");
     uint8_t* value_30 = (void *)0;
     {
         String s = value_29;
-        value_30 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_30 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[1] = value_30;
     String value_32 = StringLiteral("sub");
     uint8_t* value_33 = (void *)0;
     {
         String s = value_32;
-        value_33 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_33 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[2] = value_33;
     String value_35 = StringLiteral("adc");
     uint8_t* value_36 = (void *)0;
     {
         String s = value_35;
-        value_36 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_36 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[3] = value_36;
     String value_38 = StringLiteral("sbb");
     uint8_t* value_39 = (void *)0;
     {
         String s = value_38;
-        value_39 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_39 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[4] = value_39;
     String value_41 = StringLiteral("and");
     uint8_t* value_42 = (void *)0;
     {
         String s = value_41;
-        value_42 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_42 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[5] = value_42;
     String value_44 = StringLiteral("or");
     uint8_t* value_45 = (void *)0;
     {
         String s = value_44;
-        value_45 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_45 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[6] = value_45;
     String value_47 = StringLiteral("xor");
     uint8_t* value_48 = (void *)0;
     {
         String s = value_47;
-        value_48 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_48 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[7] = value_48;
     String value_50 = StringLiteral("cmp");
     uint8_t* value_51 = (void *)0;
     {
         String s = value_50;
-        value_51 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_51 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[8] = value_51;
     String value_53 = StringLiteral("test");
     uint8_t* value_54 = (void *)0;
     {
         String s = value_53;
-        value_54 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_54 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[9] = value_54;
     String value_56 = StringLiteral("lea");
     uint8_t* value_57 = (void *)0;
     {
         String s = value_56;
-        value_57 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_57 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[10] = value_57;
     String value_59 = StringLiteral("imul");
     uint8_t* value_60 = (void *)0;
     {
         String s = value_59;
-        value_60 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_60 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[11] = value_60;
     String value_62 = StringLiteral("shl");
     uint8_t* value_63 = (void *)0;
     {
         String s = value_62;
-        value_63 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_63 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[12] = value_63;
     String value_65 = StringLiteral("shr");
     uint8_t* value_66 = (void *)0;
     {
         String s = value_65;
-        value_66 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_66 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[13] = value_66;
     String value_68 = StringLiteral("sar");
     uint8_t* value_69 = (void *)0;
     {
         String s = value_68;
-        value_69 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_69 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[14] = value_69;
     String value_71 = StringLiteral("rol");
     uint8_t* value_72 = (void *)0;
     {
         String s = value_71;
-        value_72 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_72 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[15] = value_72;
     String value_74 = StringLiteral("ror");
     uint8_t* value_75 = (void *)0;
     {
         String s = value_74;
-        value_75 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_75 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[16] = value_75;
     String value_77 = StringLiteral("popcnt");
     uint8_t* value_78 = (void *)0;
     {
         String s = value_77;
-        value_78 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_78 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[17] = value_78;
     String value_80 = StringLiteral("lzcnt");
     uint8_t* value_81 = (void *)0;
     {
         String s = value_80;
-        value_81 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_81 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[18] = value_81;
     String value_83 = StringLiteral("tzcnt");
     uint8_t* value_84 = (void *)0;
     {
         String s = value_83;
-        value_84 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_84 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[19] = value_84;
     String value_86 = StringLiteral("bsf");
     uint8_t* value_87 = (void *)0;
     {
         String s = value_86;
-        value_87 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_87 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[20] = value_87;
     String value_89 = StringLiteral("bsr");
     uint8_t* value_90 = (void *)0;
     {
         String s = value_89;
-        value_90 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_90 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[21] = value_90;
     String value_92 = StringLiteral("xchg");
     uint8_t* value_93 = (void *)0;
     {
         String s = value_92;
-        value_93 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_93 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_25[22] = value_93;
     uint8_t* binary[23] = {0};
@@ -2382,7 +2126,7 @@ compiler_go_asm_x64_arity(uint8_t* name)
             if (!(i < ((8) * (sizeof(void *))) / sizeof(void *))) {
                 break;
             }
-            bool value_95 = zir_f_2738118201f5dc0a_strcmp(name, (unary)[i]) != 0;
+            bool value_95 = zir_foreign_compiler_go_asm_x64__strcmp(name, (unary)[i]) != 0;
             if (!value_95) {
                 return 1;
             }
@@ -2395,7 +2139,7 @@ compiler_go_asm_x64_arity(uint8_t* name)
             if (!(i < ((23) * (sizeof(void *))) / sizeof(void *))) {
                 break;
             }
-            bool value_96 = zir_f_2738118201f5dc0a_strcmp(name, (binary)[i]) != 0;
+            bool value_96 = zir_foreign_compiler_go_asm_x64__strcmp(name, (binary)[i]) != 0;
             if (!value_96) {
                 return 2;
             }
@@ -2413,7 +2157,7 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         bool value_0 = at[0] != 0;
         bool value_1 = value_0;
         if (value_1) {
-            bool value_2 = zir_f_2738118201f5dc0a_isspace((int32_t)(at[0])) != 0;
+            bool value_2 = zir_foreign_compiler_go_asm_x64__isspace((int32_t)(at[0])) != 0;
             value_1 = !value_2;
         }
         if (!value_1) {
@@ -2425,25 +2169,25 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         return 0;
     }
     uint8_t mnemonic[32] = {0};
-    zir_f_2738118201f5dc0a_memcpy((void*)(&(mnemonic[0])), (void*)(line), (size_t)(((ptrdiff_t)(((size_t)(at) - (size_t)(line))) / (ptrdiff_t)(sizeof(uint8_t)))));
+    zir_foreign_compiler_go_asm_x64__memcpy((void*)(&(mnemonic[0])), (void*)(line), (size_t)(((ptrdiff_t)(((size_t)(at) - (size_t)(line))) / (ptrdiff_t)(sizeof(uint8_t)))));
     uint8_t* value_3 = &(mnemonic[((ptrdiff_t)(((size_t)(at) - (size_t)(line))) / (ptrdiff_t)(sizeof(uint8_t)))]);
     (*value_3) = 0;
-    at = zir_f_2738118201f5dc0a_trim_in_place(at);
+    at = zir_foreign_compiler_go_asm_x64__trim_in_place(at);
     if ((mnemonic)[0] == 106) {
         String value_4 = StringLiteral("jmp");
         uint8_t* value_5 = (void *)0;
         {
             String s = value_4;
-            value_5 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_5 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
-        bool value_7 = zir_f_2738118201f5dc0a_strcmp(&(mnemonic[0]), value_5) != 0;
+        bool value_7 = zir_foreign_compiler_go_asm_x64__strcmp(&(mnemonic[0]), value_5) != 0;
         uint8_t* value_8 = (void *)0;
         if (!value_7) {
             String value_9 = StringLiteral("MP");
             uint8_t* value_10 = (void *)0;
             {
                 String s = value_9;
-                value_10 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                value_10 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
             }
             value_8 = value_10;
         } else {
@@ -2459,27 +2203,27 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_14 = (void *)0;
         {
             String s = value_13;
-            value_14 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_14 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
-        zir_f_2738118201f5dc0a_fprintf(out, value_14, suffix, label);
+        zir_foreign_compiler_go_asm_x64__fprintf(out, value_14, suffix, label);
         return 1;
     }
     String value_16 = StringLiteral("nop");
     uint8_t* value_17 = (void *)0;
     {
         String s = value_16;
-        value_17 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_17 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
-    bool value_19 = zir_f_2738118201f5dc0a_strcmp(&(mnemonic[0]), value_17) != 0;
+    bool value_19 = zir_foreign_compiler_go_asm_x64__strcmp(&(mnemonic[0]), value_17) != 0;
     bool value_20 = !value_19;
     if (!value_20) {
         String value_21 = StringLiteral("pause");
         uint8_t* value_22 = (void *)0;
         {
             String s = value_21;
-            value_22 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_22 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
-        bool value_24 = zir_f_2738118201f5dc0a_strcmp(&(mnemonic[0]), value_22) != 0;
+        bool value_24 = zir_foreign_compiler_go_asm_x64__strcmp(&(mnemonic[0]), value_22) != 0;
         value_20 = !value_24;
     }
     bool value_25 = value_20;
@@ -2488,9 +2232,9 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_27 = (void *)0;
         {
             String s = value_26;
-            value_27 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_27 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
-        bool value_29 = zir_f_2738118201f5dc0a_strcmp(&(mnemonic[0]), value_27) != 0;
+        bool value_29 = zir_foreign_compiler_go_asm_x64__strcmp(&(mnemonic[0]), value_27) != 0;
         value_25 = !value_29;
     }
     bool value_30 = value_25;
@@ -2499,9 +2243,9 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_32 = (void *)0;
         {
             String s = value_31;
-            value_32 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_32 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
-        bool value_34 = zir_f_2738118201f5dc0a_strcmp(&(mnemonic[0]), value_32) != 0;
+        bool value_34 = zir_foreign_compiler_go_asm_x64__strcmp(&(mnemonic[0]), value_32) != 0;
         value_30 = !value_34;
     }
     bool value_35 = value_30;
@@ -2510,9 +2254,9 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_37 = (void *)0;
         {
             String s = value_36;
-            value_37 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_37 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
-        bool value_39 = zir_f_2738118201f5dc0a_strcmp(&(mnemonic[0]), value_37) != 0;
+        bool value_39 = zir_foreign_compiler_go_asm_x64__strcmp(&(mnemonic[0]), value_37) != 0;
         value_35 = !value_39;
     }
     if (value_35) {
@@ -2526,7 +2270,7 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
                     break;
                 }
                 uint8_t* value_40 = &(p[0]);
-                int32_t value_41 = zir_f_2738118201f5dc0a_toupper((int32_t)(p[0]));
+                int32_t value_41 = zir_foreign_compiler_go_asm_x64__toupper((int32_t)(p[0]));
                 (*value_40) = (uint8_t)(value_41);
                 p = (uint8_t*)(((size_t)(p) + sizeof(uint8_t)));
             }
@@ -2535,9 +2279,9 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_43 = (void *)0;
         {
             String s = value_42;
-            value_43 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_43 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
-        zir_f_2738118201f5dc0a_fprintf(out, value_43, &(mnemonic[0]));
+        zir_foreign_compiler_go_asm_x64__fprintf(out, value_43, &(mnemonic[0]));
         return 1;
     }
     GoArgument args[3] = {0};
@@ -2577,17 +2321,17 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
             uint8_t* value_46 = &(end[0]);
             (*value_46) = 0;
         }
-        uint8_t* part = zir_f_2738118201f5dc0a_trim_in_place(at);
+        uint8_t* part = zir_foreign_compiler_go_asm_x64__trim_in_place(at);
         String value_47 = StringLiteral("lea");
         uint8_t* value_48 = (void *)0;
         {
             String s = value_47;
-            value_48 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_48 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
-        bool value_50 = zir_f_2738118201f5dc0a_strncmp(&(mnemonic[0]), value_48, (size_t)(3LL)) != 0;
+        bool value_50 = zir_foreign_compiler_go_asm_x64__strncmp(&(mnemonic[0]), value_48, (size_t)(3LL)) != 0;
         if (!value_50 && count == 0) {
-            uint8_t* open = zir_f_2738118201f5dc0a_strchr(part, 40);
-            uint8_t* close = zir_f_2738118201f5dc0a_strrchr(part, 41);
+            uint8_t* open = zir_foreign_compiler_go_asm_x64__strchr(part, 40);
+            uint8_t* close = zir_foreign_compiler_go_asm_x64__strrchr(part, 41);
             if (open == (uint8_t*)(((void *)0)) || close == (uint8_t*)(((void *)0)) || close[1] != 0) {
                 return 0;
             }
@@ -2596,7 +2340,7 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
             uint8_t* value_52 = &(open[0]);
             (*value_52) = close[0];
             uint8_t* tail = (void *)0;
-            zir_f_2738118201f5dc0a_strtol(part, &(tail), 0);
+            zir_foreign_compiler_go_asm_x64__strtol(part, &(tail), 0);
             if (tail == part || tail[0] != 0) {
                 return 0;
             }
@@ -2611,9 +2355,9 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
             uint8_t* value_56 = (void *)0;
             {
                 String s = value_55;
-                value_56 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                value_56 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
             }
-            if (zir_f_2738118201f5dc0a_snprintf(&(((args[count]).text)[0]), (128) * (sizeof(uint8_t)), value_56, part, &(base.text[0])) >= (int32_t)(((128) * (sizeof(uint8_t))))) {
+            if (zir_foreign_compiler_go_asm_x64__snprintf(&(((args[count]).text)[0]), (128) * (sizeof(uint8_t)), value_56, part, &(base.text[0])) >= (int32_t)(((128) * (sizeof(uint8_t))))) {
                 return 0;
             }
         } else {
@@ -2625,7 +2369,7 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         count = (int32_t)((uint32_t)count + 1u);
         uint8_t* value_59 = (void *)0;
         if (more != 0) {
-            uint8_t* value_60 = zir_f_2738118201f5dc0a_trim_in_place((uint8_t*)(((size_t)(end) + ((size_t)(1LL) * sizeof(uint8_t)))));
+            uint8_t* value_60 = zir_foreign_compiler_go_asm_x64__trim_in_place((uint8_t*)(((size_t)(end) + ((size_t)(1LL) * sizeof(uint8_t)))));
             value_59 = value_60;
         } else {
             value_59 = end;
@@ -2637,9 +2381,9 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
     uint8_t* value_62 = (void *)0;
     {
         String s = value_61;
-        value_62 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_62 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
-    bool value_64 = zir_f_2738118201f5dc0a_strncmp(&(mnemonic[0]), value_62, (size_t)(3LL)) != 0;
+    bool value_64 = zir_foreign_compiler_go_asm_x64__strncmp(&(mnemonic[0]), value_62, (size_t)(3LL)) != 0;
     if (!value_64) {
         uint8_t* suffix = compiler_go_asm_x64_condition((uint8_t*)(((size_t)(&(mnemonic[0])) + ((size_t)(3LL) * sizeof(uint8_t)))));
         if (suffix == (uint8_t*)(((void *)0)) || count != 1 || (args[0]).reg < 0 || (args[0]).reg >= 12) {
@@ -2649,9 +2393,9 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_66 = (void *)0;
         {
             String s = value_65;
-            value_66 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_66 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
-        zir_f_2738118201f5dc0a_snprintf(&(op[0]), (32) * (sizeof(uint8_t)), value_66, suffix);
+        zir_foreign_compiler_go_asm_x64__snprintf(&(op[0]), (32) * (sizeof(uint8_t)), value_66, suffix);
     } else {
         GoInstructionMapping value_68[21] = {0};
         GoInstructionMapping value_69 = {0};
@@ -2659,14 +2403,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_71 = (void *)0;
         {
             String s = value_70;
-            value_71 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_71 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_69.gnu = value_71;
         String value_73 = StringLiteral("MOVBLZX");
         uint8_t* value_74 = (void *)0;
         {
             String s = value_73;
-            value_74 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_74 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_69.go = value_74;
         value_68[0] = value_69;
@@ -2675,14 +2419,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_78 = (void *)0;
         {
             String s = value_77;
-            value_78 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_78 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_76.gnu = value_78;
         String value_80 = StringLiteral("MOVBQZX");
         uint8_t* value_81 = (void *)0;
         {
             String s = value_80;
-            value_81 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_81 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_76.go = value_81;
         value_68[1] = value_76;
@@ -2691,14 +2435,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_85 = (void *)0;
         {
             String s = value_84;
-            value_85 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_85 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_83.gnu = value_85;
         String value_87 = StringLiteral("MOVWLZX");
         uint8_t* value_88 = (void *)0;
         {
             String s = value_87;
-            value_88 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_88 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_83.go = value_88;
         value_68[2] = value_83;
@@ -2707,14 +2451,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_92 = (void *)0;
         {
             String s = value_91;
-            value_92 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_92 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_90.gnu = value_92;
         String value_94 = StringLiteral("MOVWQZX");
         uint8_t* value_95 = (void *)0;
         {
             String s = value_94;
-            value_95 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_95 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_90.go = value_95;
         value_68[3] = value_90;
@@ -2723,14 +2467,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_99 = (void *)0;
         {
             String s = value_98;
-            value_99 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_99 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_97.gnu = value_99;
         String value_101 = StringLiteral("MOVBLSX");
         uint8_t* value_102 = (void *)0;
         {
             String s = value_101;
-            value_102 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_102 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_97.go = value_102;
         value_68[4] = value_97;
@@ -2739,14 +2483,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_106 = (void *)0;
         {
             String s = value_105;
-            value_106 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_106 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_104.gnu = value_106;
         String value_108 = StringLiteral("MOVBQSX");
         uint8_t* value_109 = (void *)0;
         {
             String s = value_108;
-            value_109 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_109 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_104.go = value_109;
         value_68[5] = value_104;
@@ -2755,14 +2499,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_113 = (void *)0;
         {
             String s = value_112;
-            value_113 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_113 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_111.gnu = value_113;
         String value_115 = StringLiteral("MOVWLSX");
         uint8_t* value_116 = (void *)0;
         {
             String s = value_115;
-            value_116 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_116 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_111.go = value_116;
         value_68[6] = value_111;
@@ -2771,14 +2515,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_120 = (void *)0;
         {
             String s = value_119;
-            value_120 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_120 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_118.gnu = value_120;
         String value_122 = StringLiteral("MOVWQSX");
         uint8_t* value_123 = (void *)0;
         {
             String s = value_122;
-            value_123 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_123 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_118.go = value_123;
         value_68[7] = value_118;
@@ -2787,14 +2531,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_127 = (void *)0;
         {
             String s = value_126;
-            value_127 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_127 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_125.gnu = value_127;
         String value_129 = StringLiteral("MOVLQSX");
         uint8_t* value_130 = (void *)0;
         {
             String s = value_129;
-            value_130 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_130 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_125.go = value_130;
         value_68[8] = value_125;
@@ -2803,14 +2547,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_134 = (void *)0;
         {
             String s = value_133;
-            value_134 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_134 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_132.gnu = value_134;
         String value_136 = StringLiteral("MOVSS");
         uint8_t* value_137 = (void *)0;
         {
             String s = value_136;
-            value_137 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_137 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_132.go = value_137;
         value_68[9] = value_132;
@@ -2819,14 +2563,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_141 = (void *)0;
         {
             String s = value_140;
-            value_141 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_141 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_139.gnu = value_141;
         String value_143 = StringLiteral("MOVSD");
         uint8_t* value_144 = (void *)0;
         {
             String s = value_143;
-            value_144 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_144 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_139.go = value_144;
         value_68[10] = value_139;
@@ -2835,14 +2579,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_148 = (void *)0;
         {
             String s = value_147;
-            value_148 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_148 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_146.gnu = value_148;
         String value_150 = StringLiteral("ADDSS");
         uint8_t* value_151 = (void *)0;
         {
             String s = value_150;
-            value_151 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_151 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_146.go = value_151;
         value_68[11] = value_146;
@@ -2851,14 +2595,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_155 = (void *)0;
         {
             String s = value_154;
-            value_155 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_155 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_153.gnu = value_155;
         String value_157 = StringLiteral("ADDSD");
         uint8_t* value_158 = (void *)0;
         {
             String s = value_157;
-            value_158 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_158 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_153.go = value_158;
         value_68[12] = value_153;
@@ -2867,14 +2611,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_162 = (void *)0;
         {
             String s = value_161;
-            value_162 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_162 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_160.gnu = value_162;
         String value_164 = StringLiteral("SUBSS");
         uint8_t* value_165 = (void *)0;
         {
             String s = value_164;
-            value_165 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_165 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_160.go = value_165;
         value_68[13] = value_160;
@@ -2883,14 +2627,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_169 = (void *)0;
         {
             String s = value_168;
-            value_169 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_169 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_167.gnu = value_169;
         String value_171 = StringLiteral("SUBSD");
         uint8_t* value_172 = (void *)0;
         {
             String s = value_171;
-            value_172 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_172 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_167.go = value_172;
         value_68[14] = value_167;
@@ -2899,14 +2643,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_176 = (void *)0;
         {
             String s = value_175;
-            value_176 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_176 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_174.gnu = value_176;
         String value_178 = StringLiteral("MULSS");
         uint8_t* value_179 = (void *)0;
         {
             String s = value_178;
-            value_179 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_179 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_174.go = value_179;
         value_68[15] = value_174;
@@ -2915,14 +2659,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_183 = (void *)0;
         {
             String s = value_182;
-            value_183 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_183 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_181.gnu = value_183;
         String value_185 = StringLiteral("MULSD");
         uint8_t* value_186 = (void *)0;
         {
             String s = value_185;
-            value_186 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_186 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_181.go = value_186;
         value_68[16] = value_181;
@@ -2931,14 +2675,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_190 = (void *)0;
         {
             String s = value_189;
-            value_190 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_190 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_188.gnu = value_190;
         String value_192 = StringLiteral("DIVSS");
         uint8_t* value_193 = (void *)0;
         {
             String s = value_192;
-            value_193 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_193 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_188.go = value_193;
         value_68[17] = value_188;
@@ -2947,14 +2691,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_197 = (void *)0;
         {
             String s = value_196;
-            value_197 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_197 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_195.gnu = value_197;
         String value_199 = StringLiteral("DIVSD");
         uint8_t* value_200 = (void *)0;
         {
             String s = value_199;
-            value_200 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_200 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_195.go = value_200;
         value_68[18] = value_195;
@@ -2963,14 +2707,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_204 = (void *)0;
         {
             String s = value_203;
-            value_204 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_204 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_202.gnu = value_204;
         String value_206 = StringLiteral("SQRTSS");
         uint8_t* value_207 = (void *)0;
         {
             String s = value_206;
-            value_207 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_207 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_202.go = value_207;
         value_68[19] = value_202;
@@ -2979,14 +2723,14 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
         uint8_t* value_211 = (void *)0;
         {
             String s = value_210;
-            value_211 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_211 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_209.gnu = value_211;
         String value_213 = StringLiteral("SQRTSD");
         uint8_t* value_214 = (void *)0;
         {
             String s = value_213;
-            value_214 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+            value_214 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
         }
         value_209.go = value_214;
         value_68[20] = value_209;
@@ -2999,7 +2743,7 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
                 if (!(i < ((21) * (sizeof(GoInstructionMapping))) / sizeof(GoInstructionMapping))) {
                     break;
                 }
-                bool value_216 = zir_f_2738118201f5dc0a_strcmp(&(mnemonic[0]), (special[i]).gnu) != 0;
+                bool value_216 = zir_foreign_compiler_go_asm_x64__strcmp(&(mnemonic[0]), (special[i]).gnu) != 0;
                 if (!value_216) {
                     mapped = (special[i]).go;
                 }
@@ -3014,9 +2758,9 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
             uint8_t* value_218 = (void *)0;
             {
                 String s = value_217;
-                value_218 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                value_218 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
             }
-            zir_f_2738118201f5dc0a_snprintf(&(op[0]), (32) * (sizeof(uint8_t)), value_218, mapped);
+            zir_foreign_compiler_go_asm_x64__snprintf(&(op[0]), (32) * (sizeof(uint8_t)), value_218, mapped);
         } else {
             int32_t value_220 = 0;
             if (count != 0) {
@@ -3025,7 +2769,7 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
                 value_220 = 0;
             }
             int32_t bits = value_220;
-            size_t n = zir_f_2738118201f5dc0a_strlen(&(mnemonic[0]));
+            size_t n = zir_foreign_compiler_go_asm_x64__strlen(&(mnemonic[0]));
             int32_t operands = compiler_go_asm_x64_arity(&(mnemonic[0]));
             bool value_221 = !(operands != 0) && n != 0;
             if (value_221) {
@@ -3033,9 +2777,9 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
                 uint8_t* value_223 = (void *)0;
                 {
                     String s = value_222;
-                    value_223 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_223 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
-                uint8_t* value_225 = zir_f_2738118201f5dc0a_strchr(value_223, (int32_t)((mnemonic)[(n - (size_t)(1LL))]));
+                uint8_t* value_225 = zir_foreign_compiler_go_asm_x64__strchr(value_223, (int32_t)((mnemonic)[(n - (size_t)(1LL))]));
                 value_221 = (value_225 != ((void *)0));
             }
             if (value_221) {
@@ -3070,18 +2814,18 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
             uint8_t* value_231 = (void *)0;
             {
                 String s = value_230;
-                value_231 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                value_231 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
             }
-            bool value_233 = zir_f_2738118201f5dc0a_strcmp(&(mnemonic[0]), value_231) != 0;
+            bool value_233 = zir_foreign_compiler_go_asm_x64__strcmp(&(mnemonic[0]), value_231) != 0;
             bool value_234 = !value_233;
             if (!value_234) {
                 String value_235 = StringLiteral("shr");
                 uint8_t* value_236 = (void *)0;
                 {
                     String s = value_235;
-                    value_236 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_236 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
-                bool value_238 = zir_f_2738118201f5dc0a_strcmp(&(mnemonic[0]), value_236) != 0;
+                bool value_238 = zir_foreign_compiler_go_asm_x64__strcmp(&(mnemonic[0]), value_236) != 0;
                 value_234 = !value_238;
             }
             bool value_239 = value_234;
@@ -3090,9 +2834,9 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
                 uint8_t* value_241 = (void *)0;
                 {
                     String s = value_240;
-                    value_241 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_241 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
-                bool value_243 = zir_f_2738118201f5dc0a_strcmp(&(mnemonic[0]), value_241) != 0;
+                bool value_243 = zir_foreign_compiler_go_asm_x64__strcmp(&(mnemonic[0]), value_241) != 0;
                 value_239 = !value_243;
             }
             bool value_244 = value_239;
@@ -3101,9 +2845,9 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
                 uint8_t* value_246 = (void *)0;
                 {
                     String s = value_245;
-                    value_246 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_246 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
-                bool value_248 = zir_f_2738118201f5dc0a_strcmp(&(mnemonic[0]), value_246) != 0;
+                bool value_248 = zir_foreign_compiler_go_asm_x64__strcmp(&(mnemonic[0]), value_246) != 0;
                 value_244 = !value_248;
             }
             bool value_249 = value_244;
@@ -3112,9 +2856,9 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
                 uint8_t* value_251 = (void *)0;
                 {
                     String s = value_250;
-                    value_251 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_251 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
-                bool value_253 = zir_f_2738118201f5dc0a_strcmp(&(mnemonic[0]), value_251) != 0;
+                bool value_253 = zir_foreign_compiler_go_asm_x64__strcmp(&(mnemonic[0]), value_251) != 0;
                 value_249 = !value_253;
             }
             if (value_249 && !((args[0]).immediate != 0) && (args[0]).reg != 2) {
@@ -3124,9 +2868,9 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
             uint8_t* value_255 = (void *)0;
             {
                 String s = value_254;
-                value_255 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                value_255 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
             }
-            bool value_257 = zir_f_2738118201f5dc0a_strcmp(&(mnemonic[0]), value_255) != 0;
+            bool value_257 = zir_foreign_compiler_go_asm_x64__strcmp(&(mnemonic[0]), value_255) != 0;
             if (!value_257) {
                 GoArgument swap = (args)[0];
                 GoArgument* value_258 = &(args[0]);
@@ -3141,7 +2885,7 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
                         break;
                     }
                     uint8_t* value_260 = &(op[i]);
-                    int32_t value_261 = zir_f_2738118201f5dc0a_toupper((int32_t)((mnemonic)[i]));
+                    int32_t value_261 = zir_foreign_compiler_go_asm_x64__toupper((int32_t)((mnemonic)[i]));
                     (*value_260) = (uint8_t)(value_261);
                     i = i + 1;
                 }
@@ -3176,9 +2920,9 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
     uint8_t* value_268 = (void *)0;
     {
         String s = value_267;
-        value_268 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_268 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
-    zir_f_2738118201f5dc0a_fprintf(out, value_268, &(op[0]));
+    zir_foreign_compiler_go_asm_x64__fprintf(out, value_268, &(op[0]));
     {
         int32_t i = 0;
         while (true) {
@@ -3189,7 +2933,7 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
             uint8_t* value_271 = (void *)0;
             {
                 String s = value_270;
-                value_271 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                value_271 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
             }
             uint8_t* value_273 = (void *)0;
             if (i != 0) {
@@ -3197,7 +2941,7 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
                 uint8_t* value_275 = (void *)0;
                 {
                     String s = value_274;
-                    value_275 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_275 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
                 value_273 = value_275;
             } else {
@@ -3205,22 +2949,22 @@ compiler_go_asm_x64_instruction(GoAmd64Plan* plan, void* out, uint8_t* line, siz
                 uint8_t* value_278 = (void *)0;
                 {
                     String s = value_277;
-                    value_278 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_278 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
                 value_273 = value_278;
             }
-            zir_f_2738118201f5dc0a_fprintf(out, value_271, value_273, &(((args[i]).text)[0]));
+            zir_foreign_compiler_go_asm_x64__fprintf(out, value_271, value_273, &(((args[i]).text)[0]));
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    zir_f_2738118201f5dc0a_fputc(10, out);
+    zir_foreign_compiler_go_asm_x64__fputc(10, out);
     return 1;
 }
 
 static int32_t
 compiler_go_asm_x64_translate(GoAmd64Plan* plan)
 {
-    uint8_t* text = zir_f_2738118201f5dc0a_strdup(plan->normalized);
+    uint8_t* text = zir_foreign_compiler_go_asm_x64__strdup(plan->normalized);
     bool value_0 = text == (uint8_t*)(((void *)0));
     bool value_1 = value_0;
     if (!value_1) {
@@ -3228,15 +2972,15 @@ compiler_go_asm_x64_translate(GoAmd64Plan* plan)
         value_1 = !value_2;
     }
     if (value_1) {
-        zir_f_2738118201f5dc0a_free((void*)(text));
+        zir_foreign_compiler_go_asm_x64__free((void*)(text));
         return 0;
     }
     uint8_t* output = (uint8_t*)(((void *)0));
     size_t length = 0;
     TextStream stream = {0};
-    void* out = zir_f_2738118201f5dc0a_TextStreamOpen(&(stream), &(output), &(length));
+    void* out = zir_foreign_compiler_go_asm_x64__TextStreamOpen(&(stream), &(output), &(length));
     if (out == ((void *)0)) {
-        zir_f_2738118201f5dc0a_free((void*)(text));
+        zir_foreign_compiler_go_asm_x64__free((void*)(text));
         return 0;
     }
     int32_t valid = 1;
@@ -3247,7 +2991,7 @@ compiler_go_asm_x64_translate(GoAmd64Plan* plan)
                 break;
             }
             while (true) {
-                bool value_3 = zir_f_2738118201f5dc0a_isspace((int32_t)(at[0])) != 0;
+                bool value_3 = zir_foreign_compiler_go_asm_x64__isspace((int32_t)(at[0])) != 0;
                 if (!(value_3 || at[0] == 59)) {
                     break;
                 }
@@ -3270,7 +3014,7 @@ compiler_go_asm_x64_translate(GoAmd64Plan* plan)
                 bool value_4 = end[0] != 0;
                 bool value_5 = value_4;
                 if (value_5) {
-                    bool value_6 = zir_f_2738118201f5dc0a_isspace((int32_t)(end[0])) != 0;
+                    bool value_6 = zir_foreign_compiler_go_asm_x64__isspace((int32_t)(end[0])) != 0;
                     value_5 = !value_6;
                 }
                 if (!(value_5 && end[0] != 58 && end[0] != 59)) {
@@ -3309,9 +3053,9 @@ compiler_go_asm_x64_translate(GoAmd64Plan* plan)
                 uint8_t* value_9 = (void *)0;
                 {
                     String s = value_8;
-                    value_9 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_9 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
-                zir_f_2738118201f5dc0a_fprintf(out, value_9, id);
+                zir_foreign_compiler_go_asm_x64__fprintf(out, value_9, id);
                 at = (uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t))));
                 continue;
             }
@@ -3325,7 +3069,7 @@ compiler_go_asm_x64_translate(GoAmd64Plan* plan)
             uint8_t saved = end[0];
             uint8_t* value_11 = &(end[0]);
             (*value_11) = 0;
-            valid = compiler_go_asm_x64_instruction(plan, out, zir_f_2738118201f5dc0a_trim_in_place(at), (size_t)(((ptrdiff_t)(((size_t)(at) - (size_t)(text))) / (ptrdiff_t)(sizeof(uint8_t)))));
+            valid = compiler_go_asm_x64_instruction(plan, out, zir_foreign_compiler_go_asm_x64__trim_in_place(at), (size_t)(((ptrdiff_t)(((size_t)(at) - (size_t)(text))) / (ptrdiff_t)(sizeof(uint8_t)))));
             uint8_t* value_12 = &(end[0]);
             (*value_12) = saved;
             at = end;
@@ -3339,15 +3083,15 @@ compiler_go_asm_x64_translate(GoAmd64Plan* plan)
             }
         }
     }
-    if (zir_f_2738118201f5dc0a_TextStreamClose(&(stream)) != 0) {
+    if (zir_foreign_compiler_go_asm_x64__TextStreamClose(&(stream)) != 0) {
         valid = 0;
     }
-    zir_f_2738118201f5dc0a_free((void*)(text));
+    zir_foreign_compiler_go_asm_x64__free((void*)(text));
     if (valid != 0) {
         uint8_t** value_13 = &(plan->text);
         (*value_13) = output;
     } else {
-        zir_f_2738118201f5dc0a_free((void*)(output));
+        zir_foreign_compiler_go_asm_x64__free((void*)(output));
     }
     return valid;
 }
@@ -3360,7 +3104,7 @@ GoAmd64Prepare(AssemblyVariant* source, int32_t block, int32_t by_value, uint8_t
     if (!value_0) {
         return (GoAmd64Plan*)(((void *)0));
     }
-    void* value_1 = zir_f_2738118201f5dc0a_calloc((size_t)(1LL), sizeof(GoAmd64Plan));
+    void* value_1 = zir_foreign_compiler_go_asm_x64__calloc((size_t)(1LL), sizeof(GoAmd64Plan));
     GoAmd64Plan* plan = (GoAmd64Plan*)(value_1);
     if (plan == (GoAmd64Plan*)(((void *)0))) {
         return (GoAmd64Plan*)(((void *)0));
@@ -3447,7 +3191,7 @@ GoAmd64Prepare(AssemblyVariant* source, int32_t block, int32_t by_value, uint8_t
     if (plan->normalized == (uint8_t*)(((void *)0))) {
         return plan;
     }
-    int32_t alternatives = zir_f_2738118201f5dc0a_AssemblyAlternativeCount(source);
+    int32_t alternatives = zir_foreign_compiler_go_asm_x64__AssemblyAlternativeCount(source);
     {
         int32_t column = 0;
         while (true) {
@@ -3466,11 +3210,11 @@ GoAmd64Prepare(AssemblyVariant* source, int32_t block, int32_t by_value, uint8_t
                     if (!(i < plan->label_count)) {
                         break;
                     }
-                    zir_f_2738118201f5dc0a_free((void*)((plan->labels[i]).name));
+                    zir_foreign_compiler_go_asm_x64__free((void*)((plan->labels[i]).name));
                     i = (int32_t)((uint32_t)i + 1u);
                 }
             }
-            zir_f_2738118201f5dc0a_free((void*)(plan->labels));
+            zir_foreign_compiler_go_asm_x64__free((void*)(plan->labels));
             GoLabel** value_19 = &(plan->labels);
             (*value_19) = (GoLabel*)(((void *)0));
             int32_t* value_20 = &(plan->label_count);
@@ -3501,11 +3245,11 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
-    zir_f_2738118201f5dc0a_fputs(value_1, go);
-    zir_f_2738118201f5dc0a_fputs(name, go);
-    zir_f_2738118201f5dc0a_fputc(40, go);
+    zir_foreign_compiler_go_asm_x64__fputs(value_1, go);
+    zir_foreign_compiler_go_asm_x64__fputs(name, go);
+    zir_foreign_compiler_go_asm_x64__fputc(40, go);
     {
         int32_t i = source->outputs;
         while (true) {
@@ -3517,7 +3261,7 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
             uint8_t* value_5 = (void *)0;
             {
                 String s = value_4;
-                value_5 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                value_5 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
             }
             uint8_t* value_7 = (void *)0;
             if (i > source->outputs) {
@@ -3525,7 +3269,7 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
                 uint8_t* value_9 = (void *)0;
                 {
                     String s = value_8;
-                    value_9 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_9 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
                 value_7 = value_9;
             } else {
@@ -3533,7 +3277,7 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
                 uint8_t* value_12 = (void *)0;
                 {
                     String s = value_11;
-                    value_12 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_12 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
                 value_7 = value_12;
             }
@@ -3545,7 +3289,7 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
                 uint8_t* value_18 = (void *)0;
                 {
                     String s = value_17;
-                    value_18 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_18 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
                 value_16 = value_18;
             } else {
@@ -3553,14 +3297,14 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
                 uint8_t* value_21 = (void *)0;
                 {
                     String s = value_20;
-                    value_21 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_21 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
                 value_16 = value_21;
             }
             uint8_t* value_23 = value_16;
-            uint8_t* value_24 = zir_f_2738118201f5dc0a_ScalarType((source->operands[i]).type);
-            void* value_25 = zir_f_2738118201f5dc0a_TargetTypeZiran((void*)(value_24), (int32_t)(((ZirTarget)(1))));
-            zir_f_2738118201f5dc0a_fprintf(value_3, value_5, value_14, value_15, value_23, (uint8_t*)(value_25));
+            uint8_t* value_24 = zir_foreign_compiler_go_asm_x64__ScalarType((source->operands[i]).type);
+            void* value_25 = zir_foreign_compiler_go_asm_x64__TargetTypeZiran((void*)(value_24), (int32_t)(((ZirTarget)(1))));
+            zir_foreign_compiler_go_asm_x64__fprintf(value_3, value_5, value_14, value_15, value_23, (uint8_t*)(value_25));
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -3568,9 +3312,9 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
     uint8_t* value_27 = (void *)0;
     {
         String s = value_26;
-        value_27 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_27 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
-    zir_f_2738118201f5dc0a_fputs(value_27, go);
+    zir_foreign_compiler_go_asm_x64__fputs(value_27, go);
     {
         int32_t i = 0;
         while (true) {
@@ -3582,12 +3326,12 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
             uint8_t* value_31 = (void *)0;
             {
                 String s = value_30;
-                value_31 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                value_31 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
             }
             int32_t value_33 = i;
-            uint8_t* value_34 = zir_f_2738118201f5dc0a_ScalarType((source->operands[i]).type);
-            void* value_35 = zir_f_2738118201f5dc0a_TargetTypeZiran((void*)(value_34), (int32_t)(((ZirTarget)(1))));
-            zir_f_2738118201f5dc0a_fprintf(value_29, value_31, value_33, (uint8_t*)(value_35));
+            uint8_t* value_34 = zir_foreign_compiler_go_asm_x64__ScalarType((source->operands[i]).type);
+            void* value_35 = zir_foreign_compiler_go_asm_x64__TargetTypeZiran((void*)(value_34), (int32_t)(((ZirTarget)(1))));
+            zir_foreign_compiler_go_asm_x64__fprintf(value_29, value_31, value_33, (uint8_t*)(value_35));
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -3595,17 +3339,17 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
     uint8_t* value_37 = (void *)0;
     {
         String s = value_36;
-        value_37 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_37 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
-    zir_f_2738118201f5dc0a_fputs(value_37, go);
+    zir_foreign_compiler_go_asm_x64__fputs(value_37, go);
     void* value_39 = assembly;
     String value_40 = StringLiteral("TEXT \302\267%s(SB), NOSPLIT, $0-%d\n");
     uint8_t* value_41 = (void *)0;
     {
         String s = value_40;
-        value_41 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_41 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
-    zir_f_2738118201f5dc0a_fprintf(value_39, value_41, name, plan->arguments);
+    zir_foreign_compiler_go_asm_x64__fprintf(value_39, value_41, name, plan->arguments);
     {
         int32_t i = source->outputs;
         while (true) {
@@ -3618,25 +3362,25 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
             uint8_t* value_44 = (void *)0;
             {
                 String s = value_43;
-                value_44 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                value_44 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
             }
-            zir_f_2738118201f5dc0a_snprintf(&(input[0]), (64) * (sizeof(uint8_t)), value_44, i, operand->offset);
+            zir_foreign_compiler_go_asm_x64__snprintf(&(input[0]), (64) * (sizeof(uint8_t)), value_44, i, operand->offset);
             if (operand->storage != 0) {
                 void* value_46 = assembly;
                 String value_47 = StringLiteral("\tMOVQ %s, R13\n");
                 uint8_t* value_48 = (void *)0;
                 {
                     String s = value_47;
-                    value_48 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_48 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
-                zir_f_2738118201f5dc0a_fprintf(value_46, value_48, &(input[0]));
+                zir_foreign_compiler_go_asm_x64__fprintf(value_46, value_48, &(input[0]));
                 String value_50 = StringLiteral("0(R13)");
                 uint8_t* value_51 = (void *)0;
                 {
                     String s = value_50;
-                    value_51 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_51 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
-                zir_f_2738118201f5dc0a_strcpy(&(input[0]), value_51);
+                zir_foreign_compiler_go_asm_x64__strcpy(&(input[0]), value_51);
             }
             uint8_t* value_53 = (void *)0;
             if (operand->floating != 0) {
@@ -3646,7 +3390,7 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
                     uint8_t* value_56 = (void *)0;
                     {
                         String s = value_55;
-                        value_56 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                        value_56 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                     }
                     value_54 = value_56;
                 } else {
@@ -3654,7 +3398,7 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
                     uint8_t* value_59 = (void *)0;
                     {
                         String s = value_58;
-                        value_59 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                        value_59 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                     }
                     value_54 = value_59;
                 }
@@ -3666,7 +3410,7 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
                     uint8_t* value_63 = (void *)0;
                     {
                         String s = value_62;
-                        value_63 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                        value_63 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                     }
                     value_61 = value_63;
                 } else {
@@ -3676,7 +3420,7 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
                         uint8_t* value_67 = (void *)0;
                         {
                             String s = value_66;
-                            value_67 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                            value_67 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                         }
                         value_65 = value_67;
                     } else {
@@ -3686,7 +3430,7 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
                             uint8_t* value_71 = (void *)0;
                             {
                                 String s = value_70;
-                                value_71 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                                value_71 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                             }
                             value_69 = value_71;
                         } else {
@@ -3694,7 +3438,7 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
                             uint8_t* value_74 = (void *)0;
                             {
                                 String s = value_73;
-                                value_74 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                                value_74 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                             }
                             value_69 = value_74;
                         }
@@ -3710,13 +3454,13 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
             uint8_t* value_78 = (void *)0;
             {
                 String s = value_77;
-                value_78 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                value_78 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
             }
-            zir_f_2738118201f5dc0a_fprintf(value_76, value_78, load, &(input[0]), (registers)[operand->reg]);
+            zir_foreign_compiler_go_asm_x64__fprintf(value_76, value_78, load, &(input[0]), (registers)[operand->reg]);
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    zir_f_2738118201f5dc0a_fputs(plan->text, assembly);
+    zir_foreign_compiler_go_asm_x64__fputs(plan->text, assembly);
     {
         int32_t i = 0;
         while (true) {
@@ -3729,18 +3473,18 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
             uint8_t* value_82 = (void *)0;
             {
                 String s = value_81;
-                value_82 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                value_82 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
             }
-            bool value_84 = zir_f_2738118201f5dc0a_strcmp(value_80, value_82) != 0;
+            bool value_84 = zir_foreign_compiler_go_asm_x64__strcmp(value_80, value_82) != 0;
             if (!value_84) {
                 void* value_85 = assembly;
                 String value_86 = StringLiteral("\tTESTB %s, %s\n\tSETNE %s\n");
                 uint8_t* value_87 = (void *)0;
                 {
                     String s = value_86;
-                    value_87 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                    value_87 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                 }
-                zir_f_2738118201f5dc0a_fprintf(value_85, value_87, (registers)[operand->reg], (registers)[operand->reg], (registers)[operand->reg]);
+                zir_foreign_compiler_go_asm_x64__fprintf(value_85, value_87, (registers)[operand->reg], (registers)[operand->reg], (registers)[operand->reg]);
             }
             uint8_t* value_89 = (void *)0;
             if (operand->floating != 0) {
@@ -3750,7 +3494,7 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
                     uint8_t* value_92 = (void *)0;
                     {
                         String s = value_91;
-                        value_92 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                        value_92 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                     }
                     value_90 = value_92;
                 } else {
@@ -3758,7 +3502,7 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
                     uint8_t* value_95 = (void *)0;
                     {
                         String s = value_94;
-                        value_95 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                        value_95 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                     }
                     value_90 = value_95;
                 }
@@ -3770,7 +3514,7 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
                     uint8_t* value_99 = (void *)0;
                     {
                         String s = value_98;
-                        value_99 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                        value_99 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                     }
                     value_97 = value_99;
                 } else {
@@ -3780,7 +3524,7 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
                         uint8_t* value_103 = (void *)0;
                         {
                             String s = value_102;
-                            value_103 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                            value_103 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                         }
                         value_101 = value_103;
                     } else {
@@ -3790,7 +3534,7 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
                             uint8_t* value_107 = (void *)0;
                             {
                                 String s = value_106;
-                                value_107 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                                value_107 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                             }
                             value_105 = value_107;
                         } else {
@@ -3798,7 +3542,7 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
                             uint8_t* value_110 = (void *)0;
                             {
                                 String s = value_109;
-                                value_110 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                                value_110 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
                             }
                             value_105 = value_110;
                         }
@@ -3814,9 +3558,9 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
             uint8_t* value_114 = (void *)0;
             {
                 String s = value_113;
-                value_114 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+                value_114 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
             }
-            zir_f_2738118201f5dc0a_fprintf(value_112, value_114, store, (registers)[operand->reg], i, operand->offset);
+            zir_foreign_compiler_go_asm_x64__fprintf(value_112, value_114, store, (registers)[operand->reg], i, operand->offset);
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -3825,9 +3569,9 @@ GoAmd64Write(void* go, void* assembly, GoAmd64Plan* plan, uint8_t* name)
     uint8_t* value_118 = (void *)0;
     {
         String s = value_117;
-        value_118 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_118 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
-    zir_f_2738118201f5dc0a_fprintf(value_116, value_118, plan->available);
+    zir_foreign_compiler_go_asm_x64__fprintf(value_116, value_118, plan->available);
 }
 
 void
@@ -3837,23 +3581,23 @@ GoAmd64Cpu(void* go, void* assembly, uint8_t* prefix)
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
-    zir_f_2738118201f5dc0a_fprintf(go, value_1, prefix, prefix);
+    zir_foreign_compiler_go_asm_x64__fprintf(go, value_1, prefix, prefix);
     String value_3 = StringLiteral("var %sFeatures = func() uint64 {\n    var flags uint64\n    maximum, _, _, _ := %sCpuid(0, 0)\n    var avx bool\n    var xcr uint64\n    if maximum >= 1 {\n        _, _, c, d := %sCpuid(1, 0)\n        for _, feature := range []struct{bit uint; mask uint64}{{23,1<<0},{9,1<<2},{19,1<<3},{20,1<<4},{25,1<<12},{1,1<<13}} { if c&(1<<feature.bit)!=0 {flags |= feature.mask} }\n        if d&(1<<26)!=0 {flags |= 1<<1}\n        if c&(1<<26|1<<27)==1<<26|1<<27 {xcr=%sXgetbv()}\n        avx = c&(1<<28)!=0 && xcr&6==6\n        if avx {flags |= 1<<5; if c&(1<<12)!=0 {flags |= 1<<11}}\n    }\n    if maximum >= 7 {\n        _, b, _, _ := %sCpuid(7, 0)\n        if b&(1<<3)!=0 {flags |= 1<<8}; if b&(1<<8)!=0 {flags |= 1<<9}\n        if avx && b&(1<<5)!=0 {flags |= 1<<6}\n        if avx && xcr&0xe6==0xe6 && b&(1<<16)!=0 {flags |= 1<<7}\n    }\n    maximum, _, _, _ = %sCpuid(0x80000000, 0)\n    if maximum >= 0x80000001 {_, _, c, _ := %sCpuid(0x80000001, 0); if c&(1<<5)!=0 {flags |= 1<<10}}\n    return flags\n}()\n\n");
     uint8_t* value_4 = (void *)0;
     {
         String s = value_3;
-        value_4 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_4 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
-    zir_f_2738118201f5dc0a_fprintf(go, value_4, prefix, prefix, prefix, prefix, prefix, prefix, prefix);
+    zir_foreign_compiler_go_asm_x64__fprintf(go, value_4, prefix, prefix, prefix, prefix, prefix, prefix, prefix);
     String value_6 = StringLiteral("TEXT \302\267%sCpuid(SB), NOSPLIT, $0-24\n\tMOVL leaf+0(FP), AX\n\tMOVL sub+4(FP), CX\n\tCPUID\n\tMOVL AX, ra+8(FP)\n\tMOVL BX, rb+12(FP)\n\tMOVL CX, rc+16(FP)\n\tMOVL DX, rd+20(FP)\n\tRET\n\nTEXT \302\267%sXgetbv(SB), NOSPLIT, $0-8\n\tXORL CX, CX\n\tXGETBV\n\tSHLQ $32, DX\n\tORQ DX, AX\n\tMOVQ AX, ret+0(FP)\n\tRET\n\n");
     uint8_t* value_7 = (void *)0;
     {
         String s = value_6;
-        value_7 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_7 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
-    zir_f_2738118201f5dc0a_fprintf(assembly, value_7, prefix, prefix);
+    zir_foreign_compiler_go_asm_x64__fprintf(assembly, value_7, prefix, prefix);
 }
 
 void
@@ -3868,14 +3612,14 @@ GoAmd64Close(GoAmd64Plan* plan)
             if (!(i < plan->label_count)) {
                 break;
             }
-            zir_f_2738118201f5dc0a_free((void*)((plan->labels[i]).name));
+            zir_foreign_compiler_go_asm_x64__free((void*)((plan->labels[i]).name));
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    zir_f_2738118201f5dc0a_free((void*)(plan->labels));
-    zir_f_2738118201f5dc0a_free((void*)(plan->text));
-    zir_f_2738118201f5dc0a_free((void*)(plan->normalized));
-    zir_f_2738118201f5dc0a_free((void*)(plan));
+    zir_foreign_compiler_go_asm_x64__free((void*)(plan->labels));
+    zir_foreign_compiler_go_asm_x64__free((void*)(plan->text));
+    zir_foreign_compiler_go_asm_x64__free((void*)(plan->normalized));
+    zir_foreign_compiler_go_asm_x64__free((void*)(plan));
 }
 
 static void
@@ -3886,189 +3630,189 @@ compiler_go_asm_x64___global_init_0_0(void)
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
-        value_2 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_2 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[0] = value_2;
     String value_4 = StringLiteral("BX");
     uint8_t* value_5 = (void *)0;
     {
         String s = value_4;
-        value_5 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_5 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[1] = value_5;
     String value_7 = StringLiteral("CX");
     uint8_t* value_8 = (void *)0;
     {
         String s = value_7;
-        value_8 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_8 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[2] = value_8;
     String value_10 = StringLiteral("DX");
     uint8_t* value_11 = (void *)0;
     {
         String s = value_10;
-        value_11 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_11 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[3] = value_11;
     String value_13 = StringLiteral("SI");
     uint8_t* value_14 = (void *)0;
     {
         String s = value_13;
-        value_14 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_14 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[4] = value_14;
     String value_16 = StringLiteral("DI");
     uint8_t* value_17 = (void *)0;
     {
         String s = value_16;
-        value_17 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_17 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[5] = value_17;
     String value_19 = StringLiteral("R8");
     uint8_t* value_20 = (void *)0;
     {
         String s = value_19;
-        value_20 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_20 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[6] = value_20;
     String value_22 = StringLiteral("R9");
     uint8_t* value_23 = (void *)0;
     {
         String s = value_22;
-        value_23 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_23 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[7] = value_23;
     String value_25 = StringLiteral("R10");
     uint8_t* value_26 = (void *)0;
     {
         String s = value_25;
-        value_26 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_26 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[8] = value_26;
     String value_28 = StringLiteral("R11");
     uint8_t* value_29 = (void *)0;
     {
         String s = value_28;
-        value_29 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_29 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[9] = value_29;
     String value_31 = StringLiteral("R12");
     uint8_t* value_32 = (void *)0;
     {
         String s = value_31;
-        value_32 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_32 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[10] = value_32;
     String value_34 = StringLiteral("R13");
     uint8_t* value_35 = (void *)0;
     {
         String s = value_34;
-        value_35 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_35 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[11] = value_35;
     String value_37 = StringLiteral("X0");
     uint8_t* value_38 = (void *)0;
     {
         String s = value_37;
-        value_38 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_38 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[12] = value_38;
     String value_40 = StringLiteral("X1");
     uint8_t* value_41 = (void *)0;
     {
         String s = value_40;
-        value_41 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_41 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[13] = value_41;
     String value_43 = StringLiteral("X2");
     uint8_t* value_44 = (void *)0;
     {
         String s = value_43;
-        value_44 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_44 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[14] = value_44;
     String value_46 = StringLiteral("X3");
     uint8_t* value_47 = (void *)0;
     {
         String s = value_46;
-        value_47 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_47 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[15] = value_47;
     String value_49 = StringLiteral("X4");
     uint8_t* value_50 = (void *)0;
     {
         String s = value_49;
-        value_50 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_50 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[16] = value_50;
     String value_52 = StringLiteral("X5");
     uint8_t* value_53 = (void *)0;
     {
         String s = value_52;
-        value_53 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_53 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[17] = value_53;
     String value_55 = StringLiteral("X6");
     uint8_t* value_56 = (void *)0;
     {
         String s = value_55;
-        value_56 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_56 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[18] = value_56;
     String value_58 = StringLiteral("X7");
     uint8_t* value_59 = (void *)0;
     {
         String s = value_58;
-        value_59 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_59 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[19] = value_59;
     String value_61 = StringLiteral("X8");
     uint8_t* value_62 = (void *)0;
     {
         String s = value_61;
-        value_62 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_62 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[20] = value_62;
     String value_64 = StringLiteral("X9");
     uint8_t* value_65 = (void *)0;
     {
         String s = value_64;
-        value_65 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_65 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[21] = value_65;
     String value_67 = StringLiteral("X10");
     uint8_t* value_68 = (void *)0;
     {
         String s = value_67;
-        value_68 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_68 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[22] = value_68;
     String value_70 = StringLiteral("X11");
     uint8_t* value_71 = (void *)0;
     {
         String s = value_70;
-        value_71 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_71 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[23] = value_71;
     String value_73 = StringLiteral("X12");
     uint8_t* value_74 = (void *)0;
     {
         String s = value_73;
-        value_74 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_74 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[24] = value_74;
     String value_76 = StringLiteral("X13");
     uint8_t* value_77 = (void *)0;
     {
         String s = value_76;
-        value_77 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_77 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[25] = value_77;
     String value_79 = StringLiteral("X14");
     uint8_t* value_80 = (void *)0;
     {
         String s = value_79;
-        value_80 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_80 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[26] = value_80;
     memmove(registers, value_0, sizeof(registers));
@@ -4082,98 +3826,98 @@ compiler_go_asm_x64___global_init_1_0(void)
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
-        value_2 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_2 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[0] = value_2;
     String value_4 = StringLiteral("sse2");
     uint8_t* value_5 = (void *)0;
     {
         String s = value_4;
-        value_5 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_5 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[1] = value_5;
     String value_7 = StringLiteral("ssse3");
     uint8_t* value_8 = (void *)0;
     {
         String s = value_7;
-        value_8 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_8 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[2] = value_8;
     String value_10 = StringLiteral("sse4.1");
     uint8_t* value_11 = (void *)0;
     {
         String s = value_10;
-        value_11 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_11 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[3] = value_11;
     String value_13 = StringLiteral("sse4.2");
     uint8_t* value_14 = (void *)0;
     {
         String s = value_13;
-        value_14 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_14 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[4] = value_14;
     String value_16 = StringLiteral("avx");
     uint8_t* value_17 = (void *)0;
     {
         String s = value_16;
-        value_17 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_17 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[5] = value_17;
     String value_19 = StringLiteral("avx2");
     uint8_t* value_20 = (void *)0;
     {
         String s = value_19;
-        value_20 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_20 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[6] = value_20;
     String value_22 = StringLiteral("avx512f");
     uint8_t* value_23 = (void *)0;
     {
         String s = value_22;
-        value_23 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_23 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[7] = value_23;
     String value_25 = StringLiteral("bmi");
     uint8_t* value_26 = (void *)0;
     {
         String s = value_25;
-        value_26 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_26 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[8] = value_26;
     String value_28 = StringLiteral("bmi2");
     uint8_t* value_29 = (void *)0;
     {
         String s = value_28;
-        value_29 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_29 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[9] = value_29;
     String value_31 = StringLiteral("lzcnt");
     uint8_t* value_32 = (void *)0;
     {
         String s = value_31;
-        value_32 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_32 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[10] = value_32;
     String value_34 = StringLiteral("fma");
     uint8_t* value_35 = (void *)0;
     {
         String s = value_34;
-        value_35 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_35 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[11] = value_35;
     String value_37 = StringLiteral("aes");
     uint8_t* value_38 = (void *)0;
     {
         String s = value_37;
-        value_38 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_38 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[12] = value_38;
     String value_40 = StringLiteral("pclmul");
     uint8_t* value_41 = (void *)0;
     {
         String s = value_40;
-        value_41 = ((zir_864cbb866cab2a47_StaticText*)(&(s)))->data;
+        value_41 = ((compiler_go_asm_x64_StaticText*)(&(s)))->data;
     }
     value_0[13] = value_41;
     memmove(feature_names, value_0, sizeof(feature_names));

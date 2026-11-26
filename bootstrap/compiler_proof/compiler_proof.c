@@ -29,122 +29,50 @@ static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {
 #endif
 #endif
 #include "vec.h"
-#ifndef ZIR_FOREIGN_zir_f_5116a9a569c28f15_FindType_2a8e44a3
-#define ZIR_FOREIGN_zir_f_5116a9a569c28f15_FindType_2a8e44a3
 #ifdef __APPLE__
-ZirType* zir_foreign_zir_f_5116a9a569c28f15_FindType(ZirModule* m, uint8_t* name, ZirModule** owner) __asm__("_FindType");
+ZirType* zir_foreign_compiler_proof__FindType(ZirModule* m, uint8_t* name, ZirModule** owner) __asm__("_FindType");
 #else
-ZirType* zir_foreign_zir_f_5116a9a569c28f15_FindType(ZirModule* m, uint8_t* name, ZirModule** owner) __asm__("FindType");
+ZirType* zir_foreign_compiler_proof__FindType(ZirModule* m, uint8_t* name, ZirModule** owner) __asm__("FindType");
 #endif
-static ZirType*
-zir_f_5116a9a569c28f15_FindType(ZirModule* m, uint8_t* name, ZirModule** owner)
-{
-    return zir_foreign_zir_f_5116a9a569c28f15_FindType(m, name, owner);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_5116a9a569c28f15_EnumMemberValue_3400a243
-#define ZIR_FOREIGN_zir_f_5116a9a569c28f15_EnumMemberValue_3400a243
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_5116a9a569c28f15_EnumMemberValue(ZirType* type, uint8_t* name, int64_t* value) __asm__("_EnumMemberValue");
+int32_t zir_foreign_compiler_proof__EnumMemberValue(ZirType* type, uint8_t* name, int64_t* value) __asm__("_EnumMemberValue");
 #else
-int32_t zir_foreign_zir_f_5116a9a569c28f15_EnumMemberValue(ZirType* type, uint8_t* name, int64_t* value) __asm__("EnumMemberValue");
+int32_t zir_foreign_compiler_proof__EnumMemberValue(ZirType* type, uint8_t* name, int64_t* value) __asm__("EnumMemberValue");
 #endif
-static int32_t
-zir_f_5116a9a569c28f15_EnumMemberValue(ZirType* type, uint8_t* name, int64_t* value)
-{
-    return zir_foreign_zir_f_5116a9a569c28f15_EnumMemberValue(type, name, value);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_5116a9a569c28f15_ResolveFunction_08b348f2
-#define ZIR_FOREIGN_zir_f_5116a9a569c28f15_ResolveFunction_08b348f2
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_5116a9a569c28f15_ResolveFunction(ZirModule* m, uint8_t* name, ZirModule** owner, ZirFunction** fn) __asm__("_ResolveFunction");
+int32_t zir_foreign_compiler_proof__ResolveFunction(ZirModule* m, uint8_t* name, ZirModule** owner, ZirFunction** fn) __asm__("_ResolveFunction");
 #else
-int32_t zir_foreign_zir_f_5116a9a569c28f15_ResolveFunction(ZirModule* m, uint8_t* name, ZirModule** owner, ZirFunction** fn) __asm__("ResolveFunction");
+int32_t zir_foreign_compiler_proof__ResolveFunction(ZirModule* m, uint8_t* name, ZirModule** owner, ZirFunction** fn) __asm__("ResolveFunction");
 #endif
-static int32_t
-zir_f_5116a9a569c28f15_ResolveFunction(ZirModule* m, uint8_t* name, ZirModule** owner, ZirFunction** fn)
-{
-    return zir_foreign_zir_f_5116a9a569c28f15_ResolveFunction(m, name, owner, fn);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_5116a9a569c28f15_ParseExpr_2a41d9e4
-#define ZIR_FOREIGN_zir_f_5116a9a569c28f15_ParseExpr_2a41d9e4
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_5116a9a569c28f15_ParseExpr(ZirFunction* fn, ZirModule* m, void* text, ZirSourceSpan span) __asm__("_CompilerParseExprNoDefaults");
+int32_t zir_foreign_compiler_proof__ParseExpr(ZirFunction* fn, ZirModule* m, void* text, ZirSourceSpan span) __asm__("_CompilerParseExprNoDefaults");
 #else
-int32_t zir_foreign_zir_f_5116a9a569c28f15_ParseExpr(ZirFunction* fn, ZirModule* m, void* text, ZirSourceSpan span) __asm__("CompilerParseExprNoDefaults");
+int32_t zir_foreign_compiler_proof__ParseExpr(ZirFunction* fn, ZirModule* m, void* text, ZirSourceSpan span) __asm__("CompilerParseExprNoDefaults");
 #endif
-static int32_t
-zir_f_5116a9a569c28f15_ParseExpr(ZirFunction* fn, ZirModule* m, void* text, ZirSourceSpan span)
-{
-    return zir_foreign_zir_f_5116a9a569c28f15_ParseExpr(fn, m, text, span);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_5116a9a569c28f15_FunctionAddStmt_b9288904
-#define ZIR_FOREIGN_zir_f_5116a9a569c28f15_FunctionAddStmt_b9288904
 #ifdef __APPLE__
-ZirStmt* zir_foreign_zir_f_5116a9a569c28f15_FunctionAddStmt(ZirFunction* fn, ZirStmtKind kind, uint8_t* text, ZirSourceSpan span) __asm__("_FunctionAddStmt");
+ZirStmt* zir_foreign_compiler_proof__FunctionAddStmt(ZirFunction* fn, ZirStmtKind kind, uint8_t* text, ZirSourceSpan span) __asm__("_FunctionAddStmt");
 #else
-ZirStmt* zir_foreign_zir_f_5116a9a569c28f15_FunctionAddStmt(ZirFunction* fn, ZirStmtKind kind, uint8_t* text, ZirSourceSpan span) __asm__("FunctionAddStmt");
+ZirStmt* zir_foreign_compiler_proof__FunctionAddStmt(ZirFunction* fn, ZirStmtKind kind, uint8_t* text, ZirSourceSpan span) __asm__("FunctionAddStmt");
 #endif
-static ZirStmt*
-zir_f_5116a9a569c28f15_FunctionAddStmt(ZirFunction* fn, ZirStmtKind kind, uint8_t* text, ZirSourceSpan span)
-{
-    return zir_foreign_zir_f_5116a9a569c28f15_FunctionAddStmt(fn, kind, text, span);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_5116a9a569c28f15_ModuleAddProof_3f5502ac
-#define ZIR_FOREIGN_zir_f_5116a9a569c28f15_ModuleAddProof_3f5502ac
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_5116a9a569c28f15_ModuleAddProof(ZirModule* m, uint8_t* name, uint8_t* body, ZirSourceSpan span) __asm__("_ModuleAddProof");
+int32_t zir_foreign_compiler_proof__ModuleAddProof(ZirModule* m, uint8_t* name, uint8_t* body, ZirSourceSpan span) __asm__("_ModuleAddProof");
 #else
-int32_t zir_foreign_zir_f_5116a9a569c28f15_ModuleAddProof(ZirModule* m, uint8_t* name, uint8_t* body, ZirSourceSpan span) __asm__("ModuleAddProof");
+int32_t zir_foreign_compiler_proof__ModuleAddProof(ZirModule* m, uint8_t* name, uint8_t* body, ZirSourceSpan span) __asm__("ModuleAddProof");
 #endif
-static int32_t
-zir_f_5116a9a569c28f15_ModuleAddProof(ZirModule* m, uint8_t* name, uint8_t* body, ZirSourceSpan span)
-{
-    return zir_foreign_zir_f_5116a9a569c28f15_ModuleAddProof(m, name, body, span);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_5116a9a569c28f15_calloc_793380be
-#define ZIR_FOREIGN_zir_f_5116a9a569c28f15_calloc_793380be
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_5116a9a569c28f15_calloc(size_t count, size_t size) __asm__("_calloc");
+uint8_t* zir_foreign_compiler_proof__calloc(size_t count, size_t size) __asm__("_calloc");
 #else
-uint8_t* zir_foreign_zir_f_5116a9a569c28f15_calloc(size_t count, size_t size) __asm__("calloc");
+uint8_t* zir_foreign_compiler_proof__calloc(size_t count, size_t size) __asm__("calloc");
 #endif
-static uint8_t*
-zir_f_5116a9a569c28f15_calloc(size_t count, size_t size)
-{
-    return zir_foreign_zir_f_5116a9a569c28f15_calloc(count, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_5116a9a569c28f15_realloc_bcfdb19b
-#define ZIR_FOREIGN_zir_f_5116a9a569c28f15_realloc_bcfdb19b
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_5116a9a569c28f15_realloc(uint8_t* data, size_t size) __asm__("_realloc");
+uint8_t* zir_foreign_compiler_proof__realloc(uint8_t* data, size_t size) __asm__("_realloc");
 #else
-uint8_t* zir_foreign_zir_f_5116a9a569c28f15_realloc(uint8_t* data, size_t size) __asm__("realloc");
+uint8_t* zir_foreign_compiler_proof__realloc(uint8_t* data, size_t size) __asm__("realloc");
 #endif
-static uint8_t*
-zir_f_5116a9a569c28f15_realloc(uint8_t* data, size_t size)
-{
-    return zir_foreign_zir_f_5116a9a569c28f15_realloc(data, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_5116a9a569c28f15_free_cf3f1025
-#define ZIR_FOREIGN_zir_f_5116a9a569c28f15_free_cf3f1025
 #ifdef __APPLE__
-void zir_foreign_zir_f_5116a9a569c28f15_free(uint8_t* data) __asm__("_free");
+void zir_foreign_compiler_proof__free(uint8_t* data) __asm__("_free");
 #else
-void zir_foreign_zir_f_5116a9a569c28f15_free(uint8_t* data) __asm__("free");
-#endif
-static void
-zir_f_5116a9a569c28f15_free(uint8_t* data)
-{
-    zir_foreign_zir_f_5116a9a569c28f15_free(data);
-}
+void zir_foreign_compiler_proof__free(uint8_t* data) __asm__("free");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -399,7 +327,7 @@ compiler_proof_ScalarType(Context* c, ZirModule* m, String name)
         return 0;
     }
     Spelled spelled = compiler_proof_C(name);
-    ZirType* type = zir_f_5116a9a569c28f15_FindType(m, &(spelled.bytes[0]), (void *)0);
+    ZirType* type = zir_foreign_compiler_proof__FindType(m, &(spelled.bytes[0]), (void *)0);
     bool ziran_keyword_enum_0 = type != ((void *)0) && type->is_enum != 0;
     String value_0 = StringView(NULL, 0);
     if (ziran_keyword_enum_0) {
@@ -1115,9 +1043,9 @@ compiler_proof_Expression(Context* c, ZirModule* m, ZirFunction* fn, int32_t ind
             Environment empty = {0};
             Context* value_37 = c;
             ZirModule* value_38 = m;
-            int32_t value_39 = zir_f_5116a9a569c28f15_ParseExpr(&(probe), m, (void*)(((uint8_t*)define->value)), define->span);
+            int32_t value_39 = zir_foreign_compiler_proof__ParseExpr(&(probe), m, (void*)(((uint8_t*)define->value)), define->span);
             result = compiler_proof_Expression(value_37, value_38, &(probe), value_39, &(empty), expected, (int32_t)((uint32_t)depth + 1u));
-            zir_f_5116a9a569c28f15_free((uint8_t*)(probe.exprs));
+            zir_foreign_compiler_proof__free((uint8_t*)(probe.exprs));
         }
     } else if (((ZirExprKind)(e->kind)) == ((ZirExprKind)(8))) {
         ZirFunction* value_40 = fn;
@@ -1144,10 +1072,10 @@ compiler_proof_Expression(Context* c, ZirModule* m, ZirFunction* fn, int32_t ind
             return value_46;
         }
         uint8_t* alias = (uint8_t*)(fn->exprs[e->left]).name;
-        ZirType* t = zir_f_5116a9a569c28f15_FindType(m, alias, (void *)0);
+        ZirType* t = zir_foreign_compiler_proof__FindType(m, alias, (void *)0);
         int64_t value = 0;
         bool value_50 = t == ((void *)0) || t->is_enum == 0;
-        if (value_50 || zir_f_5116a9a569c28f15_EnumMemberValue(t, (uint8_t*)e->name, &(value)) == 0) {
+        if (value_50 || zir_foreign_compiler_proof__EnumMemberValue(t, (uint8_t*)e->name, &(value)) == 0) {
             Context* value_51 = c;
             String value_52 = StringLiteral("unresolved enum member in proof");
             int32_t value_53 = 0;
@@ -2704,7 +2632,7 @@ compiler_proof_ParseSteps(ZirProof* p, ZirModule* m)
         if (((ZirProofStepKind)(step.kind)) == ((ZirProofStepKind)(3)) || ((ZirProofStepKind)(step.kind)) == ((ZirProofStepKind)(4))) {
             Long spelled = compiler_proof_CLong(operand);
             int32_t* value_11 = &(step.term_root);
-            int32_t value_12 = zir_f_5116a9a569c28f15_ParseExpr(&(p->terms), m, (void*)(&(spelled.bytes[0])), step.span);
+            int32_t value_12 = zir_foreign_compiler_proof__ParseExpr(&(p->terms), m, (void*)(&(spelled.bytes[0])), step.span);
             (*value_11) = value_12;
             bool value_13 = step.term_root < 0 || ((ZirExprKind)((p->terms.exprs[step.term_root]).kind)) != ((ZirExprKind)(5));
             bool value_14 = value_13;
@@ -2726,7 +2654,7 @@ compiler_proof_ParseSteps(ZirProof* p, ZirModule* m)
         } else if ((int64_t)(operand).length > 0LL) {
             return false;
         }
-        uint8_t* value_20 = zir_f_5116a9a569c28f15_realloc((uint8_t*)(p->steps), (size_t)(((int32_t)((uint32_t)(p->step_count) + 1u))) * sizeof(ZirProofStep));
+        uint8_t* value_20 = zir_foreign_compiler_proof__realloc((uint8_t*)(p->steps), (size_t)(((int32_t)((uint32_t)(p->step_count) + 1u))) * sizeof(ZirProofStep));
         ZirProofStep* steps = (ZirProofStep*)(value_20);
         if (steps == ((void *)0)) {
             return false;
@@ -2790,7 +2718,7 @@ compiler_proof_PrepareClaim(ZirModule* module, ZirLaw* law)
     bool ok = compiler_proof_ParseSignature(args, &(bindings));
     if (law->claim == ((void *)0) && ok) {
         ZirFunction** value_14 = &(law->claim);
-        uint8_t* value_15 = zir_f_5116a9a569c28f15_calloc(1, sizeof(ZirFunction));
+        uint8_t* value_15 = zir_foreign_compiler_proof__calloc(1, sizeof(ZirFunction));
         (*value_14) = (ZirFunction*)(value_15);
         if (law->claim == ((void *)0)) {
             return false;
@@ -2803,8 +2731,8 @@ compiler_proof_PrepareClaim(ZirModule* module, ZirLaw* law)
         ZirSourceSpan* value_19 = &(law->claim->span);
         (*value_19) = law->span;
         Long text = compiler_proof_CLong(proposition);
-        int32_t root = zir_f_5116a9a569c28f15_ParseExpr(law->claim, module, (void*)(&(text.bytes[0])), law->span);
-        ZirStmt* s = zir_f_5116a9a569c28f15_FunctionAddStmt(law->claim, (ZirStmtKind)(10), &(text.bytes[0]), law->span);
+        int32_t root = zir_foreign_compiler_proof__ParseExpr(law->claim, module, (void*)(&(text.bytes[0])), law->span);
+        ZirStmt* s = zir_foreign_compiler_proof__FunctionAddStmt(law->claim, (ZirStmtKind)(10), &(text.bytes[0]), law->span);
         if (s != ((void *)0)) {
             int32_t* value_20 = &(s->expr_root);
             (*value_20) = root;
@@ -3337,9 +3265,9 @@ compiler_proof_Theorem(Context* c, ZirModule* m, ZirLaw* law, Slice args, int32_
                 }
                 ZirFunction* fn = (void *)0;
                 ZirModule* owner = (void *)0;
-                int32_t found = zir_f_5116a9a569c28f15_ResolveFunction(m, &(step->target[0]), &(owner), &(fn));
+                int32_t found = zir_foreign_compiler_proof__ResolveFunction(m, &(step->target[0]), &(owner), &(fn));
                 if (found != 1) {
-                    found = zir_f_5116a9a569c28f15_ResolveFunction((ZirModule*)proof->owner, &(step->target[0]), &(owner), &(fn));
+                    found = zir_foreign_compiler_proof__ResolveFunction((ZirModule*)proof->owner, &(step->target[0]), &(owner), &(fn));
                 }
                 if (found != 1 || c->unfold.count == 64) {
                     ok = false;
@@ -3504,7 +3432,7 @@ ParseProofDeclaration(ZirModule* m, uint8_t* source, ZirSourceSpan span)
         return value_18;
     }
     Long steps = compiler_proof_CLong(StringRangeAt(body, (int64_t)((int64_t)((uint64_t)open + UINT64_C(1))), (int64_t)close));
-    int32_t value_19 = zir_f_5116a9a569c28f15_ModuleAddProof(m, &(name.bytes[0]), &(steps.bytes[0]), span);
+    int32_t value_19 = zir_foreign_compiler_proof__ModuleAddProof(m, &(name.bytes[0]), &(steps.bytes[0]), span);
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;
@@ -3613,7 +3541,7 @@ EvaluateTheorem(ZirModule* module, ZirLaw* law, uint8_t* detail, size_t size)
         compiler_ir_CopyText(out, StringLiteral("theorem has no proof certificate"));
         return 2;
     }
-    uint8_t* value_0 = zir_f_5116a9a569c28f15_calloc(1, sizeof(Context));
+    uint8_t* value_0 = zir_foreign_compiler_proof__calloc(1, sizeof(Context));
     Context* c = (Context*)(value_0);
     if (c == ((void *)0)) {
         compiler_ir_CopyText(out, StringLiteral("out of memory checking theorem"));
@@ -3677,6 +3605,6 @@ EvaluateTheorem(ZirModule* module, ZirLaw* law, uint8_t* detail, size_t size)
     }
     compiler_ir_CopyText(out, reason);
     int32_t cleanup_return_0 = status;
-    zir_f_5116a9a569c28f15_free((uint8_t*)(c));
+    zir_foreign_compiler_proof__free((uint8_t*)(c));
     return cleanup_return_0;
 }

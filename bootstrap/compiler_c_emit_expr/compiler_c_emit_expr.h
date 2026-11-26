@@ -38,7 +38,7 @@ typedef struct EmitVecCallBuffers EmitVecCallBuffers;
 typedef struct EmitExprBuffers EmitExprBuffers;
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_EXPR_H_PRIVATE
-typedef struct zir_9675f21453a6b731_StaticText zir_9675f21453a6b731_StaticText;
+typedef struct compiler_c_emit_expr_StaticText compiler_c_emit_expr_StaticText;
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_EXPR_H_PRIVATE
 
@@ -99,7 +99,7 @@ struct EmitExprBuffers {
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_EXPR_H_PRIVATE
 
-struct zir_9675f21453a6b731_StaticText {
+struct compiler_c_emit_expr_StaticText {
     uint8_t* data;
     size_t length;
 };

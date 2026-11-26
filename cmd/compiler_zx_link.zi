@@ -6,6 +6,7 @@
 // entry points. compiler_zx_link_prune.zi removes dead statements and unused
 // record fields; compiler_zx_link_reach.zi decides what an entry keeps.
 IR :: #import "compiler_ir"
+using Vectors :: #import "std/vec";
 
 #load "compiler_zx_link_prune.zi";
 #load "compiler_zx_link_reach.zi";
@@ -510,6 +511,23 @@ LinkNative :: (program: *IR.ZirProgram, entry_module: *u8, entry_function: *u8, 
     }
     linked := LinkCheckedEntry(optimized, entry_module, entry_function, native)
     ProgramFree(optimized)
+    // Folding a missing hook can make its argument computation and imports
+    // unreachable. Relink until the closed graph stops shrinking. Go keeps
+    // public exports and therefore cannot assume no external registration.
+    while native == 1 && linked != null {
+        changed := FoldUnwrittenGlobals(linked)
+        changed = FoldTrivialCalls(linked) || changed
+        if !changed { break }
+        for m: 0..linked.module_count - 1 {
+            module := ModuleAt(linked, m)
+            for f: 0..module.function_count - 1 {
+                if !PruneFunction(FunctionAt(module, f)) { ProgramFree(linked); return null }
+            }
+        }
+        previous := linked
+        linked = LinkCheckedEntry(previous, entry_module, entry_function, native)
+        ProgramFree(previous)
+    }
     return linked
 }
 

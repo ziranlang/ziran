@@ -28,6 +28,14 @@ ConstantBool :: (fn: *IR.ZirFunction, index: s32, depth: s32) -> s32 {
         if Same(op, CStr("||")) && left != 0 { return 1 }
         return ConstantBool(fn, expr.right, depth + 1)
     }
+    if expr.kind == .BINARY && (Same(op, CStr("==")) || Same(op, CStr("!="))) {
+        left := ExprAt(fn, expr.left)
+        right := ExprAt(fn, expr.right)
+        if left.kind == .IDENT && right.kind == .IDENT &&
+           Same(left.name, CStr("null")) && Same(right.name, CStr("null")) {
+            return ifx Same(op, CStr("==")) then 1 else 0
+        }
+    }
     if expr.kind == .CONDITIONAL {
         condition := ConstantBool(fn, expr.left, depth + 1)
         if condition >= 0 { return ConstantBool(fn, ifx condition != 0 then expr.right else expr.third, depth + 1) }
@@ -576,4 +584,205 @@ PruneRecordFields :: (program: *IR.ZirProgram, entry_module: *u8, entry_function
     free(cast(*u8)owners)
     free(cast(*u8)uses.items)
     return ok
+}
+
+// A closed entry link can prove a boolean stays false or an optional slot
+// stays null.
+// Registration in live code, an escaped address, or opaque assembly keeps
+// the slot mutable. Analyze the already linked graph so dead registrars do
+// not retain the feature they would install.
+UnwrittenSlot :: struct { owner: *IR.ZirModule; global: *IR.ZirGlobal; mutable: bool; boolean: bool }
+
+SlotReference :: (module: *IR.ZirModule, expression: *IR.ZirExpr, slots: []UnwrittenSlot) -> s64 {
+    if expression.kind != .IDENT || expression.is_global_value == 0 { return -1 }
+    owner: *IR.ZirModule = null
+    global: *IR.ZirGlobal = null
+    if ResolveGlobalAt(module, expression.name, SpanPath(expression.span), *owner, *global) != 1 { return -1 }
+    for slot, index: slots { if slot.owner == owner && slot.global == global { return index } }
+    return -1
+}
+
+MarkSlotDestination :: (module: *IR.ZirModule, function: *IR.ZirFunction, root: s32,
+    slots: []UnwrittenSlot, depth: s32) {
+    if root < 0 || root >= function.expr_count || depth > LIVE_NESTING_MAX { return }
+    expression := ExprAt(function, root)
+    index := SlotReference(module, expression, slots)
+    if index >= 0 { slots[index].mutable = true }
+    MarkSlotDestination(module, function, expression.left, slots, depth + 1)
+    MarkSlotDestination(module, function, expression.right, slots, depth + 1)
+    MarkSlotDestination(module, function, expression.third, slots, depth + 1)
+}
+
+FoldUnwrittenGlobals :: (program: *IR.ZirProgram) -> bool {
+    slots: Vec(UnwrittenSlot)
+    defer VecFree(slots)
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        for g: 0..module.global_count - 1 {
+            global := GlobalAt(module, g)
+            boolean := Same(*global.type[0], CStr("bool"))
+            zero := global.init == null || global.init[0] == 0 ||
+                Same(global.init, ifx boolean then CStr("false") else CStr("null"))
+            if !zero { continue }
+            type := FindType(module, *global.type[0], null)
+            if boolean || type != null && type.is_procedure_type != 0 {
+                if !VecPush(slots, UnwrittenSlot.{owner = module, global = global, boolean = boolean}) { return false }
+            }
+        }
+    }
+    if slots.count == 0 { return false }
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        // Initializers outside structured function IR can hold an address.
+        for g: 0..module.global_count - 1 {
+            global := GlobalAt(module, g)
+            if global.init == null { continue }
+            for index: 0..slots.count - 1 {
+                if MentionsIdentifier(global.init, *slots[index].global.name[0]) { slots[index].mutable = true }
+            }
+        }
+        for f: 0..module.function_count - 1 {
+            function := FunctionAt(module, f)
+            if function.assembly_text != null && function.assembly_text[0] != 0 { return false }
+            for st: 0..function.stmt_count - 1 {
+                statement := StatementAt(function, st)
+                if statement.kind == .BLOCK_OPEN && statement.assembly_text != null && statement.assembly_text[0] != 0 { return false }
+                MarkSlotDestination(module, function, statement.lhs_root, slots[:], 0)
+            }
+            for e: 0..function.expr_count - 1 {
+                expression := ExprAt(function, e)
+                // The checked IR spells address-of as &, regardless of source syntax.
+                if expression.kind == .UNARY && Same(*expression.op[0], CStr("&")) {
+                    MarkSlotDestination(module, function, expression.right, slots[:], 0)
+                }
+            }
+        }
+    }
+    changed := false
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        for f: 0..module.function_count - 1 {
+            function := FunctionAt(module, f)
+            for e: 0..function.expr_count - 1 {
+                expression := ExprAt(function, e)
+                direct := SlotReference(module, expression, slots[:])
+                if direct >= 0 && slots[direct].boolean && !slots[direct].mutable {
+                    expression.name = KeepName(CStr("false"))
+                    expression.text = expression.name
+                    expression.is_global_value = 0
+                    changed = true
+                    continue
+                }
+                if expression.kind != .BINARY ||
+                   (!Same(*expression.op[0], CStr("==")) && !Same(*expression.op[0], CStr("!="))) { continue }
+                left := ExprAt(function, expression.left)
+                right := ExprAt(function, expression.right)
+                index: s64 = -1
+                if left.kind == .IDENT && Same(left.name, CStr("null")) { index = SlotReference(module, right, slots[:]) }
+                if right.kind == .IDENT && Same(right.name, CStr("null")) { index = SlotReference(module, left, slots[:]) }
+                if index < 0 || slots[index].mutable { continue }
+                equal := Same(*expression.op[0], CStr("=="))
+                expression.kind = .IDENT
+                expression.name = KeepName(ifx equal then CStr("true") else CStr("false"))
+                expression.text = expression.name
+                expression.left = -1; expression.right = -1; expression.third = -1
+                expression.first_child = -1
+                expression.op[0] = 0
+                expression.is_global_value = 0
+                changed = true
+            }
+        }
+    }
+    return changed
+}
+
+// A literal result or an empty hook has no effects. Keep argument evaluation
+// whenever it could call, dereference or trap; only safe value arguments can
+// disappear with a call. This lets absent optional services leave no wrapper.
+SafeDiscard :: (function: *IR.ZirFunction, root: s32, depth: s32) -> bool {
+    if root < 0 { return true }
+    if root >= function.expr_count || depth > LIVE_NESTING_MAX { return false }
+    expression := ExprAt(function, root)
+    kind := expression.kind
+    // A numeric cast can trap in checked code, even if its result is unused.
+    if kind != .IDENT && kind != .INT && kind != .FLOAT && kind != .STRING && kind != .MEMBER &&
+       kind != .COMPOUND && kind != .FIELD_INIT { return false }
+    if !SafeDiscard(function, expression.left, depth + 1) || !SafeDiscard(function, expression.right, depth + 1) ||
+       !SafeDiscard(function, expression.third, depth + 1) { return false }
+    child := expression.first_child
+    while child >= 0 {
+        if !SafeDiscard(function, child, depth + 1) { return false }
+        child = ExprAt(function, child).next_sibling
+    }
+    return true
+}
+
+LiteralResult :: (function: *IR.ZirFunction, result: **IR.ZirExpr) -> bool {
+    <<result = null
+    if function.is_extern != 0 || function.is_template != 0 ||
+       function.assembly_text != null && function.assembly_text[0] != 0 { return false }
+    for st: 0..function.stmt_count - 1 {
+        statement := StatementAt(function, st)
+        if statement.kind == .BLOCK_CLOSE { continue }
+        if statement.kind == .BLOCK_OPEN && (statement.assembly_text == null || statement.assembly_text[0] == 0) { continue }
+        if statement.kind == .UNUSED && SafeDiscard(function, statement.expr_root, 0) { continue }
+        if statement.kind != .RETURN { return false }
+        if statement.expr_root < 0 { return true }
+        value := ExprAt(function, statement.expr_root)
+        literal := value.kind == .INT || value.kind == .FLOAT ||
+            value.kind == .IDENT && (Same(value.name, CStr("true")) || Same(value.name, CStr("false")))
+        if !literal { return false }
+        <<result = value
+        return true
+    }
+    return Same(*function.return_type[0], CStr("void")) || function.return_type[0] == 0
+}
+
+FoldTrivialCalls :: (program: *IR.ZirProgram) -> bool {
+    changed := false
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        for f: 0..module.function_count - 1 {
+            function := FunctionAt(module, f)
+            for e: 0..function.expr_count - 1 {
+                call := ExprAt(function, e)
+                if call.kind != .CALL || call.slot_type[0] != 0 { continue }
+                owner: *IR.ZirModule = null
+                callee: *IR.ZirFunction = null
+                if ResolveFunction(module, call.name, *owner, *callee) != 1 || callee == function { continue }
+                value: *IR.ZirExpr = null
+                if !LiteralResult(callee, *value) { continue }
+                safe := true
+                child := call.first_child
+                while child >= 0 {
+                    if !SafeDiscard(function, child, 0) { safe = false; break }
+                    child = ExprAt(function, child).next_sibling
+                }
+                if !safe { continue }
+                if value == null {
+                    // Void calls are discarded only as complete statements.
+                    found := false
+                    for st: 0..function.stmt_count - 1 {
+                        statement := StatementAt(function, st)
+                        if statement.kind == .EXPR && statement.expr_root == e {
+                            statement.kind = .UNUSED
+                            statement.expr_root = -1
+                            found = true
+                        }
+                    }
+                    if !found { continue }
+                } else {
+                    call.kind = value.kind
+                    call.name = value.name
+                    call.text = value.text
+                    call.is_global_value = 0
+                    call.is_function_value = 0
+                    call.slot_type = CStr("")
+                    call.left = -1; call.right = -1; call.third = -1; call.first_child = -1
+                }
+                changed = true
+            }
+        }
+    }
+    return changed
 }

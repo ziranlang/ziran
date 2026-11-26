@@ -38,109 +38,45 @@ static inline uint64_t ZiShrU64(uint64_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-#ifndef ZIR_FOREIGN_zir_f_52a3424f578d2386_S15ShaHardwareAvailable_dad28da4
-#define ZIR_FOREIGN_zir_f_52a3424f578d2386_S15ShaHardwareAvailable_dad28da4
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_52a3424f578d2386_S15ShaHardwareAvailable(void) __asm__("_S15ShaHardwareAvailable");
+int32_t zir_foreign_compiler_sha256__S15ShaHardwareAvailable(void) __asm__("_S15ShaHardwareAvailable");
 #else
-int32_t zir_foreign_zir_f_52a3424f578d2386_S15ShaHardwareAvailable(void) __asm__("S15ShaHardwareAvailable");
+int32_t zir_foreign_compiler_sha256__S15ShaHardwareAvailable(void) __asm__("S15ShaHardwareAvailable");
 #endif
-static int32_t
-zir_f_52a3424f578d2386_S15ShaHardwareAvailable(void)
-{
-    return zir_foreign_zir_f_52a3424f578d2386_S15ShaHardwareAvailable();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_52a3424f578d2386_S15ShaHardwareCompress_f9a9a660
-#define ZIR_FOREIGN_zir_f_52a3424f578d2386_S15ShaHardwareCompress_f9a9a660
 #ifdef __APPLE__
-void zir_foreign_zir_f_52a3424f578d2386_S15ShaHardwareCompress(uint32_t* arg0, uint8_t* arg1, size_t arg2) __asm__("_S15ShaHardwareCompress");
+void zir_foreign_compiler_sha256__S15ShaHardwareCompress(uint32_t* arg0, uint8_t* arg1, size_t arg2) __asm__("_S15ShaHardwareCompress");
 #else
-void zir_foreign_zir_f_52a3424f578d2386_S15ShaHardwareCompress(uint32_t* arg0, uint8_t* arg1, size_t arg2) __asm__("S15ShaHardwareCompress");
+void zir_foreign_compiler_sha256__S15ShaHardwareCompress(uint32_t* arg0, uint8_t* arg1, size_t arg2) __asm__("S15ShaHardwareCompress");
 #endif
-static void
-zir_f_52a3424f578d2386_S15ShaHardwareCompress(uint32_t* arg0, uint8_t* arg1, size_t arg2)
-{
-    zir_foreign_zir_f_52a3424f578d2386_S15ShaHardwareCompress(arg0, arg1, arg2);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_52a3424f578d2386_getenv_40be1ae7
-#define ZIR_FOREIGN_zir_f_52a3424f578d2386_getenv_40be1ae7
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_52a3424f578d2386_getenv(uint8_t* ziran_keyword___name_0) __asm__("_getenv");
+uint8_t* zir_foreign_compiler_sha256__getenv(uint8_t* ziran_keyword___name_0) __asm__("_getenv");
 #else
-uint8_t* zir_foreign_zir_f_52a3424f578d2386_getenv(uint8_t* ziran_keyword___name_0) __asm__("getenv");
+uint8_t* zir_foreign_compiler_sha256__getenv(uint8_t* ziran_keyword___name_0) __asm__("getenv");
 #endif
-static uint8_t*
-zir_f_52a3424f578d2386_getenv(uint8_t* ziran_keyword___name_0)
-{
-    return zir_foreign_zir_f_52a3424f578d2386_getenv(ziran_keyword___name_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_52a3424f578d2386_memcpy_d3838e83
-#define ZIR_FOREIGN_zir_f_52a3424f578d2386_memcpy_d3838e83
 #ifdef __APPLE__
-void* zir_foreign_zir_f_52a3424f578d2386_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("_memcpy");
+void* zir_foreign_compiler_sha256__memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("_memcpy");
 #else
-void* zir_foreign_zir_f_52a3424f578d2386_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("memcpy");
+void* zir_foreign_compiler_sha256__memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0) __asm__("memcpy");
 #endif
-static void*
-zir_f_52a3424f578d2386_memcpy(void* ziran_keyword___dest_0, void* ziran_keyword___src_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_52a3424f578d2386_memcpy(ziran_keyword___dest_0, ziran_keyword___src_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_52a3424f578d2386_strcmp_b1a4f317
-#define ZIR_FOREIGN_zir_f_52a3424f578d2386_strcmp_b1a4f317
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_52a3424f578d2386_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("_strcmp");
+int32_t zir_foreign_compiler_sha256__strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("_strcmp");
 #else
-int32_t zir_foreign_zir_f_52a3424f578d2386_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("strcmp");
+int32_t zir_foreign_compiler_sha256__strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("strcmp");
 #endif
-static int32_t
-zir_f_52a3424f578d2386_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0)
-{
-    return zir_foreign_zir_f_52a3424f578d2386_strcmp(ziran_keyword___s1_0, ziran_keyword___s2_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_52a3424f578d2386_CompilerStandardError_3c6e87fb
-#define ZIR_FOREIGN_zir_f_52a3424f578d2386_CompilerStandardError_3c6e87fb
 #ifdef __APPLE__
-void* zir_foreign_zir_f_52a3424f578d2386_CompilerStandardError(void) __asm__("_CompilerStandardError");
+void* zir_foreign_compiler_sha256__CompilerStandardError(void) __asm__("_CompilerStandardError");
 #else
-void* zir_foreign_zir_f_52a3424f578d2386_CompilerStandardError(void) __asm__("CompilerStandardError");
+void* zir_foreign_compiler_sha256__CompilerStandardError(void) __asm__("CompilerStandardError");
 #endif
-static void*
-zir_f_52a3424f578d2386_CompilerStandardError(void)
-{
-    return zir_foreign_zir_f_52a3424f578d2386_CompilerStandardError();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_52a3424f578d2386_S15FlagTake_31d4ffc1
-#define ZIR_FOREIGN_zir_f_52a3424f578d2386_S15FlagTake_31d4ffc1
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_52a3424f578d2386_S15FlagTake(void* lock) __asm__("_S15FlagTake");
+int32_t zir_foreign_compiler_sha256__S15FlagTake(void* lock) __asm__("_S15FlagTake");
 #else
-int32_t zir_foreign_zir_f_52a3424f578d2386_S15FlagTake(void* lock) __asm__("S15FlagTake");
+int32_t zir_foreign_compiler_sha256__S15FlagTake(void* lock) __asm__("S15FlagTake");
 #endif
-static int32_t
-zir_f_52a3424f578d2386_S15FlagTake(void* lock)
-{
-    return zir_foreign_zir_f_52a3424f578d2386_S15FlagTake(lock);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_52a3424f578d2386_S15FlagClear_67ee695e
-#define ZIR_FOREIGN_zir_f_52a3424f578d2386_S15FlagClear_67ee695e
 #ifdef __APPLE__
-void zir_foreign_zir_f_52a3424f578d2386_S15FlagClear(void* lock) __asm__("_S15FlagClear");
+void zir_foreign_compiler_sha256__S15FlagClear(void* lock) __asm__("_S15FlagClear");
 #else
-void zir_foreign_zir_f_52a3424f578d2386_S15FlagClear(void* lock) __asm__("S15FlagClear");
-#endif
-static void
-zir_f_52a3424f578d2386_S15FlagClear(void* lock)
-{
-    zir_foreign_zir_f_52a3424f578d2386_S15FlagClear(lock);
-}
+void zir_foreign_compiler_sha256__S15FlagClear(void* lock) __asm__("S15FlagClear");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -282,15 +218,15 @@ compiler_sha256_compress_portable(uint32_t* state, uint8_t* block, size_t blocks
 static S15Callback1
 compiler_sha256_compressor(void)
 {
-    while (zir_f_52a3424f578d2386_S15FlagTake((void*)(&(choice_lock))) != 0) {
+    while (zir_foreign_compiler_sha256__S15FlagTake((void*)(&(choice_lock))) != 0) {
     }
     if (choice_ready == 0) {
-        uint8_t* portable = zir_f_52a3424f578d2386_getenv(compiler_parse_types_ParserCString(StringLiteral("ZIRAN_SHA256_PORTABLE")));
-        bool value_0 = zir_f_52a3424f578d2386_S15ShaHardwareAvailable() != 0;
+        uint8_t* portable = zir_foreign_compiler_sha256__getenv(compiler_parse_types_ParserCString(StringLiteral("ZIRAN_SHA256_PORTABLE")));
+        bool value_0 = zir_foreign_compiler_sha256__S15ShaHardwareAvailable() != 0;
         bool value_1 = value_0;
         if (value_1) {
             bool value_2 = portable == ((void *)0);
-            bool value_3 = value_2 || zir_f_52a3424f578d2386_strcmp(portable, compiler_parse_types_ParserCString(StringLiteral("1"))) != 0;
+            bool value_3 = value_2 || zir_foreign_compiler_sha256__strcmp(portable, compiler_parse_types_ParserCString(StringLiteral("1"))) != 0;
             value_1 = value_3;
         }
         int32_t value_4 = 0;
@@ -301,7 +237,7 @@ compiler_sha256_compressor(void)
         choice_ready = 1;
     }
     int32_t hardware = choice_hardware;
-    zir_f_52a3424f578d2386_S15FlagClear((void*)(&(choice_lock)));
+    zir_foreign_compiler_sha256__S15FlagClear((void*)(&(choice_lock)));
     if (hardware != 0) {
         return compiler_sha256_hardware_blocks;
     }
@@ -311,7 +247,7 @@ compiler_sha256_compressor(void)
 void
 Sha256Begin(Sha256* hash)
 {
-    zir_f_52a3424f578d2386_memcpy((void*)((uint32_t*)(&(hash->state.items))), (void*)((uint32_t*)(&(sha256_Sha256Begin_initial.items))), (size_t)(sizeof(ParserArray8_u32)));
+    zir_foreign_compiler_sha256__memcpy((void*)((uint32_t*)(&(hash->state.items))), (void*)((uint32_t*)(&(sha256_Sha256Begin_initial.items))), (size_t)(sizeof(ParserArray8_u32)));
     uint64_t* value_0 = &(hash->length);
     (*value_0) = 0ULL;
     size_t* value_1 = &(hash->used);
@@ -331,7 +267,7 @@ Sha256Add(Sha256* hash, void* data, size_t size)
             take = size;
         }
         uint8_t* value_1 = (uint8_t*)(((size_t)((uint8_t*)(&(hash->block.items))) + ((size_t)(hash->used) * sizeof(uint8_t))));
-        zir_f_52a3424f578d2386_memcpy((void*)(value_1), (void*)(bytes), take);
+        zir_foreign_compiler_sha256__memcpy((void*)(value_1), (void*)(bytes), take);
         size_t* value_2 = &(hash->used);
         (*value_2) = (*value_2) + take;
         bytes = (uint8_t*)(((size_t)(bytes) + ((size_t)(take) * sizeof(uint8_t))));
@@ -350,7 +286,7 @@ Sha256Add(Sha256* hash, void* data, size_t size)
         bytes = (uint8_t*)(((size_t)(bytes) + ((size_t)((size - (size % (size_t)(64LL)))) * sizeof(uint8_t))));
         size = size % (size_t)(64LL);
     }
-    zir_f_52a3424f578d2386_memcpy((void*)((uint8_t*)(&(hash->block.items))), (void*)(bytes), size);
+    zir_foreign_compiler_sha256__memcpy((void*)((uint8_t*)(&(hash->block.items))), (void*)(bytes), size);
     size_t* value_6 = &(hash->used);
     (*value_6) = size;
 }
@@ -406,5 +342,5 @@ Sha256End(Sha256* hash, uint8_t* digest)
 static void
 compiler_sha256_hardware_blocks(uint32_t* state, uint8_t* block, size_t blocks)
 {
-    zir_f_52a3424f578d2386_S15ShaHardwareCompress(state, block, blocks);
+    zir_foreign_compiler_sha256__S15ShaHardwareCompress(state, block, blocks);
 }

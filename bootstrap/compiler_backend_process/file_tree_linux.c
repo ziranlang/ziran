@@ -9,322 +9,130 @@
 #include "c_string.h"
 #include "byte_text_linux.h"
 #include "sort.h"
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_MakeDirectoryRaw_9266eb24
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_MakeDirectoryRaw_9266eb24
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_MakeDirectoryRaw(uint8_t* path, uint32_t mode) __asm__("_mkdir");
+int32_t zir_foreign_file_tree_linux__MakeDirectoryRaw(uint8_t* path, uint32_t mode) __asm__("_mkdir");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_MakeDirectoryRaw(uint8_t* path, uint32_t mode) __asm__("mkdir");
+int32_t zir_foreign_file_tree_linux__MakeDirectoryRaw(uint8_t* path, uint32_t mode) __asm__("mkdir");
 #endif
-static int32_t
-zir_f_0ee210116da2a0c9_MakeDirectoryRaw(uint8_t* path, uint32_t mode)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_MakeDirectoryRaw(path, mode);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_RemoveDirectoryRaw_494daf1e
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_RemoveDirectoryRaw_494daf1e
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_RemoveDirectoryRaw(uint8_t* path) __asm__("_rmdir");
+int32_t zir_foreign_file_tree_linux__RemoveDirectoryRaw(uint8_t* path) __asm__("_rmdir");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_RemoveDirectoryRaw(uint8_t* path) __asm__("rmdir");
+int32_t zir_foreign_file_tree_linux__RemoveDirectoryRaw(uint8_t* path) __asm__("rmdir");
 #endif
-static int32_t
-zir_f_0ee210116da2a0c9_RemoveDirectoryRaw(uint8_t* path)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_RemoveDirectoryRaw(path);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_UnlinkRaw_1f92ad9b
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_UnlinkRaw_1f92ad9b
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_UnlinkRaw(uint8_t* path) __asm__("_unlink");
+int32_t zir_foreign_file_tree_linux__UnlinkRaw(uint8_t* path) __asm__("_unlink");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_UnlinkRaw(uint8_t* path) __asm__("unlink");
+int32_t zir_foreign_file_tree_linux__UnlinkRaw(uint8_t* path) __asm__("unlink");
 #endif
-static int32_t
-zir_f_0ee210116da2a0c9_UnlinkRaw(uint8_t* path)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_UnlinkRaw(path);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_ChangeModeRaw_5e6069f2
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_ChangeModeRaw_5e6069f2
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_ChangeModeRaw(uint8_t* path, uint32_t mode) __asm__("_chmod");
+int32_t zir_foreign_file_tree_linux__ChangeModeRaw(uint8_t* path, uint32_t mode) __asm__("_chmod");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_ChangeModeRaw(uint8_t* path, uint32_t mode) __asm__("chmod");
+int32_t zir_foreign_file_tree_linux__ChangeModeRaw(uint8_t* path, uint32_t mode) __asm__("chmod");
 #endif
-static int32_t
-zir_f_0ee210116da2a0c9_ChangeModeRaw(uint8_t* path, uint32_t mode)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_ChangeModeRaw(path, mode);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_ChangeFileModeRaw_d5737c88
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_ChangeFileModeRaw_d5737c88
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_ChangeFileModeRaw(int32_t fd, uint32_t mode) __asm__("_fchmod");
+int32_t zir_foreign_file_tree_linux__ChangeFileModeRaw(int32_t fd, uint32_t mode) __asm__("_fchmod");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_ChangeFileModeRaw(int32_t fd, uint32_t mode) __asm__("fchmod");
+int32_t zir_foreign_file_tree_linux__ChangeFileModeRaw(int32_t fd, uint32_t mode) __asm__("fchmod");
 #endif
-static int32_t
-zir_f_0ee210116da2a0c9_ChangeFileModeRaw(int32_t fd, uint32_t mode)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_ChangeFileModeRaw(fd, mode);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_OpenRaw_e4db28c4
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_OpenRaw_e4db28c4
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_OpenRaw(uint8_t* path, int32_t flags, ...) __asm__("_open");
+int32_t zir_foreign_file_tree_linux__OpenRaw(uint8_t* path, int32_t flags, ...) __asm__("_open");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_OpenRaw(uint8_t* path, int32_t flags, ...) __asm__("open");
+int32_t zir_foreign_file_tree_linux__OpenRaw(uint8_t* path, int32_t flags, ...) __asm__("open");
 #endif
-#define zir_f_0ee210116da2a0c9_OpenRaw zir_foreign_zir_f_0ee210116da2a0c9_OpenRaw
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_CloseRaw_d6ec0c1e
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_CloseRaw_d6ec0c1e
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_CloseRaw(int32_t fd) __asm__("_close");
+int32_t zir_foreign_file_tree_linux__CloseRaw(int32_t fd) __asm__("_close");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_CloseRaw(int32_t fd) __asm__("close");
+int32_t zir_foreign_file_tree_linux__CloseRaw(int32_t fd) __asm__("close");
 #endif
-static int32_t
-zir_f_0ee210116da2a0c9_CloseRaw(int32_t fd)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_CloseRaw(fd);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_FlockRaw_d74aed45
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_FlockRaw_d74aed45
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_FlockRaw(int32_t fd, int32_t operation) __asm__("_flock");
+int32_t zir_foreign_file_tree_linux__FlockRaw(int32_t fd, int32_t operation) __asm__("_flock");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_FlockRaw(int32_t fd, int32_t operation) __asm__("flock");
+int32_t zir_foreign_file_tree_linux__FlockRaw(int32_t fd, int32_t operation) __asm__("flock");
 #endif
-static int32_t
-zir_f_0ee210116da2a0c9_FlockRaw(int32_t fd, int32_t operation)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_FlockRaw(fd, operation);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_FsyncRaw_6212288d
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_FsyncRaw_6212288d
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_FsyncRaw(int32_t fd) __asm__("_fsync");
+int32_t zir_foreign_file_tree_linux__FsyncRaw(int32_t fd) __asm__("_fsync");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_FsyncRaw(int32_t fd) __asm__("fsync");
+int32_t zir_foreign_file_tree_linux__FsyncRaw(int32_t fd) __asm__("fsync");
 #endif
-static int32_t
-zir_f_0ee210116da2a0c9_FsyncRaw(int32_t fd)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_FsyncRaw(fd);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_WriteRaw_06f26813
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_WriteRaw_06f26813
 #ifdef __APPLE__
-ptrdiff_t zir_foreign_zir_f_0ee210116da2a0c9_WriteRaw(int32_t fd, uint8_t* input, size_t count) __asm__("_write");
+ptrdiff_t zir_foreign_file_tree_linux__WriteRaw(int32_t fd, uint8_t* input, size_t count) __asm__("_write");
 #else
-ptrdiff_t zir_foreign_zir_f_0ee210116da2a0c9_WriteRaw(int32_t fd, uint8_t* input, size_t count) __asm__("write");
+ptrdiff_t zir_foreign_file_tree_linux__WriteRaw(int32_t fd, uint8_t* input, size_t count) __asm__("write");
 #endif
-static ptrdiff_t
-zir_f_0ee210116da2a0c9_WriteRaw(int32_t fd, uint8_t* input, size_t count)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_WriteRaw(fd, input, count);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_RenameRaw_c18b8a8c
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_RenameRaw_c18b8a8c
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_RenameRaw(uint8_t* source, uint8_t* target) __asm__("_rename");
+int32_t zir_foreign_file_tree_linux__RenameRaw(uint8_t* source, uint8_t* target) __asm__("_rename");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_RenameRaw(uint8_t* source, uint8_t* target) __asm__("rename");
+int32_t zir_foreign_file_tree_linux__RenameRaw(uint8_t* source, uint8_t* target) __asm__("rename");
 #endif
-static int32_t
-zir_f_0ee210116da2a0c9_RenameRaw(uint8_t* source, uint8_t* target)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_RenameRaw(source, target);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_RealPathRaw_20916715
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_RealPathRaw_20916715
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_0ee210116da2a0c9_RealPathRaw(uint8_t* path, uint8_t* output) __asm__("_realpath");
+uint8_t* zir_foreign_file_tree_linux__RealPathRaw(uint8_t* path, uint8_t* output) __asm__("_realpath");
 #else
-uint8_t* zir_foreign_zir_f_0ee210116da2a0c9_RealPathRaw(uint8_t* path, uint8_t* output) __asm__("realpath");
+uint8_t* zir_foreign_file_tree_linux__RealPathRaw(uint8_t* path, uint8_t* output) __asm__("realpath");
 #endif
-static uint8_t*
-zir_f_0ee210116da2a0c9_RealPathRaw(uint8_t* path, uint8_t* output)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_RealPathRaw(path, output);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_TemporaryDirectoryRaw_bdb0155a
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_TemporaryDirectoryRaw_bdb0155a
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_0ee210116da2a0c9_TemporaryDirectoryRaw(uint8_t* template) __asm__("_mkdtemp");
+uint8_t* zir_foreign_file_tree_linux__TemporaryDirectoryRaw(uint8_t* template) __asm__("_mkdtemp");
 #else
-uint8_t* zir_foreign_zir_f_0ee210116da2a0c9_TemporaryDirectoryRaw(uint8_t* template) __asm__("mkdtemp");
+uint8_t* zir_foreign_file_tree_linux__TemporaryDirectoryRaw(uint8_t* template) __asm__("mkdtemp");
 #endif
-static uint8_t*
-zir_f_0ee210116da2a0c9_TemporaryDirectoryRaw(uint8_t* template)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_TemporaryDirectoryRaw(template);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_EffectiveUserRaw_f88904d0
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_EffectiveUserRaw_f88904d0
 #ifdef __APPLE__
-uint32_t zir_foreign_zir_f_0ee210116da2a0c9_EffectiveUserRaw(void) __asm__("_geteuid");
+uint32_t zir_foreign_file_tree_linux__EffectiveUserRaw(void) __asm__("_geteuid");
 #else
-uint32_t zir_foreign_zir_f_0ee210116da2a0c9_EffectiveUserRaw(void) __asm__("geteuid");
+uint32_t zir_foreign_file_tree_linux__EffectiveUserRaw(void) __asm__("geteuid");
 #endif
-static uint32_t
-zir_f_0ee210116da2a0c9_EffectiveUserRaw(void)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_EffectiveUserRaw();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_WorkingDirectoryRaw_a9b77685
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_WorkingDirectoryRaw_a9b77685
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_0ee210116da2a0c9_WorkingDirectoryRaw(uint8_t* output, size_t size) __asm__("_getcwd");
+uint8_t* zir_foreign_file_tree_linux__WorkingDirectoryRaw(uint8_t* output, size_t size) __asm__("_getcwd");
 #else
-uint8_t* zir_foreign_zir_f_0ee210116da2a0c9_WorkingDirectoryRaw(uint8_t* output, size_t size) __asm__("getcwd");
+uint8_t* zir_foreign_file_tree_linux__WorkingDirectoryRaw(uint8_t* output, size_t size) __asm__("getcwd");
 #endif
-static uint8_t*
-zir_f_0ee210116da2a0c9_WorkingDirectoryRaw(uint8_t* output, size_t size)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_WorkingDirectoryRaw(output, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_ProcessIdRaw_bd88b581
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_ProcessIdRaw_bd88b581
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_ProcessIdRaw(void) __asm__("_getpid");
+int32_t zir_foreign_file_tree_linux__ProcessIdRaw(void) __asm__("_getpid");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_ProcessIdRaw(void) __asm__("getpid");
+int32_t zir_foreign_file_tree_linux__ProcessIdRaw(void) __asm__("getpid");
 #endif
-static int32_t
-zir_f_0ee210116da2a0c9_ProcessIdRaw(void)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_ProcessIdRaw();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_FreeOwnedRaw_c75930da
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_FreeOwnedRaw_c75930da
 #ifdef __APPLE__
-void zir_foreign_zir_f_0ee210116da2a0c9_FreeOwnedRaw(void* memory) __asm__("_free");
+void zir_foreign_file_tree_linux__FreeOwnedRaw(void* memory) __asm__("_free");
 #else
-void zir_foreign_zir_f_0ee210116da2a0c9_FreeOwnedRaw(void* memory) __asm__("free");
+void zir_foreign_file_tree_linux__FreeOwnedRaw(void* memory) __asm__("free");
 #endif
-static void
-zir_f_0ee210116da2a0c9_FreeOwnedRaw(void* memory)
-{
-    zir_foreign_zir_f_0ee210116da2a0c9_FreeOwnedRaw(memory);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_SymbolicLinkRaw_c233d8d7
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_SymbolicLinkRaw_c233d8d7
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_SymbolicLinkRaw(uint8_t* target, uint8_t* path) __asm__("_symlink");
+int32_t zir_foreign_file_tree_linux__SymbolicLinkRaw(uint8_t* target, uint8_t* path) __asm__("_symlink");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_SymbolicLinkRaw(uint8_t* target, uint8_t* path) __asm__("symlink");
+int32_t zir_foreign_file_tree_linux__SymbolicLinkRaw(uint8_t* target, uint8_t* path) __asm__("symlink");
 #endif
-static int32_t
-zir_f_0ee210116da2a0c9_SymbolicLinkRaw(uint8_t* target, uint8_t* path)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_SymbolicLinkRaw(target, path);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_ReadLinkRaw_133b334a
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_ReadLinkRaw_133b334a
 #ifdef __APPLE__
-ptrdiff_t zir_foreign_zir_f_0ee210116da2a0c9_ReadLinkRaw(uint8_t* path, uint8_t* output, size_t capacity) __asm__("_readlink");
+ptrdiff_t zir_foreign_file_tree_linux__ReadLinkRaw(uint8_t* path, uint8_t* output, size_t capacity) __asm__("_readlink");
 #else
-ptrdiff_t zir_foreign_zir_f_0ee210116da2a0c9_ReadLinkRaw(uint8_t* path, uint8_t* output, size_t capacity) __asm__("readlink");
+ptrdiff_t zir_foreign_file_tree_linux__ReadLinkRaw(uint8_t* path, uint8_t* output, size_t capacity) __asm__("readlink");
 #endif
-static ptrdiff_t
-zir_f_0ee210116da2a0c9_ReadLinkRaw(uint8_t* path, uint8_t* output, size_t capacity)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_ReadLinkRaw(path, output, capacity);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_StatxRaw_bab3b2e7
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_StatxRaw_bab3b2e7
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_StatxRaw(int32_t directory, uint8_t* path, int32_t flags, uint32_t mask, StatxRecord* output) __asm__("_statx");
+int32_t zir_foreign_file_tree_linux__StatxRaw(int32_t directory, uint8_t* path, int32_t flags, uint32_t mask, StatxRecord* output) __asm__("_statx");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_StatxRaw(int32_t directory, uint8_t* path, int32_t flags, uint32_t mask, StatxRecord* output) __asm__("statx");
+int32_t zir_foreign_file_tree_linux__StatxRaw(int32_t directory, uint8_t* path, int32_t flags, uint32_t mask, StatxRecord* output) __asm__("statx");
 #endif
-static int32_t
-zir_f_0ee210116da2a0c9_StatxRaw(int32_t directory, uint8_t* path, int32_t flags, uint32_t mask, StatxRecord* output)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_StatxRaw(directory, path, flags, mask, output);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_ErrnoRaw_40ae2072
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_ErrnoRaw_40ae2072
 #ifdef __APPLE__
-int32_t* zir_foreign_zir_f_0ee210116da2a0c9_ErrnoRaw(void) __asm__("___errno_location");
+int32_t* zir_foreign_file_tree_linux__ErrnoRaw(void) __asm__("___errno_location");
 #else
-int32_t* zir_foreign_zir_f_0ee210116da2a0c9_ErrnoRaw(void) __asm__("__errno_location");
+int32_t* zir_foreign_file_tree_linux__ErrnoRaw(void) __asm__("__errno_location");
 #endif
-static int32_t*
-zir_f_0ee210116da2a0c9_ErrnoRaw(void)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_ErrnoRaw();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_OpenAtRaw_0e8babf5
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_OpenAtRaw_0e8babf5
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_OpenAtRaw(int32_t directory, uint8_t* name, int32_t flags, ...) __asm__("_openat");
+int32_t zir_foreign_file_tree_linux__OpenAtRaw(int32_t directory, uint8_t* name, int32_t flags, ...) __asm__("_openat");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_OpenAtRaw(int32_t directory, uint8_t* name, int32_t flags, ...) __asm__("openat");
+int32_t zir_foreign_file_tree_linux__OpenAtRaw(int32_t directory, uint8_t* name, int32_t flags, ...) __asm__("openat");
 #endif
-#define zir_f_0ee210116da2a0c9_OpenAtRaw zir_foreign_zir_f_0ee210116da2a0c9_OpenAtRaw
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_MakeDirectoryAtRaw_71a6739b
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_MakeDirectoryAtRaw_71a6739b
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_MakeDirectoryAtRaw(int32_t directory, uint8_t* name, uint32_t mode) __asm__("_mkdirat");
+int32_t zir_foreign_file_tree_linux__MakeDirectoryAtRaw(int32_t directory, uint8_t* name, uint32_t mode) __asm__("_mkdirat");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_MakeDirectoryAtRaw(int32_t directory, uint8_t* name, uint32_t mode) __asm__("mkdirat");
+int32_t zir_foreign_file_tree_linux__MakeDirectoryAtRaw(int32_t directory, uint8_t* name, uint32_t mode) __asm__("mkdirat");
 #endif
-static int32_t
-zir_f_0ee210116da2a0c9_MakeDirectoryAtRaw(int32_t directory, uint8_t* name, uint32_t mode)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_MakeDirectoryAtRaw(directory, name, mode);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_UnlinkAtRaw_c5598daa
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_UnlinkAtRaw_c5598daa
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_UnlinkAtRaw(int32_t directory, uint8_t* name, int32_t flags) __asm__("_unlinkat");
+int32_t zir_foreign_file_tree_linux__UnlinkAtRaw(int32_t directory, uint8_t* name, int32_t flags) __asm__("_unlinkat");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_UnlinkAtRaw(int32_t directory, uint8_t* name, int32_t flags) __asm__("unlinkat");
+int32_t zir_foreign_file_tree_linux__UnlinkAtRaw(int32_t directory, uint8_t* name, int32_t flags) __asm__("unlinkat");
 #endif
-static int32_t
-zir_f_0ee210116da2a0c9_UnlinkAtRaw(int32_t directory, uint8_t* name, int32_t flags)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_UnlinkAtRaw(directory, name, flags);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_RenameAtRaw_57868d39
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_RenameAtRaw_57868d39
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_RenameAtRaw(int32_t old_directory, uint8_t* old_name, int32_t new_directory, uint8_t* new_name) __asm__("_renameat");
+int32_t zir_foreign_file_tree_linux__RenameAtRaw(int32_t old_directory, uint8_t* old_name, int32_t new_directory, uint8_t* new_name) __asm__("_renameat");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_RenameAtRaw(int32_t old_directory, uint8_t* old_name, int32_t new_directory, uint8_t* new_name) __asm__("renameat");
-#endif
-static int32_t
-zir_f_0ee210116da2a0c9_RenameAtRaw(int32_t old_directory, uint8_t* old_name, int32_t new_directory, uint8_t* new_name)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_RenameAtRaw(old_directory, old_name, new_directory, new_name);
-}
+int32_t zir_foreign_file_tree_linux__RenameAtRaw(int32_t old_directory, uint8_t* old_name, int32_t new_directory, uint8_t* new_name) __asm__("renameat");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -367,7 +175,7 @@ static bool
 file_tree_linux_ReadPathInfoAt(int32_t directory, uint8_t* name, int32_t flags, PathInfo* info)
 {
     StatxRecord record = {0};
-    if (zir_f_0ee210116da2a0c9_StatxRaw(directory, name, flags, 2047, &(record)) != 0) {
+    if (zir_foreign_file_tree_linux__StatxRaw(directory, name, flags, 2047, &(record)) != 0) {
         return false;
     }
     uint32_t* value_0 = &(info->metadata_mask);
@@ -473,7 +281,7 @@ file_tree_linux_OpenedHandle(int32_t fd, int32_t* status)
     if (fd >= 0) {
         value_1 = 0;
     } else {
-        int32_t* value_2 = zir_f_0ee210116da2a0c9_ErrnoRaw();
+        int32_t* value_2 = zir_foreign_file_tree_linux__ErrnoRaw();
         value_1 = *(value_2);
     }
     {
@@ -505,7 +313,7 @@ file_tree_linux_OpenChildHandle(FileHandle directory, String name, int32_t flags
         }
         return (FileHandle){0};
     }
-    int32_t fd = zir_f_0ee210116da2a0c9_OpenAtRaw(directory.fd, &(encoded[0]), (int32_t)(((uint32_t)flags | 131072u) | 524288u), mode);
+    int32_t fd = zir_foreign_file_tree_linux__OpenAtRaw(directory.fd, &(encoded[0]), (int32_t)(((uint32_t)flags | 131072u) | 524288u), mode);
     return file_tree_linux_OpenedHandle(fd, status);
 }
 
@@ -531,7 +339,7 @@ file_tree_linux_OpenDirectoryHandle(String path, int32_t* status)
         }
         return (FileHandle){0};
     }
-    return file_tree_linux_OpenedHandle(zir_f_0ee210116da2a0c9_OpenRaw(&(encoded[0]), 589824), status);
+    return file_tree_linux_OpenedHandle(zir_foreign_file_tree_linux__OpenRaw(&(encoded[0]), 589824), status);
 }
 
 FileHandle
@@ -549,16 +357,16 @@ file_tree_linux_OpenOrCreateChildDirectory(FileHandle directory, String name, ui
     if (!value_1) {
         return (FileHandle){0};
     }
-    bool value_2 = zir_f_0ee210116da2a0c9_MakeDirectoryAtRaw(directory.fd, &(encoded[0]), mode) != 0;
+    bool value_2 = zir_foreign_file_tree_linux__MakeDirectoryAtRaw(directory.fd, &(encoded[0]), mode) != 0;
     bool value_3 = value_2;
     if (value_3) {
-        int32_t* value_4 = zir_f_0ee210116da2a0c9_ErrnoRaw();
+        int32_t* value_4 = zir_foreign_file_tree_linux__ErrnoRaw();
         value_3 = (*(value_4) != 17);
     }
     if (value_3) {
         return (FileHandle){0};
     }
-    int32_t fd = zir_f_0ee210116da2a0c9_OpenAtRaw(directory.fd, &(encoded[0]), 720896);
+    int32_t fd = zir_foreign_file_tree_linux__OpenAtRaw(directory.fd, &(encoded[0]), 720896);
     return file_tree_linux_OpenedHandle(fd, (void *)0);
 }
 
@@ -610,7 +418,7 @@ file_tree_linux_RenameChild(FileHandle directory, String source, String destinat
     if (value_2) {
         return false;
     }
-    return zir_f_0ee210116da2a0c9_RenameAtRaw(directory.fd, &(from[0]), directory.fd, &(to[0])) == 0;
+    return zir_foreign_file_tree_linux__RenameAtRaw(directory.fd, &(from[0]), directory.fd, &(to[0])) == 0;
 }
 
 bool
@@ -622,12 +430,12 @@ file_tree_linux_RemoveChildFile(FileHandle directory, String name, bool allow_mi
     if (!value_1) {
         return false;
     }
-    bool value_2 = zir_f_0ee210116da2a0c9_UnlinkAtRaw(directory.fd, &(encoded[0]), 0) == 0;
+    bool value_2 = zir_foreign_file_tree_linux__UnlinkAtRaw(directory.fd, &(encoded[0]), 0) == 0;
     bool value_3 = value_2;
     if (!value_3) {
         bool value_4 = allow_missing;
         if (value_4) {
-            int32_t* value_5 = zir_f_0ee210116da2a0c9_ErrnoRaw();
+            int32_t* value_5 = zir_foreign_file_tree_linux__ErrnoRaw();
             value_4 = (*(value_5) == 2);
         }
         value_3 = value_4;
@@ -671,7 +479,7 @@ file_tree_linux_PathQuery(String path, bool follow_links)
     }
     if (!value_8) {
         int32_t* value_10 = &(result.error);
-        int32_t* value_11 = zir_f_0ee210116da2a0c9_ErrnoRaw();
+        int32_t* value_11 = zir_foreign_file_tree_linux__ErrnoRaw();
         (*value_10) = *(value_11);
         bool* value_12 = &(result.missing);
         (*value_12) = result.error == 2 || result.error == 20;
@@ -756,7 +564,7 @@ file_tree_linux_SetPathMode(String path, int32_t mode)
     if (!value_1) {
         return false;
     }
-    return zir_f_0ee210116da2a0c9_ChangeModeRaw(&(name[0]), (uint32_t)(mode)) == 0;
+    return zir_foreign_file_tree_linux__ChangeModeRaw(&(name[0]), (uint32_t)(mode)) == 0;
 }
 
 Text
@@ -882,7 +690,7 @@ file_tree_linux_ResolvePath(String path)
     if (!value_1) {
         return (Text){0};
     }
-    uint8_t* value_2 = zir_f_0ee210116da2a0c9_RealPathRaw(&(name[0]), &(output[0]));
+    uint8_t* value_2 = zir_foreign_file_tree_linux__RealPathRaw(&(name[0]), &(output[0]));
     if (value_2 == ((void *)0)) {
         return (Text){0};
     }
@@ -911,7 +719,7 @@ file_tree_linux_CreateTemporaryDirectory(String parent, String prefix)
         value_0 = value_2.info;
     }
     PathInfo info = value_0;
-    if (((PathKind)(info.kind)) != PathKind_Directory || info.owner_uid != zir_f_0ee210116da2a0c9_EffectiveUserRaw()) {
+    if (((PathKind)(info.kind)) != PathKind_Directory || info.owner_uid != zir_foreign_file_tree_linux__EffectiveUserRaw()) {
         Text cleanup_return_0 = {0};
         {
             file_tree_linux_ReleaseOwnedText(directory);
@@ -1038,7 +846,7 @@ file_tree_linux_CreateTemporaryDirectory(String parent, String prefix)
         (*value_5).count = 0;
         return value_30;
     }
-    uint8_t* value_31 = zir_f_0ee210116da2a0c9_TemporaryDirectoryRaw(&(name[0]));
+    uint8_t* value_31 = zir_foreign_file_tree_linux__TemporaryDirectoryRaw(&(name[0]));
     if (value_31 == ((void *)0)) {
         Text cleanup_return_3 = {0};
         {
@@ -1103,14 +911,14 @@ file_tree_linux_ReleaseOwnedText(String text)
         return;
     }
     TextDescriptor* descriptor = (TextDescriptor*)(&(text));
-    zir_f_0ee210116da2a0c9_FreeOwnedRaw((void*)(descriptor->data));
+    zir_foreign_file_tree_linux__FreeOwnedRaw((void*)(descriptor->data));
 }
 
 Text
 file_tree_linux_WorkingDirectory(void)
 {
     uint8_t output[4096] = {0};
-    uint8_t* value_0 = zir_f_0ee210116da2a0c9_WorkingDirectoryRaw(&(output[0]), 4096);
+    uint8_t* value_0 = zir_foreign_file_tree_linux__WorkingDirectoryRaw(&(output[0]), 4096);
     if (value_0 == ((void *)0)) {
         return (Text){0};
     }
@@ -1196,10 +1004,10 @@ file_tree_linux_CreateDirectories(String path, int32_t mode)
     if (!value_11) {
         return false;
     }
-    bool value_12 = zir_f_0ee210116da2a0c9_MakeDirectoryRaw(&(name[0]), (uint32_t)(mode)) != 0;
+    bool value_12 = zir_foreign_file_tree_linux__MakeDirectoryRaw(&(name[0]), (uint32_t)(mode)) != 0;
     bool value_13 = value_12;
     if (value_13) {
-        int32_t* value_14 = zir_f_0ee210116da2a0c9_ErrnoRaw();
+        int32_t* value_14 = zir_foreign_file_tree_linux__ErrnoRaw();
         value_13 = (*(value_14) != 17);
     }
     if (value_13) {
@@ -1458,7 +1266,7 @@ file_tree_linux_RemoveTree(String path)
         return false;
     }
     if (((PathKind)(info.kind)) != PathKind_Directory) {
-        return zir_f_0ee210116da2a0c9_UnlinkRaw(&(name[0])) == 0;
+        return zir_foreign_file_tree_linux__UnlinkRaw(&(name[0])) == 0;
     }
     __type_c53c2d7c4913dc02 names = {0};
     __type_c53c2d7c4913dc02* value_6 = &names;
@@ -1550,7 +1358,7 @@ file_tree_linux_RemoveTree(String path)
         (*value_9).capacity = 0;
         (*value_9).count = 0;
     }
-    bool cleanup_return_1 = ok && zir_f_0ee210116da2a0c9_RemoveDirectoryRaw(&(name[0])) == 0;
+    bool cleanup_return_1 = ok && zir_foreign_file_tree_linux__RemoveDirectoryRaw(&(name[0])) == 0;
     {
         file_tree_linux_ReleaseNames(&(names), 0LL);
     }
@@ -1755,7 +1563,7 @@ file_tree_linux_CopyFileNew(String source, String target)
     if (!value_10) {
         ok = false;
     }
-    if (ok && zir_f_0ee210116da2a0c9_ChangeFileModeRaw(output.fd, (uint32_t)(info.mode)) != 0) {
+    if (ok && zir_foreign_file_tree_linux__ChangeFileModeRaw(output.fd, (uint32_t)(info.mode)) != 0) {
         ok = false;
     }
     bool value_11 = CloseFile(output);
@@ -1840,7 +1648,7 @@ file_tree_linux_CopyTreeNewContents(String source, String target, int32_t mode)
     uint8_t name[4096] = {0};
     Slice value_0 = {name, 4096};
     bool value_1 = CopyCString(target, value_0);
-    if (!value_1 || zir_f_0ee210116da2a0c9_MakeDirectoryRaw(&(name[0]), 448) != 0) {
+    if (!value_1 || zir_foreign_file_tree_linux__MakeDirectoryRaw(&(name[0]), 448) != 0) {
         return false;
     }
     __type_c53c2d7c4913dc02 names = {0};
@@ -1946,14 +1754,14 @@ file_tree_linux_CopyLink(String source, String target)
     if (value_2) {
         return false;
     }
-    ptrdiff_t value_5 = zir_f_0ee210116da2a0c9_ReadLinkRaw(&(name[0]), &(destination[0]), 4096);
+    ptrdiff_t value_5 = zir_foreign_file_tree_linux__ReadLinkRaw(&(name[0]), &(destination[0]), 4096);
     int64_t count = (int64_t)(value_5);
     if (count < 0LL || count >= 4096LL) {
         return false;
     }
     uint8_t* value_6 = &(destination[count]);
     (*value_6) = 0;
-    return zir_f_0ee210116da2a0c9_SymbolicLinkRaw(&(destination[0]), &(link[0])) == 0;
+    return zir_foreign_file_tree_linux__SymbolicLinkRaw(&(destination[0]), &(link[0])) == 0;
 }
 
 bool
@@ -1989,7 +1797,7 @@ file_tree_linux_ReplaceFile(String path, String text)
     (void)value_3;
     uint8_t digits[24] = {0};
     int64_t at = 24LL;
-    int32_t pid = zir_f_0ee210116da2a0c9_ProcessIdRaw();
+    int32_t pid = zir_foreign_file_tree_linux__ProcessIdRaw();
     while (true) {
         at = (int64_t)((uint64_t)at - UINT64_C(1));
         uint8_t* value_5 = &(digits[at]);
@@ -2054,7 +1862,7 @@ file_tree_linux_ReplaceFile(String path, String text)
         value_20 = 420;
     }
     int32_t mode = value_20;
-    int32_t fd = zir_f_0ee210116da2a0c9_OpenRaw(&(name[0]), 524865, mode);
+    int32_t fd = zir_foreign_file_tree_linux__OpenRaw(&(name[0]), 524865, mode);
     if (fd < 0) {
         bool value_21 = false;
         free((temporary).bytes.data);
@@ -2079,11 +1887,11 @@ file_tree_linux_ReplaceFile(String path, String text)
         }
         int64_t sent = 0LL;
         while (sent < size) {
-            ptrdiff_t value_23 = zir_f_0ee210116da2a0c9_WriteRaw(fd, &(chunk[sent]), (size_t)(((int64_t)((uint64_t)size - (uint64_t)sent))));
+            ptrdiff_t value_23 = zir_foreign_file_tree_linux__WriteRaw(fd, &(chunk[sent]), (size_t)(((int64_t)((uint64_t)size - (uint64_t)sent))));
             int64_t count = (int64_t)(value_23);
             bool value_24 = count < 0LL;
             if (value_24) {
-                int32_t* value_25 = zir_f_0ee210116da2a0c9_ErrnoRaw();
+                int32_t* value_25 = zir_foreign_file_tree_linux__ErrnoRaw();
                 value_24 = (*(value_25) == 4);
             }
             if (value_24) {
@@ -2097,20 +1905,20 @@ file_tree_linux_ReplaceFile(String path, String text)
         }
         written = (int64_t)((uint64_t)written + (uint64_t)size);
     }
-    if (ok && zir_f_0ee210116da2a0c9_FsyncRaw(fd) != 0) {
+    if (ok && zir_foreign_file_tree_linux__FsyncRaw(fd) != 0) {
         ok = false;
     }
-    if (zir_f_0ee210116da2a0c9_CloseRaw(fd) != 0) {
+    if (zir_foreign_file_tree_linux__CloseRaw(fd) != 0) {
         ok = false;
     }
     if (ok && ((PathKind)(previous.kind)) == PathKind_File) {
-        ok = zir_f_0ee210116da2a0c9_ChangeModeRaw(&(name[0]), (uint32_t)(mode)) == 0;
+        ok = zir_foreign_file_tree_linux__ChangeModeRaw(&(name[0]), (uint32_t)(mode)) == 0;
     }
-    if (ok && zir_f_0ee210116da2a0c9_RenameRaw(&(name[0]), &(final[0])) != 0) {
+    if (ok && zir_foreign_file_tree_linux__RenameRaw(&(name[0]), &(final[0])) != 0) {
         ok = false;
     }
     if (!ok) {
-        zir_f_0ee210116da2a0c9_UnlinkRaw(&(name[0]));
+        zir_foreign_file_tree_linux__UnlinkRaw(&(name[0]));
     }
     bool value_26 = ok;
     free((temporary).bytes.data);
@@ -2133,7 +1941,7 @@ file_tree_linux_LockPath(String path, bool exclusive, bool wait)
     if (!value_1) {
         return -1;
     }
-    int32_t fd = zir_f_0ee210116da2a0c9_OpenRaw(&(name[0]), 525377, 420LL);
+    int32_t fd = zir_foreign_file_tree_linux__OpenRaw(&(name[0]), 525377, 420LL);
     if (fd < 0) {
         return -1;
     }
@@ -2147,10 +1955,10 @@ file_tree_linux_LockPath(String path, bool exclusive, bool wait)
     if (!wait) {
         operation = (int32_t)((uint32_t)operation | 4u);
     }
-    while (zir_f_0ee210116da2a0c9_FlockRaw(fd, operation) != 0) {
-        int32_t* value_3 = zir_f_0ee210116da2a0c9_ErrnoRaw();
+    while (zir_foreign_file_tree_linux__FlockRaw(fd, operation) != 0) {
+        int32_t* value_3 = zir_foreign_file_tree_linux__ErrnoRaw();
         if (*(value_3) != 4) {
-            zir_f_0ee210116da2a0c9_CloseRaw(fd);
+            zir_foreign_file_tree_linux__CloseRaw(fd);
             return -1;
         }
     }
@@ -2163,8 +1971,8 @@ file_tree_linux_UnlockPath(int32_t fd)
     if (fd < 0) {
         return;
     }
-    zir_f_0ee210116da2a0c9_FlockRaw(fd, 8);
-    zir_f_0ee210116da2a0c9_CloseRaw(fd);
+    zir_foreign_file_tree_linux__FlockRaw(fd, 8);
+    zir_foreign_file_tree_linux__CloseRaw(fd);
 }
 
 bool

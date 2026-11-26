@@ -17,96 +17,40 @@ static inline uint64_t ZiDivU64(uint64_t a, uint64_t b) {
 }
 #endif
 #endif
-#ifndef ZIR_FOREIGN_zir_f_7cacbb1a3e4e743d_LibcStringLength_b24a2871
-#define ZIR_FOREIGN_zir_f_7cacbb1a3e4e743d_LibcStringLength_b24a2871
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_7cacbb1a3e4e743d_LibcStringLength(uint8_t* text) __asm__("_strlen");
+size_t zir_foreign_compiler_check_types__LibcStringLength(uint8_t* text) __asm__("_strlen");
 #else
-size_t zir_foreign_zir_f_7cacbb1a3e4e743d_LibcStringLength(uint8_t* text) __asm__("strlen");
+size_t zir_foreign_compiler_check_types__LibcStringLength(uint8_t* text) __asm__("strlen");
 #endif
-static size_t
-zir_f_7cacbb1a3e4e743d_LibcStringLength(uint8_t* text)
-{
-    return zir_foreign_zir_f_7cacbb1a3e4e743d_LibcStringLength(text);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_7cacbb1a3e4e743d_CompilerContextScratch_7a4a5fab
-#define ZIR_FOREIGN_zir_f_7cacbb1a3e4e743d_CompilerContextScratch_7a4a5fab
 #ifdef __APPLE__
-void* zir_foreign_zir_f_7cacbb1a3e4e743d_CompilerContextScratch(void* key, Destroy destroy) __asm__("_CompilerContextScratch");
+void* zir_foreign_compiler_check_types__CompilerContextScratch(void* key, Destroy destroy) __asm__("_CompilerContextScratch");
 #else
-void* zir_foreign_zir_f_7cacbb1a3e4e743d_CompilerContextScratch(void* key, Destroy destroy) __asm__("CompilerContextScratch");
+void* zir_foreign_compiler_check_types__CompilerContextScratch(void* key, Destroy destroy) __asm__("CompilerContextScratch");
 #endif
-static void*
-zir_f_7cacbb1a3e4e743d_CompilerContextScratch(void* key, Destroy destroy)
-{
-    return zir_foreign_zir_f_7cacbb1a3e4e743d_CompilerContextScratch(key, destroy);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_7cacbb1a3e4e743d_CompilerScratchTake_7eecd454
-#define ZIR_FOREIGN_zir_f_7cacbb1a3e4e743d_CompilerScratchTake_7eecd454
 #ifdef __APPLE__
-void* zir_foreign_zir_f_7cacbb1a3e4e743d_CompilerScratchTake(void* pool) __asm__("_CompilerScratchTake");
+void* zir_foreign_compiler_check_types__CompilerScratchTake(void* pool) __asm__("_CompilerScratchTake");
 #else
-void* zir_foreign_zir_f_7cacbb1a3e4e743d_CompilerScratchTake(void* pool) __asm__("CompilerScratchTake");
+void* zir_foreign_compiler_check_types__CompilerScratchTake(void* pool) __asm__("CompilerScratchTake");
 #endif
-static void*
-zir_f_7cacbb1a3e4e743d_CompilerScratchTake(void* pool)
-{
-    return zir_foreign_zir_f_7cacbb1a3e4e743d_CompilerScratchTake(pool);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_7cacbb1a3e4e743d_CompilerScratchPut_24e84c9a
-#define ZIR_FOREIGN_zir_f_7cacbb1a3e4e743d_CompilerScratchPut_24e84c9a
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_7cacbb1a3e4e743d_CompilerScratchPut(void* pool, void* memory) __asm__("_CompilerScratchPut");
+int32_t zir_foreign_compiler_check_types__CompilerScratchPut(void* pool, void* memory) __asm__("_CompilerScratchPut");
 #else
-int32_t zir_foreign_zir_f_7cacbb1a3e4e743d_CompilerScratchPut(void* pool, void* memory) __asm__("CompilerScratchPut");
+int32_t zir_foreign_compiler_check_types__CompilerScratchPut(void* pool, void* memory) __asm__("CompilerScratchPut");
 #endif
-static int32_t
-zir_f_7cacbb1a3e4e743d_CompilerScratchPut(void* pool, void* memory)
-{
-    return zir_foreign_zir_f_7cacbb1a3e4e743d_CompilerScratchPut(pool, memory);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_7cacbb1a3e4e743d_CompilerMemoryRecovering_b88389da
-#define ZIR_FOREIGN_zir_f_7cacbb1a3e4e743d_CompilerMemoryRecovering_b88389da
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_7cacbb1a3e4e743d_CompilerMemoryRecovering(void) __asm__("_CompilerMemoryRecovering");
+int32_t zir_foreign_compiler_check_types__CompilerMemoryRecovering(void) __asm__("_CompilerMemoryRecovering");
 #else
-int32_t zir_foreign_zir_f_7cacbb1a3e4e743d_CompilerMemoryRecovering(void) __asm__("CompilerMemoryRecovering");
+int32_t zir_foreign_compiler_check_types__CompilerMemoryRecovering(void) __asm__("CompilerMemoryRecovering");
 #endif
-static int32_t
-zir_f_7cacbb1a3e4e743d_CompilerMemoryRecovering(void)
-{
-    return zir_foreign_zir_f_7cacbb1a3e4e743d_CompilerMemoryRecovering();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_7cacbb1a3e4e743d_CompilerFree_544d5753
-#define ZIR_FOREIGN_zir_f_7cacbb1a3e4e743d_CompilerFree_544d5753
 #ifdef __APPLE__
-void zir_foreign_zir_f_7cacbb1a3e4e743d_CompilerFree(void* memory) __asm__("_CompilerFree");
+void zir_foreign_compiler_check_types__CompilerFree(void* memory) __asm__("_CompilerFree");
 #else
-void zir_foreign_zir_f_7cacbb1a3e4e743d_CompilerFree(void* memory) __asm__("CompilerFree");
+void zir_foreign_compiler_check_types__CompilerFree(void* memory) __asm__("CompilerFree");
 #endif
-static void
-zir_f_7cacbb1a3e4e743d_CompilerFree(void* memory)
-{
-    zir_foreign_zir_f_7cacbb1a3e4e743d_CompilerFree(memory);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_7cacbb1a3e4e743d_AllocateOrExit_5810995e
-#define ZIR_FOREIGN_zir_f_7cacbb1a3e4e743d_AllocateOrExit_5810995e
 #ifdef __APPLE__
-void* zir_foreign_zir_f_7cacbb1a3e4e743d_AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
+void* zir_foreign_compiler_check_types__AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
 #else
-void* zir_foreign_zir_f_7cacbb1a3e4e743d_AllocateOrExit(size_t size) __asm__("AllocateOrExit");
-#endif
-static void*
-zir_f_7cacbb1a3e4e743d_AllocateOrExit(size_t size)
-{
-    return zir_foreign_zir_f_7cacbb1a3e4e743d_AllocateOrExit(size);
-}
+void* zir_foreign_compiler_check_types__AllocateOrExit(size_t size) __asm__("AllocateOrExit");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -353,26 +297,26 @@ compiler_check_types_CheckCString(String text)
 uint64_t
 compiler_check_types_CheckCStringLength(uint8_t* text)
 {
-    size_t value_0 = zir_f_7cacbb1a3e4e743d_LibcStringLength(text);
+    size_t value_0 = zir_foreign_compiler_check_types__LibcStringLength(text);
     return (uint64_t)(value_0);
 }
 
 static void
 compiler_check_types_CheckDestroy(void* memory)
 {
-    zir_f_7cacbb1a3e4e743d_CompilerFree(memory);
+    zir_foreign_compiler_check_types__CompilerFree(memory);
 }
 
 void*
 compiler_check_types_CheckScratchTake(uint8_t* key, size_t size)
 {
     void* memory = (void *)0;
-    if (zir_f_7cacbb1a3e4e743d_CompilerMemoryRecovering() == 0) {
-        void* pool = zir_f_7cacbb1a3e4e743d_CompilerContextScratch((void*)(key), compiler_check_types_CheckDestroy);
-        memory = zir_f_7cacbb1a3e4e743d_CompilerScratchTake(pool);
+    if (zir_foreign_compiler_check_types__CompilerMemoryRecovering() == 0) {
+        void* pool = zir_foreign_compiler_check_types__CompilerContextScratch((void*)(key), compiler_check_types_CheckDestroy);
+        memory = zir_foreign_compiler_check_types__CompilerScratchTake(pool);
     }
     if (memory == ((void *)0)) {
-        memory = zir_f_7cacbb1a3e4e743d_AllocateOrExit(size);
+        memory = zir_foreign_compiler_check_types__AllocateOrExit(size);
     }
     return memory;
 }
@@ -380,11 +324,11 @@ compiler_check_types_CheckScratchTake(uint8_t* key, size_t size)
 void
 compiler_check_types_CheckScratchRelease(uint8_t* key, void* memory)
 {
-    if (zir_f_7cacbb1a3e4e743d_CompilerMemoryRecovering() == 0) {
-        void* pool = zir_f_7cacbb1a3e4e743d_CompilerContextScratch((void*)(key), compiler_check_types_CheckDestroy);
-        if (zir_f_7cacbb1a3e4e743d_CompilerScratchPut(pool, memory) != 0) {
+    if (zir_foreign_compiler_check_types__CompilerMemoryRecovering() == 0) {
+        void* pool = zir_foreign_compiler_check_types__CompilerContextScratch((void*)(key), compiler_check_types_CheckDestroy);
+        if (zir_foreign_compiler_check_types__CompilerScratchPut(pool, memory) != 0) {
             return;
         }
     }
-    zir_f_7cacbb1a3e4e743d_CompilerFree(memory);
+    zir_foreign_compiler_check_types__CompilerFree(memory);
 }

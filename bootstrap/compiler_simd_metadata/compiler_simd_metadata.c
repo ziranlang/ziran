@@ -28,235 +28,95 @@ static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_free_c75930da
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_free_c75930da
 #ifdef __APPLE__
-void zir_foreign_zir_f_89c878bda89adecc_free(void* memory) __asm__("_free");
+void zir_foreign_compiler_simd_metadata__free(void* memory) __asm__("_free");
 #else
-void zir_foreign_zir_f_89c878bda89adecc_free(void* memory) __asm__("free");
+void zir_foreign_compiler_simd_metadata__free(void* memory) __asm__("free");
 #endif
-static void
-zir_f_89c878bda89adecc_free(void* memory)
-{
-    zir_foreign_zir_f_89c878bda89adecc_free(memory);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_memcpy_d3838e83
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_memcpy_d3838e83
 #ifdef __APPLE__
-void* zir_foreign_zir_f_89c878bda89adecc_memcpy(void* dst, void* src, size_t count) __asm__("_memcpy");
+void* zir_foreign_compiler_simd_metadata__memcpy(void* dst, void* src, size_t count) __asm__("_memcpy");
 #else
-void* zir_foreign_zir_f_89c878bda89adecc_memcpy(void* dst, void* src, size_t count) __asm__("memcpy");
+void* zir_foreign_compiler_simd_metadata__memcpy(void* dst, void* src, size_t count) __asm__("memcpy");
 #endif
-static void*
-zir_f_89c878bda89adecc_memcpy(void* dst, void* src, size_t count)
-{
-    return zir_foreign_zir_f_89c878bda89adecc_memcpy(dst, src, count);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_memset_0839e910
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_memset_0839e910
 #ifdef __APPLE__
-void* zir_foreign_zir_f_89c878bda89adecc_memset(void* dst, int32_t value, size_t count) __asm__("_memset");
+void* zir_foreign_compiler_simd_metadata__memset(void* dst, int32_t value, size_t count) __asm__("_memset");
 #else
-void* zir_foreign_zir_f_89c878bda89adecc_memset(void* dst, int32_t value, size_t count) __asm__("memset");
+void* zir_foreign_compiler_simd_metadata__memset(void* dst, int32_t value, size_t count) __asm__("memset");
 #endif
-static void*
-zir_f_89c878bda89adecc_memset(void* dst, int32_t value, size_t count)
-{
-    return zir_foreign_zir_f_89c878bda89adecc_memset(dst, value, count);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_memcmp_ce1296ae
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_memcmp_ce1296ae
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_89c878bda89adecc_memcmp(void* a, void* b, size_t count) __asm__("_memcmp");
+int32_t zir_foreign_compiler_simd_metadata__memcmp(void* a, void* b, size_t count) __asm__("_memcmp");
 #else
-int32_t zir_foreign_zir_f_89c878bda89adecc_memcmp(void* a, void* b, size_t count) __asm__("memcmp");
+int32_t zir_foreign_compiler_simd_metadata__memcmp(void* a, void* b, size_t count) __asm__("memcmp");
 #endif
-static int32_t
-zir_f_89c878bda89adecc_memcmp(void* a, void* b, size_t count)
-{
-    return zir_foreign_zir_f_89c878bda89adecc_memcmp(a, b, count);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_strlen_b24a2871
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_strlen_b24a2871
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_89c878bda89adecc_strlen(uint8_t* s) __asm__("_strlen");
+size_t zir_foreign_compiler_simd_metadata__strlen(uint8_t* s) __asm__("_strlen");
 #else
-size_t zir_foreign_zir_f_89c878bda89adecc_strlen(uint8_t* s) __asm__("strlen");
+size_t zir_foreign_compiler_simd_metadata__strlen(uint8_t* s) __asm__("strlen");
 #endif
-static size_t
-zir_f_89c878bda89adecc_strlen(uint8_t* s)
-{
-    return zir_foreign_zir_f_89c878bda89adecc_strlen(s);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_strcmp_b1a4f317
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_strcmp_b1a4f317
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_89c878bda89adecc_strcmp(uint8_t* a, uint8_t* b) __asm__("_strcmp");
+int32_t zir_foreign_compiler_simd_metadata__strcmp(uint8_t* a, uint8_t* b) __asm__("_strcmp");
 #else
-int32_t zir_foreign_zir_f_89c878bda89adecc_strcmp(uint8_t* a, uint8_t* b) __asm__("strcmp");
+int32_t zir_foreign_compiler_simd_metadata__strcmp(uint8_t* a, uint8_t* b) __asm__("strcmp");
 #endif
-static int32_t
-zir_f_89c878bda89adecc_strcmp(uint8_t* a, uint8_t* b)
-{
-    return zir_foreign_zir_f_89c878bda89adecc_strcmp(a, b);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_strncmp_5281c9d0
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_strncmp_5281c9d0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_89c878bda89adecc_strncmp(uint8_t* a, uint8_t* b, size_t n) __asm__("_strncmp");
+int32_t zir_foreign_compiler_simd_metadata__strncmp(uint8_t* a, uint8_t* b, size_t n) __asm__("_strncmp");
 #else
-int32_t zir_foreign_zir_f_89c878bda89adecc_strncmp(uint8_t* a, uint8_t* b, size_t n) __asm__("strncmp");
+int32_t zir_foreign_compiler_simd_metadata__strncmp(uint8_t* a, uint8_t* b, size_t n) __asm__("strncmp");
 #endif
-static int32_t
-zir_f_89c878bda89adecc_strncmp(uint8_t* a, uint8_t* b, size_t n)
-{
-    return zir_foreign_zir_f_89c878bda89adecc_strncmp(a, b, n);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_strcpy_e6ae563d
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_strcpy_e6ae563d
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_89c878bda89adecc_strcpy(uint8_t* dst, uint8_t* src) __asm__("_strcpy");
+uint8_t* zir_foreign_compiler_simd_metadata__strcpy(uint8_t* dst, uint8_t* src) __asm__("_strcpy");
 #else
-uint8_t* zir_foreign_zir_f_89c878bda89adecc_strcpy(uint8_t* dst, uint8_t* src) __asm__("strcpy");
+uint8_t* zir_foreign_compiler_simd_metadata__strcpy(uint8_t* dst, uint8_t* src) __asm__("strcpy");
 #endif
-static uint8_t*
-zir_f_89c878bda89adecc_strcpy(uint8_t* dst, uint8_t* src)
-{
-    return zir_foreign_zir_f_89c878bda89adecc_strcpy(dst, src);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_snprintf_7c8971c5
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_snprintf_7c8971c5
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_89c878bda89adecc_snprintf(uint8_t* out, size_t size, uint8_t* fmt, ...) __asm__("_snprintf");
+int32_t zir_foreign_compiler_simd_metadata__snprintf(uint8_t* out, size_t size, uint8_t* fmt, ...) __asm__("_snprintf");
 #else
-int32_t zir_foreign_zir_f_89c878bda89adecc_snprintf(uint8_t* out, size_t size, uint8_t* fmt, ...) __asm__("snprintf");
+int32_t zir_foreign_compiler_simd_metadata__snprintf(uint8_t* out, size_t size, uint8_t* fmt, ...) __asm__("snprintf");
 #endif
-#define zir_f_89c878bda89adecc_snprintf zir_foreign_zir_f_89c878bda89adecc_snprintf
-#endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_AllocateOrExit_5810995e
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_AllocateOrExit_5810995e
 #ifdef __APPLE__
-void* zir_foreign_zir_f_89c878bda89adecc_AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
+void* zir_foreign_compiler_simd_metadata__AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
 #else
-void* zir_foreign_zir_f_89c878bda89adecc_AllocateOrExit(size_t size) __asm__("AllocateOrExit");
+void* zir_foreign_compiler_simd_metadata__AllocateOrExit(size_t size) __asm__("AllocateOrExit");
 #endif
-static void*
-zir_f_89c878bda89adecc_AllocateOrExit(size_t size)
-{
-    return zir_foreign_zir_f_89c878bda89adecc_AllocateOrExit(size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_ScalarType_9055c366
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_ScalarType_9055c366
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_89c878bda89adecc_ScalarType(uint8_t* type) __asm__("_ScalarType");
+uint8_t* zir_foreign_compiler_simd_metadata__ScalarType(uint8_t* type) __asm__("_ScalarType");
 #else
-uint8_t* zir_foreign_zir_f_89c878bda89adecc_ScalarType(uint8_t* type) __asm__("ScalarType");
+uint8_t* zir_foreign_compiler_simd_metadata__ScalarType(uint8_t* type) __asm__("ScalarType");
 #endif
-static uint8_t*
-zir_f_89c878bda89adecc_ScalarType(uint8_t* type)
-{
-    return zir_foreign_zir_f_89c878bda89adecc_ScalarType(type);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_ScalarWidthZiran_f0068b96
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_ScalarWidthZiran_f0068b96
 #ifdef __APPLE__
-uint32_t zir_foreign_zir_f_89c878bda89adecc_ScalarWidthZiran(void* type) __asm__("_ScalarWidthZiran");
+uint32_t zir_foreign_compiler_simd_metadata__ScalarWidthZiran(void* type) __asm__("_ScalarWidthZiran");
 #else
-uint32_t zir_foreign_zir_f_89c878bda89adecc_ScalarWidthZiran(void* type) __asm__("ScalarWidthZiran");
+uint32_t zir_foreign_compiler_simd_metadata__ScalarWidthZiran(void* type) __asm__("ScalarWidthZiran");
 #endif
-static uint32_t
-zir_f_89c878bda89adecc_ScalarWidthZiran(void* type)
-{
-    return zir_foreign_zir_f_89c878bda89adecc_ScalarWidthZiran(type);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_SliceElementType_2bdd8629
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_SliceElementType_2bdd8629
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_89c878bda89adecc_SliceElementType(uint8_t* type, uint8_t* element, size_t size) __asm__("_SliceElementType");
+int32_t zir_foreign_compiler_simd_metadata__SliceElementType(uint8_t* type, uint8_t* element, size_t size) __asm__("_SliceElementType");
 #else
-int32_t zir_foreign_zir_f_89c878bda89adecc_SliceElementType(uint8_t* type, uint8_t* element, size_t size) __asm__("SliceElementType");
+int32_t zir_foreign_compiler_simd_metadata__SliceElementType(uint8_t* type, uint8_t* element, size_t size) __asm__("SliceElementType");
 #endif
-static int32_t
-zir_f_89c878bda89adecc_SliceElementType(uint8_t* type, uint8_t* element, size_t size)
-{
-    return zir_foreign_zir_f_89c878bda89adecc_SliceElementType(type, element, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_ArrayElementType_7810fd9e
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_ArrayElementType_7810fd9e
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_89c878bda89adecc_ArrayElementType(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity) __asm__("_ArrayElementType");
+int32_t zir_foreign_compiler_simd_metadata__ArrayElementType(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity) __asm__("_ArrayElementType");
 #else
-int32_t zir_foreign_zir_f_89c878bda89adecc_ArrayElementType(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity) __asm__("ArrayElementType");
+int32_t zir_foreign_compiler_simd_metadata__ArrayElementType(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity) __asm__("ArrayElementType");
 #endif
-static int32_t
-zir_f_89c878bda89adecc_ArrayElementType(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity)
-{
-    return zir_foreign_zir_f_89c878bda89adecc_ArrayElementType(type, element, size, capacity);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_VectorType_7ae636da
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_VectorType_7ae636da
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_89c878bda89adecc_VectorType(uint8_t* type, SimdVector* vector) __asm__("_VectorType");
+int32_t zir_foreign_compiler_simd_metadata__VectorType(uint8_t* type, SimdVector* vector) __asm__("_VectorType");
 #else
-int32_t zir_foreign_zir_f_89c878bda89adecc_VectorType(uint8_t* type, SimdVector* vector) __asm__("VectorType");
+int32_t zir_foreign_compiler_simd_metadata__VectorType(uint8_t* type, SimdVector* vector) __asm__("VectorType");
 #endif
-static int32_t
-zir_f_89c878bda89adecc_VectorType(uint8_t* type, SimdVector* vector)
-{
-    return zir_foreign_zir_f_89c878bda89adecc_VectorType(type, vector);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_VectorTypeName_35dc2868
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_VectorTypeName_35dc2868
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_89c878bda89adecc_VectorTypeName(uint8_t* lane, int32_t lanes) __asm__("_VectorTypeName");
+uint8_t* zir_foreign_compiler_simd_metadata__VectorTypeName(uint8_t* lane, int32_t lanes) __asm__("_VectorTypeName");
 #else
-uint8_t* zir_foreign_zir_f_89c878bda89adecc_VectorTypeName(uint8_t* lane, int32_t lanes) __asm__("VectorTypeName");
+uint8_t* zir_foreign_compiler_simd_metadata__VectorTypeName(uint8_t* lane, int32_t lanes) __asm__("VectorTypeName");
 #endif
-static uint8_t*
-zir_f_89c878bda89adecc_VectorTypeName(uint8_t* lane, int32_t lanes)
-{
-    return zir_foreign_zir_f_89c878bda89adecc_VectorTypeName(lane, lanes);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_NativeVectorName_b9efb567
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_NativeVectorName_b9efb567
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_89c878bda89adecc_NativeVectorName(uint8_t* lane) __asm__("_NativeVectorName");
+uint8_t* zir_foreign_compiler_simd_metadata__NativeVectorName(uint8_t* lane) __asm__("_NativeVectorName");
 #else
-uint8_t* zir_foreign_zir_f_89c878bda89adecc_NativeVectorName(uint8_t* lane) __asm__("NativeVectorName");
+uint8_t* zir_foreign_compiler_simd_metadata__NativeVectorName(uint8_t* lane) __asm__("NativeVectorName");
 #endif
-static uint8_t*
-zir_f_89c878bda89adecc_NativeVectorName(uint8_t* lane)
-{
-    return zir_foreign_zir_f_89c878bda89adecc_NativeVectorName(lane);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_89c878bda89adecc_ZirSimdInitialize_04031641
-#define ZIR_FOREIGN_zir_f_89c878bda89adecc_ZirSimdInitialize_04031641
 #ifdef __APPLE__
-void zir_foreign_zir_f_89c878bda89adecc_ZirSimdInitialize(SimdInitializer initialize) __asm__("_ZirSimdInitialize");
+void zir_foreign_compiler_simd_metadata__ZirSimdInitialize(SimdInitializer initialize) __asm__("_ZirSimdInitialize");
 #else
-void zir_foreign_zir_f_89c878bda89adecc_ZirSimdInitialize(SimdInitializer initialize) __asm__("ZirSimdInitialize");
-#endif
-static void
-zir_f_89c878bda89adecc_ZirSimdInitialize(SimdInitializer initialize)
-{
-    zir_foreign_zir_f_89c878bda89adecc_ZirSimdInitialize(initialize);
-}
+void zir_foreign_compiler_simd_metadata__ZirSimdInitialize(SimdInitializer initialize) __asm__("ZirSimdInitialize");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -477,7 +337,7 @@ SimdLaneKind(SimdVector* vector)
         String s = value_1;
         value_2 = ((StaticText*)(&(s)))->data;
     }
-    if (zir_f_89c878bda89adecc_strcmp(value_0, value_2) == 0) {
+    if (zir_foreign_compiler_simd_metadata__strcmp(value_0, value_2) == 0) {
         return 0;
     }
     uint8_t* value_4 = vector->lane;
@@ -487,7 +347,7 @@ SimdLaneKind(SimdVector* vector)
         String s = value_5;
         value_6 = ((StaticText*)(&(s)))->data;
     }
-    if (zir_f_89c878bda89adecc_strcmp(value_4, value_6) == 0) {
+    if (zir_foreign_compiler_simd_metadata__strcmp(value_4, value_6) == 0) {
         return 1;
     }
     uint8_t* value_8 = vector->lane;
@@ -497,7 +357,7 @@ SimdLaneKind(SimdVector* vector)
         String s = value_9;
         value_10 = ((StaticText*)(&(s)))->data;
     }
-    if (zir_f_89c878bda89adecc_strcmp(value_8, value_10) == 0) {
+    if (zir_foreign_compiler_simd_metadata__strcmp(value_8, value_10) == 0) {
         return 2;
     }
     uint8_t* value_12 = vector->lane;
@@ -507,7 +367,7 @@ SimdLaneKind(SimdVector* vector)
         String s = value_13;
         value_14 = ((StaticText*)(&(s)))->data;
     }
-    if (zir_f_89c878bda89adecc_strcmp(value_12, value_14) == 0) {
+    if (zir_foreign_compiler_simd_metadata__strcmp(value_12, value_14) == 0) {
         return 3;
     }
     uint8_t* value_16 = vector->lane;
@@ -517,7 +377,7 @@ SimdLaneKind(SimdVector* vector)
         String s = value_17;
         value_18 = ((StaticText*)(&(s)))->data;
     }
-    if (zir_f_89c878bda89adecc_strcmp(value_16, value_18) == 0) {
+    if (zir_foreign_compiler_simd_metadata__strcmp(value_16, value_18) == 0) {
         return 4;
     }
     uint8_t* value_20 = vector->lane;
@@ -527,7 +387,7 @@ SimdLaneKind(SimdVector* vector)
         String s = value_21;
         value_22 = ((StaticText*)(&(s)))->data;
     }
-    if (zir_f_89c878bda89adecc_strcmp(value_20, value_22) == 0) {
+    if (zir_foreign_compiler_simd_metadata__strcmp(value_20, value_22) == 0) {
         return 5;
     }
     uint8_t* value_24 = vector->lane;
@@ -537,7 +397,7 @@ SimdLaneKind(SimdVector* vector)
         String s = value_25;
         value_26 = ((StaticText*)(&(s)))->data;
     }
-    if (zir_f_89c878bda89adecc_strcmp(value_24, value_26) == 0) {
+    if (zir_foreign_compiler_simd_metadata__strcmp(value_24, value_26) == 0) {
         return 6;
     }
     uint8_t* value_28 = vector->lane;
@@ -547,7 +407,7 @@ SimdLaneKind(SimdVector* vector)
         String s = value_29;
         value_30 = ((StaticText*)(&(s)))->data;
     }
-    if (zir_f_89c878bda89adecc_strcmp(value_28, value_30) == 0) {
+    if (zir_foreign_compiler_simd_metadata__strcmp(value_28, value_30) == 0) {
         return 7;
     }
     uint8_t* value_32 = vector->lane;
@@ -557,7 +417,7 @@ SimdLaneKind(SimdVector* vector)
         String s = value_33;
         value_34 = ((StaticText*)(&(s)))->data;
     }
-    if (zir_f_89c878bda89adecc_strcmp(value_32, value_34) == 0) {
+    if (zir_foreign_compiler_simd_metadata__strcmp(value_32, value_34) == 0) {
         return 8;
     }
     uint8_t* value_36 = vector->lane;
@@ -567,7 +427,7 @@ SimdLaneKind(SimdVector* vector)
         String s = value_37;
         value_38 = ((StaticText*)(&(s)))->data;
     }
-    if (zir_f_89c878bda89adecc_strcmp(value_36, value_38) == 0) {
+    if (zir_foreign_compiler_simd_metadata__strcmp(value_36, value_38) == 0) {
         return 9;
     }
     return -1;
@@ -579,7 +439,7 @@ SimdOpAt(int32_t index)
     if (index < 0 || index >= 68) {
         return (void *)0;
     }
-    zir_f_89c878bda89adecc_ZirSimdInitialize(compiler_simd_metadata_InitializeOps);
+    zir_foreign_compiler_simd_metadata__ZirSimdInitialize(compiler_simd_metadata_InitializeOps);
     return &(g_ops[index]);
 }
 
@@ -589,13 +449,13 @@ SimdOpNamed(uint8_t* name)
     if (name == ((void *)0)) {
         return (void *)0;
     }
-    zir_f_89c878bda89adecc_ZirSimdInitialize(compiler_simd_metadata_InitializeOps);
+    zir_foreign_compiler_simd_metadata__ZirSimdInitialize(compiler_simd_metadata_InitializeOps);
     {
         int32_t range_first_4 = 0;
         int32_t range_last_4 = 67;
         int32_t i = range_first_4;
         if (i <= range_last_4) for (;;) {
-            if (zir_f_89c878bda89adecc_strcmp(name, (uint8_t*)(g_ops[i]).name) == 0) {
+            if (zir_foreign_compiler_simd_metadata__strcmp(name, (uint8_t*)(g_ops[i]).name) == 0) {
                 return &(g_ops[i]);
             }
             if (i == range_last_4) {
@@ -619,13 +479,13 @@ SimdOpChecked(uint8_t* name)
             String s = value_2;
             value_3 = ((StaticText*)(&(s)))->data;
         }
-        bool value_5 = zir_f_89c878bda89adecc_strncmp(name, value_3, 8) != 0;
+        bool value_5 = zir_foreign_compiler_simd_metadata__strncmp(name, value_3, 8) != 0;
         value_1 = value_5;
     }
     if (value_1) {
         return (void *)0;
     }
-    zir_f_89c878bda89adecc_ZirSimdInitialize(compiler_simd_metadata_InitializeOps);
+    zir_foreign_compiler_simd_metadata__ZirSimdInitialize(compiler_simd_metadata_InitializeOps);
     uint8_t* value_6 = (void *)0;
     {
         uint8_t* base = name;
@@ -639,7 +499,7 @@ SimdOpChecked(uint8_t* name)
         int32_t i = range_first_5;
         if (i <= range_last_5) for (;;) {
             bool value_8 = ((g_ops[i]).snake)[0] == rest[0];
-            if (value_8 && zir_f_89c878bda89adecc_strcmp(rest, (uint8_t*)(g_ops[i]).snake) == 0) {
+            if (value_8 && zir_foreign_compiler_simd_metadata__strcmp(rest, (uint8_t*)(g_ops[i]).snake) == 0) {
                 return &(g_ops[i]);
             }
             if (i == range_last_5) {
@@ -663,7 +523,7 @@ SimdModule(ZirModule* module)
             String s = value_2;
             value_3 = ((StaticText*)(&(s)))->data;
         }
-        bool value_5 = zir_f_89c878bda89adecc_strcmp(&(module->standard_name[0]), value_3) == 0;
+        bool value_5 = zir_foreign_compiler_simd_metadata__strcmp(&(module->standard_name[0]), value_3) == 0;
         value_1 = value_5;
     }
     int32_t value_6 = 0;
@@ -706,14 +566,14 @@ SimdMemory(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity)
     if (type == ((void *)0)) {
         return 0;
     }
-    uint8_t* value_0 = zir_f_89c878bda89adecc_ScalarType(type);
+    uint8_t* value_0 = zir_foreign_compiler_simd_metadata__ScalarType(type);
     String value_1 = StringLiteral("string");
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
         value_2 = ((StaticText*)(&(s)))->data;
     }
-    if (zir_f_89c878bda89adecc_strcmp(value_0, value_2) == 0) {
+    if (zir_foreign_compiler_simd_metadata__strcmp(value_0, value_2) == 0) {
         kind = 4;
         String value_4 = StringLiteral("u8");
         uint8_t* value_5 = (void *)0;
@@ -721,10 +581,10 @@ SimdMemory(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity)
             String s = value_4;
             value_5 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_89c878bda89adecc_strcpy(&(inner[0]), value_5);
-    } else if (zir_f_89c878bda89adecc_SliceElementType(type, &(inner[0]), 128) != 0) {
+        zir_foreign_compiler_simd_metadata__strcpy(&(inner[0]), value_5);
+    } else if (zir_foreign_compiler_simd_metadata__SliceElementType(type, &(inner[0]), 128) != 0) {
         kind = 1;
-    } else if (zir_f_89c878bda89adecc_ArrayElementType(type, &(inner[0]), 128, &(count)) != 0) {
+    } else if (zir_foreign_compiler_simd_metadata__ArrayElementType(type, &(inner[0]), 128, &(count)) != 0) {
         kind = 2;
     } else {
         bool value_7 = type[0] == 42;
@@ -736,7 +596,7 @@ SimdMemory(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity)
                 size_t offset = 1;
                 value_9 = (uint8_t*)(((size_t)(base) + offset));
             }
-            bool value_11 = zir_f_89c878bda89adecc_strlen(value_9) < 128;
+            bool value_11 = zir_foreign_compiler_simd_metadata__strlen(value_9) < 128;
             value_8 = value_11;
         }
         if (value_8) {
@@ -747,12 +607,12 @@ SimdMemory(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity)
                 size_t offset = 1;
                 value_12 = (uint8_t*)(((size_t)(base) + offset));
             }
-            zir_f_89c878bda89adecc_strcpy(&(inner[0]), value_12);
+            zir_foreign_compiler_simd_metadata__strcpy(&(inner[0]), value_12);
         } else {
             return 0;
         }
     }
-    uint8_t* scalar = zir_f_89c878bda89adecc_ScalarType(&(inner[0]));
+    uint8_t* scalar = zir_foreign_compiler_simd_metadata__ScalarType(&(inner[0]));
     if (element != ((void *)0)) {
         String value_14 = StringLiteral("%s");
         uint8_t* value_15 = (void *)0;
@@ -766,7 +626,7 @@ SimdMemory(uint8_t* type, uint8_t* element, size_t size, int32_t* capacity)
         } else {
             value_17 = &(inner[0]);
         }
-        zir_f_89c878bda89adecc_snprintf(element, size, value_15, value_17);
+        zir_foreign_compiler_simd_metadata__snprintf(element, size, value_15, value_17);
     }
     if (capacity != ((void *)0)) {
         int32_t* value_18 = &((*(capacity)));
@@ -784,11 +644,11 @@ compiler_simd_metadata_IntegerScalar(uint8_t* type)
         String s = value_0;
         value_1 = ((StaticText*)(&(s)))->data;
     }
-    if (zir_f_89c878bda89adecc_strcmp(type, value_1) == 0) {
+    if (zir_foreign_compiler_simd_metadata__strcmp(type, value_1) == 0) {
         return true;
     }
-    uint8_t* scalar = zir_f_89c878bda89adecc_ScalarType(type);
-    bool value_3 = zir_f_89c878bda89adecc_ScalarWidthZiran((void*)(scalar)) > 0;
+    uint8_t* scalar = zir_foreign_compiler_simd_metadata__ScalarType(type);
+    bool value_3 = zir_foreign_compiler_simd_metadata__ScalarWidthZiran((void*)(scalar)) > 0;
     bool value_4 = value_3;
     if (!value_4) {
         String value_5 = StringLiteral("isize");
@@ -797,7 +657,7 @@ compiler_simd_metadata_IntegerScalar(uint8_t* type)
             String s = value_5;
             value_6 = ((StaticText*)(&(s)))->data;
         }
-        bool value_8 = zir_f_89c878bda89adecc_strcmp(scalar, value_6) == 0;
+        bool value_8 = zir_foreign_compiler_simd_metadata__strcmp(scalar, value_6) == 0;
         value_4 = value_8;
     }
     bool value_9 = value_4;
@@ -808,7 +668,7 @@ compiler_simd_metadata_IntegerScalar(uint8_t* type)
             String s = value_10;
             value_11 = ((StaticText*)(&(s)))->data;
         }
-        bool value_13 = zir_f_89c878bda89adecc_strcmp(scalar, value_11) == 0;
+        bool value_13 = zir_foreign_compiler_simd_metadata__strcmp(scalar, value_11) == 0;
         value_9 = value_13;
     }
     return value_9;
@@ -818,7 +678,7 @@ static bool
 compiler_simd_metadata_LaneOperand(SimdVector* vector, SimdOperand* operand)
 {
     uint8_t* type = (uint8_t*)operand->type;
-    uint8_t* scalar = zir_f_89c878bda89adecc_ScalarType(type);
+    uint8_t* scalar = zir_foreign_compiler_simd_metadata__ScalarType(type);
     if (vector->is_float != 0) {
         String value_0 = StringLiteral("real");
         uint8_t* value_1 = (void *)0;
@@ -826,7 +686,7 @@ compiler_simd_metadata_LaneOperand(SimdVector* vector, SimdOperand* operand)
             String s = value_0;
             value_1 = ((StaticText*)(&(s)))->data;
         }
-        bool value_3 = zir_f_89c878bda89adecc_strcmp(type, value_1) == 0;
+        bool value_3 = zir_foreign_compiler_simd_metadata__strcmp(type, value_1) == 0;
         bool value_4 = value_3;
         if (!value_4) {
             String value_5 = StringLiteral("integer");
@@ -835,10 +695,10 @@ compiler_simd_metadata_LaneOperand(SimdVector* vector, SimdOperand* operand)
                 String s = value_5;
                 value_6 = ((StaticText*)(&(s)))->data;
             }
-            bool value_8 = zir_f_89c878bda89adecc_strcmp(type, value_6) == 0;
+            bool value_8 = zir_foreign_compiler_simd_metadata__strcmp(type, value_6) == 0;
             value_4 = value_8;
         }
-        bool value_9 = value_4 || zir_f_89c878bda89adecc_strcmp(scalar, vector->lane) == 0;
+        bool value_9 = value_4 || zir_foreign_compiler_simd_metadata__strcmp(scalar, vector->lane) == 0;
         bool value_10 = value_9;
         if (!value_10) {
             String value_11 = StringLiteral("float32");
@@ -847,7 +707,7 @@ compiler_simd_metadata_LaneOperand(SimdVector* vector, SimdOperand* operand)
                 String s = value_11;
                 value_12 = ((StaticText*)(&(s)))->data;
             }
-            bool value_14 = zir_f_89c878bda89adecc_strcmp(scalar, value_12) == 0;
+            bool value_14 = zir_foreign_compiler_simd_metadata__strcmp(scalar, value_12) == 0;
             bool value_15 = value_14;
             if (value_15) {
                 uint8_t* value_16 = vector->lane;
@@ -857,7 +717,7 @@ compiler_simd_metadata_LaneOperand(SimdVector* vector, SimdOperand* operand)
                     String s = value_17;
                     value_18 = ((StaticText*)(&(s)))->data;
                 }
-                bool value_20 = zir_f_89c878bda89adecc_strcmp(value_16, value_18) == 0;
+                bool value_20 = zir_foreign_compiler_simd_metadata__strcmp(value_16, value_18) == 0;
                 value_15 = value_20;
             }
             value_10 = value_15;
@@ -870,7 +730,7 @@ compiler_simd_metadata_LaneOperand(SimdVector* vector, SimdOperand* operand)
         String s = value_21;
         value_22 = ((StaticText*)(&(s)))->data;
     }
-    if (zir_f_89c878bda89adecc_strcmp(type, value_22) == 0) {
+    if (zir_foreign_compiler_simd_metadata__strcmp(type, value_22) == 0) {
         if (operand->is_constant == 0) {
             return true;
         }
@@ -908,7 +768,7 @@ compiler_simd_metadata_LaneOperand(SimdVector* vector, SimdOperand* operand)
     }
     uint32_t value_33 = 0;
     if (scalar[0] != 0) {
-        uint32_t value_34 = zir_f_89c878bda89adecc_ScalarWidthZiran((void*)(scalar));
+        uint32_t value_34 = zir_foreign_compiler_simd_metadata__ScalarWidthZiran((void*)(scalar));
         value_33 = value_34;
     } else {
         value_33 = 0;
@@ -917,7 +777,7 @@ compiler_simd_metadata_LaneOperand(SimdVector* vector, SimdOperand* operand)
     if (w == 0) {
         return false;
     }
-    if (zir_f_89c878bda89adecc_strcmp(scalar, vector->lane) == 0) {
+    if (zir_foreign_compiler_simd_metadata__strcmp(scalar, vector->lane) == 0) {
         return true;
     }
     return (int32_t)(w) < vector->lane_bits && (scalar[0] == 117 || vector->is_signed != 0);
@@ -940,14 +800,14 @@ compiler_simd_metadata_Wider(SimdVector* vector, int32_t lanes)
         String s = value_1;
         value_2 = ((StaticText*)(&(s)))->data;
     }
-    zir_f_89c878bda89adecc_snprintf(&(lane[0]), 8, value_2, ch, (int32_t)((uint32_t)(vector->lane_bits) * 2u));
-    return zir_f_89c878bda89adecc_VectorTypeName(&(lane[0]), lanes);
+    zir_foreign_compiler_simd_metadata__snprintf(&(lane[0]), 8, value_2, ch, (int32_t)((uint32_t)(vector->lane_bits) * 2u));
+    return zir_foreign_compiler_simd_metadata__VectorTypeName(&(lane[0]), lanes);
 }
 
 static bool
 compiler_simd_metadata_VectorOf(SimdOp* op, SimdOperand* operand, SimdVector* vector)
 {
-    if (zir_f_89c878bda89adecc_VectorType((uint8_t*)operand->type, vector) == 0) {
+    if (zir_foreign_compiler_simd_metadata__VectorType((uint8_t*)operand->type, vector) == 0) {
         return false;
     }
     int32_t kind = SimdLaneKind(vector);
@@ -987,7 +847,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
     bool value_5 = value_4;
     if (value_5) {
         bool value_6 = result == ((void *)0);
-        bool value_7 = value_6 || zir_f_89c878bda89adecc_VectorType(result, &(r)) == 0;
+        bool value_7 = value_6 || zir_foreign_compiler_simd_metadata__VectorType(result, &(r)) == 0;
         value_5 = value_7;
     }
     if (value_5) {
@@ -1045,7 +905,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             }
             return value_24;
         }
-        if (zir_f_89c878bda89adecc_strcmp((uint8_t*)(operands[0]).type, (uint8_t*)(operands[1]).type) != 0) {
+        if (zir_foreign_compiler_simd_metadata__strcmp((uint8_t*)(operands[0]).type, (uint8_t*)(operands[1]).type) != 0) {
             uint8_t** value_29 = message;
             String value_30 = StringLiteral("takes two vectors of one type");
             uint8_t* value_31 = (void *)0;
@@ -1071,8 +931,8 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
                 String s = value_36;
                 value_37 = ((StaticText*)(&(s)))->data;
             }
-            zir_f_89c878bda89adecc_snprintf(&(lane[0]), 8, value_37, a.lane_bits);
-            return zir_f_89c878bda89adecc_VectorTypeName(&(lane[0]), a.lanes);
+            zir_foreign_compiler_simd_metadata__snprintf(&(lane[0]), 8, value_37, a.lane_bits);
+            return zir_foreign_compiler_simd_metadata__VectorTypeName(&(lane[0]), a.lanes);
         }
         return a.name;
     }
@@ -1134,7 +994,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             }
             return value_55;
         }
-        bool value_60 = zir_f_89c878bda89adecc_VectorType((uint8_t*)(operands[0]).type, &(b)) == 0;
+        bool value_60 = zir_foreign_compiler_simd_metadata__VectorType((uint8_t*)(operands[0]).type, &(b)) == 0;
         bool value_61 = value_60 || b.is_float != 0;
         bool value_62 = value_61;
         if (!value_62) {
@@ -1142,7 +1002,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             value_62 = !value_63;
         }
         bool value_64 = value_62;
-        bool value_65 = value_64 || zir_f_89c878bda89adecc_strcmp((uint8_t*)(operands[1]).type, (uint8_t*)(operands[2]).type) != 0;
+        bool value_65 = value_64 || zir_foreign_compiler_simd_metadata__strcmp((uint8_t*)(operands[1]).type, (uint8_t*)(operands[2]).type) != 0;
         if (value_65 || b.lanes != a.lanes || b.lane_bits != a.lane_bits) {
             uint8_t** value_66 = message;
             String value_67 = StringLiteral("takes an integer mask with the vectors' lane width, then two vectors of one type");
@@ -1200,7 +1060,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             bool value_85 = compiler_simd_metadata_VectorOf(op, &(operands[0]), &(a));
             value_84 = !value_85;
         }
-        if (value_84 || zir_f_89c878bda89adecc_strcmp((uint8_t*)(operands[0]).type, (uint8_t*)(operands[1]).type) != 0) {
+        if (value_84 || zir_foreign_compiler_simd_metadata__strcmp((uint8_t*)(operands[0]).type, (uint8_t*)(operands[1]).type) != 0) {
             uint8_t** value_86 = message;
             String value_87 = StringLiteral("takes an integer vector and a vector of counts of the same type");
             uint8_t* value_88 = (void *)0;
@@ -1280,7 +1140,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             bool value_114 = compiler_simd_metadata_VectorOf(op, &(operands[0]), &(a));
             value_113 = !value_114;
         }
-        if (value_113 || zir_f_89c878bda89adecc_strcmp((uint8_t*)(operands[0]).type, (uint8_t*)(operands[1]).type) != 0) {
+        if (value_113 || zir_foreign_compiler_simd_metadata__strcmp((uint8_t*)(operands[0]).type, (uint8_t*)(operands[1]).type) != 0) {
             uint8_t** value_115 = message;
             String value_116 = StringLiteral("takes two integer vectors of one type and a constant byte count");
             uint8_t* value_117 = (void *)0;
@@ -1575,7 +1435,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
     }
     if (((SimdShape)(op->shape)) == SimdShape_SIMD_LOAD) {
         bool value_220 = count != 2 || SimdMemory((uint8_t*)(operands[0]).type, &(element[0]), 128, (void *)0) == 0;
-        bool value_221 = value_220 || zir_f_89c878bda89adecc_strcmp(&(element[0]), r.lane) != 0;
+        bool value_221 = value_220 || zir_foreign_compiler_simd_metadata__strcmp(&(element[0]), r.lane) != 0;
         bool value_222 = value_221;
         if (!value_222) {
             bool value_223 = compiler_simd_metadata_IntegerScalar((uint8_t*)(operands[1]).type);
@@ -1615,8 +1475,8 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             bool value_234 = compiler_simd_metadata_IntegerScalar((uint8_t*)(operands[1]).type);
             value_233 = !value_234;
         }
-        bool value_235 = value_233 || zir_f_89c878bda89adecc_VectorType((uint8_t*)(operands[2]).type, &(a)) == 0;
-        if (value_235 || zir_f_89c878bda89adecc_strcmp(&(element[0]), a.lane) != 0) {
+        bool value_235 = value_233 || zir_foreign_compiler_simd_metadata__VectorType((uint8_t*)(operands[2]).type, &(a)) == 0;
+        if (value_235 || zir_foreign_compiler_simd_metadata__strcmp(&(element[0]), a.lane) != 0) {
             uint8_t** value_236 = message;
             String value_237 = StringLiteral("takes a slice or pointer of the vector's lane type, an index and the vector");
             uint8_t* value_238 = (void *)0;
@@ -1658,7 +1518,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
                 String s = value_251;
                 value_252 = ((StaticText*)(&(s)))->data;
             }
-            bool value_254 = zir_f_89c878bda89adecc_strcmp(&(element[0]), value_252) != 0;
+            bool value_254 = zir_foreign_compiler_simd_metadata__strcmp(&(element[0]), value_252) != 0;
             bool value_255 = value_254;
             if (value_255) {
                 String value_256 = StringLiteral("u32");
@@ -1667,7 +1527,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
                     String s = value_256;
                     value_257 = ((StaticText*)(&(s)))->data;
                 }
-                bool value_259 = zir_f_89c878bda89adecc_strcmp(&(element[0]), value_257) != 0;
+                bool value_259 = zir_foreign_compiler_simd_metadata__strcmp(&(element[0]), value_257) != 0;
                 value_255 = value_259;
             }
             bool value_260 = value_255;
@@ -1678,7 +1538,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
                     String s = value_261;
                     value_262 = ((StaticText*)(&(s)))->data;
                 }
-                bool value_264 = zir_f_89c878bda89adecc_strcmp(&(element[0]), value_262) != 0;
+                bool value_264 = zir_foreign_compiler_simd_metadata__strcmp(&(element[0]), value_262) != 0;
                 value_260 = value_264;
             }
             value_250 = value_260;
@@ -1701,7 +1561,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             }
             return value_267;
         }
-        return zir_f_89c878bda89adecc_VectorTypeName(&(element[0]), a.lanes);
+        return zir_foreign_compiler_simd_metadata__VectorTypeName(&(element[0]), a.lanes);
     }
     bool value_272 = ((SimdShape)(op->shape)) == SimdShape_SIMD_WIDEN_HALF || ((SimdShape)(op->shape)) == SimdShape_SIMD_MUL_WIDE;
     if (value_272 || ((SimdShape)(op->shape)) == SimdShape_SIMD_ADD_PAIRS) {
@@ -1717,7 +1577,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             bool value_275 = compiler_simd_metadata_VectorOf(op, &(operands[0]), &(a));
             value_274 = !value_275;
         }
-        if (value_274 || (count == 2 && zir_f_89c878bda89adecc_strcmp((uint8_t*)(operands[0]).type, (uint8_t*)(operands[1]).type) != 0)) {
+        if (value_274 || (count == 2 && zir_foreign_compiler_simd_metadata__strcmp((uint8_t*)(operands[0]).type, (uint8_t*)(operands[1]).type) != 0)) {
             String value_276 = StringView(NULL, 0);
             if (((SimdShape)(op->shape)) == SimdShape_SIMD_MUL_WIDE) {
                 value_276 = StringLiteral("takes two integer vectors of one type with lanes up to 32 bits");
@@ -1775,7 +1635,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             bool value_293 = compiler_simd_metadata_VectorOf(op, &(operands[0]), &(a));
             value_292 = !value_293;
         }
-        bool value_294 = value_292 || zir_f_89c878bda89adecc_strcmp((uint8_t*)(operands[0]).type, (uint8_t*)(operands[1]).type) != 0;
+        bool value_294 = value_292 || zir_foreign_compiler_simd_metadata__strcmp((uint8_t*)(operands[0]).type, (uint8_t*)(operands[1]).type) != 0;
         if (value_294 || r.is_float != 0 || (int32_t)((uint32_t)(r.lane_bits) * 2u) != a.lane_bits || r.lanes != (int32_t)((uint32_t)(a.lanes) * 2u)) {
             uint8_t** value_295 = message;
             String value_296 = StringLiteral("takes the narrower result type and two integer vectors of one type");
@@ -1802,7 +1662,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             bool value_303 = compiler_simd_metadata_VectorOf(op, &(operands[0]), &(a));
             value_302 = !value_303;
         }
-        if (value_302 || zir_f_89c878bda89adecc_strcmp((uint8_t*)(operands[0]).type, (uint8_t*)(operands[1]).type) != 0) {
+        if (value_302 || zir_foreign_compiler_simd_metadata__strcmp((uint8_t*)(operands[0]).type, (uint8_t*)(operands[1]).type) != 0) {
             uint8_t** value_304 = message;
             String value_305 = StringLiteral("takes two s16 vectors of one type");
             uint8_t* value_306 = (void *)0;
@@ -1826,7 +1686,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             String s = value_311;
             value_312 = ((StaticText*)(&(s)))->data;
         }
-        return zir_f_89c878bda89adecc_VectorTypeName(value_312, a.lanes / 2);
+        return zir_foreign_compiler_simd_metadata__VectorTypeName(value_312, a.lanes / 2);
     }
     if (((SimdShape)(op->shape)) == SimdShape_SIMD_MADD_SAT) {
         bool value_314 = count != 2;
@@ -1834,7 +1694,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             bool value_315 = compiler_simd_metadata_VectorOf(op, &(operands[0]), &(a));
             value_314 = !value_315;
         }
-        bool value_316 = value_314 || zir_f_89c878bda89adecc_VectorType((uint8_t*)(operands[1]).type, &(b)) == 0;
+        bool value_316 = value_314 || zir_foreign_compiler_simd_metadata__VectorType((uint8_t*)(operands[1]).type, &(b)) == 0;
         bool value_317 = value_316;
         if (!value_317) {
             uint8_t* value_318 = b.lane;
@@ -1844,7 +1704,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
                 String s = value_319;
                 value_320 = ((StaticText*)(&(s)))->data;
             }
-            bool value_322 = zir_f_89c878bda89adecc_strcmp(value_318, value_320) != 0;
+            bool value_322 = zir_foreign_compiler_simd_metadata__strcmp(value_318, value_320) != 0;
             value_317 = value_322;
         }
         if (value_317 || b.lanes != a.lanes) {
@@ -1871,7 +1731,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             String s = value_330;
             value_331 = ((StaticText*)(&(s)))->data;
         }
-        return zir_f_89c878bda89adecc_VectorTypeName(value_331, a.lanes / 2);
+        return zir_foreign_compiler_simd_metadata__VectorTypeName(value_331, a.lanes / 2);
     }
     if (((SimdShape)(op->shape)) == SimdShape_SIMD_SAD) {
         bool value_333 = count != 2;
@@ -1879,7 +1739,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             bool value_334 = compiler_simd_metadata_VectorOf(op, &(operands[0]), &(a));
             value_333 = !value_334;
         }
-        if (value_333 || zir_f_89c878bda89adecc_strcmp((uint8_t*)(operands[0]).type, (uint8_t*)(operands[1]).type) != 0) {
+        if (value_333 || zir_foreign_compiler_simd_metadata__strcmp((uint8_t*)(operands[0]).type, (uint8_t*)(operands[1]).type) != 0) {
             uint8_t** value_335 = message;
             String value_336 = StringLiteral("takes two u8 vectors of one type");
             uint8_t* value_337 = (void *)0;
@@ -1903,7 +1763,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             String s = value_342;
             value_343 = ((StaticText*)(&(s)))->data;
         }
-        return zir_f_89c878bda89adecc_VectorTypeName(value_343, a.lanes / 8);
+        return zir_foreign_compiler_simd_metadata__VectorTypeName(value_343, a.lanes / 8);
     }
     if (((SimdShape)(op->shape)) == SimdShape_SIMD_REDUCE) {
         bool value_345 = count != 1;
@@ -1981,7 +1841,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             bool value_371 = compiler_simd_metadata_VectorOf(op, &(operands[0]), &(a));
             value_370 = !value_371;
         }
-        bool value_372 = value_370 || zir_f_89c878bda89adecc_VectorType((uint8_t*)(operands[1]).type, &(b)) == 0;
+        bool value_372 = value_370 || zir_foreign_compiler_simd_metadata__VectorType((uint8_t*)(operands[1]).type, &(b)) == 0;
         bool value_373 = value_372;
         if (!value_373) {
             uint8_t* value_374 = b.lane;
@@ -1991,7 +1851,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
                 String s = value_375;
                 value_376 = ((StaticText*)(&(s)))->data;
             }
-            bool value_378 = zir_f_89c878bda89adecc_strcmp(value_374, value_376) != 0;
+            bool value_378 = zir_foreign_compiler_simd_metadata__strcmp(value_374, value_376) != 0;
             value_373 = value_378;
         }
         if (value_373 || b.lanes != a.lanes) {
@@ -2100,7 +1960,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
         return a.name;
     }
     if (((SimdShape)(op->shape)) == SimdShape_SIMD_REINTERPRET) {
-        bool value_414 = count != 1 || zir_f_89c878bda89adecc_VectorType((uint8_t*)(operands[0]).type, &(a)) == 0;
+        bool value_414 = count != 1 || zir_foreign_compiler_simd_metadata__VectorType((uint8_t*)(operands[0]).type, &(a)) == 0;
         if (value_414 || a.bytes != r.bytes) {
             uint8_t** value_415 = message;
             String value_416 = StringLiteral("takes the result type and a vector of the same width");
@@ -2122,7 +1982,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
         return r.name;
     }
     if (((SimdShape)(op->shape)) == SimdShape_SIMD_CONVERT) {
-        bool value_422 = count != 1 || zir_f_89c878bda89adecc_VectorType((uint8_t*)(operands[0]).type, &(a)) == 0;
+        bool value_422 = count != 1 || zir_foreign_compiler_simd_metadata__VectorType((uint8_t*)(operands[0]).type, &(a)) == 0;
         if (value_422 || a.lanes != r.lanes || a.lane_bits != r.lane_bits || a.is_float == r.is_float) {
             uint8_t** value_423 = message;
             String value_424 = StringLiteral("converts between integer and float lanes of the same width");
@@ -2167,7 +2027,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             }
             return value_434;
         }
-        return zir_f_89c878bda89adecc_VectorTypeName(a.lane, a.lanes / 2);
+        return zir_foreign_compiler_simd_metadata__VectorTypeName(a.lane, a.lanes / 2);
     }
     if (((SimdShape)(op->shape)) == SimdShape_SIMD_COMBINE) {
         bool value_439 = count != 2;
@@ -2176,7 +2036,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             value_439 = !value_440;
         }
         bool value_441 = value_439 || a.bytes != 16;
-        if (value_441 || zir_f_89c878bda89adecc_strcmp((uint8_t*)(operands[0]).type, (uint8_t*)(operands[1]).type) != 0) {
+        if (value_441 || zir_foreign_compiler_simd_metadata__strcmp((uint8_t*)(operands[0]).type, (uint8_t*)(operands[1]).type) != 0) {
             uint8_t** value_442 = message;
             String value_443 = StringLiteral("takes two 128-bit vectors of one type");
             uint8_t* value_444 = (void *)0;
@@ -2194,7 +2054,7 @@ compiler_simd_metadata_Signature(SimdOp* op, uint8_t* result, SimdOperand* opera
             }
             return value_444;
         }
-        return zir_f_89c878bda89adecc_VectorTypeName(a.lane, (int32_t)((uint32_t)(a.lanes) * 2u));
+        return zir_foreign_compiler_simd_metadata__VectorTypeName(a.lane, (int32_t)((uint32_t)(a.lanes) * 2u));
     }
     if (((SimdShape)(op->shape)) == SimdShape_SIMD_COUNT) {
         int32_t value_449 = 0;
@@ -2272,7 +2132,7 @@ SimdSignature(SimdOp* op, uint8_t* result, SimdOperand* operands, int32_t count,
     int32_t vectors = 0;
     int32_t natives = 0;
     bool value_0 = ((SimdShape)(op->shape)) != SimdShape_SIMD_COUNT && result != ((void *)0);
-    if (value_0 && zir_f_89c878bda89adecc_VectorType(result, &(vector)) != 0) {
+    if (value_0 && zir_foreign_compiler_simd_metadata__VectorType(result, &(vector)) != 0) {
         vectors = (int32_t)((uint32_t)vectors + 1u);
         natives = (int32_t)((uint32_t)natives + (uint32_t)(vector.is_native));
     }
@@ -2281,7 +2141,7 @@ SimdSignature(SimdOp* op, uint8_t* result, SimdOperand* operands, int32_t count,
         int32_t range_last_7 = (int32_t)((uint32_t)count - 1u);
         int32_t i = range_first_7;
         if (i <= range_last_7) for (;;) {
-            if (zir_f_89c878bda89adecc_VectorType((uint8_t*)(operands[i]).type, &(vector)) != 0) {
+            if (zir_foreign_compiler_simd_metadata__VectorType((uint8_t*)(operands[i]).type, &(vector)) != 0) {
                 vectors = (int32_t)((uint32_t)vectors + 1u);
                 natives = (int32_t)((uint32_t)natives + (uint32_t)(vector.is_native));
             }
@@ -2366,7 +2226,7 @@ SimdSignature(SimdOp* op, uint8_t* result, SimdOperand* operands, int32_t count,
         if (i <= range_last_27) for (;;) {
             SimdOperand* value_28 = &(blocks[i]);
             (*value_28) = operands[i];
-            if (zir_f_89c878bda89adecc_VectorType((uint8_t*)(operands[i]).type, &(vector)) != 0) {
+            if (zir_foreign_compiler_simd_metadata__VectorType((uint8_t*)(operands[i]).type, &(vector)) != 0) {
                 const char ** value_29 = &((blocks[i]).type);
                 (*value_29) = (const char *)(vector.block);
             }
@@ -2378,25 +2238,25 @@ SimdSignature(SimdOp* op, uint8_t* result, SimdOperand* operands, int32_t count,
     }
     uint8_t* res = result;
     bool value_30 = res != ((void *)0);
-    if (value_30 && zir_f_89c878bda89adecc_VectorType(res, &(vector)) != 0) {
+    if (value_30 && zir_foreign_compiler_simd_metadata__VectorType(res, &(vector)) != 0) {
         res = vector.block;
     }
     uint8_t* type = compiler_simd_metadata_Signature(op, res, &(blocks[0]), count, message);
     bool value_31 = type == ((void *)0);
-    if (value_31 || zir_f_89c878bda89adecc_VectorType(type, &(vector)) == 0) {
+    if (value_31 || zir_foreign_compiler_simd_metadata__VectorType(type, &(vector)) == 0) {
         return type;
     }
-    return zir_f_89c878bda89adecc_NativeVectorName(vector.lane);
+    return zir_foreign_compiler_simd_metadata__NativeVectorName(vector.lane);
 }
 
 static void*
 compiler_simd_metadata_Grown(void* items, size_t used, size_t size)
 {
-    void* bigger = zir_f_89c878bda89adecc_AllocateOrExit(size);
+    void* bigger = zir_foreign_compiler_simd_metadata__AllocateOrExit(size);
     if (used != 0) {
-        zir_f_89c878bda89adecc_memcpy(bigger, items, used);
+        zir_foreign_compiler_simd_metadata__memcpy(bigger, items, used);
     }
-    zir_f_89c878bda89adecc_free(items);
+    zir_foreign_compiler_simd_metadata__free(items);
     return bigger;
 }
 
@@ -2423,9 +2283,9 @@ SimdNamesFind(SimdNames* names, uint8_t* name, size_t length, int32_t add)
             value_0 = (size_t)(256LL);
         }
         size_t slot_count = value_0;
-        void* value_1 = zir_f_89c878bda89adecc_AllocateOrExit(slot_count * sizeof(size_t));
+        void* value_1 = zir_foreign_compiler_simd_metadata__AllocateOrExit(slot_count * sizeof(size_t));
         size_t* slots = (size_t*)(value_1);
-        zir_f_89c878bda89adecc_memset((void*)(slots), 0, slot_count * sizeof(size_t));
+        zir_foreign_compiler_simd_metadata__memset((void*)(slots), 0, slot_count * sizeof(size_t));
         size_t i = 0;
         while (i < names->count) {
             size_t at = compiler_simd_metadata_NameHash((uint8_t*)(names->text[i]), names->length[i]) & (slot_count - 1);
@@ -2436,7 +2296,7 @@ SimdNamesFind(SimdNames* names, uint8_t* name, size_t length, int32_t add)
             (*value_2) = i + 1;
             i = i + 1;
         }
-        zir_f_89c878bda89adecc_free((void*)(names->slots));
+        zir_foreign_compiler_simd_metadata__free((void*)(names->slots));
         size_t** value_3 = &(names->slots);
         (*value_3) = slots;
         size_t* value_4 = &(names->slot_count);
@@ -2451,7 +2311,7 @@ SimdNamesFind(SimdNames* names, uint8_t* name, size_t length, int32_t add)
         size_t slot = names->slots[at];
         if (slot != 0) {
             bool value_5 = names->length[(slot - 1)] == length;
-            if (value_5 && zir_f_89c878bda89adecc_memcmp((void*)(names->text[(slot - 1)]), (void*)(name), length) == 0) {
+            if (value_5 && zir_foreign_compiler_simd_metadata__memcmp((void*)(names->text[(slot - 1)]), (void*)(name), length) == 0) {
                 return (int64_t)((slot - 1));
             }
             at = (at + 1) & mask;
@@ -2494,10 +2354,10 @@ SimdNamesFind(SimdNames* names, uint8_t* name, size_t length, int32_t add)
 void
 SimdNamesFree(SimdNames* names)
 {
-    zir_f_89c878bda89adecc_free((void*)(((uint8_t**)names->text)));
-    zir_f_89c878bda89adecc_free((void*)(names->length));
-    zir_f_89c878bda89adecc_free((void*)(names->slots));
-    zir_f_89c878bda89adecc_memset((void*)(names), 0, sizeof(SimdNames));
+    zir_foreign_compiler_simd_metadata__free((void*)(((uint8_t**)names->text)));
+    zir_foreign_compiler_simd_metadata__free((void*)(names->length));
+    zir_foreign_compiler_simd_metadata__free((void*)(names->slots));
+    zir_foreign_compiler_simd_metadata__memset((void*)(names), 0, sizeof(SimdNames));
 }
 
 int32_t
@@ -2513,7 +2373,7 @@ SimdHelperWord(uint8_t** word, size_t* length)
             String s = value_3;
             value_4 = ((StaticText*)(&(s)))->data;
         }
-        bool value_6 = zir_f_89c878bda89adecc_memcmp(value_2, (void*)(value_4), 3) != 0;
+        bool value_6 = zir_foreign_compiler_simd_metadata__memcmp(value_2, (void*)(value_4), 3) != 0;
         value_1 = value_6;
     }
     if (value_1) {
@@ -2540,7 +2400,7 @@ SimdHelperWord(uint8_t** word, size_t* length)
             String s = value_15;
             value_16 = ((StaticText*)(&(s)))->data;
         }
-        bool value_18 = zir_f_89c878bda89adecc_memcmp(value_14, (void*)(value_16), 6) == 0;
+        bool value_18 = zir_foreign_compiler_simd_metadata__memcmp(value_14, (void*)(value_16), 6) == 0;
         value_13 = value_18;
     }
     if (value_13) {
@@ -2566,7 +2426,7 @@ SimdHelperWord(uint8_t** word, size_t* length)
                 String s = value_27;
                 value_28 = ((StaticText*)(&(s)))->data;
             }
-            bool value_30 = zir_f_89c878bda89adecc_memcmp(value_26, (void*)(value_28), 6) == 0;
+            bool value_30 = zir_foreign_compiler_simd_metadata__memcmp(value_26, (void*)(value_28), 6) == 0;
             value_25 = value_30;
         }
         if (value_25) {
@@ -2592,7 +2452,7 @@ SimdHelperWord(uint8_t** word, size_t* length)
                     String s = value_39;
                     value_40 = ((StaticText*)(&(s)))->data;
                 }
-                bool value_42 = zir_f_89c878bda89adecc_memcmp(value_38, (void*)(value_40), 5) == 0;
+                bool value_42 = zir_foreign_compiler_simd_metadata__memcmp(value_38, (void*)(value_40), 5) == 0;
                 value_37 = value_42;
             }
             if (value_37) {
@@ -2627,7 +2487,7 @@ SimdHelperWord(uint8_t** word, size_t* length)
             String s = value_54;
             value_55 = ((StaticText*)(&(s)))->data;
         }
-        bool value_57 = zir_f_89c878bda89adecc_memcmp((void*)(value_52), (void*)(value_55), 3) == 0;
+        bool value_57 = zir_foreign_compiler_simd_metadata__memcmp((void*)(value_52), (void*)(value_55), 3) == 0;
         value_49 = value_57;
     }
     if (value_49) {
@@ -2651,9 +2511,9 @@ SimdUsesNote(ZirSimdUses* uses, uint8_t* word, size_t length)
     if (value_1) {
         return;
     }
-    void* value_3 = zir_f_89c878bda89adecc_AllocateOrExit(l + 1);
+    void* value_3 = zir_foreign_compiler_simd_metadata__AllocateOrExit(l + 1);
     uint8_t* copy = (uint8_t*)(value_3);
-    zir_f_89c878bda89adecc_memcpy((void*)(copy), (void*)(w), l);
+    zir_foreign_compiler_simd_metadata__memcpy((void*)(copy), (void*)(w), l);
     uint8_t* value_4 = &(copy[l]);
     (*value_4) = 0;
     SimdNamesFind(&(uses->names), copy, l, 1);
@@ -2664,7 +2524,7 @@ SimdUsesFree(ZirSimdUses* uses)
 {
     size_t i = 0;
     while (i < uses->names.count) {
-        zir_f_89c878bda89adecc_free((void*)(uses->names.text[i]));
+        zir_foreign_compiler_simd_metadata__free((void*)(uses->names.text[i]));
         i = i + 1;
     }
     SimdNamesFree(&(uses->names));

@@ -30,421 +30,165 @@ struct CommandOption {
     OptionValid valid;
 };
 extern uint8_t** command_module_paths;
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_getenv_40be1ae7
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_getenv_40be1ae7
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_60100a8252c73c55_getenv(uint8_t* name) __asm__("_getenv");
+uint8_t* zir_foreign_compiler_cli__getenv(uint8_t* name) __asm__("_getenv");
 #else
-uint8_t* zir_foreign_zir_f_60100a8252c73c55_getenv(uint8_t* name) __asm__("getenv");
+uint8_t* zir_foreign_compiler_cli__getenv(uint8_t* name) __asm__("getenv");
 #endif
-static uint8_t*
-zir_f_60100a8252c73c55_getenv(uint8_t* name)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_getenv(name);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_strtol_d4d7a55f
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_strtol_d4d7a55f
 #ifdef __APPLE__
-ptrdiff_t zir_foreign_zir_f_60100a8252c73c55_strtol(uint8_t* text, uint8_t** end, int32_t base) __asm__("_strtol");
+ptrdiff_t zir_foreign_compiler_cli__strtol(uint8_t* text, uint8_t** end, int32_t base) __asm__("_strtol");
 #else
-ptrdiff_t zir_foreign_zir_f_60100a8252c73c55_strtol(uint8_t* text, uint8_t** end, int32_t base) __asm__("strtol");
+ptrdiff_t zir_foreign_compiler_cli__strtol(uint8_t* text, uint8_t** end, int32_t base) __asm__("strtol");
 #endif
-static ptrdiff_t
-zir_f_60100a8252c73c55_strtol(uint8_t* text, uint8_t** end, int32_t base)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_strtol(text, end, base);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_calloc_0c09ffff
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_calloc_0c09ffff
 #ifdef __APPLE__
-void* zir_foreign_zir_f_60100a8252c73c55_calloc(size_t count, size_t size) __asm__("_calloc");
+void* zir_foreign_compiler_cli__calloc(size_t count, size_t size) __asm__("_calloc");
 #else
-void* zir_foreign_zir_f_60100a8252c73c55_calloc(size_t count, size_t size) __asm__("calloc");
+void* zir_foreign_compiler_cli__calloc(size_t count, size_t size) __asm__("calloc");
 #endif
-static void*
-zir_f_60100a8252c73c55_calloc(size_t count, size_t size)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_calloc(count, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_malloc_22891b28
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_malloc_22891b28
 #ifdef __APPLE__
-void* zir_foreign_zir_f_60100a8252c73c55_malloc(size_t size) __asm__("_malloc");
+void* zir_foreign_compiler_cli__malloc(size_t size) __asm__("_malloc");
 #else
-void* zir_foreign_zir_f_60100a8252c73c55_malloc(size_t size) __asm__("malloc");
+void* zir_foreign_compiler_cli__malloc(size_t size) __asm__("malloc");
 #endif
-static void*
-zir_f_60100a8252c73c55_malloc(size_t size)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_malloc(size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_free_c75930da
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_free_c75930da
 #ifdef __APPLE__
-void zir_foreign_zir_f_60100a8252c73c55_free(void* memory) __asm__("_free");
+void zir_foreign_compiler_cli__free(void* memory) __asm__("_free");
 #else
-void zir_foreign_zir_f_60100a8252c73c55_free(void* memory) __asm__("free");
+void zir_foreign_compiler_cli__free(void* memory) __asm__("free");
 #endif
-static void
-zir_f_60100a8252c73c55_free(void* memory)
-{
-    zir_foreign_zir_f_60100a8252c73c55_free(memory);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_atexit_0713e25a
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_atexit_0713e25a
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_60100a8252c73c55_atexit(ExitHandler handler) __asm__("_atexit");
+int32_t zir_foreign_compiler_cli__atexit(ExitHandler handler) __asm__("_atexit");
 #else
-int32_t zir_foreign_zir_f_60100a8252c73c55_atexit(ExitHandler handler) __asm__("atexit");
+int32_t zir_foreign_compiler_cli__atexit(ExitHandler handler) __asm__("atexit");
 #endif
-static int32_t
-zir_f_60100a8252c73c55_atexit(ExitHandler handler)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_atexit(handler);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_fopen_e9f9057d
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_fopen_e9f9057d
 #ifdef __APPLE__
-void* zir_foreign_zir_f_60100a8252c73c55_fopen(uint8_t* path, uint8_t* mode) __asm__("_fopen");
+void* zir_foreign_compiler_cli__fopen(uint8_t* path, uint8_t* mode) __asm__("_fopen");
 #else
-void* zir_foreign_zir_f_60100a8252c73c55_fopen(uint8_t* path, uint8_t* mode) __asm__("fopen");
+void* zir_foreign_compiler_cli__fopen(uint8_t* path, uint8_t* mode) __asm__("fopen");
 #endif
-static void*
-zir_f_60100a8252c73c55_fopen(uint8_t* path, uint8_t* mode)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_fopen(path, mode);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_fclose_2bb6893f
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_fclose_2bb6893f
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_60100a8252c73c55_fclose(void* stream) __asm__("_fclose");
+int32_t zir_foreign_compiler_cli__fclose(void* stream) __asm__("_fclose");
 #else
-int32_t zir_foreign_zir_f_60100a8252c73c55_fclose(void* stream) __asm__("fclose");
+int32_t zir_foreign_compiler_cli__fclose(void* stream) __asm__("fclose");
 #endif
-static int32_t
-zir_f_60100a8252c73c55_fclose(void* stream)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_fclose(stream);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_fseek_f3b7125c
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_fseek_f3b7125c
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_60100a8252c73c55_fseek(void* stream, ptrdiff_t offset, int32_t whence) __asm__("_fseek");
+int32_t zir_foreign_compiler_cli__fseek(void* stream, ptrdiff_t offset, int32_t whence) __asm__("_fseek");
 #else
-int32_t zir_foreign_zir_f_60100a8252c73c55_fseek(void* stream, ptrdiff_t offset, int32_t whence) __asm__("fseek");
+int32_t zir_foreign_compiler_cli__fseek(void* stream, ptrdiff_t offset, int32_t whence) __asm__("fseek");
 #endif
-static int32_t
-zir_f_60100a8252c73c55_fseek(void* stream, ptrdiff_t offset, int32_t whence)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_fseek(stream, offset, whence);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_ftell_ad894273
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_ftell_ad894273
 #ifdef __APPLE__
-ptrdiff_t zir_foreign_zir_f_60100a8252c73c55_ftell(void* stream) __asm__("_ftell");
+ptrdiff_t zir_foreign_compiler_cli__ftell(void* stream) __asm__("_ftell");
 #else
-ptrdiff_t zir_foreign_zir_f_60100a8252c73c55_ftell(void* stream) __asm__("ftell");
+ptrdiff_t zir_foreign_compiler_cli__ftell(void* stream) __asm__("ftell");
 #endif
-static ptrdiff_t
-zir_f_60100a8252c73c55_ftell(void* stream)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_ftell(stream);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_fread_9f1323cb
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_fread_9f1323cb
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_60100a8252c73c55_fread(void* output, size_t size, size_t count, void* stream) __asm__("_fread");
+size_t zir_foreign_compiler_cli__fread(void* output, size_t size, size_t count, void* stream) __asm__("_fread");
 #else
-size_t zir_foreign_zir_f_60100a8252c73c55_fread(void* output, size_t size, size_t count, void* stream) __asm__("fread");
+size_t zir_foreign_compiler_cli__fread(void* output, size_t size, size_t count, void* stream) __asm__("fread");
 #endif
-static size_t
-zir_f_60100a8252c73c55_fread(void* output, size_t size, size_t count, void* stream)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_fread(output, size, count, stream);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_fgetc_4abc539e
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_fgetc_4abc539e
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_60100a8252c73c55_fgetc(void* stream) __asm__("_fgetc");
+int32_t zir_foreign_compiler_cli__fgetc(void* stream) __asm__("_fgetc");
 #else
-int32_t zir_foreign_zir_f_60100a8252c73c55_fgetc(void* stream) __asm__("fgetc");
+int32_t zir_foreign_compiler_cli__fgetc(void* stream) __asm__("fgetc");
 #endif
-static int32_t
-zir_f_60100a8252c73c55_fgetc(void* stream)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_fgetc(stream);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_ferror_384a3a69
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_ferror_384a3a69
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_60100a8252c73c55_ferror(void* stream) __asm__("_ferror");
+int32_t zir_foreign_compiler_cli__ferror(void* stream) __asm__("_ferror");
 #else
-int32_t zir_foreign_zir_f_60100a8252c73c55_ferror(void* stream) __asm__("ferror");
+int32_t zir_foreign_compiler_cli__ferror(void* stream) __asm__("ferror");
 #endif
-static int32_t
-zir_f_60100a8252c73c55_ferror(void* stream)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_ferror(stream);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_strcmp_b1a4f317
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_strcmp_b1a4f317
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_60100a8252c73c55_strcmp(uint8_t* a, uint8_t* b) __asm__("_strcmp");
+int32_t zir_foreign_compiler_cli__strcmp(uint8_t* a, uint8_t* b) __asm__("_strcmp");
 #else
-int32_t zir_foreign_zir_f_60100a8252c73c55_strcmp(uint8_t* a, uint8_t* b) __asm__("strcmp");
+int32_t zir_foreign_compiler_cli__strcmp(uint8_t* a, uint8_t* b) __asm__("strcmp");
 #endif
-static int32_t
-zir_f_60100a8252c73c55_strcmp(uint8_t* a, uint8_t* b)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_strcmp(a, b);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_strncmp_5281c9d0
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_strncmp_5281c9d0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_60100a8252c73c55_strncmp(uint8_t* a, uint8_t* b, size_t count) __asm__("_strncmp");
+int32_t zir_foreign_compiler_cli__strncmp(uint8_t* a, uint8_t* b, size_t count) __asm__("_strncmp");
 #else
-int32_t zir_foreign_zir_f_60100a8252c73c55_strncmp(uint8_t* a, uint8_t* b, size_t count) __asm__("strncmp");
+int32_t zir_foreign_compiler_cli__strncmp(uint8_t* a, uint8_t* b, size_t count) __asm__("strncmp");
 #endif
-static int32_t
-zir_f_60100a8252c73c55_strncmp(uint8_t* a, uint8_t* b, size_t count)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_strncmp(a, b, count);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_strlen_b24a2871
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_strlen_b24a2871
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_60100a8252c73c55_strlen(uint8_t* text) __asm__("_strlen");
+size_t zir_foreign_compiler_cli__strlen(uint8_t* text) __asm__("_strlen");
 #else
-size_t zir_foreign_zir_f_60100a8252c73c55_strlen(uint8_t* text) __asm__("strlen");
+size_t zir_foreign_compiler_cli__strlen(uint8_t* text) __asm__("strlen");
 #endif
-static size_t
-zir_f_60100a8252c73c55_strlen(uint8_t* text)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_strlen(text);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_strcpy_e6ae563d
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_strcpy_e6ae563d
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_60100a8252c73c55_strcpy(uint8_t* output, uint8_t* text) __asm__("_strcpy");
+uint8_t* zir_foreign_compiler_cli__strcpy(uint8_t* output, uint8_t* text) __asm__("_strcpy");
 #else
-uint8_t* zir_foreign_zir_f_60100a8252c73c55_strcpy(uint8_t* output, uint8_t* text) __asm__("strcpy");
+uint8_t* zir_foreign_compiler_cli__strcpy(uint8_t* output, uint8_t* text) __asm__("strcpy");
 #endif
-static uint8_t*
-zir_f_60100a8252c73c55_strcpy(uint8_t* output, uint8_t* text)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_strcpy(output, text);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_strrchr_1eb3f404
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_strrchr_1eb3f404
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_60100a8252c73c55_strrchr(uint8_t* text, int32_t byte) __asm__("_strrchr");
+uint8_t* zir_foreign_compiler_cli__strrchr(uint8_t* text, int32_t byte) __asm__("_strrchr");
 #else
-uint8_t* zir_foreign_zir_f_60100a8252c73c55_strrchr(uint8_t* text, int32_t byte) __asm__("strrchr");
+uint8_t* zir_foreign_compiler_cli__strrchr(uint8_t* text, int32_t byte) __asm__("strrchr");
 #endif
-static uint8_t*
-zir_f_60100a8252c73c55_strrchr(uint8_t* text, int32_t byte)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_strrchr(text, byte);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_memcpy_d3838e83
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_memcpy_d3838e83
 #ifdef __APPLE__
-void* zir_foreign_zir_f_60100a8252c73c55_memcpy(void* output, void* input, size_t count) __asm__("_memcpy");
+void* zir_foreign_compiler_cli__memcpy(void* output, void* input, size_t count) __asm__("_memcpy");
 #else
-void* zir_foreign_zir_f_60100a8252c73c55_memcpy(void* output, void* input, size_t count) __asm__("memcpy");
+void* zir_foreign_compiler_cli__memcpy(void* output, void* input, size_t count) __asm__("memcpy");
 #endif
-static void*
-zir_f_60100a8252c73c55_memcpy(void* output, void* input, size_t count)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_memcpy(output, input, count);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_isalpha_4acb1306
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_isalpha_4acb1306
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_60100a8252c73c55_isalpha(int32_t byte) __asm__("_isalpha");
+int32_t zir_foreign_compiler_cli__isalpha(int32_t byte) __asm__("_isalpha");
 #else
-int32_t zir_foreign_zir_f_60100a8252c73c55_isalpha(int32_t byte) __asm__("isalpha");
+int32_t zir_foreign_compiler_cli__isalpha(int32_t byte) __asm__("isalpha");
 #endif
-static int32_t
-zir_f_60100a8252c73c55_isalpha(int32_t byte)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_isalpha(byte);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_isalnum_6f4b98bf
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_isalnum_6f4b98bf
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_60100a8252c73c55_isalnum(int32_t byte) __asm__("_isalnum");
+int32_t zir_foreign_compiler_cli__isalnum(int32_t byte) __asm__("_isalnum");
 #else
-int32_t zir_foreign_zir_f_60100a8252c73c55_isalnum(int32_t byte) __asm__("isalnum");
+int32_t zir_foreign_compiler_cli__isalnum(int32_t byte) __asm__("isalnum");
 #endif
-static int32_t
-zir_f_60100a8252c73c55_isalnum(int32_t byte)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_isalnum(byte);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_SetDiagnosticFormat_d221dc1a
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_SetDiagnosticFormat_d221dc1a
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_60100a8252c73c55_SetDiagnosticFormat(uint8_t* format) __asm__("_SetDiagnosticFormat");
+int32_t zir_foreign_compiler_cli__SetDiagnosticFormat(uint8_t* format) __asm__("_SetDiagnosticFormat");
 #else
-int32_t zir_foreign_zir_f_60100a8252c73c55_SetDiagnosticFormat(uint8_t* format) __asm__("SetDiagnosticFormat");
+int32_t zir_foreign_compiler_cli__SetDiagnosticFormat(uint8_t* format) __asm__("SetDiagnosticFormat");
 #endif
-static int32_t
-zir_f_60100a8252c73c55_SetDiagnosticFormat(uint8_t* format)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_SetDiagnosticFormat(format);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_DiagnosticOutOfMemory_4a6ba8c0
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_DiagnosticOutOfMemory_4a6ba8c0
 #ifdef __APPLE__
-void zir_foreign_zir_f_60100a8252c73c55_DiagnosticOutOfMemory(void) __asm__("_DiagnosticOutOfMemory");
+void zir_foreign_compiler_cli__DiagnosticOutOfMemory(void) __asm__("_DiagnosticOutOfMemory");
 #else
-void zir_foreign_zir_f_60100a8252c73c55_DiagnosticOutOfMemory(void) __asm__("DiagnosticOutOfMemory");
+void zir_foreign_compiler_cli__DiagnosticOutOfMemory(void) __asm__("DiagnosticOutOfMemory");
 #endif
-static void
-zir_f_60100a8252c73c55_DiagnosticOutOfMemory(void)
-{
-    zir_foreign_zir_f_60100a8252c73c55_DiagnosticOutOfMemory();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_CompilerHostOS_3d9f1099
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_CompilerHostOS_3d9f1099
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_60100a8252c73c55_CompilerHostOS(void) __asm__("_CompilerHostOS");
+int32_t zir_foreign_compiler_cli__CompilerHostOS(void) __asm__("_CompilerHostOS");
 #else
-int32_t zir_foreign_zir_f_60100a8252c73c55_CompilerHostOS(void) __asm__("CompilerHostOS");
+int32_t zir_foreign_compiler_cli__CompilerHostOS(void) __asm__("CompilerHostOS");
 #endif
-static int32_t
-zir_f_60100a8252c73c55_CompilerHostOS(void)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_CompilerHostOS();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_CompilerHostCPU_7bb698a9
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_CompilerHostCPU_7bb698a9
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_60100a8252c73c55_CompilerHostCPU(void) __asm__("_CompilerHostCPU");
+int32_t zir_foreign_compiler_cli__CompilerHostCPU(void) __asm__("_CompilerHostCPU");
 #else
-int32_t zir_foreign_zir_f_60100a8252c73c55_CompilerHostCPU(void) __asm__("CompilerHostCPU");
+int32_t zir_foreign_compiler_cli__CompilerHostCPU(void) __asm__("CompilerHostCPU");
 #endif
-static int32_t
-zir_f_60100a8252c73c55_CompilerHostCPU(void)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_CompilerHostCPU();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_CompilerParseTargetOS_a75eb4af
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_CompilerParseTargetOS_a75eb4af
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_60100a8252c73c55_CompilerParseTargetOS(uint8_t* name, int32_t* os) __asm__("_CompilerParseTargetOS");
+int32_t zir_foreign_compiler_cli__CompilerParseTargetOS(uint8_t* name, int32_t* os) __asm__("_CompilerParseTargetOS");
 #else
-int32_t zir_foreign_zir_f_60100a8252c73c55_CompilerParseTargetOS(uint8_t* name, int32_t* os) __asm__("CompilerParseTargetOS");
+int32_t zir_foreign_compiler_cli__CompilerParseTargetOS(uint8_t* name, int32_t* os) __asm__("CompilerParseTargetOS");
 #endif
-static int32_t
-zir_f_60100a8252c73c55_CompilerParseTargetOS(uint8_t* name, int32_t* os)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_CompilerParseTargetOS(name, os);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_CompilerParseTargetCPU_53e5235f
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_CompilerParseTargetCPU_53e5235f
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_60100a8252c73c55_CompilerParseTargetCPU(uint8_t* name, int32_t* cpu) __asm__("_CompilerParseTargetCPU");
+int32_t zir_foreign_compiler_cli__CompilerParseTargetCPU(uint8_t* name, int32_t* cpu) __asm__("_CompilerParseTargetCPU");
 #else
-int32_t zir_foreign_zir_f_60100a8252c73c55_CompilerParseTargetCPU(uint8_t* name, int32_t* cpu) __asm__("CompilerParseTargetCPU");
+int32_t zir_foreign_compiler_cli__CompilerParseTargetCPU(uint8_t* name, int32_t* cpu) __asm__("CompilerParseTargetCPU");
 #endif
-static int32_t
-zir_f_60100a8252c73c55_CompilerParseTargetCPU(uint8_t* name, int32_t* cpu)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_CompilerParseTargetCPU(name, cpu);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_CompilerConfigureTarget_f9fc8cc5
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_CompilerConfigureTarget_f9fc8cc5
 #ifdef __APPLE__
-void zir_foreign_zir_f_60100a8252c73c55_CompilerConfigureTarget(int32_t backend, int32_t os, int32_t cpu) __asm__("_CompilerConfigureTarget");
+void zir_foreign_compiler_cli__CompilerConfigureTarget(int32_t backend, int32_t os, int32_t cpu) __asm__("_CompilerConfigureTarget");
 #else
-void zir_foreign_zir_f_60100a8252c73c55_CompilerConfigureTarget(int32_t backend, int32_t os, int32_t cpu) __asm__("CompilerConfigureTarget");
+void zir_foreign_compiler_cli__CompilerConfigureTarget(int32_t backend, int32_t os, int32_t cpu) __asm__("CompilerConfigureTarget");
 #endif
-static void
-zir_f_60100a8252c73c55_CompilerConfigureTarget(int32_t backend, int32_t os, int32_t cpu)
-{
-    zir_foreign_zir_f_60100a8252c73c55_CompilerConfigureTarget(backend, os, cpu);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_CommandPriorityAvailable_bad7932c
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_CommandPriorityAvailable_bad7932c
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_60100a8252c73c55_CommandPriorityAvailable(void) __asm__("_ZiranCommandPriorityAvailable");
+int32_t zir_foreign_compiler_cli__CommandPriorityAvailable(void) __asm__("_ZiranCommandPriorityAvailable");
 #else
-int32_t zir_foreign_zir_f_60100a8252c73c55_CommandPriorityAvailable(void) __asm__("ZiranCommandPriorityAvailable");
+int32_t zir_foreign_compiler_cli__CommandPriorityAvailable(void) __asm__("ZiranCommandPriorityAvailable");
 #endif
-static int32_t
-zir_f_60100a8252c73c55_CommandPriorityAvailable(void)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_CommandPriorityAvailable();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_CommandPriorityGet_71323ca7
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_CommandPriorityGet_71323ca7
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_60100a8252c73c55_CommandPriorityGet(int32_t* error) __asm__("_ZiranCommandPriorityGet");
+int32_t zir_foreign_compiler_cli__CommandPriorityGet(int32_t* error) __asm__("_ZiranCommandPriorityGet");
 #else
-int32_t zir_foreign_zir_f_60100a8252c73c55_CommandPriorityGet(int32_t* error) __asm__("ZiranCommandPriorityGet");
+int32_t zir_foreign_compiler_cli__CommandPriorityGet(int32_t* error) __asm__("ZiranCommandPriorityGet");
 #endif
-static int32_t
-zir_f_60100a8252c73c55_CommandPriorityGet(int32_t* error)
-{
-    return zir_foreign_zir_f_60100a8252c73c55_CommandPriorityGet(error);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_CommandPrioritySet_be77997a
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_CommandPrioritySet_be77997a
 #ifdef __APPLE__
-void zir_foreign_zir_f_60100a8252c73c55_CommandPrioritySet(int32_t value) __asm__("_ZiranCommandPrioritySet");
+void zir_foreign_compiler_cli__CommandPrioritySet(int32_t value) __asm__("_ZiranCommandPrioritySet");
 #else
-void zir_foreign_zir_f_60100a8252c73c55_CommandPrioritySet(int32_t value) __asm__("ZiranCommandPrioritySet");
+void zir_foreign_compiler_cli__CommandPrioritySet(int32_t value) __asm__("ZiranCommandPrioritySet");
 #endif
-static void
-zir_f_60100a8252c73c55_CommandPrioritySet(int32_t value)
-{
-    zir_foreign_zir_f_60100a8252c73c55_CommandPrioritySet(value);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_60100a8252c73c55_CommandPriorityIo_830f8012
-#define ZIR_FOREIGN_zir_f_60100a8252c73c55_CommandPriorityIo_830f8012
 #ifdef __APPLE__
-void zir_foreign_zir_f_60100a8252c73c55_CommandPriorityIo(int32_t value) __asm__("_ZiranCommandPriorityIo");
+void zir_foreign_compiler_cli__CommandPriorityIo(int32_t value) __asm__("_ZiranCommandPriorityIo");
 #else
-void zir_foreign_zir_f_60100a8252c73c55_CommandPriorityIo(int32_t value) __asm__("ZiranCommandPriorityIo");
-#endif
-static void
-zir_f_60100a8252c73c55_CommandPriorityIo(int32_t value)
-{
-    zir_foreign_zir_f_60100a8252c73c55_CommandPriorityIo(value);
-}
+void zir_foreign_compiler_cli__CommandPriorityIo(int32_t value) __asm__("ZiranCommandPriorityIo");
 #endif
 uint8_t* compiler_cli_CStr(String s);
 void compiler_cli_CommandModulePathsRelease(void);

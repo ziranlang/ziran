@@ -65,44 +65,20 @@ static inline int64_t ZiShrS64(int64_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-#ifndef ZIR_FOREIGN_zir_f_77e8b5ea0fcf9a10_CVectorType_2a01798c
-#define ZIR_FOREIGN_zir_f_77e8b5ea0fcf9a10_CVectorType_2a01798c
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_77e8b5ea0fcf9a10_CVectorType(uint8_t* type, RangeVector* vector) __asm__("_VectorType");
+int32_t zir_foreign_compiler_c_range_fill__CVectorType(uint8_t* type, RangeVector* vector) __asm__("_VectorType");
 #else
-int32_t zir_foreign_zir_f_77e8b5ea0fcf9a10_CVectorType(uint8_t* type, RangeVector* vector) __asm__("VectorType");
+int32_t zir_foreign_compiler_c_range_fill__CVectorType(uint8_t* type, RangeVector* vector) __asm__("VectorType");
 #endif
-static int32_t
-zir_f_77e8b5ea0fcf9a10_CVectorType(uint8_t* type, RangeVector* vector)
-{
-    return zir_foreign_zir_f_77e8b5ea0fcf9a10_CVectorType(type, vector);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_77e8b5ea0fcf9a10_CSimdOpChecked_0fd5b8f1
-#define ZIR_FOREIGN_zir_f_77e8b5ea0fcf9a10_CSimdOpChecked_0fd5b8f1
 #ifdef __APPLE__
-RangeSimdOp* zir_foreign_zir_f_77e8b5ea0fcf9a10_CSimdOpChecked(uint8_t* name) __asm__("_SimdOpChecked");
+RangeSimdOp* zir_foreign_compiler_c_range_fill__CSimdOpChecked(uint8_t* name) __asm__("_SimdOpChecked");
 #else
-RangeSimdOp* zir_foreign_zir_f_77e8b5ea0fcf9a10_CSimdOpChecked(uint8_t* name) __asm__("SimdOpChecked");
+RangeSimdOp* zir_foreign_compiler_c_range_fill__CSimdOpChecked(uint8_t* name) __asm__("SimdOpChecked");
 #endif
-static RangeSimdOp*
-zir_f_77e8b5ea0fcf9a10_CSimdOpChecked(uint8_t* name)
-{
-    return zir_foreign_zir_f_77e8b5ea0fcf9a10_CSimdOpChecked(name);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_77e8b5ea0fcf9a10_CTypeNextFieldShared_39950d23
-#define ZIR_FOREIGN_zir_f_77e8b5ea0fcf9a10_CTypeNextFieldShared_39950d23
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_77e8b5ea0fcf9a10_CTypeNextFieldShared(ZirType* record, size_t* offset, ZirTypeField** field) __asm__("_TypeNextFieldShared");
+int32_t zir_foreign_compiler_c_range_fill__CTypeNextFieldShared(ZirType* record, size_t* offset, ZirTypeField** field) __asm__("_TypeNextFieldShared");
 #else
-int32_t zir_foreign_zir_f_77e8b5ea0fcf9a10_CTypeNextFieldShared(ZirType* record, size_t* offset, ZirTypeField** field) __asm__("TypeNextFieldShared");
-#endif
-static int32_t
-zir_f_77e8b5ea0fcf9a10_CTypeNextFieldShared(ZirType* record, size_t* offset, ZirTypeField** field)
-{
-    return zir_foreign_zir_f_77e8b5ea0fcf9a10_CTypeNextFieldShared(record, offset, field);
-}
+int32_t zir_foreign_compiler_c_range_fill__CTypeNextFieldShared(ZirType* record, size_t* offset, ZirTypeField** field) __asm__("TypeNextFieldShared");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -159,7 +135,7 @@ compiler_c_range_fill_FillSlots(Fill* w, uint8_t* spelled, int32_t depth)
         return (int32_t)((uint32_t)capacity * (uint32_t)each);
     }
     int64_t bytes = 0LL;
-    if (zir_f_77e8b5ea0fcf9a10_CVectorType(type, &(vector)) != 0) {
+    if (zir_foreign_compiler_c_range_fill__CVectorType(type, &(vector)) != 0) {
         int32_t value_1 = 0;
         if (vector.is_native != 0) {
             value_1 = 0;
@@ -192,7 +168,7 @@ compiler_c_range_fill_FillSlots(Fill* w, uint8_t* spelled, int32_t depth)
     size_t offset = 0;
     ZirTypeField* field = (void *)0;
     int32_t total = 0;
-    int32_t status = zir_f_77e8b5ea0fcf9a10_CTypeNextFieldShared(record, &(offset), &(field));
+    int32_t status = zir_foreign_compiler_c_range_fill__CTypeNextFieldShared(record, &(offset), &(field));
     while (status > 0) {
         if ((field->c_type)[0] != 0) {
             return -1;
@@ -205,7 +181,7 @@ compiler_c_range_fill_FillSlots(Fill* w, uint8_t* spelled, int32_t depth)
         if (total > 16384) {
             return -1;
         }
-        status = zir_f_77e8b5ea0fcf9a10_CTypeNextFieldShared(record, &(offset), &(field));
+        status = zir_foreign_compiler_c_range_fill__CTypeNextFieldShared(record, &(offset), &(field));
     }
     int32_t value_6 = 0;
     if (status == 0 && total > 0) {
@@ -479,7 +455,7 @@ compiler_c_range_fill_FillPath(Fill* w, int32_t index, int32_t* first, int32_t* 
         size_t offset = 0;
         ZirTypeField* field = (void *)0;
         int32_t skip = 0;
-        while (zir_f_77e8b5ea0fcf9a10_CTypeNextFieldShared(record, &(offset), &(field)) > 0) {
+        while (zir_foreign_compiler_c_range_fill__CTypeNextFieldShared(record, &(offset), &(field)) > 0) {
             int32_t each = compiler_c_range_fill_FillSlots(w, &(field->type[0]), 0);
             if (each <= 0) {
                 return false;
@@ -539,7 +515,7 @@ compiler_c_range_fill_FillStore(Fill* w, int32_t root, int32_t* first, int32_t* 
     if (((ZirExprKind)(call->kind)) != ((ZirExprKind)(5)) || ((uint8_t*)call->name) == ((void *)0)) {
         return false;
     }
-    RangeSimdOp* op = zir_f_77e8b5ea0fcf9a10_CSimdOpChecked((uint8_t*)call->name);
+    RangeSimdOp* op = zir_foreign_compiler_c_range_fill__CSimdOpChecked((uint8_t*)call->name);
     if (op == ((void *)0) || op->id != 38) {
         return false;
     }
@@ -568,7 +544,7 @@ compiler_c_range_fill_FillStore(Fill* w, int32_t root, int32_t* first, int32_t* 
     }
     bool value_4 = ((uint8_t*)(fn->exprs[(children)[2]]).type) == ((void *)0) || ((uint8_t*)(fn->exprs[memory]).type) == ((void *)0);
     bool value_5 = value_4;
-    bool value_6 = value_5 || zir_f_77e8b5ea0fcf9a10_CVectorType((uint8_t*)(fn->exprs[(children)[2]]).type, &(vector)) == 0;
+    bool value_6 = value_5 || zir_foreign_compiler_c_range_fill__CVectorType((uint8_t*)(fn->exprs[(children)[2]]).type, &(vector)) == 0;
     bool value_7 = value_6 || vector.is_native != 0;
     bool value_8 = value_7;
     if (!value_8) {
@@ -949,9 +925,9 @@ compiler_c_range_fill_WrittenBeforeRead(RangeFacts* f, ZirModule* module, int32_
         int32_t value_18 = compiler_c_range_fill_FillRun(&(w), (int32_t)((uint32_t)declaration + 1u), value_17);
         result = (int64_t)(value_18);
     }
-    compiler_c_range_facts___zi_spec_26cf6fa78d69a0a8(w.written);
-    compiler_c_range_facts___zi_spec_26cf6fa78d69a0a8(w.known);
-    compiler_c_range_facts___zi_spec_d6c77b4b19ad9ddc(w.value);
-    compiler_c_range_facts___zi_spec_1c076b9130a22c09(w.pending);
+    compiler_c_range_facts_compiler_c_range_facts_Release_for_u8(w.written);
+    compiler_c_range_facts_compiler_c_range_facts_Release_for_u8(w.known);
+    compiler_c_range_facts_compiler_c_range_facts_Release_for_s64(w.value);
+    compiler_c_range_facts_compiler_c_range_facts_Release_for_s32(w.pending);
     return result == 2LL;
 }

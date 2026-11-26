@@ -5,604 +5,240 @@
 #define ZIRAN_COMPILER_GO_ASM_H_PRIVATE 1
 #include "compiler_go_asm.h"
 #undef ZIRAN_COMPILER_GO_ASM_H_PRIVATE
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_AllocateOrExit_5810995e
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_AllocateOrExit_5810995e
 #ifdef __APPLE__
-void* zir_foreign_zir_f_39652e4564301f9f_AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
+void* zir_foreign_compiler_go_asm__AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
 #else
-void* zir_foreign_zir_f_39652e4564301f9f_AllocateOrExit(size_t size) __asm__("AllocateOrExit");
+void* zir_foreign_compiler_go_asm__AllocateOrExit(size_t size) __asm__("AllocateOrExit");
 #endif
-static void*
-zir_f_39652e4564301f9f_AllocateOrExit(size_t size)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_AllocateOrExit(size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_ArrayAbiName_5e1c2f10
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_ArrayAbiName_5e1c2f10
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_ArrayAbiName(ZirFunction* fn, int32_t parameter, uint8_t* out, size_t size) __asm__("_ArrayAbiName");
+void zir_foreign_compiler_go_asm__ArrayAbiName(ZirFunction* fn, int32_t parameter, uint8_t* out, size_t size) __asm__("_ArrayAbiName");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_ArrayAbiName(ZirFunction* fn, int32_t parameter, uint8_t* out, size_t size) __asm__("ArrayAbiName");
+void zir_foreign_compiler_go_asm__ArrayAbiName(ZirFunction* fn, int32_t parameter, uint8_t* out, size_t size) __asm__("ArrayAbiName");
 #endif
-static void
-zir_f_39652e4564301f9f_ArrayAbiName(ZirFunction* fn, int32_t parameter, uint8_t* out, size_t size)
-{
-    zir_foreign_zir_f_39652e4564301f9f_ArrayAbiName(fn, parameter, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_ArrayElementType_7810fd9e
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_ArrayElementType_7810fd9e
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_39652e4564301f9f_ArrayElementType(uint8_t* type, uint8_t* element, size_t element_size, int32_t* capacity) __asm__("_ArrayElementType");
+int32_t zir_foreign_compiler_go_asm__ArrayElementType(uint8_t* type, uint8_t* element, size_t element_size, int32_t* capacity) __asm__("_ArrayElementType");
 #else
-int32_t zir_foreign_zir_f_39652e4564301f9f_ArrayElementType(uint8_t* type, uint8_t* element, size_t element_size, int32_t* capacity) __asm__("ArrayElementType");
+int32_t zir_foreign_compiler_go_asm__ArrayElementType(uint8_t* type, uint8_t* element, size_t element_size, int32_t* capacity) __asm__("ArrayElementType");
 #endif
-static int32_t
-zir_f_39652e4564301f9f_ArrayElementType(uint8_t* type, uint8_t* element, size_t element_size, int32_t* capacity)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_ArrayElementType(type, element, element_size, capacity);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_AssemblyInputNeedsStorage_9102ce7c
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_AssemblyInputNeedsStorage_9102ce7c
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_39652e4564301f9f_AssemblyInputNeedsStorage(uint8_t* constraint) __asm__("_AssemblyInputNeedsStorage");
+int32_t zir_foreign_compiler_go_asm__AssemblyInputNeedsStorage(uint8_t* constraint) __asm__("_AssemblyInputNeedsStorage");
 #else
-int32_t zir_foreign_zir_f_39652e4564301f9f_AssemblyInputNeedsStorage(uint8_t* constraint) __asm__("AssemblyInputNeedsStorage");
+int32_t zir_foreign_compiler_go_asm__AssemblyInputNeedsStorage(uint8_t* constraint) __asm__("AssemblyInputNeedsStorage");
 #endif
-static int32_t
-zir_f_39652e4564301f9f_AssemblyInputNeedsStorage(uint8_t* constraint)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_AssemblyInputNeedsStorage(constraint);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_AssemblyVariantNext_d71f85d8
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_AssemblyVariantNext_d71f85d8
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_39652e4564301f9f_AssemblyVariantNext(ZirModule* module, ZirFunction* function, int32_t statement, uint8_t** cursor, AssemblyVariant* variant) __asm__("_AssemblyVariantNext");
+int32_t zir_foreign_compiler_go_asm__AssemblyVariantNext(ZirModule* module, ZirFunction* function, int32_t statement, uint8_t** cursor, AssemblyVariant* variant) __asm__("_AssemblyVariantNext");
 #else
-int32_t zir_foreign_zir_f_39652e4564301f9f_AssemblyVariantNext(ZirModule* module, ZirFunction* function, int32_t statement, uint8_t** cursor, AssemblyVariant* variant) __asm__("AssemblyVariantNext");
+int32_t zir_foreign_compiler_go_asm__AssemblyVariantNext(ZirModule* module, ZirFunction* function, int32_t statement, uint8_t** cursor, AssemblyVariant* variant) __asm__("AssemblyVariantNext");
 #endif
-static int32_t
-zir_f_39652e4564301f9f_AssemblyVariantNext(ZirModule* module, ZirFunction* function, int32_t statement, uint8_t** cursor, AssemblyVariant* variant)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_AssemblyVariantNext(module, function, statement, cursor, variant);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_Diagnostic_78ef33bb
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_Diagnostic_78ef33bb
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("_Diagnostic");
+void zir_foreign_compiler_go_asm__Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("_Diagnostic");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("Diagnostic");
+void zir_foreign_compiler_go_asm__Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("Diagnostic");
 #endif
-#define zir_f_39652e4564301f9f_Diagnostic zir_foreign_zir_f_39652e4564301f9f_Diagnostic
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_EmitAssemblyAvailable_8524b466
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_EmitAssemblyAvailable_8524b466
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_EmitAssemblyAvailable(void* out, ZirFunction* function, int32_t statement) __asm__("_EmitAssemblyAvailable");
+void zir_foreign_compiler_go_asm__EmitAssemblyAvailable(void* out, ZirFunction* function, int32_t statement) __asm__("_EmitAssemblyAvailable");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_EmitAssemblyAvailable(void* out, ZirFunction* function, int32_t statement) __asm__("EmitAssemblyAvailable");
+void zir_foreign_compiler_go_asm__EmitAssemblyAvailable(void* out, ZirFunction* function, int32_t statement) __asm__("EmitAssemblyAvailable");
 #endif
-static void
-zir_f_39652e4564301f9f_EmitAssemblyAvailable(void* out, ZirFunction* function, int32_t statement)
-{
-    zir_foreign_zir_f_39652e4564301f9f_EmitAssemblyAvailable(out, function, statement);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_EmitAssemblyBlockHelpersAt_9db8d05e
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_EmitAssemblyBlockHelpersAt_9db8d05e
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_EmitAssemblyBlockHelpersAt(void* out, ZirModule* module, ZirFunction* function, int32_t statement) __asm__("_EmitAssemblyBlockHelpersAt");
+void zir_foreign_compiler_go_asm__EmitAssemblyBlockHelpersAt(void* out, ZirModule* module, ZirFunction* function, int32_t statement) __asm__("_EmitAssemblyBlockHelpersAt");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_EmitAssemblyBlockHelpersAt(void* out, ZirModule* module, ZirFunction* function, int32_t statement) __asm__("EmitAssemblyBlockHelpersAt");
+void zir_foreign_compiler_go_asm__EmitAssemblyBlockHelpersAt(void* out, ZirModule* module, ZirFunction* function, int32_t statement) __asm__("EmitAssemblyBlockHelpersAt");
 #endif
-static void
-zir_f_39652e4564301f9f_EmitAssemblyBlockHelpersAt(void* out, ZirModule* module, ZirFunction* function, int32_t statement)
-{
-    zir_foreign_zir_f_39652e4564301f9f_EmitAssemblyBlockHelpersAt(out, module, function, statement);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_EmitAssemblyBlockMapped_39dcd9eb
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_EmitAssemblyBlockMapped_39dcd9eb
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_39652e4564301f9f_EmitAssemblyBlockMapped(void* out, ZirModule* module, ZirFunction* function, int32_t statement, GoAssemblyOperandResolver resolve, void* context) __asm__("_EmitAssemblyBlockMapped");
+int32_t zir_foreign_compiler_go_asm__EmitAssemblyBlockMapped(void* out, ZirModule* module, ZirFunction* function, int32_t statement, GoAssemblyOperandResolver resolve, void* context) __asm__("_EmitAssemblyBlockMapped");
 #else
-int32_t zir_foreign_zir_f_39652e4564301f9f_EmitAssemblyBlockMapped(void* out, ZirModule* module, ZirFunction* function, int32_t statement, GoAssemblyOperandResolver resolve, void* context) __asm__("EmitAssemblyBlockMapped");
+int32_t zir_foreign_compiler_go_asm__EmitAssemblyBlockMapped(void* out, ZirModule* module, ZirFunction* function, int32_t statement, GoAssemblyOperandResolver resolve, void* context) __asm__("EmitAssemblyBlockMapped");
 #endif
-static int32_t
-zir_f_39652e4564301f9f_EmitAssemblyBlockMapped(void* out, ZirModule* module, ZirFunction* function, int32_t statement, GoAssemblyOperandResolver resolve, void* context)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_EmitAssemblyBlockMapped(out, module, function, statement, resolve, context);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_EmitAssemblyTry_6c4b9a78
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_EmitAssemblyTry_6c4b9a78
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_EmitAssemblyTry(void* out, ZirModule* module, ZirFunction* function, int32_t target, uint8_t* result_type, uint8_t* available) __asm__("_EmitAssemblyTry");
+void zir_foreign_compiler_go_asm__EmitAssemblyTry(void* out, ZirModule* module, ZirFunction* function, int32_t target, uint8_t* result_type, uint8_t* available) __asm__("_EmitAssemblyTry");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_EmitAssemblyTry(void* out, ZirModule* module, ZirFunction* function, int32_t target, uint8_t* result_type, uint8_t* available) __asm__("EmitAssemblyTry");
+void zir_foreign_compiler_go_asm__EmitAssemblyTry(void* out, ZirModule* module, ZirFunction* function, int32_t target, uint8_t* result_type, uint8_t* available) __asm__("EmitAssemblyTry");
 #endif
-static void
-zir_f_39652e4564301f9f_EmitAssemblyTry(void* out, ZirModule* module, ZirFunction* function, int32_t target, uint8_t* result_type, uint8_t* available)
-{
-    zir_foreign_zir_f_39652e4564301f9f_EmitAssemblyTry(out, module, function, target, result_type, available);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_EmitAssemblyTryHelpers_308c429b
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_EmitAssemblyTryHelpers_308c429b
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_EmitAssemblyTryHelpers(void* out, ZirModule* module, ZirFunction* function, int32_t target, uint8_t* result_type, uint8_t* args, uint8_t* available) __asm__("_EmitAssemblyTryHelpers");
+void zir_foreign_compiler_go_asm__EmitAssemblyTryHelpers(void* out, ZirModule* module, ZirFunction* function, int32_t target, uint8_t* result_type, uint8_t* args, uint8_t* available) __asm__("_EmitAssemblyTryHelpers");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_EmitAssemblyTryHelpers(void* out, ZirModule* module, ZirFunction* function, int32_t target, uint8_t* result_type, uint8_t* args, uint8_t* available) __asm__("EmitAssemblyTryHelpers");
+void zir_foreign_compiler_go_asm__EmitAssemblyTryHelpers(void* out, ZirModule* module, ZirFunction* function, int32_t target, uint8_t* result_type, uint8_t* args, uint8_t* available) __asm__("EmitAssemblyTryHelpers");
 #endif
-static void
-zir_f_39652e4564301f9f_EmitAssemblyTryHelpers(void* out, ZirModule* module, ZirFunction* function, int32_t target, uint8_t* result_type, uint8_t* args, uint8_t* available)
-{
-    zir_foreign_zir_f_39652e4564301f9f_EmitAssemblyTryHelpers(out, module, function, target, result_type, args, available);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_CFindType_2a8e44a3
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_CFindType_2a8e44a3
 #ifdef __APPLE__
-ZirType* zir_foreign_zir_f_39652e4564301f9f_CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("_FindType");
+ZirType* zir_foreign_compiler_go_asm__CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("_FindType");
 #else
-ZirType* zir_foreign_zir_f_39652e4564301f9f_CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("FindType");
+ZirType* zir_foreign_compiler_go_asm__CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("FindType");
 #endif
-static ZirType*
-zir_f_39652e4564301f9f_CFindType(ZirModule* module, uint8_t* name, ZirModule** owner)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_CFindType(module, name, owner);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_GeneratedOutputRecord_ea447a8a
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_GeneratedOutputRecord_ea447a8a
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_GeneratedOutputRecord(uint8_t* path) __asm__("_GeneratedOutputRecord");
+void zir_foreign_compiler_go_asm__GeneratedOutputRecord(uint8_t* path) __asm__("_GeneratedOutputRecord");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_GeneratedOutputRecord(uint8_t* path) __asm__("GeneratedOutputRecord");
+void zir_foreign_compiler_go_asm__GeneratedOutputRecord(uint8_t* path) __asm__("GeneratedOutputRecord");
 #endif
-static void
-zir_f_39652e4564301f9f_GeneratedOutputRecord(uint8_t* path)
-{
-    zir_foreign_zir_f_39652e4564301f9f_GeneratedOutputRecord(path);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_GoAmd64Close_3a1e41bf
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_GoAmd64Close_3a1e41bf
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_GoAmd64Close(GoAmd64Plan* plan) __asm__("_GoAmd64Close");
+void zir_foreign_compiler_go_asm__GoAmd64Close(GoAmd64Plan* plan) __asm__("_GoAmd64Close");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_GoAmd64Close(GoAmd64Plan* plan) __asm__("GoAmd64Close");
+void zir_foreign_compiler_go_asm__GoAmd64Close(GoAmd64Plan* plan) __asm__("GoAmd64Close");
 #endif
-static void
-zir_f_39652e4564301f9f_GoAmd64Close(GoAmd64Plan* plan)
-{
-    zir_foreign_zir_f_39652e4564301f9f_GoAmd64Close(plan);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_GoAmd64Cpu_155d9cd5
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_GoAmd64Cpu_155d9cd5
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_GoAmd64Cpu(void* declarations, void* instructions, uint8_t* prefix) __asm__("_GoAmd64Cpu");
+void zir_foreign_compiler_go_asm__GoAmd64Cpu(void* declarations, void* instructions, uint8_t* prefix) __asm__("_GoAmd64Cpu");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_GoAmd64Cpu(void* declarations, void* instructions, uint8_t* prefix) __asm__("GoAmd64Cpu");
+void zir_foreign_compiler_go_asm__GoAmd64Cpu(void* declarations, void* instructions, uint8_t* prefix) __asm__("GoAmd64Cpu");
 #endif
-static void
-zir_f_39652e4564301f9f_GoAmd64Cpu(void* declarations, void* instructions, uint8_t* prefix)
-{
-    zir_foreign_zir_f_39652e4564301f9f_GoAmd64Cpu(declarations, instructions, prefix);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_GoAmd64Features_dd80e377
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_GoAmd64Features_dd80e377
 #ifdef __APPLE__
-uint64_t zir_foreign_zir_f_39652e4564301f9f_GoAmd64Features(GoAmd64Plan* plan) __asm__("_GoAmd64Features");
+uint64_t zir_foreign_compiler_go_asm__GoAmd64Features(GoAmd64Plan* plan) __asm__("_GoAmd64Features");
 #else
-uint64_t zir_foreign_zir_f_39652e4564301f9f_GoAmd64Features(GoAmd64Plan* plan) __asm__("GoAmd64Features");
+uint64_t zir_foreign_compiler_go_asm__GoAmd64Features(GoAmd64Plan* plan) __asm__("GoAmd64Features");
 #endif
-static uint64_t
-zir_f_39652e4564301f9f_GoAmd64Features(GoAmd64Plan* plan)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_GoAmd64Features(plan);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_GoAmd64Prepare_fb8f6af3
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_GoAmd64Prepare_fb8f6af3
 #ifdef __APPLE__
-GoAmd64Plan* zir_foreign_zir_f_39652e4564301f9f_GoAmd64Prepare(AssemblyVariant* variant, int32_t block, int32_t by_value, uint8_t* storage) __asm__("_GoAmd64Prepare");
+GoAmd64Plan* zir_foreign_compiler_go_asm__GoAmd64Prepare(AssemblyVariant* variant, int32_t block, int32_t by_value, uint8_t* storage) __asm__("_GoAmd64Prepare");
 #else
-GoAmd64Plan* zir_foreign_zir_f_39652e4564301f9f_GoAmd64Prepare(AssemblyVariant* variant, int32_t block, int32_t by_value, uint8_t* storage) __asm__("GoAmd64Prepare");
+GoAmd64Plan* zir_foreign_compiler_go_asm__GoAmd64Prepare(AssemblyVariant* variant, int32_t block, int32_t by_value, uint8_t* storage) __asm__("GoAmd64Prepare");
 #endif
-static GoAmd64Plan*
-zir_f_39652e4564301f9f_GoAmd64Prepare(AssemblyVariant* variant, int32_t block, int32_t by_value, uint8_t* storage)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_GoAmd64Prepare(variant, block, by_value, storage);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_GoAmd64Supported_00782f32
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_GoAmd64Supported_00782f32
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_39652e4564301f9f_GoAmd64Supported(GoAmd64Plan* plan) __asm__("_GoAmd64Supported");
+int32_t zir_foreign_compiler_go_asm__GoAmd64Supported(GoAmd64Plan* plan) __asm__("_GoAmd64Supported");
 #else
-int32_t zir_foreign_zir_f_39652e4564301f9f_GoAmd64Supported(GoAmd64Plan* plan) __asm__("GoAmd64Supported");
+int32_t zir_foreign_compiler_go_asm__GoAmd64Supported(GoAmd64Plan* plan) __asm__("GoAmd64Supported");
 #endif
-static int32_t
-zir_f_39652e4564301f9f_GoAmd64Supported(GoAmd64Plan* plan)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_GoAmd64Supported(plan);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_GoAmd64Write_96ff641e
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_GoAmd64Write_96ff641e
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_GoAmd64Write(void* declarations, void* instructions, GoAmd64Plan* plan, uint8_t* name) __asm__("_GoAmd64Write");
+void zir_foreign_compiler_go_asm__GoAmd64Write(void* declarations, void* instructions, GoAmd64Plan* plan, uint8_t* name) __asm__("_GoAmd64Write");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_GoAmd64Write(void* declarations, void* instructions, GoAmd64Plan* plan, uint8_t* name) __asm__("GoAmd64Write");
+void zir_foreign_compiler_go_asm__GoAmd64Write(void* declarations, void* instructions, GoAmd64Plan* plan, uint8_t* name) __asm__("GoAmd64Write");
 #endif
-static void
-zir_f_39652e4564301f9f_GoAmd64Write(void* declarations, void* instructions, GoAmd64Plan* plan, uint8_t* name)
-{
-    zir_foreign_zir_f_39652e4564301f9f_GoAmd64Write(declarations, instructions, plan, name);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_NativeGoFunctionName_f4e18546
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_NativeGoFunctionName_f4e18546
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_NativeGoFunctionName(ZirProgram** programs, int32_t count, ZirModule* module, ZirFunction* fn, uint8_t* out, size_t size) __asm__("_NativeGoFunctionName");
+void zir_foreign_compiler_go_asm__NativeGoFunctionName(ZirProgram** programs, int32_t count, ZirModule* module, ZirFunction* fn, uint8_t* out, size_t size) __asm__("_NativeGoFunctionName");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_NativeGoFunctionName(ZirProgram** programs, int32_t count, ZirModule* module, ZirFunction* fn, uint8_t* out, size_t size) __asm__("NativeGoFunctionName");
+void zir_foreign_compiler_go_asm__NativeGoFunctionName(ZirProgram** programs, int32_t count, ZirModule* module, ZirFunction* fn, uint8_t* out, size_t size) __asm__("NativeGoFunctionName");
 #endif
-static void
-zir_f_39652e4564301f9f_NativeGoFunctionName(ZirProgram** programs, int32_t count, ZirModule* module, ZirFunction* fn, uint8_t* out, size_t size)
-{
-    zir_foreign_zir_f_39652e4564301f9f_NativeGoFunctionName(programs, count, module, fn, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_NativeGoType_a9528c12
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_NativeGoType_a9528c12
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_39652e4564301f9f_NativeGoType(ZirModule* module, uint8_t* type, uint8_t* out, size_t size) __asm__("_NativeGoType");
+int32_t zir_foreign_compiler_go_asm__NativeGoType(ZirModule* module, uint8_t* type, uint8_t* out, size_t size) __asm__("_NativeGoType");
 #else
-int32_t zir_foreign_zir_f_39652e4564301f9f_NativeGoType(ZirModule* module, uint8_t* type, uint8_t* out, size_t size) __asm__("NativeGoType");
+int32_t zir_foreign_compiler_go_asm__NativeGoType(ZirModule* module, uint8_t* type, uint8_t* out, size_t size) __asm__("NativeGoType");
 #endif
-static int32_t
-zir_f_39652e4564301f9f_NativeGoType(ZirModule* module, uint8_t* type, uint8_t* out, size_t size)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_NativeGoType(module, type, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_NativeTypeName_41e9026e
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_NativeTypeName_41e9026e
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_NativeTypeName(ZirModule* owner, ZirType* type, uint8_t* out, size_t size) __asm__("_NativeTypeName");
+void zir_foreign_compiler_go_asm__NativeTypeName(ZirModule* owner, ZirType* type, uint8_t* out, size_t size) __asm__("_NativeTypeName");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_NativeTypeName(ZirModule* owner, ZirType* type, uint8_t* out, size_t size) __asm__("NativeTypeName");
+void zir_foreign_compiler_go_asm__NativeTypeName(ZirModule* owner, ZirType* type, uint8_t* out, size_t size) __asm__("NativeTypeName");
 #endif
-static void
-zir_f_39652e4564301f9f_NativeTypeName(ZirModule* owner, ZirType* type, uint8_t* out, size_t size)
-{
-    zir_foreign_zir_f_39652e4564301f9f_NativeTypeName(owner, type, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_ParametersOf_ebcb53a7
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_ParametersOf_ebcb53a7
 #ifdef __APPLE__
-ZirParameters* zir_foreign_zir_f_39652e4564301f9f_ParametersOf(uint8_t* text) __asm__("_ParametersOf");
+ZirParameters* zir_foreign_compiler_go_asm__ParametersOf(uint8_t* text) __asm__("_ParametersOf");
 #else
-ZirParameters* zir_foreign_zir_f_39652e4564301f9f_ParametersOf(uint8_t* text) __asm__("ParametersOf");
+ZirParameters* zir_foreign_compiler_go_asm__ParametersOf(uint8_t* text) __asm__("ParametersOf");
 #endif
-static ZirParameters*
-zir_f_39652e4564301f9f_ParametersOf(uint8_t* text)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_ParametersOf(text);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_ScalarType_9055c366
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_ScalarType_9055c366
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_39652e4564301f9f_ScalarType(uint8_t* type) __asm__("_ScalarType");
+uint8_t* zir_foreign_compiler_go_asm__ScalarType(uint8_t* type) __asm__("_ScalarType");
 #else
-uint8_t* zir_foreign_zir_f_39652e4564301f9f_ScalarType(uint8_t* type) __asm__("ScalarType");
+uint8_t* zir_foreign_compiler_go_asm__ScalarType(uint8_t* type) __asm__("ScalarType");
 #endif
-static uint8_t*
-zir_f_39652e4564301f9f_ScalarType(uint8_t* type)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_ScalarType(type);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_TargetBindingName_b2419db7
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_TargetBindingName_b2419db7
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_TargetBindingName(ZirFunction* fn, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("_TargetBindingName");
+void zir_foreign_compiler_go_asm__TargetBindingName(ZirFunction* fn, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("_TargetBindingName");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_TargetBindingName(ZirFunction* fn, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("TargetBindingName");
+void zir_foreign_compiler_go_asm__TargetBindingName(ZirFunction* fn, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("TargetBindingName");
 #endif
-static void
-zir_f_39652e4564301f9f_TargetBindingName(ZirFunction* fn, int32_t target, uint8_t* name, uint8_t* out, size_t size)
-{
-    zir_foreign_zir_f_39652e4564301f9f_TargetBindingName(fn, target, name, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_TargetDefineName_70f7b699
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_TargetDefineName_70f7b699
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_TargetDefineName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("_TargetDefineName");
+void zir_foreign_compiler_go_asm__TargetDefineName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("_TargetDefineName");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_TargetDefineName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("TargetDefineName");
+void zir_foreign_compiler_go_asm__TargetDefineName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("TargetDefineName");
 #endif
-static void
-zir_f_39652e4564301f9f_TargetDefineName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size)
-{
-    zir_foreign_zir_f_39652e4564301f9f_TargetDefineName(module, target, name, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_TargetFieldName_54037e4e
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_TargetFieldName_54037e4e
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_TargetFieldName(ZirType* record, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("_TargetFieldName");
+void zir_foreign_compiler_go_asm__TargetFieldName(ZirType* record, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("_TargetFieldName");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_TargetFieldName(ZirType* record, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("TargetFieldName");
+void zir_foreign_compiler_go_asm__TargetFieldName(ZirType* record, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("TargetFieldName");
 #endif
-static void
-zir_f_39652e4564301f9f_TargetFieldName(ZirType* record, int32_t target, uint8_t* name, uint8_t* out, size_t size)
-{
-    zir_foreign_zir_f_39652e4564301f9f_TargetFieldName(record, target, name, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_TargetGlobalName_f2bfe3ed
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_TargetGlobalName_f2bfe3ed
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_TargetGlobalName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("_TargetGlobalName");
+void zir_foreign_compiler_go_asm__TargetGlobalName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("_TargetGlobalName");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_TargetGlobalName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("TargetGlobalName");
+void zir_foreign_compiler_go_asm__TargetGlobalName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size) __asm__("TargetGlobalName");
 #endif
-static void
-zir_f_39652e4564301f9f_TargetGlobalName(ZirModule* module, int32_t target, uint8_t* name, uint8_t* out, size_t size)
-{
-    zir_foreign_zir_f_39652e4564301f9f_TargetGlobalName(module, target, name, out, size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_TargetTypeZiran_68ed1c41
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_TargetTypeZiran_68ed1c41
 #ifdef __APPLE__
-void* zir_foreign_zir_f_39652e4564301f9f_TargetTypeZiran(void* type, int32_t target) __asm__("_TargetTypeZiran");
+void* zir_foreign_compiler_go_asm__TargetTypeZiran(void* type, int32_t target) __asm__("_TargetTypeZiran");
 #else
-void* zir_foreign_zir_f_39652e4564301f9f_TargetTypeZiran(void* type, int32_t target) __asm__("TargetTypeZiran");
+void* zir_foreign_compiler_go_asm__TargetTypeZiran(void* type, int32_t target) __asm__("TargetTypeZiran");
 #endif
-static void*
-zir_f_39652e4564301f9f_TargetTypeZiran(void* type, int32_t target)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_TargetTypeZiran(type, target);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_TypeNextField_37a0826c
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_TypeNextField_37a0826c
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_39652e4564301f9f_TypeNextField(ZirType* record, size_t* offset, ZirTypeField* field) __asm__("_TypeNextField");
+int32_t zir_foreign_compiler_go_asm__TypeNextField(ZirType* record, size_t* offset, ZirTypeField* field) __asm__("_TypeNextField");
 #else
-int32_t zir_foreign_zir_f_39652e4564301f9f_TypeNextField(ZirType* record, size_t* offset, ZirTypeField* field) __asm__("TypeNextField");
+int32_t zir_foreign_compiler_go_asm__TypeNextField(ZirType* record, size_t* offset, ZirTypeField* field) __asm__("TypeNextField");
 #endif
-static int32_t
-zir_f_39652e4564301f9f_TypeNextField(ZirType* record, size_t* offset, ZirTypeField* field)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_TypeNextField(record, offset, field);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_abort_9317fd2f
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_abort_9317fd2f
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_abort(void) __asm__("_abort");
+void zir_foreign_compiler_go_asm__abort(void) __asm__("_abort");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_abort(void) __asm__("abort");
+void zir_foreign_compiler_go_asm__abort(void) __asm__("abort");
 #endif
-static void
-zir_f_39652e4564301f9f_abort(void)
-{
-    zir_foreign_zir_f_39652e4564301f9f_abort();
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_camel_ident_2a50b19b
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_camel_ident_2a50b19b
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_camel_ident(uint8_t* s, uint8_t* dst, size_t dst_size) __asm__("_camel_ident");
+void zir_foreign_compiler_go_asm__camel_ident(uint8_t* s, uint8_t* dst, size_t dst_size) __asm__("_camel_ident");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_camel_ident(uint8_t* s, uint8_t* dst, size_t dst_size) __asm__("camel_ident");
+void zir_foreign_compiler_go_asm__camel_ident(uint8_t* s, uint8_t* dst, size_t dst_size) __asm__("camel_ident");
 #endif
-static void
-zir_f_39652e4564301f9f_camel_ident(uint8_t* s, uint8_t* dst, size_t dst_size)
-{
-    zir_foreign_zir_f_39652e4564301f9f_camel_ident(s, dst, dst_size);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_exit_1120afe9
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_exit_1120afe9
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_exit(int32_t ziran_keyword___status_0) __asm__("_exit");
+void zir_foreign_compiler_go_asm__exit(int32_t ziran_keyword___status_0) __asm__("_exit");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_exit(int32_t ziran_keyword___status_0) __asm__("exit");
+void zir_foreign_compiler_go_asm__exit(int32_t ziran_keyword___status_0) __asm__("exit");
 #endif
-static void
-zir_f_39652e4564301f9f_exit(int32_t ziran_keyword___status_0)
-{
-    zir_foreign_zir_f_39652e4564301f9f_exit(ziran_keyword___status_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_fclose_2bb6893f
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_fclose_2bb6893f
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_39652e4564301f9f_fclose(void* ziran_keyword___stream_0) __asm__("_fclose");
+int32_t zir_foreign_compiler_go_asm__fclose(void* ziran_keyword___stream_0) __asm__("_fclose");
 #else
-int32_t zir_foreign_zir_f_39652e4564301f9f_fclose(void* ziran_keyword___stream_0) __asm__("fclose");
+int32_t zir_foreign_compiler_go_asm__fclose(void* ziran_keyword___stream_0) __asm__("fclose");
 #endif
-static int32_t
-zir_f_39652e4564301f9f_fclose(void* ziran_keyword___stream_0)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_fclose(ziran_keyword___stream_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_ferror_384a3a69
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_ferror_384a3a69
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_39652e4564301f9f_ferror(void* ziran_keyword___stream_0) __asm__("_ferror");
+int32_t zir_foreign_compiler_go_asm__ferror(void* ziran_keyword___stream_0) __asm__("_ferror");
 #else
-int32_t zir_foreign_zir_f_39652e4564301f9f_ferror(void* ziran_keyword___stream_0) __asm__("ferror");
+int32_t zir_foreign_compiler_go_asm__ferror(void* ziran_keyword___stream_0) __asm__("ferror");
 #endif
-static int32_t
-zir_f_39652e4564301f9f_ferror(void* ziran_keyword___stream_0)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_ferror(ziran_keyword___stream_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_fopen_e9f9057d
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_fopen_e9f9057d
 #ifdef __APPLE__
-void* zir_foreign_zir_f_39652e4564301f9f_fopen(uint8_t* ziran_keyword___filename_0, uint8_t* ziran_keyword___modes_0) __asm__("_fopen");
+void* zir_foreign_compiler_go_asm__fopen(uint8_t* ziran_keyword___filename_0, uint8_t* ziran_keyword___modes_0) __asm__("_fopen");
 #else
-void* zir_foreign_zir_f_39652e4564301f9f_fopen(uint8_t* ziran_keyword___filename_0, uint8_t* ziran_keyword___modes_0) __asm__("fopen");
+void* zir_foreign_compiler_go_asm__fopen(uint8_t* ziran_keyword___filename_0, uint8_t* ziran_keyword___modes_0) __asm__("fopen");
 #endif
-static void*
-zir_f_39652e4564301f9f_fopen(uint8_t* ziran_keyword___filename_0, uint8_t* ziran_keyword___modes_0)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_fopen(ziran_keyword___filename_0, ziran_keyword___modes_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_fprintf_83feebb0
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_fprintf_83feebb0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_39652e4564301f9f_fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_fprintf");
+int32_t zir_foreign_compiler_go_asm__fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_fprintf");
 #else
-int32_t zir_foreign_zir_f_39652e4564301f9f_fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("fprintf");
+int32_t zir_foreign_compiler_go_asm__fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("fprintf");
 #endif
-#define zir_f_39652e4564301f9f_fprintf zir_foreign_zir_f_39652e4564301f9f_fprintf
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_fputc_f9ce5a65
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_fputc_f9ce5a65
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_39652e4564301f9f_fputc(int32_t ziran_keyword___c_0, void* ziran_keyword___stream_0) __asm__("_fputc");
+int32_t zir_foreign_compiler_go_asm__fputc(int32_t ziran_keyword___c_0, void* ziran_keyword___stream_0) __asm__("_fputc");
 #else
-int32_t zir_foreign_zir_f_39652e4564301f9f_fputc(int32_t ziran_keyword___c_0, void* ziran_keyword___stream_0) __asm__("fputc");
+int32_t zir_foreign_compiler_go_asm__fputc(int32_t ziran_keyword___c_0, void* ziran_keyword___stream_0) __asm__("fputc");
 #endif
-static int32_t
-zir_f_39652e4564301f9f_fputc(int32_t ziran_keyword___c_0, void* ziran_keyword___stream_0)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_fputc(ziran_keyword___c_0, ziran_keyword___stream_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_fputs_28723a01
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_fputs_28723a01
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_39652e4564301f9f_fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0) __asm__("_fputs");
+int32_t zir_foreign_compiler_go_asm__fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0) __asm__("_fputs");
 #else
-int32_t zir_foreign_zir_f_39652e4564301f9f_fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0) __asm__("fputs");
+int32_t zir_foreign_compiler_go_asm__fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0) __asm__("fputs");
 #endif
-static int32_t
-zir_f_39652e4564301f9f_fputs(uint8_t* ziran_keyword___s_0, void* ziran_keyword___stream_0)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_fputs(ziran_keyword___s_0, ziran_keyword___stream_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_free_c75930da
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_free_c75930da
 #ifdef __APPLE__
-void zir_foreign_zir_f_39652e4564301f9f_free(void* ziran_keyword___ptr_0) __asm__("_free");
+void zir_foreign_compiler_go_asm__free(void* ziran_keyword___ptr_0) __asm__("_free");
 #else
-void zir_foreign_zir_f_39652e4564301f9f_free(void* ziran_keyword___ptr_0) __asm__("free");
+void zir_foreign_compiler_go_asm__free(void* ziran_keyword___ptr_0) __asm__("free");
 #endif
-static void
-zir_f_39652e4564301f9f_free(void* ziran_keyword___ptr_0)
-{
-    zir_foreign_zir_f_39652e4564301f9f_free(ziran_keyword___ptr_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_memset_0839e910
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_memset_0839e910
 #ifdef __APPLE__
-void* zir_foreign_zir_f_39652e4564301f9f_memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("_memset");
+void* zir_foreign_compiler_go_asm__memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("_memset");
 #else
-void* zir_foreign_zir_f_39652e4564301f9f_memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("memset");
+void* zir_foreign_compiler_go_asm__memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0) __asm__("memset");
 #endif
-static void*
-zir_f_39652e4564301f9f_memset(void* ziran_keyword___s_0, int32_t ziran_keyword___c_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_memset(ziran_keyword___s_0, ziran_keyword___c_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_realloc_88719d39
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_realloc_88719d39
 #ifdef __APPLE__
-void* zir_foreign_zir_f_39652e4564301f9f_realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0) __asm__("_realloc");
+void* zir_foreign_compiler_go_asm__realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0) __asm__("_realloc");
 #else
-void* zir_foreign_zir_f_39652e4564301f9f_realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0) __asm__("realloc");
+void* zir_foreign_compiler_go_asm__realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0) __asm__("realloc");
 #endif
-static void*
-zir_f_39652e4564301f9f_realloc(void* ziran_keyword___ptr_0, size_t ziran_keyword___size_0)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_realloc(ziran_keyword___ptr_0, ziran_keyword___size_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_snprintf_7c8971c5
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_snprintf_7c8971c5
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_39652e4564301f9f_snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_snprintf");
+int32_t zir_foreign_compiler_go_asm__snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_snprintf");
 #else
-int32_t zir_foreign_zir_f_39652e4564301f9f_snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("snprintf");
+int32_t zir_foreign_compiler_go_asm__snprintf(uint8_t* ziran_keyword___s_0, size_t ziran_keyword___maxlen_0, uint8_t* ziran_keyword___format_0, ...) __asm__("snprintf");
 #endif
-#define zir_f_39652e4564301f9f_snprintf zir_foreign_zir_f_39652e4564301f9f_snprintf
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_strcmp_b1a4f317
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_strcmp_b1a4f317
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_39652e4564301f9f_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("_strcmp");
+int32_t zir_foreign_compiler_go_asm__strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("_strcmp");
 #else
-int32_t zir_foreign_zir_f_39652e4564301f9f_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("strcmp");
+int32_t zir_foreign_compiler_go_asm__strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0) __asm__("strcmp");
 #endif
-static int32_t
-zir_f_39652e4564301f9f_strcmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_strcmp(ziran_keyword___s1_0, ziran_keyword___s2_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_strlen_b24a2871
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_strlen_b24a2871
 #ifdef __APPLE__
-size_t zir_foreign_zir_f_39652e4564301f9f_strlen(uint8_t* ziran_keyword___s_0) __asm__("_strlen");
+size_t zir_foreign_compiler_go_asm__strlen(uint8_t* ziran_keyword___s_0) __asm__("_strlen");
 #else
-size_t zir_foreign_zir_f_39652e4564301f9f_strlen(uint8_t* ziran_keyword___s_0) __asm__("strlen");
+size_t zir_foreign_compiler_go_asm__strlen(uint8_t* ziran_keyword___s_0) __asm__("strlen");
 #endif
-static size_t
-zir_f_39652e4564301f9f_strlen(uint8_t* ziran_keyword___s_0)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_strlen(ziran_keyword___s_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_strncmp_5281c9d0
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_strncmp_5281c9d0
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_39652e4564301f9f_strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("_strncmp");
+int32_t zir_foreign_compiler_go_asm__strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("_strncmp");
 #else
-int32_t zir_foreign_zir_f_39652e4564301f9f_strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("strncmp");
+int32_t zir_foreign_compiler_go_asm__strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("strncmp");
 #endif
-static int32_t
-zir_f_39652e4564301f9f_strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_strncmp(ziran_keyword___s1_0, ziran_keyword___s2_0, ziran_keyword___n_0);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_39652e4564301f9f_strrchr_1eb3f404
-#define ZIR_FOREIGN_zir_f_39652e4564301f9f_strrchr_1eb3f404
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_39652e4564301f9f_strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("_strrchr");
+uint8_t* zir_foreign_compiler_go_asm__strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("_strrchr");
 #else
-uint8_t* zir_foreign_zir_f_39652e4564301f9f_strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strrchr");
-#endif
-static uint8_t*
-zir_f_39652e4564301f9f_strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0)
-{
-    return zir_foreign_zir_f_39652e4564301f9f_strrchr(ziran_keyword___s_0, ziran_keyword___c_0);
-}
+uint8_t* zir_foreign_compiler_go_asm__strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strrchr");
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
@@ -634,7 +270,7 @@ static int32_t compiler_go_asm_write_direct(GoAssembly* assembly, uint8_t* path,
 static uint8_t*
 compiler_go_asm_CStr(String s)
 {
-    return ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+    return ((compiler_go_asm_StaticText*)(&(s)))->data;
 }
 
 static uint8_t*
@@ -648,7 +284,7 @@ compiler_go_asm_FunctionArgs(ZirFunction* fn)
         uint8_t* value_2 = (void *)0;
         {
             String s = value_1;
-            value_2 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_2 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
         value_0 = value_2;
     }
@@ -676,9 +312,9 @@ compiler_go_asm_pointer_free(ZirModule* module, uint8_t* type, int32_t depth)
         uint8_t* value_3 = (void *)0;
         {
             String s = value_2;
-            value_3 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_3 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        bool value_5 = zir_f_39652e4564301f9f_strcmp(type, value_3) != 0;
+        bool value_5 = zir_foreign_compiler_go_asm__strcmp(type, value_3) != 0;
         value_1 = !value_5;
     }
     bool value_6 = value_1;
@@ -688,21 +324,21 @@ compiler_go_asm_pointer_free(ZirModule* module, uint8_t* type, int32_t depth)
         uint8_t* value_9 = (void *)0;
         {
             String s = value_8;
-            value_9 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_9 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        bool value_11 = zir_f_39652e4564301f9f_strcmp(type, value_9) != 0;
+        bool value_11 = zir_foreign_compiler_go_asm__strcmp(type, value_9) != 0;
         value_7 = !value_11;
     }
     if (value_7) {
         return 0;
     }
-    uint8_t* value_12 = zir_f_39652e4564301f9f_ScalarType(type);
+    uint8_t* value_12 = zir_foreign_compiler_go_asm__ScalarType(type);
     if (value_12[0] != 0) {
         return 1;
     }
     uint8_t element[128] = {0};
     int32_t capacity = 0;
-    if (zir_f_39652e4564301f9f_ArrayElementType(type, &(element[0]), (128) * (sizeof(uint8_t)), &(capacity)) != 0) {
+    if (zir_foreign_compiler_go_asm__ArrayElementType(type, &(element[0]), (128) * (sizeof(uint8_t)), &(capacity)) != 0) {
         bool value_13 = capacity >= 0;
         bool value_14 = value_13 && compiler_go_asm_pointer_free(module, &(element[0]), (int32_t)((uint32_t)depth + 1u)) != 0;
         int32_t value_15 = 0;
@@ -712,7 +348,7 @@ compiler_go_asm_pointer_free(ZirModule* module, uint8_t* type, int32_t depth)
         return value_15;
     }
     ZirModule* owner = (ZirModule*)(((void *)0));
-    ZirType* record = zir_f_39652e4564301f9f_CFindType(module, type, &(owner));
+    ZirType* record = zir_foreign_compiler_go_asm__CFindType(module, type, &(owner));
     bool value_16 = record == (ZirType*)(((void *)0)) || record->is_extern != 0 || record->is_procedure_type != 0 || record->is_map != 0;
     if (value_16 || record->is_owned_vec != 0 || (record->foreign_target)[0] != 0) {
         return 0;
@@ -724,7 +360,7 @@ compiler_go_asm_pointer_free(ZirModule* module, uint8_t* type, int32_t depth)
     ZirTypeField field = {0};
     int32_t status = 0;
     while (true) {
-        status = zir_f_39652e4564301f9f_TypeNextField(record, &(offset), &(field));
+        status = zir_foreign_compiler_go_asm__TypeNextField(record, &(offset), &(field));
         if (!(status == 1)) {
             break;
         }
@@ -754,7 +390,7 @@ compiler_go_asm_bridge_type(ZirModule* module, uint8_t* type)
         int32_t value_1 = compiler_go_asm_pointer_free(module, (uint8_t*)(((size_t)(type) + ((size_t)(1LL) * sizeof(uint8_t)))), 0);
         value_0 = value_1;
     } else {
-        uint8_t* value_2 = zir_f_39652e4564301f9f_ScalarType(type);
+        uint8_t* value_2 = zir_foreign_compiler_go_asm__ScalarType(type);
         bool value_3 = value_2[0] != 0;
         bool value_4 = value_3;
         if (value_4) {
@@ -762,9 +398,9 @@ compiler_go_asm_bridge_type(ZirModule* module, uint8_t* type)
             uint8_t* value_6 = (void *)0;
             {
                 String s = value_5;
-                value_6 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_6 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            bool value_8 = zir_f_39652e4564301f9f_strcmp(type, value_6) != 0;
+            bool value_8 = zir_foreign_compiler_go_asm__strcmp(type, value_6) != 0;
             value_4 = value_8;
         }
         bool value_9 = value_4;
@@ -774,9 +410,9 @@ compiler_go_asm_bridge_type(ZirModule* module, uint8_t* type)
             uint8_t* value_12 = (void *)0;
             {
                 String s = value_11;
-                value_12 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_12 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            bool value_14 = zir_f_39652e4564301f9f_strcmp(type, value_12) != 0;
+            bool value_14 = zir_foreign_compiler_go_asm__strcmp(type, value_12) != 0;
             value_10 = value_14;
         }
         int32_t value_15 = 0;
@@ -797,33 +433,33 @@ compiler_go_asm_c_type(uint8_t* type, uint8_t* out, size_t size)
         uint8_t* value_2 = (void *)0;
         {
             String s = value_1;
-            value_2 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_2 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
         value_0 = value_2;
     } else {
-        uint8_t* value_4 = zir_f_39652e4564301f9f_ScalarType(type);
-        void* value_5 = zir_f_39652e4564301f9f_TargetTypeZiran((void*)(value_4), (int32_t)(((ZirTarget)(0))));
+        uint8_t* value_4 = zir_foreign_compiler_go_asm__ScalarType(type);
+        void* value_5 = zir_foreign_compiler_go_asm__TargetTypeZiran((void*)(value_4), (int32_t)(((ZirTarget)(0))));
         value_0 = (uint8_t*)(value_5);
     }
     uint8_t* native = value_0;
     if (native == (uint8_t*)(((void *)0))) {
-        zir_f_39652e4564301f9f_abort();
+        zir_foreign_compiler_go_asm__abort();
     }
     String value_6 = StringLiteral("%s");
     uint8_t* value_7 = (void *)0;
     {
         String s = value_6;
-        value_7 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_7 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_snprintf(out, size, value_7, native);
+    zir_foreign_compiler_go_asm__snprintf(out, size, value_7, native);
 }
 
 static void
 compiler_go_asm_go_type(ZirModule* module, uint8_t* type, uint8_t* out, size_t size)
 {
-    bool value_0 = zir_f_39652e4564301f9f_NativeGoType(module, type, out, size) != 0;
+    bool value_0 = zir_foreign_compiler_go_asm__NativeGoType(module, type, out, size) != 0;
     if (!value_0) {
-        zir_f_39652e4564301f9f_abort();
+        zir_foreign_compiler_go_asm__abort();
     }
 }
 
@@ -851,13 +487,13 @@ compiler_go_asm_name_used(ZirProgram** programs, int32_t count, uint8_t* name)
                                 break;
                             }
                             ZirFunction* fn = &(module->functions[f]);
-                            zir_f_39652e4564301f9f_NativeGoFunctionName(programs, count, module, fn, &(native[0]), (512) * (sizeof(uint8_t)));
+                            zir_foreign_compiler_go_asm__NativeGoFunctionName(programs, count, module, fn, &(native[0]), (512) * (sizeof(uint8_t)));
                             uint8_t* value_0 = name;
-                            bool value_1 = zir_f_39652e4564301f9f_strncmp(&(native[0]), value_0, zir_f_39652e4564301f9f_strlen(name)) != 0;
+                            bool value_1 = zir_foreign_compiler_go_asm__strncmp(&(native[0]), value_0, zir_foreign_compiler_go_asm__strlen(name)) != 0;
                             bool value_2 = !value_1;
                             if (!value_2) {
                                 uint8_t* value_3 = name;
-                                bool value_4 = zir_f_39652e4564301f9f_strncmp(&(fn->export_symbol[0]), value_3, zir_f_39652e4564301f9f_strlen(name)) != 0;
+                                bool value_4 = zir_foreign_compiler_go_asm__strncmp(&(fn->export_symbol[0]), value_3, zir_foreign_compiler_go_asm__strlen(name)) != 0;
                                 value_2 = !value_4;
                             }
                             if (value_2) {
@@ -872,9 +508,9 @@ compiler_go_asm_name_used(ZirProgram** programs, int32_t count, uint8_t* name)
                             if (!(g < module->global_count)) {
                                 break;
                             }
-                            zir_f_39652e4564301f9f_TargetGlobalName(module, (int32_t)(((ZirTarget)(1))), &(((module->globals[g]).name)[0]), &(native[0]), (512) * (sizeof(uint8_t)));
+                            zir_foreign_compiler_go_asm__TargetGlobalName(module, (int32_t)(((ZirTarget)(1))), &(((module->globals[g]).name)[0]), &(native[0]), (512) * (sizeof(uint8_t)));
                             uint8_t* value_5 = name;
-                            bool value_6 = zir_f_39652e4564301f9f_strncmp(&(native[0]), value_5, zir_f_39652e4564301f9f_strlen(name)) != 0;
+                            bool value_6 = zir_foreign_compiler_go_asm__strncmp(&(native[0]), value_5, zir_foreign_compiler_go_asm__strlen(name)) != 0;
                             if (!value_6) {
                                 return 1;
                             }
@@ -887,9 +523,9 @@ compiler_go_asm_name_used(ZirProgram** programs, int32_t count, uint8_t* name)
                             if (!(t < module->type_count)) {
                                 break;
                             }
-                            zir_f_39652e4564301f9f_NativeTypeName(module, &(module->types[t]), &(native[0]), (512) * (sizeof(uint8_t)));
+                            zir_foreign_compiler_go_asm__NativeTypeName(module, &(module->types[t]), &(native[0]), (512) * (sizeof(uint8_t)));
                             uint8_t* value_7 = name;
-                            bool value_8 = zir_f_39652e4564301f9f_strncmp(&(native[0]), value_7, zir_f_39652e4564301f9f_strlen(name)) != 0;
+                            bool value_8 = zir_foreign_compiler_go_asm__strncmp(&(native[0]), value_7, zir_foreign_compiler_go_asm__strlen(name)) != 0;
                             if (!value_8) {
                                 return 1;
                             }
@@ -902,9 +538,9 @@ compiler_go_asm_name_used(ZirProgram** programs, int32_t count, uint8_t* name)
                             if (!(d < module->define_count)) {
                                 break;
                             }
-                            zir_f_39652e4564301f9f_TargetDefineName(module, (int32_t)(((ZirTarget)(1))), &(((module->defines[d]).name)[0]), &(native[0]), (512) * (sizeof(uint8_t)));
+                            zir_foreign_compiler_go_asm__TargetDefineName(module, (int32_t)(((ZirTarget)(1))), &(((module->defines[d]).name)[0]), &(native[0]), (512) * (sizeof(uint8_t)));
                             uint8_t* value_9 = name;
-                            bool value_10 = zir_f_39652e4564301f9f_strncmp(&(native[0]), value_9, zir_f_39652e4564301f9f_strlen(name)) != 0;
+                            bool value_10 = zir_foreign_compiler_go_asm__strncmp(&(native[0]), value_9, zir_foreign_compiler_go_asm__strlen(name)) != 0;
                             if (!value_10) {
                                 return 1;
                             }
@@ -936,21 +572,21 @@ compiler_go_asm_local_name_used(ZirFunction* fn, uint8_t* name)
             uint8_t* value_5 = (void *)0;
             {
                 String s = value_4;
-                value_5 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_5 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
             value_3 = value_5;
         }
         value_1 = value_3;
     }
-    ZirParameters* parameters = zir_f_39652e4564301f9f_ParametersOf(value_1);
+    ZirParameters* parameters = zir_foreign_compiler_go_asm__ParametersOf(value_1);
     {
         int32_t i = 0;
         while (true) {
             if (!(i < parameters->count)) {
                 break;
             }
-            zir_f_39652e4564301f9f_TargetBindingName(fn, (int32_t)(((ZirTarget)(1))), (parameters->items[i]).name, &(native[0]), (512) * (sizeof(uint8_t)));
-            bool value_7 = zir_f_39652e4564301f9f_strcmp(&(native[0]), name) != 0;
+            zir_foreign_compiler_go_asm__TargetBindingName(fn, (int32_t)(((ZirTarget)(1))), (parameters->items[i]).name, &(native[0]), (512) * (sizeof(uint8_t)));
+            bool value_7 = zir_foreign_compiler_go_asm__strcmp(&(native[0]), name) != 0;
             if (!value_7) {
                 return 1;
             }
@@ -964,8 +600,8 @@ compiler_go_asm_local_name_used(ZirFunction* fn, uint8_t* name)
                 break;
             }
             if (((ZirStmtKind)((fn->stmts[i]).kind)) == ((ZirStmtKind)(3))) {
-                zir_f_39652e4564301f9f_TargetBindingName(fn, (int32_t)(((ZirTarget)(1))), (uint8_t*)((fn->stmts[i]).names).name, &(native[0]), (512) * (sizeof(uint8_t)));
-                bool value_8 = zir_f_39652e4564301f9f_strcmp(&(native[0]), name) != 0;
+                zir_foreign_compiler_go_asm__TargetBindingName(fn, (int32_t)(((ZirTarget)(1))), (uint8_t*)((fn->stmts[i]).names).name, &(native[0]), (512) * (sizeof(uint8_t)));
+                bool value_8 = zir_foreign_compiler_go_asm__strcmp(&(native[0]), name) != 0;
                 if (!value_8) {
                     return 1;
                 }
@@ -979,9 +615,9 @@ compiler_go_asm_local_name_used(ZirFunction* fn, uint8_t* name)
 GoAssembly*
 GoAssemblyOpen(ZirProgram** programs, int32_t count, ZirModule* module)
 {
-    void* value_0 = zir_f_39652e4564301f9f_AllocateOrExit(sizeof(GoAssembly));
+    void* value_0 = zir_foreign_compiler_go_asm__AllocateOrExit(sizeof(GoAssembly));
     GoAssembly* assembly = (GoAssembly*)(value_0);
-    zir_f_39652e4564301f9f_memset((void*)(assembly), 0, sizeof(GoAssembly));
+    zir_foreign_compiler_go_asm__memset((void*)(assembly), 0, sizeof(GoAssembly));
     ZirModule** value_1 = &(assembly->module);
     (*value_1) = module;
     int32_t capacity = 0;
@@ -1052,8 +688,8 @@ GoAssemblyOpen(ZirProgram** programs, int32_t count, ZirModule* module)
                                     }
                                     GoAssemblySite candidate = {0};
                                     GoAssemblySite* site = &(candidate);
-                                    if (zir_f_39652e4564301f9f_AssemblyVariantNext(module, fn, statement, &(cursor), &(site->variant)) != 1) {
-                                        zir_f_39652e4564301f9f_abort();
+                                    if (zir_foreign_compiler_go_asm__AssemblyVariantNext(module, fn, statement, &(cursor), &(site->variant)) != 1) {
+                                        zir_foreign_compiler_go_asm__abort();
                                     }
                                     int32_t eligible = 1;
                                     int32_t* value_9 = &(site->by_value);
@@ -1076,9 +712,9 @@ GoAssemblyOpen(ZirProgram** programs, int32_t count, ZirModule* module)
                                                         uint8_t* value_13 = (void *)0;
                                                         {
                                                             String s = value_12;
-                                                            value_13 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                                                            value_13 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                                                         }
-                                                        bool value_15 = zir_f_39652e4564301f9f_strcmp(value_11, value_13) != 0;
+                                                        bool value_15 = zir_foreign_compiler_go_asm__strcmp(value_11, value_13) != 0;
                                                         bool value_16 = value_15;
                                                         if (value_16) {
                                                             uint8_t* value_17 = operand->constraint;
@@ -1086,9 +722,9 @@ GoAssemblyOpen(ZirProgram** programs, int32_t count, ZirModule* module)
                                                             uint8_t* value_19 = (void *)0;
                                                             {
                                                                 String s = value_18;
-                                                                value_19 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                                                                value_19 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                                                             }
-                                                            bool value_21 = zir_f_39652e4564301f9f_strcmp(value_17, value_19) != 0;
+                                                            bool value_21 = zir_foreign_compiler_go_asm__strcmp(value_17, value_19) != 0;
                                                             value_16 = value_21;
                                                         }
                                                         if (value_16) {
@@ -1099,7 +735,7 @@ GoAssemblyOpen(ZirProgram** programs, int32_t count, ZirModule* module)
                                                             eligible = 0;
                                                         }
                                                     } else {
-                                                        if (zir_f_39652e4564301f9f_AssemblyInputNeedsStorage(operand->constraint) != 0) {
+                                                        if (zir_foreign_compiler_go_asm__AssemblyInputNeedsStorage(operand->constraint) != 0) {
                                                             uint8_t* value_23 = &(site->storage[i]);
                                                             (*value_23) = 1;
                                                             if (operand->type[0] == 42) {
@@ -1114,7 +750,7 @@ GoAssemblyOpen(ZirProgram** programs, int32_t count, ZirModule* module)
                                                 i = (int32_t)((uint32_t)i + 1u);
                                             }
                                         }
-                                        bool value_24 = zir_f_39652e4564301f9f_AssemblyVariantNext(module, fn, statement, &(cursor), &(variant)) == 1;
+                                        bool value_24 = zir_foreign_compiler_go_asm__AssemblyVariantNext(module, fn, statement, &(cursor), &(variant)) == 1;
                                         if (!value_24) {
                                             break;
                                         }
@@ -1131,7 +767,7 @@ GoAssemblyOpen(ZirProgram** programs, int32_t count, ZirModule* module)
                                     }
                                     cursor = value_25;
                                     while (true) {
-                                        bool value_26 = zir_f_39652e4564301f9f_AssemblyVariantNext(module, fn, statement, &(cursor), &(variant)) == 1;
+                                        bool value_26 = zir_foreign_compiler_go_asm__AssemblyVariantNext(module, fn, statement, &(cursor), &(variant)) == 1;
                                         if (!value_26) {
                                             break;
                                         }
@@ -1139,14 +775,14 @@ GoAssemblyOpen(ZirProgram** programs, int32_t count, ZirModule* module)
                                         if (statement >= 0) {
                                             value_27 = 1;
                                         }
-                                        GoAmd64Plan* plan = zir_f_39652e4564301f9f_GoAmd64Prepare(&(variant), value_27, site->by_value, &(site->storage[0]));
+                                        GoAmd64Plan* plan = zir_foreign_compiler_go_asm__GoAmd64Prepare(&(variant), value_27, site->by_value, &(site->storage[0]));
                                         if (plan == (GoAmd64Plan*)(((void *)0))) {
                                             continue;
                                         }
-                                        void* value_28 = zir_f_39652e4564301f9f_realloc((void*)(site->direct), (size_t)(((int32_t)((uint32_t)(site->direct_count) + 1u))) * sizeof(void *));
+                                        void* value_28 = zir_foreign_compiler_go_asm__realloc((void*)(site->direct), (size_t)(((int32_t)((uint32_t)(site->direct_count) + 1u))) * sizeof(void *));
                                         GoAmd64Plan** plans = (GoAmd64Plan**)(value_28);
                                         if (plans == (GoAmd64Plan**)(((void *)0))) {
-                                            zir_f_39652e4564301f9f_GoAmd64Close(plan);
+                                            zir_foreign_compiler_go_asm__GoAmd64Close(plan);
                                             break;
                                         }
                                         GoAmd64Plan*** value_29 = &(site->direct);
@@ -1169,16 +805,16 @@ GoAssemblyOpen(ZirProgram** programs, int32_t count, ZirModule* module)
                                             uint8_t* value_35 = (void *)0;
                                             {
                                                 String s = value_34;
-                                                value_35 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                                                value_35 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                                             }
-                                            zir_f_39652e4564301f9f_snprintf(&(site->name[0]), (128) * (sizeof(uint8_t)), value_35, global, (int32_t)((uint32_t)statement + 1u), serial);
+                                            zir_foreign_compiler_go_asm__snprintf(&(site->name[0]), (128) * (sizeof(uint8_t)), value_35, global, (int32_t)((uint32_t)statement + 1u), serial);
                                             String value_37 = StringLiteral("%sNative");
                                             uint8_t* value_38 = (void *)0;
                                             {
                                                 String s = value_37;
-                                                value_38 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                                                value_38 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                                             }
-                                            zir_f_39652e4564301f9f_snprintf(&(handler[0]), (136) * (sizeof(uint8_t)), value_38, &(site->name[0]));
+                                            zir_foreign_compiler_go_asm__snprintf(&(handler[0]), (136) * (sizeof(uint8_t)), value_38, &(site->name[0]));
                                             bool value_40 = compiler_go_asm_name_used(programs, count, &(site->name[0])) != 0;
                                             bool value_41 = !value_40;
                                             if (value_41) {
@@ -1204,7 +840,7 @@ GoAssemblyOpen(ZirProgram** programs, int32_t count, ZirModule* module)
                                             value_45 = 8;
                                         }
                                         capacity = value_45;
-                                        void* value_46 = zir_f_39652e4564301f9f_realloc((void*)(assembly->sites), (size_t)(capacity) * sizeof(GoAssemblySite));
+                                        void* value_46 = zir_foreign_compiler_go_asm__realloc((void*)(assembly->sites), (size_t)(capacity) * sizeof(GoAssemblySite));
                                         GoAssemblySite* sites = (GoAssemblySite*)(value_46);
                                         if (sites == (GoAssemblySite*)(((void *)0))) {
                                             ZirSourceSpan value_47 = module->span;
@@ -1212,16 +848,16 @@ GoAssemblyOpen(ZirProgram** programs, int32_t count, ZirModule* module)
                                             uint8_t* value_49 = (void *)0;
                                             {
                                                 String s = value_48;
-                                                value_49 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                                                value_49 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                                             }
                                             String value_51 = StringLiteral("out of memory preparing assembly bridges");
                                             uint8_t* value_52 = (void *)0;
                                             {
                                                 String s = value_51;
-                                                value_52 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                                                value_52 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                                             }
-                                            zir_f_39652e4564301f9f_Diagnostic(value_47, value_49, value_52);
-                                            zir_f_39652e4564301f9f_exit(1);
+                                            zir_foreign_compiler_go_asm__Diagnostic(value_47, value_49, value_52);
+                                            zir_foreign_compiler_go_asm__exit(1);
                                         }
                                         GoAssemblySite** value_54 = &(assembly->sites);
                                         (*value_54) = sites;
@@ -1274,25 +910,25 @@ compiler_go_asm_bridge_go_type(uint8_t* type, uint8_t* out, size_t size)
         uint8_t* value_2 = (void *)0;
         {
             String s = value_1;
-            value_2 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_2 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
         value_0 = value_2;
     } else {
-        uint8_t* value_4 = zir_f_39652e4564301f9f_ScalarType(type);
-        void* value_5 = zir_f_39652e4564301f9f_TargetTypeZiran((void*)(value_4), (int32_t)(((ZirTarget)(1))));
+        uint8_t* value_4 = zir_foreign_compiler_go_asm__ScalarType(type);
+        void* value_5 = zir_foreign_compiler_go_asm__TargetTypeZiran((void*)(value_4), (int32_t)(((ZirTarget)(1))));
         value_0 = (uint8_t*)(value_5);
     }
     uint8_t* native = value_0;
     if (native == (uint8_t*)(((void *)0))) {
-        zir_f_39652e4564301f9f_abort();
+        zir_foreign_compiler_go_asm__abort();
     }
     String value_6 = StringLiteral("%s");
     uint8_t* value_7 = (void *)0;
     {
         String s = value_6;
-        value_7 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_7 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_snprintf(out, size, value_7, native);
+    zir_foreign_compiler_go_asm__snprintf(out, size, value_7, native);
 }
 
 static void
@@ -1325,7 +961,7 @@ compiler_go_asm_go_signature(void* out, ZirModule* module, GoAssemblySite* site,
             uint8_t* value_4 = (void *)0;
             {
                 String s = value_3;
-                value_4 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_4 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
             uint8_t* value_6 = (void *)0;
             if (i > first) {
@@ -1333,7 +969,7 @@ compiler_go_asm_go_signature(void* out, ZirModule* module, GoAssemblySite* site,
                 uint8_t* value_8 = (void *)0;
                 {
                     String s = value_7;
-                    value_8 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_8 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_6 = value_8;
             } else {
@@ -1341,27 +977,27 @@ compiler_go_asm_go_signature(void* out, ZirModule* module, GoAssemblySite* site,
                 uint8_t* value_11 = (void *)0;
                 {
                     String s = value_10;
-                    value_11 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_11 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_6 = value_11;
             }
-            zir_f_39652e4564301f9f_fprintf(value_2, value_4, value_6);
+            zir_foreign_compiler_go_asm__fprintf(value_2, value_4, value_6);
             if (named != 0) {
                 void* value_13 = out;
                 String value_14 = StringLiteral("a%d ");
                 uint8_t* value_15 = (void *)0;
                 {
                     String s = value_14;
-                    value_15 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_15 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_39652e4564301f9f_fprintf(value_13, value_15, i);
+                zir_foreign_compiler_go_asm__fprintf(value_13, value_15, i);
             }
             void* value_17 = out;
             String value_18 = StringLiteral("%s%s");
             uint8_t* value_19 = (void *)0;
             {
                 String s = value_18;
-                value_19 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_19 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
             uint8_t* value_21 = (void *)0;
             if (block != 0 && (i < v->outputs || (site->storage)[i] != 0)) {
@@ -1369,7 +1005,7 @@ compiler_go_asm_go_signature(void* out, ZirModule* module, GoAssemblySite* site,
                 uint8_t* value_23 = (void *)0;
                 {
                     String s = value_22;
-                    value_23 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_23 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_21 = value_23;
             } else {
@@ -1377,11 +1013,11 @@ compiler_go_asm_go_signature(void* out, ZirModule* module, GoAssemblySite* site,
                 uint8_t* value_26 = (void *)0;
                 {
                     String s = value_25;
-                    value_26 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_26 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_21 = value_26;
             }
-            zir_f_39652e4564301f9f_fprintf(value_17, value_19, value_21, &(type[0]));
+            zir_foreign_compiler_go_asm__fprintf(value_17, value_19, value_21, &(type[0]));
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -1390,9 +1026,9 @@ compiler_go_asm_go_signature(void* out, ZirModule* module, GoAssemblySite* site,
         uint8_t* value_29 = (void *)0;
         {
             String s = value_28;
-            value_29 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_29 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_39652e4564301f9f_fputs(value_29, out);
+        zir_foreign_compiler_go_asm__fputs(value_29, out);
         {
             int32_t i = 0;
             while (true) {
@@ -1406,9 +1042,9 @@ compiler_go_asm_go_signature(void* out, ZirModule* module, GoAssemblySite* site,
                 uint8_t* value_33 = (void *)0;
                 {
                     String s = value_32;
-                    value_33 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_33 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_39652e4564301f9f_fprintf(value_31, value_33, &(type[0]));
+                zir_foreign_compiler_go_asm__fprintf(value_31, value_33, &(type[0]));
                 i = (int32_t)((uint32_t)i + 1u);
             }
         }
@@ -1416,17 +1052,17 @@ compiler_go_asm_go_signature(void* out, ZirModule* module, GoAssemblySite* site,
         uint8_t* value_36 = (void *)0;
         {
             String s = value_35;
-            value_36 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_36 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_39652e4564301f9f_fputs(value_36, out);
+        zir_foreign_compiler_go_asm__fputs(value_36, out);
     } else {
         String value_38 = StringLiteral(") bool");
         uint8_t* value_39 = (void *)0;
         {
             String s = value_38;
-            value_39 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_39 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_39652e4564301f9f_fputs(value_39, out);
+        zir_foreign_compiler_go_asm__fputs(value_39, out);
     }
 }
 
@@ -1439,15 +1075,15 @@ GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
     }
     AssemblyVariant* v = &(site->variant);
     uint8_t available[128] = {0};
-    zir_f_39652e4564301f9f_ArrayAbiName(function, 600000, &(available[0]), (128) * (sizeof(uint8_t)));
+    zir_foreign_compiler_go_asm__ArrayAbiName(function, 600000, &(available[0]), (128) * (sizeof(uint8_t)));
     void* value_0 = out;
     String value_1 = StringLiteral("    if zirGoAssemblyEnabled && %s != nil {\n        if ");
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
-        value_2 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_2 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_0, value_2, &(site->name[0]));
+    zir_foreign_compiler_go_asm__fprintf(value_0, value_2, &(site->name[0]));
     {
         int32_t i = 0;
         while (true) {
@@ -1455,15 +1091,15 @@ GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
                 break;
             }
             uint8_t value[128] = {0};
-            zir_f_39652e4564301f9f_ArrayAbiName(function, (int32_t)(600001u + (uint32_t)i), &(value[0]), (128) * (sizeof(uint8_t)));
+            zir_foreign_compiler_go_asm__ArrayAbiName(function, (int32_t)(600001u + (uint32_t)i), &(value[0]), (128) * (sizeof(uint8_t)));
             void* value_4 = out;
             String value_5 = StringLiteral("%s, ");
             uint8_t* value_6 = (void *)0;
             {
                 String s = value_5;
-                value_6 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_6 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_39652e4564301f9f_fprintf(value_4, value_6, &(value[0]));
+            zir_foreign_compiler_go_asm__fprintf(value_4, value_6, &(value[0]));
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -1472,9 +1108,9 @@ GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
     uint8_t* value_10 = (void *)0;
     {
         String s = value_9;
-        value_10 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_10 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_8, value_10, &(available[0]), &(site->name[0]));
+    zir_foreign_compiler_go_asm__fprintf(value_8, value_10, &(available[0]), &(site->name[0]));
     uint8_t* value_12 = (void *)0;
     {
         ZirFunction* fn = function;
@@ -1486,13 +1122,13 @@ GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
             uint8_t* value_16 = (void *)0;
             {
                 String s = value_15;
-                value_16 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_16 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
             value_14 = value_16;
         }
         value_12 = value_14;
     }
-    ZirParameters* parameters = zir_f_39652e4564301f9f_ParametersOf(value_12);
+    ZirParameters* parameters = zir_foreign_compiler_go_asm__ParametersOf(value_12);
     {
         int32_t i = 0;
         while (true) {
@@ -1500,13 +1136,13 @@ GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
                 break;
             }
             uint8_t name[512] = {0};
-            zir_f_39652e4564301f9f_TargetBindingName(function, (int32_t)(((ZirTarget)(1))), (parameters->items[i]).name, &(name[0]), (512) * (sizeof(uint8_t)));
+            zir_foreign_compiler_go_asm__TargetBindingName(function, (int32_t)(((ZirTarget)(1))), (parameters->items[i]).name, &(name[0]), (512) * (sizeof(uint8_t)));
             void* value_18 = out;
             String value_19 = StringLiteral("%s%s%s%s");
             uint8_t* value_20 = (void *)0;
             {
                 String s = value_19;
-                value_20 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_20 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
             uint8_t* value_22 = (void *)0;
             if (i != 0) {
@@ -1514,7 +1150,7 @@ GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
                 uint8_t* value_24 = (void *)0;
                 {
                     String s = value_23;
-                    value_24 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_24 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_22 = value_24;
             } else {
@@ -1522,7 +1158,7 @@ GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
                 uint8_t* value_27 = (void *)0;
                 {
                     String s = value_26;
-                    value_27 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_27 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_22 = value_27;
             }
@@ -1533,7 +1169,7 @@ GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
                 uint8_t* value_32 = (void *)0;
                 {
                     String s = value_31;
-                    value_32 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_32 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_30 = value_32;
             } else {
@@ -1541,7 +1177,7 @@ GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
                 uint8_t* value_35 = (void *)0;
                 {
                     String s = value_34;
-                    value_35 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_35 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_30 = value_35;
             }
@@ -1552,7 +1188,7 @@ GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
                 uint8_t* value_40 = (void *)0;
                 {
                     String s = value_39;
-                    value_40 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_40 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_38 = value_40;
             } else {
@@ -1560,11 +1196,11 @@ GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
                 uint8_t* value_43 = (void *)0;
                 {
                     String s = value_42;
-                    value_43 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_43 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_38 = value_43;
             }
-            zir_f_39652e4564301f9f_fprintf(value_18, value_20, value_29, value_37, &(name[0]), value_38);
+            zir_foreign_compiler_go_asm__fprintf(value_18, value_20, value_29, value_37, &(name[0]), value_38);
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -1573,9 +1209,9 @@ GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
     uint8_t* value_47 = (void *)0;
     {
         String s = value_46;
-        value_47 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_47 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_45, value_47, &(available[0]));
+    zir_foreign_compiler_go_asm__fprintf(value_45, value_47, &(available[0]));
     if (v->record != 0) {
         uint8_t type[512] = {0};
         compiler_go_asm_go_type(assembly->module, &(function->return_type[0]), &(type[0]), (512) * (sizeof(uint8_t)));
@@ -1584,13 +1220,13 @@ GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
         uint8_t* value_51 = (void *)0;
         {
             String s = value_50;
-            value_51 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_51 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_39652e4564301f9f_fprintf(value_49, value_51, &(type[0]));
+        zir_foreign_compiler_go_asm__fprintf(value_49, value_51, &(type[0]));
     }
     ZirModule* owner = (ZirModule*)(((void *)0));
     if (v->record != 0) {
-        zir_f_39652e4564301f9f_CFindType(assembly->module, &(function->return_type[0]), &(owner));
+        zir_foreign_compiler_go_asm__CFindType(assembly->module, &(function->return_type[0]), &(owner));
     }
     {
         int32_t i = 0;
@@ -1600,16 +1236,16 @@ GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
             }
             uint8_t value[128] = {0};
             uint8_t type[512] = {0};
-            zir_f_39652e4564301f9f_ArrayAbiName(function, (int32_t)(600001u + (uint32_t)i), &(value[0]), (128) * (sizeof(uint8_t)));
+            zir_foreign_compiler_go_asm__ArrayAbiName(function, (int32_t)(600001u + (uint32_t)i), &(value[0]), (128) * (sizeof(uint8_t)));
             if (v->record != 0) {
                 uint8_t field[128] = {0};
-                zir_f_39652e4564301f9f_camel_ident((v->operands[i]).binding, &(field[0]), (128) * (sizeof(uint8_t)));
+                zir_foreign_compiler_go_asm__camel_ident((v->operands[i]).binding, &(field[0]), (128) * (sizeof(uint8_t)));
                 void* value_53 = out;
                 String value_54 = StringLiteral("%s%s: ");
                 uint8_t* value_55 = (void *)0;
                 {
                     String s = value_54;
-                    value_55 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_55 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 uint8_t* value_57 = (void *)0;
                 if (i != 0) {
@@ -1617,7 +1253,7 @@ GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
                     uint8_t* value_59 = (void *)0;
                     {
                         String s = value_58;
-                        value_59 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                        value_59 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                     }
                     value_57 = value_59;
                 } else {
@@ -1625,13 +1261,13 @@ GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
                     uint8_t* value_62 = (void *)0;
                     {
                         String s = value_61;
-                        value_62 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                        value_62 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                     }
                     value_57 = value_62;
                 }
-                zir_f_39652e4564301f9f_fprintf(value_53, value_55, value_57, &(field[0]));
+                zir_foreign_compiler_go_asm__fprintf(value_53, value_55, value_57, &(field[0]));
             } else {
-                zir_f_39652e4564301f9f_fputc(32, out);
+                zir_foreign_compiler_go_asm__fputc(32, out);
             }
             if (((v->operands[i]).type)[0] == 42) {
                 ZirModule* value_64 = (void *)0;
@@ -1646,25 +1282,25 @@ GoAssemblyFunction(void* out, GoAssembly* assembly, ZirFunction* function)
                 uint8_t* value_67 = (void *)0;
                 {
                     String s = value_66;
-                    value_67 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_67 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_39652e4564301f9f_fprintf(value_65, value_67, &(type[0]), &(value[0]));
+                zir_foreign_compiler_go_asm__fprintf(value_65, value_67, &(type[0]), &(value[0]));
             } else {
-                zir_f_39652e4564301f9f_fputs(&(value[0]), out);
+                zir_foreign_compiler_go_asm__fputs(&(value[0]), out);
             }
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
     if (v->record != 0) {
-        zir_f_39652e4564301f9f_fputc(125, out);
+        zir_foreign_compiler_go_asm__fputc(125, out);
     }
     String value_69 = StringLiteral(" }\n    }\n");
     uint8_t* value_70 = (void *)0;
     {
         String s = value_69;
-        value_70 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_70 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fputs(value_70, out);
+    zir_foreign_compiler_go_asm__fputs(value_70, out);
 }
 
 int32_t
@@ -1678,16 +1314,16 @@ GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* fn, int32_t statement
     AssemblyVariant* v = &(site->variant);
     uint8_t done[128] = {0};
     uint8_t ok[128] = {0};
-    zir_f_39652e4564301f9f_ArrayAbiName(fn, (int32_t)(700000u + ((uint32_t)statement * 32u)), &(done[0]), (128) * (sizeof(uint8_t)));
-    zir_f_39652e4564301f9f_ArrayAbiName(fn, (int32_t)(700001u + ((uint32_t)statement * 32u)), &(ok[0]), (128) * (sizeof(uint8_t)));
+    zir_foreign_compiler_go_asm__ArrayAbiName(fn, (int32_t)(700000u + ((uint32_t)statement * 32u)), &(done[0]), (128) * (sizeof(uint8_t)));
+    zir_foreign_compiler_go_asm__ArrayAbiName(fn, (int32_t)(700001u + ((uint32_t)statement * 32u)), &(ok[0]), (128) * (sizeof(uint8_t)));
     void* value_0 = out;
     String value_1 = StringLiteral("    {\n        %s := false\n        if zirGoAssemblyEnabled && %s != nil {\n            ");
     uint8_t* value_2 = (void *)0;
     {
         String s = value_1;
-        value_2 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_2 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_0, value_2, &(done[0]), &(site->name[0]));
+    zir_foreign_compiler_go_asm__fprintf(value_0, value_2, &(done[0]), &(site->name[0]));
     if (site->by_value != 0) {
         {
             int32_t i = 0;
@@ -1696,15 +1332,15 @@ GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* fn, int32_t statement
                     break;
                 }
                 uint8_t value[128] = {0};
-                zir_f_39652e4564301f9f_ArrayAbiName(fn, (int32_t)((uint32_t)(700002u + ((uint32_t)statement * 32u)) + (uint32_t)i), &(value[0]), (128) * (sizeof(uint8_t)));
+                zir_foreign_compiler_go_asm__ArrayAbiName(fn, (int32_t)((uint32_t)(700002u + ((uint32_t)statement * 32u)) + (uint32_t)i), &(value[0]), (128) * (sizeof(uint8_t)));
                 void* value_4 = out;
                 String value_5 = StringLiteral("%s, ");
                 uint8_t* value_6 = (void *)0;
                 {
                     String s = value_5;
-                    value_6 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_6 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_39652e4564301f9f_fprintf(value_4, value_6, &(value[0]));
+                zir_foreign_compiler_go_asm__fprintf(value_4, value_6, &(value[0]));
                 i = (int32_t)((uint32_t)i + 1u);
             }
         }
@@ -1714,9 +1350,9 @@ GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* fn, int32_t statement
     uint8_t* value_10 = (void *)0;
     {
         String s = value_9;
-        value_10 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_10 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_8, value_10, &(ok[0]), &(site->name[0]));
+    zir_foreign_compiler_go_asm__fprintf(value_8, value_10, &(ok[0]), &(site->name[0]));
     int32_t value_12 = 0;
     if (site->by_value != 0) {
         value_12 = v->outputs;
@@ -1731,13 +1367,13 @@ GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* fn, int32_t statement
                 break;
             }
             uint8_t name[512] = {0};
-            zir_f_39652e4564301f9f_TargetBindingName(fn, (int32_t)(((ZirTarget)(1))), (v->operands[i]).binding, &(name[0]), (512) * (sizeof(uint8_t)));
+            zir_foreign_compiler_go_asm__TargetBindingName(fn, (int32_t)(((ZirTarget)(1))), (v->operands[i]).binding, &(name[0]), (512) * (sizeof(uint8_t)));
             void* value_13 = out;
             String value_14 = StringLiteral("%s%s%s%s");
             uint8_t* value_15 = (void *)0;
             {
                 String s = value_14;
-                value_15 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_15 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
             uint8_t* value_17 = (void *)0;
             if (i > first) {
@@ -1745,7 +1381,7 @@ GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* fn, int32_t statement
                 uint8_t* value_19 = (void *)0;
                 {
                     String s = value_18;
-                    value_19 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_19 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_17 = value_19;
             } else {
@@ -1753,7 +1389,7 @@ GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* fn, int32_t statement
                 uint8_t* value_22 = (void *)0;
                 {
                     String s = value_21;
-                    value_22 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_22 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_17 = value_22;
             }
@@ -1764,7 +1400,7 @@ GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* fn, int32_t statement
                 uint8_t* value_27 = (void *)0;
                 {
                     String s = value_26;
-                    value_27 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_27 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_25 = value_27;
             } else {
@@ -1774,7 +1410,7 @@ GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* fn, int32_t statement
                     uint8_t* value_31 = (void *)0;
                     {
                         String s = value_30;
-                        value_31 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                        value_31 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                     }
                     value_29 = value_31;
                 } else {
@@ -1782,7 +1418,7 @@ GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* fn, int32_t statement
                     uint8_t* value_34 = (void *)0;
                     {
                         String s = value_33;
-                        value_34 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                        value_34 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                     }
                     value_29 = value_34;
                 }
@@ -1795,7 +1431,7 @@ GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* fn, int32_t statement
                 uint8_t* value_39 = (void *)0;
                 {
                     String s = value_38;
-                    value_39 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_39 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_37 = value_39;
             } else {
@@ -1803,11 +1439,11 @@ GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* fn, int32_t statement
                 uint8_t* value_42 = (void *)0;
                 {
                     String s = value_41;
-                    value_42 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_42 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_37 = value_42;
             }
-            zir_f_39652e4564301f9f_fprintf(value_13, value_15, value_24, value_36, &(name[0]), value_37);
+            zir_foreign_compiler_go_asm__fprintf(value_13, value_15, value_24, value_36, &(name[0]), value_37);
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -1816,9 +1452,9 @@ GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* fn, int32_t statement
     uint8_t* value_46 = (void *)0;
     {
         String s = value_45;
-        value_46 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_46 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_44, value_46, &(ok[0]));
+    zir_foreign_compiler_go_asm__fprintf(value_44, value_46, &(ok[0]));
     if (site->by_value != 0) {
         {
             int32_t i = 0;
@@ -1828,16 +1464,16 @@ GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* fn, int32_t statement
                 }
                 uint8_t value[128] = {0};
                 uint8_t name[512] = {0};
-                zir_f_39652e4564301f9f_ArrayAbiName(fn, (int32_t)((uint32_t)(700002u + ((uint32_t)statement * 32u)) + (uint32_t)i), &(value[0]), (128) * (sizeof(uint8_t)));
-                zir_f_39652e4564301f9f_TargetBindingName(fn, (int32_t)(((ZirTarget)(1))), (v->operands[i]).binding, &(name[0]), (512) * (sizeof(uint8_t)));
+                zir_foreign_compiler_go_asm__ArrayAbiName(fn, (int32_t)((uint32_t)(700002u + ((uint32_t)statement * 32u)) + (uint32_t)i), &(value[0]), (128) * (sizeof(uint8_t)));
+                zir_foreign_compiler_go_asm__TargetBindingName(fn, (int32_t)(((ZirTarget)(1))), (v->operands[i]).binding, &(name[0]), (512) * (sizeof(uint8_t)));
                 void* value_48 = out;
                 String value_49 = StringLiteral("                %s = %s\n");
                 uint8_t* value_50 = (void *)0;
                 {
                     String s = value_49;
-                    value_50 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_50 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_39652e4564301f9f_fprintf(value_48, value_50, &(name[0]), &(value[0]));
+                zir_foreign_compiler_go_asm__fprintf(value_48, value_50, &(name[0]), &(value[0]));
                 i = (int32_t)((uint32_t)i + 1u);
             }
         }
@@ -1847,9 +1483,9 @@ GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* fn, int32_t statement
     uint8_t* value_54 = (void *)0;
     {
         String s = value_53;
-        value_54 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_54 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_52, value_54, &(done[0]), &(done[0]));
+    zir_foreign_compiler_go_asm__fprintf(value_52, value_54, &(done[0]), &(done[0]));
     return 1;
 }
 
@@ -1861,50 +1497,50 @@ compiler_go_asm_native_record(void* out, ZirModule* module, GoAssemblySite* site
         return;
     }
     ZirModule* owner = (ZirModule*)(((void *)0));
-    ZirType* record = zir_f_39652e4564301f9f_CFindType(module, &(site->function->return_type[0]), &(owner));
+    ZirType* record = zir_foreign_compiler_go_asm__CFindType(module, &(site->function->return_type[0]), &(owner));
     ZirModule* value_0 = (void *)0;
     if (owner != ((void *)0)) {
         value_0 = owner;
     } else {
         value_0 = module;
     }
-    zir_f_39652e4564301f9f_NativeTypeName(value_0, record, type, size);
+    zir_foreign_compiler_go_asm__NativeTypeName(value_0, record, type, size);
     void* value_1 = out;
     String value_2 = StringLiteral("#ifndef %s_DEFINED\n#define %s_DEFINED\ntypedef struct %s {\n");
     uint8_t* value_3 = (void *)0;
     {
         String s = value_2;
-        value_3 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_3 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_1, value_3, type, type, type);
+    zir_foreign_compiler_go_asm__fprintf(value_1, value_3, type, type, type);
     size_t offset = (size_t)(0LL);
     ZirTypeField field = {0};
     while (true) {
-        bool value_5 = zir_f_39652e4564301f9f_TypeNextField(record, &(offset), &(field)) == 1;
+        bool value_5 = zir_foreign_compiler_go_asm__TypeNextField(record, &(offset), &(field)) == 1;
         if (!value_5) {
             break;
         }
         uint8_t scalar[128] = {0};
         uint8_t name[512] = {0};
         compiler_go_asm_c_type(&(field.type[0]), &(scalar[0]), (128) * (sizeof(uint8_t)));
-        zir_f_39652e4564301f9f_TargetFieldName(record, (int32_t)(((ZirTarget)(0))), &(field.name[0]), &(name[0]), (512) * (sizeof(uint8_t)));
+        zir_foreign_compiler_go_asm__TargetFieldName(record, (int32_t)(((ZirTarget)(0))), &(field.name[0]), &(name[0]), (512) * (sizeof(uint8_t)));
         void* value_6 = out;
         String value_7 = StringLiteral("    %s %s;\n");
         uint8_t* value_8 = (void *)0;
         {
             String s = value_7;
-            value_8 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_8 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_39652e4564301f9f_fprintf(value_6, value_8, &(scalar[0]), &(name[0]));
+        zir_foreign_compiler_go_asm__fprintf(value_6, value_8, &(scalar[0]), &(name[0]));
     }
     void* value_10 = out;
     String value_11 = StringLiteral("} %s;\n#endif\n");
     uint8_t* value_12 = (void *)0;
     {
         String s = value_11;
-        value_12 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_12 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_10, value_12, type);
+    zir_foreign_compiler_go_asm__fprintf(value_10, value_12, type);
 }
 
 static void
@@ -1923,18 +1559,18 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
             uint8_t* value_5 = (void *)0;
             {
                 String s = value_4;
-                value_5 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_5 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
             value_3 = value_5;
         }
         value_1 = value_3;
     }
-    ZirParameters* parameters = zir_f_39652e4564301f9f_ParametersOf(value_1);
+    ZirParameters* parameters = zir_foreign_compiler_go_asm__ParametersOf(value_1);
     uint8_t result_type[512] = {0};
     uint8_t available[128] = {0};
     compiler_go_asm_native_record(out, module, site, &(result_type[0]), (512) * (sizeof(uint8_t)));
-    zir_f_39652e4564301f9f_ArrayAbiName(fn, 900000, &(available[0]), (128) * (sizeof(uint8_t)));
-    void* value_7 = zir_f_39652e4564301f9f_AllocateOrExit((size_t)(19200LL));
+    zir_foreign_compiler_go_asm__ArrayAbiName(fn, 900000, &(available[0]), (128) * (sizeof(uint8_t)));
+    void* value_7 = zir_foreign_compiler_go_asm__AllocateOrExit((size_t)(19200LL));
     uint8_t* args = (uint8_t*)(value_7);
     uint8_t* value_8 = &(args[0]);
     (*value_8) = 0;
@@ -1949,14 +1585,14 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
             uint8_t type[128] = {0};
             uint8_t name[512] = {0};
             compiler_go_asm_c_type((parameters->items[i]).type, &(type[0]), (128) * (sizeof(uint8_t)));
-            zir_f_39652e4564301f9f_TargetBindingName(fn, (int32_t)(((ZirTarget)(0))), (parameters->items[i]).name, &(name[0]), (512) * (sizeof(uint8_t)));
+            zir_foreign_compiler_go_asm__TargetBindingName(fn, (int32_t)(((ZirTarget)(0))), (parameters->items[i]).name, &(name[0]), (512) * (sizeof(uint8_t)));
             uint8_t* value_9 = (uint8_t*)(((size_t)(args) + ((size_t)(used) * sizeof(uint8_t))));
             size_t value_10 = capacity - used;
             String value_11 = StringLiteral("%s%s %s");
             uint8_t* value_12 = (void *)0;
             {
                 String s = value_11;
-                value_12 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_12 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
             uint8_t* value_14 = (void *)0;
             if (i != 0) {
@@ -1964,7 +1600,7 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
                 uint8_t* value_16 = (void *)0;
                 {
                     String s = value_15;
-                    value_16 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_16 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_14 = value_16;
             } else {
@@ -1972,13 +1608,13 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
                 uint8_t* value_19 = (void *)0;
                 {
                     String s = value_18;
-                    value_19 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_19 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_14 = value_19;
             }
-            int32_t n = zir_f_39652e4564301f9f_snprintf(value_9, value_10, value_12, value_14, &(type[0]), &(name[0]));
+            int32_t n = zir_foreign_compiler_go_asm__snprintf(value_9, value_10, value_12, value_14, &(type[0]), &(name[0]));
             if (n < 0 || (size_t)(n) >= capacity - used) {
-                zir_f_39652e4564301f9f_abort();
+                zir_foreign_compiler_go_asm__abort();
             }
             used = used + (size_t)(n);
             i = (int32_t)((uint32_t)i + 1u);
@@ -1990,7 +1626,7 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
     uint8_t* value_24 = (void *)0;
     {
         String s = value_23;
-        value_24 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_24 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
     uint8_t* value_26 = (void *)0;
     if (used != 0) {
@@ -1998,7 +1634,7 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
         uint8_t* value_28 = (void *)0;
         {
             String s = value_27;
-            value_28 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_28 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
         value_26 = value_28;
     } else {
@@ -2006,20 +1642,20 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
         uint8_t* value_31 = (void *)0;
         {
             String s = value_30;
-            value_31 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_31 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
         value_26 = value_31;
     }
-    zir_f_39652e4564301f9f_snprintf(value_21, value_22, value_24, value_26, &(available[0]));
-    zir_f_39652e4564301f9f_EmitAssemblyTryHelpers(out, module, fn, (int32_t)(((ZirTarget)(0))), &(result_type[0]), args, &(available[0]));
+    zir_foreign_compiler_go_asm__snprintf(value_21, value_22, value_24, value_26, &(available[0]));
+    zir_foreign_compiler_go_asm__EmitAssemblyTryHelpers(out, module, fn, (int32_t)(((ZirTarget)(0))), &(result_type[0]), args, &(available[0]));
     void* value_33 = out;
     String value_34 = StringLiteral("static %s %sAsm(%s) {\n    *%s = 0;\n");
     uint8_t* value_35 = (void *)0;
     {
         String s = value_34;
-        value_35 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_35 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_33, value_35, &(result_type[0]), &(site->name[0]), args, &(available[0]));
+    zir_foreign_compiler_go_asm__fprintf(value_33, value_35, &(result_type[0]), &(site->name[0]), args, &(available[0]));
     {
         int32_t i = 0;
         while (true) {
@@ -2027,52 +1663,52 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
                 break;
             }
             uint8_t name[512] = {0};
-            zir_f_39652e4564301f9f_TargetBindingName(fn, (int32_t)(((ZirTarget)(0))), (parameters->items[i]).name, &(name[0]), (512) * (sizeof(uint8_t)));
+            zir_foreign_compiler_go_asm__TargetBindingName(fn, (int32_t)(((ZirTarget)(0))), (parameters->items[i]).name, &(name[0]), (512) * (sizeof(uint8_t)));
             void* value_37 = out;
             String value_38 = StringLiteral("    (void)%s;\n");
             uint8_t* value_39 = (void *)0;
             {
                 String s = value_38;
-                value_39 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_39 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_39652e4564301f9f_fprintf(value_37, value_39, &(name[0]));
+            zir_foreign_compiler_go_asm__fprintf(value_37, value_39, &(name[0]));
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    zir_f_39652e4564301f9f_EmitAssemblyTry(out, module, fn, (int32_t)(((ZirTarget)(0))), &(result_type[0]), &(available[0]));
+    zir_foreign_compiler_go_asm__EmitAssemblyTry(out, module, fn, (int32_t)(((ZirTarget)(0))), &(result_type[0]), &(available[0]));
     String value_41 = StringLiteral("void");
     uint8_t* value_42 = (void *)0;
     {
         String s = value_41;
-        value_42 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_42 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    bool value_44 = zir_f_39652e4564301f9f_strcmp(&(fn->return_type[0]), value_42) != 0;
+    bool value_44 = zir_foreign_compiler_go_asm__strcmp(&(fn->return_type[0]), value_42) != 0;
     if (!value_44) {
         String value_45 = StringLiteral("    return;\n}\n");
         uint8_t* value_46 = (void *)0;
         {
             String s = value_45;
-            value_46 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_46 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_39652e4564301f9f_fputs(value_46, out);
+        zir_foreign_compiler_go_asm__fputs(value_46, out);
     } else {
         void* value_48 = out;
         String value_49 = StringLiteral("    return (%s){0};\n}\n");
         uint8_t* value_50 = (void *)0;
         {
             String s = value_49;
-            value_50 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_50 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_39652e4564301f9f_fprintf(value_48, value_50, &(result_type[0]));
+        zir_foreign_compiler_go_asm__fprintf(value_48, value_50, &(result_type[0]));
     }
     void* value_52 = out;
     String value_53 = StringLiteral("typedef struct { int available;\n");
     uint8_t* value_54 = (void *)0;
     {
         String s = value_53;
-        value_54 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_54 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_52, value_54);
+    zir_foreign_compiler_go_asm__fprintf(value_52, value_54);
     {
         int32_t i = 0;
         while (true) {
@@ -2086,9 +1722,9 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
             uint8_t* value_58 = (void *)0;
             {
                 String s = value_57;
-                value_58 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_58 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_39652e4564301f9f_fprintf(value_56, value_58, &(type[0]), i);
+            zir_foreign_compiler_go_asm__fprintf(value_56, value_58, &(type[0]), i);
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -2097,9 +1733,9 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
     uint8_t* value_62 = (void *)0;
     {
         String s = value_61;
-        value_62 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_62 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_60, value_62, &(site->name[0]), &(site->name[0]), &(site->name[0]));
+    zir_foreign_compiler_go_asm__fprintf(value_60, value_62, &(site->name[0]), &(site->name[0]), &(site->name[0]));
     {
         int32_t i = 0;
         while (true) {
@@ -2113,7 +1749,7 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
             uint8_t* value_66 = (void *)0;
             {
                 String s = value_65;
-                value_66 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_66 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
             uint8_t* value_68 = (void *)0;
             if (i != 0) {
@@ -2121,7 +1757,7 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
                 uint8_t* value_70 = (void *)0;
                 {
                     String s = value_69;
-                    value_70 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_70 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_68 = value_70;
             } else {
@@ -2129,11 +1765,11 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
                 uint8_t* value_73 = (void *)0;
                 {
                     String s = value_72;
-                    value_73 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_73 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_68 = value_73;
             }
-            zir_f_39652e4564301f9f_fprintf(value_64, value_66, value_68, &(type[0]), i);
+            zir_foreign_compiler_go_asm__fprintf(value_64, value_66, value_68, &(type[0]), i);
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -2142,36 +1778,36 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
         uint8_t* value_76 = (void *)0;
         {
             String s = value_75;
-            value_76 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_76 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_39652e4564301f9f_fputs(value_76, out);
+        zir_foreign_compiler_go_asm__fputs(value_76, out);
     }
     void* value_78 = out;
     String value_79 = StringLiteral(") {\n    %sResult result = {0};\n    ");
     uint8_t* value_80 = (void *)0;
     {
         String s = value_79;
-        value_80 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_80 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_78, value_80, &(site->name[0]));
+    zir_foreign_compiler_go_asm__fprintf(value_78, value_80, &(site->name[0]));
     if (site->variant.outputs != 0) {
         void* value_82 = out;
         String value_83 = StringLiteral("%s value = ");
         uint8_t* value_84 = (void *)0;
         {
             String s = value_83;
-            value_84 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_84 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_39652e4564301f9f_fprintf(value_82, value_84, &(result_type[0]));
+        zir_foreign_compiler_go_asm__fprintf(value_82, value_84, &(result_type[0]));
     }
     void* value_86 = out;
     String value_87 = StringLiteral("%sAsm(");
     uint8_t* value_88 = (void *)0;
     {
         String s = value_87;
-        value_88 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_88 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_86, value_88, &(site->name[0]));
+    zir_foreign_compiler_go_asm__fprintf(value_86, value_88, &(site->name[0]));
     {
         int32_t i = 0;
         while (true) {
@@ -2183,9 +1819,9 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
             uint8_t* value_92 = (void *)0;
             {
                 String s = value_91;
-                value_92 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_92 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_39652e4564301f9f_fprintf(value_90, value_92, i);
+            zir_foreign_compiler_go_asm__fprintf(value_90, value_92, i);
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -2193,9 +1829,9 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
     uint8_t* value_95 = (void *)0;
     {
         String s = value_94;
-        value_95 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_95 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fputs(value_95, out);
+    zir_foreign_compiler_go_asm__fputs(value_95, out);
     {
         int32_t i = 0;
         while (true) {
@@ -2207,29 +1843,29 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
             uint8_t* value_99 = (void *)0;
             {
                 String s = value_98;
-                value_99 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_99 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_39652e4564301f9f_fprintf(value_97, value_99, i);
+            zir_foreign_compiler_go_asm__fprintf(value_97, value_99, i);
             if (site->variant.record != 0) {
-                ZirType* record = zir_f_39652e4564301f9f_CFindType(module, &(fn->return_type[0]), (ZirModule**)(((void *)0)));
+                ZirType* record = zir_foreign_compiler_go_asm__CFindType(module, &(fn->return_type[0]), (ZirModule**)(((void *)0)));
                 uint8_t name[512] = {0};
-                zir_f_39652e4564301f9f_TargetFieldName(record, (int32_t)(((ZirTarget)(0))), (site->variant.operands[i]).binding, &(name[0]), (512) * (sizeof(uint8_t)));
+                zir_foreign_compiler_go_asm__TargetFieldName(record, (int32_t)(((ZirTarget)(0))), (site->variant.operands[i]).binding, &(name[0]), (512) * (sizeof(uint8_t)));
                 void* value_101 = out;
                 String value_102 = StringLiteral(".%s");
                 uint8_t* value_103 = (void *)0;
                 {
                     String s = value_102;
-                    value_103 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_103 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_39652e4564301f9f_fprintf(value_101, value_103, &(name[0]));
+                zir_foreign_compiler_go_asm__fprintf(value_101, value_103, &(name[0]));
             }
             String value_105 = StringLiteral(";\n");
             uint8_t* value_106 = (void *)0;
             {
                 String s = value_105;
-                value_106 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_106 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_39652e4564301f9f_fputs(value_106, out);
+            zir_foreign_compiler_go_asm__fputs(value_106, out);
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -2237,10 +1873,10 @@ compiler_go_asm_c_function(void* out, ZirModule* module, GoAssemblySite* site)
     uint8_t* value_109 = (void *)0;
     {
         String s = value_108;
-        value_109 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_109 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fputs(value_109, out);
-    zir_f_39652e4564301f9f_free((void*)(args));
+    zir_foreign_compiler_go_asm__fputs(value_109, out);
+    zir_foreign_compiler_go_asm__free((void*)(args));
 }
 
 static void
@@ -2254,24 +1890,24 @@ compiler_go_asm_go_conversion(void* out, ZirModule* module, uint8_t* type, int32
         uint8_t* value_1 = (void *)0;
         {
             String s = value_0;
-            value_1 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_1 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_39652e4564301f9f_fprintf(out, value_1, &(native[0]), i);
+        zir_foreign_compiler_go_asm__fprintf(out, value_1, &(native[0]), i);
     } else {
         String value_3 = StringLiteral("%s(result.v%d)");
         uint8_t* value_4 = (void *)0;
         {
             String s = value_3;
-            value_4 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_4 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_39652e4564301f9f_fprintf(out, value_4, &(native[0]), i);
+        zir_foreign_compiler_go_asm__fprintf(out, value_4, &(native[0]), i);
     }
 }
 
 static void
 compiler_go_asm_block_parameter(ZirFunction* fn, int32_t statement, int32_t operand, uint8_t* out, size_t size)
 {
-    zir_f_39652e4564301f9f_ArrayAbiName(fn, (int32_t)((uint32_t)(800000u + ((uint32_t)statement * 32u)) + (uint32_t)operand), out, size);
+    zir_foreign_compiler_go_asm__ArrayAbiName(fn, (int32_t)((uint32_t)(800000u + ((uint32_t)statement * 32u)) + (uint32_t)operand), out, size);
 }
 
 static void
@@ -2295,7 +1931,7 @@ compiler_go_asm_block_operand(void* context, int32_t operand, uint8_t* out, size
     uint8_t* value_3 = (void *)0;
     {
         String s = value_2;
-        value_3 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_3 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
     uint8_t* value_5 = (void *)0;
     if ((output != 0 && !(site->by_value != 0)) || (site->storage)[operand] != 0) {
@@ -2303,7 +1939,7 @@ compiler_go_asm_block_operand(void* context, int32_t operand, uint8_t* out, size
         uint8_t* value_7 = (void *)0;
         {
             String s = value_6;
-            value_7 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_7 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
         value_5 = value_7;
     } else {
@@ -2311,7 +1947,7 @@ compiler_go_asm_block_operand(void* context, int32_t operand, uint8_t* out, size
         uint8_t* value_10 = (void *)0;
         {
             String s = value_9;
-            value_10 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_10 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
         value_5 = value_10;
     }
@@ -2322,7 +1958,7 @@ compiler_go_asm_block_operand(void* context, int32_t operand, uint8_t* out, size
         uint8_t* value_15 = (void *)0;
         {
             String s = value_14;
-            value_15 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_15 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
         value_13 = value_15;
     } else {
@@ -2330,11 +1966,11 @@ compiler_go_asm_block_operand(void* context, int32_t operand, uint8_t* out, size
         uint8_t* value_18 = (void *)0;
         {
             String s = value_17;
-            value_18 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_18 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
         value_13 = value_18;
     }
-    zir_f_39652e4564301f9f_snprintf(out, size, value_3, value_12, &(name[0]), value_13);
+    zir_foreign_compiler_go_asm__snprintf(out, size, value_3, value_12, &(name[0]), value_13);
 }
 
 static void
@@ -2354,7 +1990,7 @@ compiler_go_asm_c_block(void* out, ZirModule* module, GoAssemblySite* site)
                 continue;
             }
             ZirModule* owner = (ZirModule*)(((void *)0));
-            ZirType* record = zir_f_39652e4564301f9f_CFindType(module, (uint8_t*)(((size_t)(type) + ((size_t)(1LL) * sizeof(uint8_t)))), &(owner));
+            ZirType* record = zir_foreign_compiler_go_asm__CFindType(module, (uint8_t*)(((size_t)(type) + ((size_t)(1LL) * sizeof(uint8_t)))), &(owner));
             if (record != ((void *)0)) {
                 uint8_t native[512] = {0};
                 ZirModule* value_0 = (void *)0;
@@ -2363,28 +1999,28 @@ compiler_go_asm_c_block(void* out, ZirModule* module, GoAssemblySite* site)
                 } else {
                     value_0 = module;
                 }
-                zir_f_39652e4564301f9f_NativeTypeName(value_0, record, &(native[0]), (512) * (sizeof(uint8_t)));
+                zir_foreign_compiler_go_asm__NativeTypeName(value_0, record, &(native[0]), (512) * (sizeof(uint8_t)));
                 void* value_1 = out;
                 String value_2 = StringLiteral("#ifndef %s_DECLARED\n#define %s_DECLARED\ntypedef struct %s %s;\n#endif\n");
                 uint8_t* value_3 = (void *)0;
                 {
                     String s = value_2;
-                    value_3 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_3 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_39652e4564301f9f_fprintf(value_1, value_3, &(native[0]), &(native[0]), &(native[0]), &(native[0]));
+                zir_foreign_compiler_go_asm__fprintf(value_1, value_3, &(native[0]), &(native[0]), &(native[0]), &(native[0]));
             }
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    zir_f_39652e4564301f9f_EmitAssemblyBlockHelpersAt(out, module, fn, site->statement);
+    zir_foreign_compiler_go_asm__EmitAssemblyBlockHelpersAt(out, module, fn, site->statement);
     void* value_5 = out;
     String value_6 = StringLiteral("typedef struct { int available;\n");
     uint8_t* value_7 = (void *)0;
     {
         String s = value_6;
-        value_7 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_7 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_5, value_7);
+    zir_foreign_compiler_go_asm__fprintf(value_5, value_7);
     if (site->by_value != 0) {
         {
             int32_t i = 0;
@@ -2399,9 +2035,9 @@ compiler_go_asm_c_block(void* out, ZirModule* module, GoAssemblySite* site)
                 uint8_t* value_11 = (void *)0;
                 {
                     String s = value_10;
-                    value_11 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_11 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_39652e4564301f9f_fprintf(value_9, value_11, &(type[0]), i);
+                zir_foreign_compiler_go_asm__fprintf(value_9, value_11, &(type[0]), i);
                 i = (int32_t)((uint32_t)i + 1u);
             }
         }
@@ -2411,9 +2047,9 @@ compiler_go_asm_c_block(void* out, ZirModule* module, GoAssemblySite* site)
     uint8_t* value_15 = (void *)0;
     {
         String s = value_14;
-        value_15 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_15 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_13, value_15, &(site->name[0]), &(site->name[0]), &(site->name[0]));
+    zir_foreign_compiler_go_asm__fprintf(value_13, value_15, &(site->name[0]), &(site->name[0]), &(site->name[0]));
     int32_t value_17 = 0;
     if (site->by_value != 0) {
         value_17 = v->outputs;
@@ -2436,7 +2072,7 @@ compiler_go_asm_c_block(void* out, ZirModule* module, GoAssemblySite* site)
             uint8_t* value_20 = (void *)0;
             {
                 String s = value_19;
-                value_20 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_20 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
             uint8_t* value_22 = (void *)0;
             if (i > first) {
@@ -2444,7 +2080,7 @@ compiler_go_asm_c_block(void* out, ZirModule* module, GoAssemblySite* site)
                 uint8_t* value_24 = (void *)0;
                 {
                     String s = value_23;
-                    value_24 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_24 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_22 = value_24;
             } else {
@@ -2452,7 +2088,7 @@ compiler_go_asm_c_block(void* out, ZirModule* module, GoAssemblySite* site)
                 uint8_t* value_27 = (void *)0;
                 {
                     String s = value_26;
-                    value_27 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_27 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_22 = value_27;
             }
@@ -2463,7 +2099,7 @@ compiler_go_asm_c_block(void* out, ZirModule* module, GoAssemblySite* site)
                 uint8_t* value_32 = (void *)0;
                 {
                     String s = value_31;
-                    value_32 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_32 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_30 = value_32;
             } else {
@@ -2471,11 +2107,11 @@ compiler_go_asm_c_block(void* out, ZirModule* module, GoAssemblySite* site)
                 uint8_t* value_35 = (void *)0;
                 {
                     String s = value_34;
-                    value_35 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_35 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_30 = value_35;
             }
-            zir_f_39652e4564301f9f_fprintf(value_18, value_20, value_29, &(type[0]), value_30, &(name[0]));
+            zir_foreign_compiler_go_asm__fprintf(value_18, value_20, value_29, &(type[0]), value_30, &(name[0]));
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
@@ -2484,18 +2120,18 @@ compiler_go_asm_c_block(void* out, ZirModule* module, GoAssemblySite* site)
         uint8_t* value_38 = (void *)0;
         {
             String s = value_37;
-            value_38 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_38 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_39652e4564301f9f_fputs(value_38, out);
+        zir_foreign_compiler_go_asm__fputs(value_38, out);
     }
     void* value_40 = out;
     String value_41 = StringLiteral(") {\n");
     uint8_t* value_42 = (void *)0;
     {
         String s = value_41;
-        value_42 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_42 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_40, value_42);
+    zir_foreign_compiler_go_asm__fprintf(value_40, value_42);
     if (site->by_value != 0) {
         {
             int32_t i = 0;
@@ -2512,9 +2148,9 @@ compiler_go_asm_c_block(void* out, ZirModule* module, GoAssemblySite* site)
                 uint8_t* value_46 = (void *)0;
                 {
                     String s = value_45;
-                    value_46 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_46 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_39652e4564301f9f_fprintf(value_44, value_46, &(type[0]), &(name[0]));
+                zir_foreign_compiler_go_asm__fprintf(value_44, value_46, &(type[0]), &(name[0]));
                 i = (int32_t)((uint32_t)i + 1u);
             }
         }
@@ -2532,32 +2168,32 @@ compiler_go_asm_c_block(void* out, ZirModule* module, GoAssemblySite* site)
             uint8_t* value_50 = (void *)0;
             {
                 String s = value_49;
-                value_50 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_50 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_39652e4564301f9f_fprintf(value_48, value_50, &(parameter[0]));
+            zir_foreign_compiler_go_asm__fprintf(value_48, value_50, &(parameter[0]));
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    bool value_52 = zir_f_39652e4564301f9f_EmitAssemblyBlockMapped(out, module, fn, site->statement, compiler_go_asm_block_operand, (void*)(site)) != 0;
+    bool value_52 = zir_foreign_compiler_go_asm__EmitAssemblyBlockMapped(out, module, fn, site->statement, compiler_go_asm_block_operand, (void*)(site)) != 0;
     if (!value_52) {
-        zir_f_39652e4564301f9f_abort();
+        zir_foreign_compiler_go_asm__abort();
     }
     void* value_53 = out;
     String value_54 = StringLiteral("            return (%sResult){0};\n    }\n    }\n");
     uint8_t* value_55 = (void *)0;
     {
         String s = value_54;
-        value_55 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_55 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_53, value_55, &(site->name[0]));
+    zir_foreign_compiler_go_asm__fprintf(value_53, value_55, &(site->name[0]));
     void* value_57 = out;
     String value_58 = StringLiteral("    return (%sResult){1");
     uint8_t* value_59 = (void *)0;
     {
         String s = value_58;
-        value_59 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_59 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_57, value_59, &(site->name[0]));
+    zir_foreign_compiler_go_asm__fprintf(value_57, value_59, &(site->name[0]));
     if (site->by_value != 0) {
         {
             int32_t i = 0;
@@ -2572,9 +2208,9 @@ compiler_go_asm_c_block(void* out, ZirModule* module, GoAssemblySite* site)
                 uint8_t* value_63 = (void *)0;
                 {
                     String s = value_62;
-                    value_63 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_63 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_39652e4564301f9f_fprintf(value_61, value_63, &(name[0]));
+                zir_foreign_compiler_go_asm__fprintf(value_61, value_63, &(name[0]));
                 i = (int32_t)((uint32_t)i + 1u);
             }
         }
@@ -2583,16 +2219,16 @@ compiler_go_asm_c_block(void* out, ZirModule* module, GoAssemblySite* site)
     uint8_t* value_66 = (void *)0;
     {
         String s = value_65;
-        value_66 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_66 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fputs(value_66, out);
+    zir_foreign_compiler_go_asm__fputs(value_66, out);
     String value_68 = StringLiteral("}\n\n");
     uint8_t* value_69 = (void *)0;
     {
         String s = value_68;
-        value_69 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_69 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fputs(value_69, out);
+    zir_foreign_compiler_go_asm__fputs(value_69, out);
 }
 
 static int32_t
@@ -2611,7 +2247,7 @@ compiler_go_asm_write_direct(GoAssembly* assembly, uint8_t* path, uint8_t* packa
                     if (!(j < (assembly->sites[i]).direct_count)) {
                         break;
                     }
-                    if (zir_f_39652e4564301f9f_GoAmd64Supported(((assembly->sites[i]).direct)[j]) != 0) {
+                    if (zir_foreign_compiler_go_asm__GoAmd64Supported(((assembly->sites[i]).direct)[j]) != 0) {
                         first = &(assembly->sites[i]);
                         break;
                     }
@@ -2626,7 +2262,7 @@ compiler_go_asm_write_direct(GoAssembly* assembly, uint8_t* path, uint8_t* packa
     }
     uint8_t declaration[1024] = {0};
     uint8_t instruction[1024] = {0};
-    size_t length = zir_f_39652e4564301f9f_strlen(path);
+    size_t length = zir_foreign_compiler_go_asm__strlen(path);
     if (length < (size_t)(3LL) || length + (size_t)(40LL) >= ((1024) * (sizeof(uint8_t)))) {
         return 1;
     }
@@ -2634,53 +2270,53 @@ compiler_go_asm_write_direct(GoAssembly* assembly, uint8_t* path, uint8_t* packa
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_snprintf(&(declaration[0]), (1024) * (sizeof(uint8_t)), value_1, (int32_t)((uint32_t)(length) - 3u), path);
+    zir_foreign_compiler_go_asm__snprintf(&(declaration[0]), (1024) * (sizeof(uint8_t)), value_1, (int32_t)((uint32_t)(length) - 3u), path);
     String value_3 = StringLiteral("%.*s.assembly_direct_amd64.s");
     uint8_t* value_4 = (void *)0;
     {
         String s = value_3;
-        value_4 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_4 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_snprintf(&(instruction[0]), (1024) * (sizeof(uint8_t)), value_4, (int32_t)((uint32_t)(length) - 3u), path);
-    zir_f_39652e4564301f9f_GeneratedOutputRecord(&(declaration[0]));
-    zir_f_39652e4564301f9f_GeneratedOutputRecord(&(instruction[0]));
+    zir_foreign_compiler_go_asm__snprintf(&(instruction[0]), (1024) * (sizeof(uint8_t)), value_4, (int32_t)((uint32_t)(length) - 3u), path);
+    zir_foreign_compiler_go_asm__GeneratedOutputRecord(&(declaration[0]));
+    zir_foreign_compiler_go_asm__GeneratedOutputRecord(&(instruction[0]));
     String value_6 = StringLiteral("wb");
     uint8_t* value_7 = (void *)0;
     {
         String s = value_6;
-        value_7 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_7 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    void* go = zir_f_39652e4564301f9f_fopen(&(declaration[0]), value_7);
+    void* go = zir_foreign_compiler_go_asm__fopen(&(declaration[0]), value_7);
     String value_9 = StringLiteral("wb");
     uint8_t* value_10 = (void *)0;
     {
         String s = value_9;
-        value_10 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_10 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    void* native = zir_f_39652e4564301f9f_fopen(&(instruction[0]), value_10);
+    void* native = zir_foreign_compiler_go_asm__fopen(&(instruction[0]), value_10);
     if (go == ((void *)0) || native == ((void *)0)) {
         if (go != ((void *)0)) {
-            zir_f_39652e4564301f9f_fclose(go);
+            zir_foreign_compiler_go_asm__fclose(go);
         }
         if (native != ((void *)0)) {
-            zir_f_39652e4564301f9f_fclose(native);
+            zir_foreign_compiler_go_asm__fclose(native);
         }
         ZirSourceSpan value_12 = assembly->module->span;
         String value_13 = StringLiteral("zir_go.body");
         uint8_t* value_14 = (void *)0;
         {
             String s = value_13;
-            value_14 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_14 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
         String value_16 = StringLiteral("cannot create direct assembly companions");
         uint8_t* value_17 = (void *)0;
         {
             String s = value_16;
-            value_17 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_17 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_39652e4564301f9f_Diagnostic(value_12, value_14, value_17);
+        zir_foreign_compiler_go_asm__Diagnostic(value_12, value_14, value_17);
         return 1;
     }
     void* value_19 = go;
@@ -2688,18 +2324,18 @@ compiler_go_asm_write_direct(GoAssembly* assembly, uint8_t* path, uint8_t* packa
     uint8_t* value_21 = (void *)0;
     {
         String s = value_20;
-        value_21 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_21 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_19, value_21, &(assembly->module->source_path[0]), package);
+    zir_foreign_compiler_go_asm__fprintf(value_19, value_21, &(assembly->module->source_path[0]), package);
     void* value_23 = native;
     String value_24 = StringLiteral("// Code generated by zi2go from %s. DO NOT EDIT.\n//go:build !cgo && ziran_asm && amd64\n\n#include \"textflag.h\"\n\n");
     uint8_t* value_25 = (void *)0;
     {
         String s = value_24;
-        value_25 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_25 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_23, value_25, &(assembly->module->source_path[0]));
-    zir_f_39652e4564301f9f_GoAmd64Cpu(go, native, &(first->name[0]));
+    zir_foreign_compiler_go_asm__fprintf(value_23, value_25, &(assembly->module->source_path[0]));
+    zir_foreign_compiler_go_asm__GoAmd64Cpu(go, native, &(first->name[0]));
     {
         int32_t i = 0;
         while (true) {
@@ -2718,16 +2354,16 @@ compiler_go_asm_write_direct(GoAssembly* assembly, uint8_t* path, uint8_t* packa
                     if (!(j < site->direct_count)) {
                         break;
                     }
-                    if (zir_f_39652e4564301f9f_GoAmd64Supported(site->direct[j]) != 0) {
+                    if (zir_foreign_compiler_go_asm__GoAmd64Supported(site->direct[j]) != 0) {
                         uint8_t name[160] = {0};
                         String value_27 = StringLiteral("%sDirectAmd64%d");
                         uint8_t* value_28 = (void *)0;
                         {
                             String s = value_27;
-                            value_28 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                            value_28 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                         }
-                        zir_f_39652e4564301f9f_snprintf(&(name[0]), (160) * (sizeof(uint8_t)), value_28, &(site->name[0]), j);
-                        zir_f_39652e4564301f9f_GoAmd64Write(go, native, site->direct[j], &(name[0]));
+                        zir_foreign_compiler_go_asm__snprintf(&(name[0]), (160) * (sizeof(uint8_t)), value_28, &(site->name[0]), j);
+                        zir_foreign_compiler_go_asm__GoAmd64Write(go, native, site->direct[j], &(name[0]));
                         supported = 1;
                     }
                     j = (int32_t)((uint32_t)j + 1u);
@@ -2741,22 +2377,22 @@ compiler_go_asm_write_direct(GoAssembly* assembly, uint8_t* path, uint8_t* packa
             uint8_t* value_31 = (void *)0;
             {
                 String s = value_30;
-                value_31 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_31 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_39652e4564301f9f_fputs(value_31, go);
+            zir_foreign_compiler_go_asm__fputs(value_31, go);
             {
                 int32_t j = 0;
                 while (true) {
                     if (!(j < site->direct_count)) {
                         break;
                     }
-                    uint64_t mask = zir_f_39652e4564301f9f_GoAmd64Features(site->direct[j]);
+                    uint64_t mask = zir_foreign_compiler_go_asm__GoAmd64Features(site->direct[j]);
                     void* value_33 = go;
                     String value_34 = StringLiteral("    %sif %sFeatures & 0x%llx == 0x%llx {\n");
                     uint8_t* value_35 = (void *)0;
                     {
                         String s = value_34;
-                        value_35 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                        value_35 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                     }
                     uint8_t* value_37 = (void *)0;
                     if (j != 0) {
@@ -2764,7 +2400,7 @@ compiler_go_asm_write_direct(GoAssembly* assembly, uint8_t* path, uint8_t* packa
                         uint8_t* value_39 = (void *)0;
                         {
                             String s = value_38;
-                            value_39 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                            value_39 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                         }
                         value_37 = value_39;
                     } else {
@@ -2772,20 +2408,20 @@ compiler_go_asm_write_direct(GoAssembly* assembly, uint8_t* path, uint8_t* packa
                         uint8_t* value_42 = (void *)0;
                         {
                             String s = value_41;
-                            value_42 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                            value_42 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                         }
                         value_37 = value_42;
                     }
-                    zir_f_39652e4564301f9f_fprintf(value_33, value_35, value_37, &(first->name[0]), mask, mask);
-                    if (zir_f_39652e4564301f9f_GoAmd64Supported(site->direct[j]) != 0) {
+                    zir_foreign_compiler_go_asm__fprintf(value_33, value_35, value_37, &(first->name[0]), mask, mask);
+                    if (zir_foreign_compiler_go_asm__GoAmd64Supported(site->direct[j]) != 0) {
                         void* value_44 = go;
                         String value_45 = StringLiteral("        %s = %sDirectAmd64%d\n");
                         uint8_t* value_46 = (void *)0;
                         {
                             String s = value_45;
-                            value_46 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                            value_46 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                         }
-                        zir_f_39652e4564301f9f_fprintf(value_44, value_46, &(site->name[0]), &(site->name[0]), j);
+                        zir_foreign_compiler_go_asm__fprintf(value_44, value_46, &(site->name[0]), &(site->name[0]), j);
                     }
                     j = (int32_t)((uint32_t)j + 1u);
                 }
@@ -2794,28 +2430,28 @@ compiler_go_asm_write_direct(GoAssembly* assembly, uint8_t* path, uint8_t* packa
             uint8_t* value_49 = (void *)0;
             {
                 String s = value_48;
-                value_49 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_49 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_39652e4564301f9f_fputs(value_49, go);
+            zir_foreign_compiler_go_asm__fputs(value_49, go);
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    bool value_51 = zir_f_39652e4564301f9f_ferror(go) != 0;
-    bool value_52 = value_51 || zir_f_39652e4564301f9f_ferror(native) != 0;
+    bool value_51 = zir_foreign_compiler_go_asm__ferror(go) != 0;
+    bool value_52 = value_51 || zir_foreign_compiler_go_asm__ferror(native) != 0;
     int32_t value_53 = 0;
     if (value_52) {
         value_53 = 1;
     }
     int32_t failed = value_53;
     int32_t value_54 = failed;
-    bool value_55 = zir_f_39652e4564301f9f_fclose(go) != 0;
+    bool value_55 = zir_foreign_compiler_go_asm__fclose(go) != 0;
     int32_t value_56 = 0;
     if (value_55) {
         value_56 = 1;
     }
     failed = (int32_t)((uint32_t)value_54 | (uint32_t)value_56);
     int32_t value_57 = failed;
-    bool value_58 = zir_f_39652e4564301f9f_fclose(native) != 0;
+    bool value_58 = zir_foreign_compiler_go_asm__fclose(native) != 0;
     int32_t value_59 = 0;
     if (value_58) {
         value_59 = 1;
@@ -2827,15 +2463,15 @@ compiler_go_asm_write_direct(GoAssembly* assembly, uint8_t* path, uint8_t* packa
         uint8_t* value_62 = (void *)0;
         {
             String s = value_61;
-            value_62 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_62 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
         String value_64 = StringLiteral("cannot finish direct assembly companions");
         uint8_t* value_65 = (void *)0;
         {
             String s = value_64;
-            value_65 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_65 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_39652e4564301f9f_Diagnostic(value_60, value_62, value_65);
+        zir_foreign_compiler_go_asm__Diagnostic(value_60, value_62, value_65);
     }
     return failed;
 }
@@ -2849,7 +2485,7 @@ GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package)
     uint8_t header[1024] = {0};
     uint8_t companion[1024] = {0};
     uint8_t dispatch[1024] = {0};
-    size_t length = zir_f_39652e4564301f9f_strlen(path);
+    size_t length = zir_foreign_compiler_go_asm__strlen(path);
     if (length < (size_t)(3LL) || length + (size_t)(24LL) >= ((1024) * (sizeof(uint8_t)))) {
         return 1;
     }
@@ -2857,71 +2493,71 @@ GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package)
     uint8_t* value_1 = (void *)0;
     {
         String s = value_0;
-        value_1 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_1 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_snprintf(&(header[0]), (1024) * (sizeof(uint8_t)), value_1, (int32_t)((uint32_t)(length) - 3u), path);
+    zir_foreign_compiler_go_asm__snprintf(&(header[0]), (1024) * (sizeof(uint8_t)), value_1, (int32_t)((uint32_t)(length) - 3u), path);
     String value_3 = StringLiteral("%.*s.assembly.go");
     uint8_t* value_4 = (void *)0;
     {
         String s = value_3;
-        value_4 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_4 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_snprintf(&(companion[0]), (1024) * (sizeof(uint8_t)), value_4, (int32_t)((uint32_t)(length) - 3u), path);
+    zir_foreign_compiler_go_asm__snprintf(&(companion[0]), (1024) * (sizeof(uint8_t)), value_4, (int32_t)((uint32_t)(length) - 3u), path);
     String value_6 = StringLiteral("%.*s.assembly_dispatch.go");
     uint8_t* value_7 = (void *)0;
     {
         String s = value_6;
-        value_7 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_7 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_snprintf(&(dispatch[0]), (1024) * (sizeof(uint8_t)), value_7, (int32_t)((uint32_t)(length) - 3u), path);
-    zir_f_39652e4564301f9f_GeneratedOutputRecord(&(header[0]));
-    zir_f_39652e4564301f9f_GeneratedOutputRecord(&(companion[0]));
-    zir_f_39652e4564301f9f_GeneratedOutputRecord(&(dispatch[0]));
+    zir_foreign_compiler_go_asm__snprintf(&(dispatch[0]), (1024) * (sizeof(uint8_t)), value_7, (int32_t)((uint32_t)(length) - 3u), path);
+    zir_foreign_compiler_go_asm__GeneratedOutputRecord(&(header[0]));
+    zir_foreign_compiler_go_asm__GeneratedOutputRecord(&(companion[0]));
+    zir_foreign_compiler_go_asm__GeneratedOutputRecord(&(dispatch[0]));
     String value_9 = StringLiteral("wb");
     uint8_t* value_10 = (void *)0;
     {
         String s = value_9;
-        value_10 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_10 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    void* c = zir_f_39652e4564301f9f_fopen(&(header[0]), value_10);
+    void* c = zir_foreign_compiler_go_asm__fopen(&(header[0]), value_10);
     String value_12 = StringLiteral("wb");
     uint8_t* value_13 = (void *)0;
     {
         String s = value_12;
-        value_13 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_13 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    void* go = zir_f_39652e4564301f9f_fopen(&(companion[0]), value_13);
+    void* go = zir_foreign_compiler_go_asm__fopen(&(companion[0]), value_13);
     String value_15 = StringLiteral("wb");
     uint8_t* value_16 = (void *)0;
     {
         String s = value_15;
-        value_16 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_16 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    void* decl = zir_f_39652e4564301f9f_fopen(&(dispatch[0]), value_16);
+    void* decl = zir_foreign_compiler_go_asm__fopen(&(dispatch[0]), value_16);
     if (c == ((void *)0) || go == ((void *)0) || decl == ((void *)0)) {
         if (c != ((void *)0)) {
-            zir_f_39652e4564301f9f_fclose(c);
+            zir_foreign_compiler_go_asm__fclose(c);
         }
         if (go != ((void *)0)) {
-            zir_f_39652e4564301f9f_fclose(go);
+            zir_foreign_compiler_go_asm__fclose(go);
         }
         if (decl != ((void *)0)) {
-            zir_f_39652e4564301f9f_fclose(decl);
+            zir_foreign_compiler_go_asm__fclose(decl);
         }
         ZirSourceSpan value_18 = assembly->module->span;
         String value_19 = StringLiteral("zir_go.body");
         uint8_t* value_20 = (void *)0;
         {
             String s = value_19;
-            value_20 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_20 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
         String value_22 = StringLiteral("cannot create assembly companions");
         uint8_t* value_23 = (void *)0;
         {
             String s = value_22;
-            value_23 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_23 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_39652e4564301f9f_Diagnostic(value_18, value_20, value_23);
+        zir_foreign_compiler_go_asm__Diagnostic(value_18, value_20, value_23);
         return 1;
     }
     void* value_25 = c;
@@ -2929,10 +2565,10 @@ GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package)
     uint8_t* value_27 = (void *)0;
     {
         String s = value_26;
-        value_27 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_27 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_25, value_27, &(assembly->module->source_path[0]));
-    uint8_t* base = zir_f_39652e4564301f9f_strrchr(&(header[0]), 47);
+    zir_foreign_compiler_go_asm__fprintf(value_25, value_27, &(assembly->module->source_path[0]));
+    uint8_t* base = zir_foreign_compiler_go_asm__strrchr(&(header[0]), 47);
     uint8_t* value_29 = (void *)0;
     if (base != ((void *)0)) {
         value_29 = (uint8_t*)(((size_t)(base) + ((size_t)(1LL) * sizeof(uint8_t))));
@@ -2945,17 +2581,17 @@ GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package)
     uint8_t* value_32 = (void *)0;
     {
         String s = value_31;
-        value_32 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_32 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_30, value_32, &(assembly->module->source_path[0]), package, base);
+    zir_foreign_compiler_go_asm__fprintf(value_30, value_32, &(assembly->module->source_path[0]), package, base);
     void* value_34 = decl;
     String value_35 = StringLiteral("// Code generated by zi2go from %s. DO NOT EDIT.\npackage %s\n\nimport \"unsafe\"\nvar _ unsafe.Pointer\n\n");
     uint8_t* value_36 = (void *)0;
     {
         String s = value_35;
-        value_36 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+        value_36 = ((compiler_go_asm_StaticText*)(&(s)))->data;
     }
-    zir_f_39652e4564301f9f_fprintf(value_34, value_36, &(assembly->module->source_path[0]), package);
+    zir_foreign_compiler_go_asm__fprintf(value_34, value_36, &(assembly->module->source_path[0]), package);
     {
         int32_t i = 0;
         while (true) {
@@ -2968,17 +2604,17 @@ GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package)
             uint8_t* value_40 = (void *)0;
             {
                 String s = value_39;
-                value_40 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_40 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_39652e4564301f9f_fprintf(value_38, value_40, &(site->name[0]));
+            zir_foreign_compiler_go_asm__fprintf(value_38, value_40, &(site->name[0]));
             compiler_go_asm_go_signature(decl, assembly->module, site, 0);
             String value_42 = StringLiteral("\n\n");
             uint8_t* value_43 = (void *)0;
             {
                 String s = value_42;
-                value_43 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_43 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_39652e4564301f9f_fputs(value_43, decl);
+            zir_foreign_compiler_go_asm__fputs(value_43, decl);
             AssemblyVariant* v = &(site->variant);
             if (site->statement < 0) {
                 compiler_go_asm_c_function(c, assembly->module, site);
@@ -2990,34 +2626,34 @@ GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package)
             uint8_t* value_47 = (void *)0;
             {
                 String s = value_46;
-                value_47 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_47 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_39652e4564301f9f_fprintf(value_45, value_47, &(site->name[0]));
-            zir_f_39652e4564301f9f_EmitAssemblyAvailable(c, site->function, site->statement);
+            zir_foreign_compiler_go_asm__fprintf(value_45, value_47, &(site->name[0]));
+            zir_foreign_compiler_go_asm__EmitAssemblyAvailable(c, site->function, site->statement);
             String value_49 = StringLiteral("}\n\n");
             uint8_t* value_50 = (void *)0;
             {
                 String s = value_49;
-                value_50 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_50 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_39652e4564301f9f_fputs(value_50, c);
+            zir_foreign_compiler_go_asm__fputs(value_50, c);
             void* value_52 = go;
             String value_53 = StringLiteral("var _ = func() bool { if C.%sAvailable() != 0 { %s = %sNative }; return true }()\nfunc %sNative(");
             uint8_t* value_54 = (void *)0;
             {
                 String s = value_53;
-                value_54 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_54 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_39652e4564301f9f_fprintf(value_52, value_54, &(site->name[0]), &(site->name[0]), &(site->name[0]), &(site->name[0]));
+            zir_foreign_compiler_go_asm__fprintf(value_52, value_54, &(site->name[0]), &(site->name[0]), &(site->name[0]), &(site->name[0]));
             compiler_go_asm_go_signature(go, assembly->module, site, 1);
             void* value_56 = go;
             String value_57 = StringLiteral(" {\n    result := C.%sC(");
             uint8_t* value_58 = (void *)0;
             {
                 String s = value_57;
-                value_58 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_58 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_39652e4564301f9f_fprintf(value_56, value_58, &(site->name[0]));
+            zir_foreign_compiler_go_asm__fprintf(value_56, value_58, &(site->name[0]));
             int32_t value_60 = 0;
             if (site->statement >= 0) {
                 value_60 = 1;
@@ -3042,9 +2678,9 @@ GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package)
                         uint8_t* value_63 = (void *)0;
                         {
                             String s = value_62;
-                            value_63 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                            value_63 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                         }
-                        zir_f_39652e4564301f9f_fputs(value_63, go);
+                        zir_foreign_compiler_go_asm__fputs(value_63, go);
                     }
                     if (block != 0 && (p < v->outputs || (site->storage)[p] != 0)) {
                         uint8_t native[128] = {0};
@@ -3054,9 +2690,9 @@ GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package)
                         uint8_t* value_67 = (void *)0;
                         {
                             String s = value_66;
-                            value_67 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                            value_67 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                         }
-                        zir_f_39652e4564301f9f_fprintf(value_65, value_67, &(native[0]), p);
+                        zir_foreign_compiler_go_asm__fprintf(value_65, value_67, &(native[0]), p);
                     } else {
                         if (type[0] == 42) {
                             void* value_69 = go;
@@ -3064,9 +2700,9 @@ GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package)
                             uint8_t* value_71 = (void *)0;
                             {
                                 String s = value_70;
-                                value_71 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                                value_71 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                             }
-                            zir_f_39652e4564301f9f_fprintf(value_69, value_71, p);
+                            zir_foreign_compiler_go_asm__fprintf(value_69, value_71, p);
                         } else {
                             uint8_t native[128] = {0};
                             compiler_go_asm_c_type(type, &(native[0]), (128) * (sizeof(uint8_t)));
@@ -3075,9 +2711,9 @@ GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package)
                             uint8_t* value_75 = (void *)0;
                             {
                                 String s = value_74;
-                                value_75 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                                value_75 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                             }
-                            zir_f_39652e4564301f9f_fprintf(value_73, value_75, &(native[0]), p);
+                            zir_foreign_compiler_go_asm__fprintf(value_73, value_75, &(native[0]), p);
                         }
                     }
                     p = (int32_t)((uint32_t)p + 1u);
@@ -3087,9 +2723,9 @@ GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package)
             uint8_t* value_78 = (void *)0;
             {
                 String s = value_77;
-                value_78 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_78 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_39652e4564301f9f_fputs(value_78, go);
+            zir_foreign_compiler_go_asm__fputs(value_78, go);
             if (!(block != 0) || site->by_value != 0) {
                 {
                     int32_t p = 0;
@@ -3102,9 +2738,9 @@ GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package)
                         uint8_t* value_81 = (void *)0;
                         {
                             String s = value_80;
-                            value_81 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                            value_81 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                         }
-                        zir_f_39652e4564301f9f_fputs(value_81, go);
+                        zir_foreign_compiler_go_asm__fputs(value_81, go);
                         p = (int32_t)((uint32_t)p + 1u);
                     }
                 }
@@ -3113,36 +2749,36 @@ GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package)
             uint8_t* value_84 = (void *)0;
             {
                 String s = value_83;
-                value_84 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_84 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            zir_f_39652e4564301f9f_fputs(value_84, go);
+            zir_foreign_compiler_go_asm__fputs(value_84, go);
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    bool value_86 = zir_f_39652e4564301f9f_ferror(c) != 0;
-    bool value_87 = value_86 || zir_f_39652e4564301f9f_ferror(go) != 0;
-    bool value_88 = value_87 || zir_f_39652e4564301f9f_ferror(decl) != 0;
+    bool value_86 = zir_foreign_compiler_go_asm__ferror(c) != 0;
+    bool value_87 = value_86 || zir_foreign_compiler_go_asm__ferror(go) != 0;
+    bool value_88 = value_87 || zir_foreign_compiler_go_asm__ferror(decl) != 0;
     int32_t value_89 = 0;
     if (value_88) {
         value_89 = 1;
     }
     int32_t failed = value_89;
     int32_t value_90 = failed;
-    bool value_91 = zir_f_39652e4564301f9f_fclose(c) != 0;
+    bool value_91 = zir_foreign_compiler_go_asm__fclose(c) != 0;
     int32_t value_92 = 0;
     if (value_91) {
         value_92 = 1;
     }
     failed = (int32_t)((uint32_t)value_90 | (uint32_t)value_92);
     int32_t value_93 = failed;
-    bool value_94 = zir_f_39652e4564301f9f_fclose(go) != 0;
+    bool value_94 = zir_foreign_compiler_go_asm__fclose(go) != 0;
     int32_t value_95 = 0;
     if (value_94) {
         value_95 = 1;
     }
     failed = (int32_t)((uint32_t)value_93 | (uint32_t)value_95);
     int32_t value_96 = failed;
-    bool value_97 = zir_f_39652e4564301f9f_fclose(decl) != 0;
+    bool value_97 = zir_foreign_compiler_go_asm__fclose(decl) != 0;
     int32_t value_98 = 0;
     if (value_97) {
         value_98 = 1;
@@ -3154,15 +2790,15 @@ GoAssemblyWrite(GoAssembly* assembly, uint8_t* path, uint8_t* package)
         uint8_t* value_101 = (void *)0;
         {
             String s = value_100;
-            value_101 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_101 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
         String value_103 = StringLiteral("cannot finish assembly companions");
         uint8_t* value_104 = (void *)0;
         {
             String s = value_103;
-            value_104 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+            value_104 = ((compiler_go_asm_StaticText*)(&(s)))->data;
         }
-        zir_f_39652e4564301f9f_Diagnostic(value_99, value_101, value_104);
+        zir_foreign_compiler_go_asm__Diagnostic(value_99, value_101, value_104);
     }
     bool value_106 = failed != 0;
     bool value_107 = value_106 || compiler_go_asm_write_direct(assembly, path, package) != 0;
@@ -3190,16 +2826,16 @@ GoAssemblyClose(GoAssembly* assembly)
                         if (!(j < site->direct_count)) {
                             break;
                         }
-                        zir_f_39652e4564301f9f_GoAmd64Close(site->direct[j]);
+                        zir_foreign_compiler_go_asm__GoAmd64Close(site->direct[j]);
                         j = (int32_t)((uint32_t)j + 1u);
                     }
                 }
-                zir_f_39652e4564301f9f_free((void*)(site->direct));
+                zir_foreign_compiler_go_asm__free((void*)(site->direct));
                 i = (int32_t)((uint32_t)i + 1u);
             }
         }
-        zir_f_39652e4564301f9f_free((void*)(assembly->sites));
-        zir_f_39652e4564301f9f_free((void*)(assembly));
+        zir_foreign_compiler_go_asm__free((void*)(assembly->sites));
+        zir_foreign_compiler_go_asm__free((void*)(assembly));
     }
 }
 
@@ -3217,7 +2853,7 @@ GoAssemblyAvailability(uint8_t* directory, uint8_t* package, ZirSourceSpan span)
             uint8_t* value_1 = (void *)0;
             {
                 String s = value_0;
-                value_1 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_1 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
             uint8_t* value_3 = (void *)0;
             if (enabled != 0) {
@@ -3225,7 +2861,7 @@ GoAssemblyAvailability(uint8_t* directory, uint8_t* package, ZirSourceSpan span)
                 uint8_t* value_5 = (void *)0;
                 {
                     String s = value_4;
-                    value_5 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_5 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_3 = value_5;
             } else {
@@ -3233,56 +2869,56 @@ GoAssemblyAvailability(uint8_t* directory, uint8_t* package, ZirSourceSpan span)
                 uint8_t* value_8 = (void *)0;
                 {
                     String s = value_7;
-                    value_8 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_8 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_3 = value_8;
             }
-            int32_t n = zir_f_39652e4564301f9f_snprintf(&(path[0]), (1024) * (sizeof(uint8_t)), value_1, directory, value_3);
+            int32_t n = zir_foreign_compiler_go_asm__snprintf(&(path[0]), (1024) * (sizeof(uint8_t)), value_1, directory, value_3);
             if (n < 0 || (size_t)(n) >= ((1024) * (sizeof(uint8_t)))) {
                 String value_10 = StringLiteral("zir_go.body");
                 uint8_t* value_11 = (void *)0;
                 {
                     String s = value_10;
-                    value_11 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_11 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 String value_13 = StringLiteral("assembly availability path exceeds limit");
                 uint8_t* value_14 = (void *)0;
                 {
                     String s = value_13;
-                    value_14 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_14 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_39652e4564301f9f_Diagnostic(span, value_11, value_14);
+                zir_foreign_compiler_go_asm__Diagnostic(span, value_11, value_14);
                 return 1;
             }
-            zir_f_39652e4564301f9f_GeneratedOutputRecord(&(path[0]));
+            zir_foreign_compiler_go_asm__GeneratedOutputRecord(&(path[0]));
             String value_16 = StringLiteral("wb");
             uint8_t* value_17 = (void *)0;
             {
                 String s = value_16;
-                value_17 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_17 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
-            void* out = zir_f_39652e4564301f9f_fopen(&(path[0]), value_17);
+            void* out = zir_foreign_compiler_go_asm__fopen(&(path[0]), value_17);
             if (out == ((void *)0)) {
                 String value_19 = StringLiteral("zir_go.body");
                 uint8_t* value_20 = (void *)0;
                 {
                     String s = value_19;
-                    value_20 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_20 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 String value_22 = StringLiteral("cannot create assembly availability: %s");
                 uint8_t* value_23 = (void *)0;
                 {
                     String s = value_22;
-                    value_23 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_23 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_39652e4564301f9f_Diagnostic(span, value_20, value_23, &(path[0]));
+                zir_foreign_compiler_go_asm__Diagnostic(span, value_20, value_23, &(path[0]));
                 return 1;
             }
             String value_25 = StringLiteral("// Code generated by zi2go from assembly availability. DO NOT EDIT.\n//go:build %s\n\npackage %s\n\nconst zirGoAssemblyEnabled = %s\n");
             uint8_t* value_26 = (void *)0;
             {
                 String s = value_25;
-                value_26 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                value_26 = ((compiler_go_asm_StaticText*)(&(s)))->data;
             }
             uint8_t* value_28 = (void *)0;
             if (enabled != 0) {
@@ -3290,7 +2926,7 @@ GoAssemblyAvailability(uint8_t* directory, uint8_t* package, ZirSourceSpan span)
                 uint8_t* value_30 = (void *)0;
                 {
                     String s = value_29;
-                    value_30 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_30 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_28 = value_30;
             } else {
@@ -3298,7 +2934,7 @@ GoAssemblyAvailability(uint8_t* directory, uint8_t* package, ZirSourceSpan span)
                 uint8_t* value_33 = (void *)0;
                 {
                     String s = value_32;
-                    value_33 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_33 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_28 = value_33;
             }
@@ -3309,7 +2945,7 @@ GoAssemblyAvailability(uint8_t* directory, uint8_t* package, ZirSourceSpan span)
                 uint8_t* value_38 = (void *)0;
                 {
                     String s = value_37;
-                    value_38 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_38 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_36 = value_38;
             } else {
@@ -3317,18 +2953,18 @@ GoAssemblyAvailability(uint8_t* directory, uint8_t* package, ZirSourceSpan span)
                 uint8_t* value_41 = (void *)0;
                 {
                     String s = value_40;
-                    value_41 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_41 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 value_36 = value_41;
             }
-            zir_f_39652e4564301f9f_fprintf(out, value_26, value_35, package, value_36);
-            bool value_43 = zir_f_39652e4564301f9f_ferror(out) != 0;
+            zir_foreign_compiler_go_asm__fprintf(out, value_26, value_35, package, value_36);
+            bool value_43 = zir_foreign_compiler_go_asm__ferror(out) != 0;
             int32_t value_44 = 0;
             if (value_43) {
                 value_44 = 1;
             }
             int32_t failed = value_44;
-            bool value_45 = zir_f_39652e4564301f9f_fclose(out) != 0;
+            bool value_45 = zir_foreign_compiler_go_asm__fclose(out) != 0;
             int32_t value_46 = 0;
             if (value_45) {
                 value_46 = 1;
@@ -3339,15 +2975,15 @@ GoAssemblyAvailability(uint8_t* directory, uint8_t* package, ZirSourceSpan span)
                 uint8_t* value_48 = (void *)0;
                 {
                     String s = value_47;
-                    value_48 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_48 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
                 String value_50 = StringLiteral("cannot finish assembly availability: %s");
                 uint8_t* value_51 = (void *)0;
                 {
                     String s = value_50;
-                    value_51 = ((zir_f8bc5b4fcc2609a6_StaticText*)(&(s)))->data;
+                    value_51 = ((compiler_go_asm_StaticText*)(&(s)))->data;
                 }
-                zir_f_39652e4564301f9f_Diagnostic(span, value_48, value_51, &(path[0]));
+                zir_foreign_compiler_go_asm__Diagnostic(span, value_48, value_51, &(path[0]));
                 return 1;
             }
             enabled = (int32_t)((uint32_t)enabled + 1u);

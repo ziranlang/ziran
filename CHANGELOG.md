@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+- Bind generated C foreign declarations directly to their linker symbols,
+  using readable module names; remove forwarding wrappers and per-binding guards.
+
+- Prune branches guarded by unregistered callbacks and unwritten boolean globals
+  in closed native entry links, then discard empty hooks and constant-result
+  calls when their arguments have no effects. Keep separate generated module
+  files and preserve live registration and escaped addresses.
+
+- Name generated callbacks after their owning procedure and specializations
+  after the original procedure and concrete type. Qualify colliding record
+  names with their module; retain identity suffixes where required.
+
 - Marshal Windows x86-64 host record arguments and return values using the
   Win64 C ABI, including padding, floats, nested arrays, hidden return
   pointers and scalar arguments that spill to the stack. Direct native GUI

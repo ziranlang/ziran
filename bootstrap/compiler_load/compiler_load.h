@@ -20,7 +20,7 @@ typedef struct ParserArray32__u8 ParserArray32__u8;
 typedef struct LoadContext LoadContext;
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct zir_02c4f0f4088375c0_ParserArray2048_u8 zir_02c4f0f4088375c0_ParserArray2048_u8;
+typedef struct compiler_load_ParserArray2048_u8 compiler_load_ParserArray2048_u8;
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 typedef struct ParserArray3072_u8 ParserArray3072_u8;
@@ -29,10 +29,10 @@ typedef struct ParserArray3072_u8 ParserArray3072_u8;
 typedef struct LoadImportBuffers LoadImportBuffers;
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct zir_3413116afb0b02b1_ParserArray1024_u8 zir_3413116afb0b02b1_ParserArray1024_u8;
+typedef struct compiler_load_ParserArray1024_u8 compiler_load_ParserArray1024_u8;
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct zir_a7d465d77e427c3d_ParserArray128_u8 zir_a7d465d77e427c3d_ParserArray128_u8;
+typedef struct compiler_load_ParserArray128_u8 compiler_load_ParserArray128_u8;
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 typedef struct ParserArray3__u8 ParserArray3__u8;
@@ -44,7 +44,7 @@ typedef struct ParserArray2__u8 ParserArray2__u8;
 typedef struct ParserArray5__IR_ZirModule ParserArray5__IR_ZirModule;
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct zir_f43d3c0f02c572ed_ParserArray4096_u8 zir_f43d3c0f02c572ed_ParserArray4096_u8;
+typedef struct compiler_load_ParserArray4096_u8 compiler_load_ParserArray4096_u8;
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 typedef struct ParserArray14_u8 ParserArray14_u8;
@@ -112,7 +112,7 @@ struct LoadContext {
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 
-struct zir_02c4f0f4088375c0_ParserArray2048_u8 {
+struct compiler_load_ParserArray2048_u8 {
     uint8_t items[2048];
 };
 #endif
@@ -125,7 +125,7 @@ struct ParserArray3072_u8 {
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 
 struct LoadImportBuffers {
-    zir_02c4f0f4088375c0_ParserArray2048_u8 directory;
+    compiler_load_ParserArray2048_u8 directory;
     ParserArray3072_u8 owner_file;
     ParserArray3072_u8 mapped_path;
     ParserArray3072_u8 parent;
@@ -135,13 +135,13 @@ struct LoadImportBuffers {
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 
-struct zir_3413116afb0b02b1_ParserArray1024_u8 {
+struct compiler_load_ParserArray1024_u8 {
     uint8_t items[1024];
 };
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 
-struct zir_a7d465d77e427c3d_ParserArray128_u8 {
+struct compiler_load_ParserArray128_u8 {
     uint8_t items[128];
 };
 #endif
@@ -165,7 +165,7 @@ struct ParserArray5__IR_ZirModule {
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 
-struct zir_f43d3c0f02c572ed_ParserArray4096_u8 {
+struct compiler_load_ParserArray4096_u8 {
     uint8_t items[4096];
 };
 #endif

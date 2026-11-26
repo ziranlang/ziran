@@ -1263,7 +1263,7 @@ AddressVirtual :: (state: *LowerState, function: *MachineFunction, element: s32)
 }
 
 // Split records: each value gets one virtual per field. Block parameters
-// and loads get fresh virtuals, a build gets its operands', an insert its source's
+// and memory reads get fresh virtuals, a build gets its operands', an insert its source's
 // with one replaced, and an extract stands for its field's; walked in reverse
 // postorder, so every value's fields exist before its uses.
 SplitFields :: (state: *LowerState, function: *MachineFunction, source: LirFunction) -> bool {
@@ -1310,7 +1310,7 @@ SplitFields :: (state: *LowerState, function: *MachineFunction, source: LirFunct
             begin := cast(s64)lowering.field_begin[result]
             if instruction.op == .Aggregate {
                 for operand, at: instruction.operands { lowering.fields[begin + at] = GlobalVirtual(state, function, operand) }
-            } else if instruction.op == .Load {
+            } else if instruction.op == .Load || instruction.op == .Extract {
                 for field, at: state.lir.types[source.values[result]].fields {
                     virtual := AddVirtual(state, .{class = state.owner.types[field].class, type = field,
                         fixed_register = MachineNoId, stack_object = MachineNoId, origin = Origin(state, instruction.origin)})
@@ -1332,15 +1332,13 @@ SplitFields :: (state: *LowerState, function: *MachineFunction, source: LirFunct
 
 // Keep loaded records as scalar snapshots and write split records directly
 // to their destination. No temporary record or field-update copy is needed.
-LowerSplitMemory :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
-    load := source.op == .Load
-    value := ifx load then source.result else source.operands[1]
+TransferFields :: (state: *LowerState, function: *MachineFunction, value: s32,
+    pointer: s32, load: bool, origin: s32) -> bool {
     lowering := state.aggregates
     begin := cast(s64)lowering.field_begin[value]
     value_type := state.lir.functions[function.lir_function].values[value]
-    pointer := GlobalVirtual(state, function, source.operands[0])
     for field: cast(s64)0..state.lir.types[value_type].fields.count - 1 {
-        instruction := BeginInstruction(state, ifx load then MachineOpcode.AggregateExtract else .AggregateInsert, source.origin)
+        instruction := BeginInstruction(state, ifx load then MachineOpcode.AggregateExtract else .AggregateInsert, origin)
         member := lowering.fields[begin + field]
         if load && VirtualOperand(state, member, .Define) == MachineNoId { return false }
         if VirtualOperand(state, pointer, .Use) == MachineNoId ||
@@ -1727,13 +1725,11 @@ LowerAggregate :: (state: *LowerState, function: *MachineFunction, source: LirIn
     return MemberOperands(state, function, source, fixed) && FinishInstruction(state, instruction) != MachineNoId
 }
 
-// A view that computes its address: from its source view's address, or the
-// frame address of the storage it reads, then the member it names.
-ViewAddress :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
+// Address a member of an aggregate's view or frame storage. Views and split
+// snapshots use the same indexing and bounds rules.
+MemberAddress :: (state: *LowerState, function: *MachineFunction, source: LirInstruction,
+    aggregate: s32, address: s32, fixed: s64) -> bool {
     lowering := state.aggregates
-    result := source.result
-    if lowering.plan.address[result] != result { return true }
-    aggregate := source.operands[0]
     base: s32
     if MachineAggregateViewed(lowering.plan.view[aggregate]) {
         base = lowering.view_address[aggregate]
@@ -1746,22 +1742,34 @@ ViewAddress :: (state: *LowerState, function: *MachineFunction, source: LirInstr
             FinishInstruction(state, frame) == MachineNoId { return false }
     }
     // A proven element address carries its bound and is not checked.
-    dynamic := source.operands.count == 2
+    dynamic := source.operands.count == fixed + 1
     bound := ifx dynamic then ProvenBound(state, function, source) else 0
     instruction := BeginInstruction(state, ifx dynamic then MachineOpcode.ElementAddress else .FieldAddress, source.origin)
-    if VirtualOperand(state, lowering.view_address[result], .Define) == MachineNoId ||
+    if VirtualOperand(state, address, .Define) == MachineNoId ||
         VirtualOperand(state, base, .Use) == MachineNoId { return false }
     if dynamic {
-        if VirtualOperand(state, GlobalVirtual(state, function, source.operands[1]), .Use) == MachineNoId ||
+        if VirtualOperand(state, GlobalVirtual(state, function, source.operands[fixed]), .Use) == MachineNoId ||
             bound > 0 && ImmediateOperand(state, cast(u64)bound) == MachineNoId { return false }
     } else if ImmediateOperand(state, source.immediate) == MachineNoId { return false }
     return FinishInstruction(state, instruction) != MachineNoId
+}
+
+ViewAddress :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
+    lowering := state.aggregates
+    if lowering.plan.address[source.result] != source.result { return true }
+    return MemberAddress(state, function, source, source.operands[0], lowering.view_address[source.result], 1)
 }
 
 // A view computes or shares its address; a member of a view is read in place
 // through it; any other extract copies the member out of its frame object.
 LowerExtract :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
     lowering := state.aggregates
+    if lowering.plan.split[source.result] {
+        type := state.lir.functions[function.lir_function].values[source.result]
+        address := AddressVirtual(state, function, type)
+        return address != MachineNoId && MemberAddress(state, function, source, source.operands[0], address, 1) &&
+            TransferFields(state, function, source.result, address, true, source.origin)
+    }
     if lowering.plan.view[source.result] == .Read { return ViewAddress(state, function, source) }
     aggregate := source.operands[0]
     if !MachineAggregateViewed(lowering.plan.view[aggregate]) { return LowerAggregate(state, function, source, .AggregateExtract, 1) }
@@ -1772,10 +1780,32 @@ LowerExtract :: (state: *LowerState, function: *MachineFunction, source: LirInst
     return FinishInstruction(state, instruction) != MachineNoId
 }
 
+// Preserve the parent when it needs separate storage, then write a split
+// member directly to its destination without rebuilding a temporary record.
+LowerSplitInsert :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
+    lowering := state.aggregates
+    result := source.result
+    if !MachineAggregateViewed(lowering.plan.view[result]) {
+        output := GlobalVirtual(state, function, result)
+        input := GlobalVirtual(state, function, source.operands[0])
+        if state.owner.virtuals[output].stack_object != state.owner.virtuals[input].stack_object {
+            copy := BeginInstruction(state, .Move, source.origin)
+            if VirtualOperand(state, output, .Define) == MachineNoId || VirtualOperand(state, input, .Use) == MachineNoId ||
+                FinishInstruction(state, copy) == MachineNoId { return false }
+        }
+    }
+    member := source.operands[1]
+    type := state.lir.functions[function.lir_function].values[member]
+    address := AddressVirtual(state, function, type)
+    return address != MachineNoId && MemberAddress(state, function, source, result, address, 2) &&
+        TransferFields(state, function, member, address, false, source.origin)
+}
+
 // A changed view's insert replaces the member in place through the view's
 // address, and putting the view back emits nothing.
 LowerInsert :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
     lowering := state.aggregates
+    if lowering.plan.split[source.operands[1]] { return LowerSplitInsert(state, function, source) }
     view := lowering.plan.view[source.result]
     if view == .PutBack { return true }
     // The member value was built where this view puts it.
@@ -1820,7 +1850,10 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
     if Splits(state, source) { return true }
     if source.op == .Load && state.aggregates.plan.split[source.result] ||
         source.op == .Store && state.aggregates.plan.split[source.operands[1]] {
-        return LowerSplitMemory(state, function, source)
+        load := source.op == .Load
+        value := ifx load then source.result else source.operands[1]
+        pointer := GlobalVirtual(state, function, source.operands[0])
+        return TransferFields(state, function, value, pointer, load, source.origin)
     }
     // A forwarded extract stands for the value it reads.
     if source.op == .Extract && source.result >= 0 && state.aggregates.alias[source.result] != MachineNoId { return true }

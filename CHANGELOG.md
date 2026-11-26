@@ -5,7 +5,8 @@
 - Keep small loaded records in scalar registers through member updates,
   stores and block transfers on native targets, avoiding temporary record
   copies while preserving snapshots across writes and calls. Checked memory
-  accesses retain their aggregate validation.
+  accesses retain their aggregate validation. Indexed array reads and writes
+  into parent aggregates use the same scalar path.
 
 - Install the `zi2c` launcher on PATH so native compiler tooling can find it.
 

@@ -217,6 +217,49 @@ ZeroFixture :: (owner: *Machine.MachineOwner, target: Target.TargetDescription, 
     return true
 }
 
+// A record read from an array, changed, then put back while the original
+// snapshot remains live. The array needs storage; the small records do not.
+RecordArray :: (owner: *Machine.MachineOwner, target: Target.TargetDescription, checks: bool) -> bool {
+    modules := string.["record_array"]
+    fields := s32.[1, 2, 3]
+    types := Lir.LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64, is_signed = true},
+        .{kind = .Float, bits = 64}, .{kind = .Bool, bits = 1}, .{kind = .Record, fields = fields[:]},
+        .{kind = .Array, element = 4, count = 4}, .{kind = .Pointer, element = 5}]
+    constants := Lir.LirConstant.[.{type = 1, bits = 1}, .{type = 1, bits = 42}]
+    globals := Lir.LirGlobal.[.{module = 0, name = "items", type = 5, constant = -1, writable = true}]
+    values := s32.[6, 5, 1, 4, 1, 4, 5, 1]
+    instructions := Lir.LirInstruction.[Instruction(.GlobalAddress, 0), Instruction(.Load, 1),
+        Instruction(.Constant, 2), Instruction(.Extract, 3), Instruction(.Constant, 4),
+        Instruction(.Insert, 5), Instruction(.Insert, 6), Instruction(.Store),
+        Instruction(.Extract, 7), Instruction(.Return)]
+    load := s32.[0]; read := s32.[1, 2]; change := s32.[3, 4]
+    put := s32.[1, 5, 2]; store := s32.[0, 6]; old := s32.[3]; answer := s32.[7]
+    instructions[0].symbol = 0
+    instructions[1].operands = load[:]; instructions[1].effect = 1
+    instructions[2].symbol = 0
+    instructions[3].operands = read[:]
+    instructions[4].symbol = 1
+    instructions[5].operands = change[:]
+    instructions[6].operands = put[:]
+    instructions[7].operands = store[:]; instructions[7].effect = 2
+    instructions[8].operands = old[:]
+    instructions[9].operands = answer[:]
+    blocks := Lir.LirBlock.[.{instructions = instructions[:]}]
+    functions := Lir.LirFunction.[.{module = 0, name = "update", result = 1,
+        values = values[:], blocks = blocks[:], entry = 0, origin = -1}]
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], globals = globals[:], functions = functions[:], entry = 0, checks = checks}
+    if !Lowered(owner, program, target, "record array") { return false }
+    mir := Lower.MachineProgramView(owner)
+    copied := false
+    for object: mir.stack_objects { if object.size == 17 { copied = true } }
+    if copied != checks {
+        print("record array snapshot storage failed: arch % checks % copied %\n", cast(s32)target.arch, checks, copied)
+        return false
+    }
+    return true
+}
+
 #scope_export
 
 MachineFieldsCases :: () -> bool {
@@ -224,6 +267,7 @@ MachineFieldsCases :: () -> bool {
     defer Lower.MachineFree(*owner)
     targets := Targets()
     for target: targets {
+        if !RecordArray(*owner, target, false) || !RecordArray(*owner, target, true) { return false }
         for mode: cast(s32)0..6 { if !Fixture(*owner, target, mode, false) { return false } }
         for mode: cast(s32)0..6 { if !Fixture(*owner, target, mode, true) { return false } }
         if !ZeroFixture(*owner, target, false, false) || !ZeroFixture(*owner, target, true, false) ||

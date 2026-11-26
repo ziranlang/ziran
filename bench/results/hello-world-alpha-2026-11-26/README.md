@@ -42,6 +42,8 @@ C output fell from 75 C files plus 83 headers (158 total) to 70 C files plus
 78 headers (148 total), without combining modules. Generated source bytes fell
 from 1,245,478 to 1,168,348 and the executable from 409,704 to 403,200 bytes.
 The requested 60% file reduction is **not achieved**: this is a 6.3% reduction.
+The owner subsequently accepted the file organization and deprioritized
+further file-count reduction; these counts remain as historical measurements.
 
 ## Full compiler rebuild
 
@@ -90,3 +92,5 @@ Native ZX is close to C on this integer kernel. The record kernel remains
 substantially slower, so general native speed parity is **not achieved**.
 The generated machine code copies packed record values through stack storage
 around field updates; scalar replacement remains necessary.
+The subsequent [native record scalar-replacement measurements](../native-records-alpha-2026-11-26/README.md)
+halve record runtime while retaining the same fixture and modular layout.

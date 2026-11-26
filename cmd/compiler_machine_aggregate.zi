@@ -14,10 +14,9 @@ using Vectors :: #import "std/vec"
 // instruction's aggregate operands conflict with its result, except the
 // source of an insert.
 //
-// Split records: a small record of scalar fields that is only built,
-// changed and read by constant member and passed between blocks never needs
-// memory; each of its values is a set of field values, so a loop-carried
-// header such as a vector's lives in registers.
+// Split records: a small record of scalar fields can be built, loaded,
+// changed and read by constant member, stored and passed between blocks
+// without temporary memory; each value is a set of scalar field values.
 //
 // Placement: a member value built only to be put into a parent's storage is
 // built there. A class whose every definition and use lies in one block, with
@@ -725,10 +724,12 @@ Unsplit :: (plan: *MachineAggregatePlan, value: s32) -> bool {
     return true
 }
 
-// Values a split record can be: built, changed by constant member or a
+// Values a split record can be: built, loaded, changed by constant member or a
 // parameter of a reachable block other than the entry, used only by constant
-// extracts and inserts and as edge arguments, with every insert and edge
-// joining two split values.
+// extracts and inserts, stores and edge arguments, with every insert and edge
+// joining two split values. Loaded fields are snapshots at the load, never
+// views of memory that later writes or calls can change. Checked accesses
+// retain their single aggregate memory operation.
 Split :: (context: *Context) -> bool {
     plan := context.plan
     function := context.function
@@ -744,7 +745,13 @@ Split :: (context: *Context) -> bool {
         for instruction: block.instructions {
             result := instruction.result
             if !reached || result < 0 || !Splittable(context, TypeOf(context, result)) { continue }
-            if instruction.op == .Aggregate || instruction.op == .Insert && instruction.operands.count == 2 {
+            // Same-block reads alone keep the field-view optimization, which
+            // can read just the members used. Updates, stores and edges need
+            // scalar snapshots that survive later memory changes.
+            loaded := !context.program.checks && instruction.op == .Load &&
+                (plan.update[result] != -1 || plan.other[result] >= 0 || plan.home[result] == -2)
+            if instruction.op == .Aggregate || instruction.op == .Insert && instruction.operands.count == 2 ||
+                loaded {
                 plan.split[result] = true
                 any = true
             }
@@ -757,6 +764,7 @@ Split :: (context: *Context) -> bool {
             for value, at: instruction.operands {
                 constant := instruction.operands.count == ifx instruction.op == .Extract then cast(s64)1 else 2
                 if reached && at == 0 && constant && (instruction.op == .Extract || instruction.op == .Insert) { continue }
+                if reached && !context.program.checks && instruction.op == .Store && at == 1 { continue }
                 unused Unsplit(plan, value)
             }
             if !reached { for edge: instruction.edges { for value: edge.arguments { unused Unsplit(plan, value) } } }

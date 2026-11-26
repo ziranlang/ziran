@@ -1262,9 +1262,9 @@ AddressVirtual :: (state: *LowerState, function: *MachineFunction, element: s32)
     return address
 }
 
-// Split records: each value gets one virtual per field. A block parameter's
-// are fresh, a build's are its operands', an insert's its source's with one
-// replaced, and an extract stands for its field's; walked in reverse
+// Split records: each value gets one virtual per field. Block parameters
+// and loads get fresh virtuals, a build gets its operands', an insert its source's
+// with one replaced, and an extract stands for its field's; walked in reverse
 // postorder, so every value's fields exist before its uses.
 SplitFields :: (state: *LowerState, function: *MachineFunction, source: LirFunction) -> bool {
     lowering := state.aggregates
@@ -1310,6 +1310,13 @@ SplitFields :: (state: *LowerState, function: *MachineFunction, source: LirFunct
             begin := cast(s64)lowering.field_begin[result]
             if instruction.op == .Aggregate {
                 for operand, at: instruction.operands { lowering.fields[begin + at] = GlobalVirtual(state, function, operand) }
+            } else if instruction.op == .Load {
+                for field, at: state.lir.types[source.values[result]].fields {
+                    virtual := AddVirtual(state, .{class = state.owner.types[field].class, type = field,
+                        fixed_register = MachineNoId, stack_object = MachineNoId, origin = Origin(state, instruction.origin)})
+                    if virtual == MachineNoId { return false }
+                    lowering.fields[begin + at] = virtual
+                }
             } else {
                 from := cast(s64)lowering.field_begin[instruction.operands[0]]
                 for at: cast(s64)0..state.lir.types[source.values[result]].fields.count - 1 {
@@ -1318,6 +1325,28 @@ SplitFields :: (state: *LowerState, function: *MachineFunction, source: LirFunct
                 lowering.fields[begin + cast(s64)instruction.immediate] = GlobalVirtual(state, function, instruction.operands[1])
             }
         }
+    }
+    function.virtual_count = cast(s32)state.owner.virtuals.count - function.virtual_begin
+    return true
+}
+
+// Keep loaded records as scalar snapshots and write split records directly
+// to their destination. No temporary record or field-update copy is needed.
+LowerSplitMemory :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
+    load := source.op == .Load
+    value := ifx load then source.result else source.operands[1]
+    lowering := state.aggregates
+    begin := cast(s64)lowering.field_begin[value]
+    value_type := state.lir.functions[function.lir_function].values[value]
+    pointer := GlobalVirtual(state, function, source.operands[0])
+    for field: cast(s64)0..state.lir.types[value_type].fields.count - 1 {
+        instruction := BeginInstruction(state, ifx load then MachineOpcode.AggregateExtract else .AggregateInsert, source.origin)
+        member := lowering.fields[begin + field]
+        if load && VirtualOperand(state, member, .Define) == MachineNoId { return false }
+        if VirtualOperand(state, pointer, .Use) == MachineNoId ||
+            !load && VirtualOperand(state, member, .Use) == MachineNoId ||
+            ImmediateOperand(state, cast(u64)field) == MachineNoId ||
+            FinishInstruction(state, instruction) == MachineNoId { return false }
     }
     return true
 }
@@ -1789,6 +1818,10 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
     if source.op == .Convert { return LowerMove(state, function, source, .Convert) }
     if source.op == .Bitcast { return LowerMove(state, function, source, .Bitcast) }
     if Splits(state, source) { return true }
+    if source.op == .Load && state.aggregates.plan.split[source.result] ||
+        source.op == .Store && state.aggregates.plan.split[source.operands[1]] {
+        return LowerSplitMemory(state, function, source)
+    }
     // A forwarded extract stands for the value it reads.
     if source.op == .Extract && source.result >= 0 && state.aggregates.alias[source.result] != MachineNoId { return true }
     if source.op == .Aggregate && state.aggregates.plan.covered[source.result] { return true }

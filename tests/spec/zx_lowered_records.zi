@@ -35,6 +35,30 @@ OutsideFloat :: (value: float64) -> bool { return value > 1000.0 || value < 0.0 
 BoundsCalls: s32;
 BoundsNext :: (value: s64) -> s64 { BoundsCalls += 1; return value }
 
+// Loaded fields stay snapshots across a call, a branch join and writes to
+// either array slot. Mixed register classes and an unaligned pointer must
+// survive a scalarized record update just as integer members do.
+SnapshotRecord :: struct { x: s64; fraction: float64; selected: bool; pointer: *s64 }
+ChangeSnapshotSource :: (item: *SnapshotRecord) {
+    item.x = 99
+    item.fraction = 8.0
+    item.selected = false
+}
+SnapshotCase :: (branch: bool) -> bool {
+    marker: s64 = 37
+    items: [2]SnapshotRecord
+    items[0] = SnapshotRecord.{7, 1.5, true, *marker}
+    saved := items[0]
+    ChangeSnapshotSource(*items[0])
+    if branch { saved.x += 3 } else { saved.x += 5 }
+    saved.fraction += 0.5
+    items[1] = saved
+    items[0] = SnapshotRecord.{101, 10.0, false, *marker}
+    copy := items[1]
+    return copy.x == (ifx branch then 10 else 12) && copy.fraction == 2.0 &&
+        copy.selected && copy.pointer[0] == 37
+}
+
 BoundsCases :: () -> bool {
     for number: -128..127 {
         expected := number < 0
@@ -137,6 +161,7 @@ ConditionalCoordinates :: (x0: s32, y0: s32, x1: s32, y1: s32, side: s32,
 }
 
 main :: () -> s32 {
+    if !SnapshotCase(true) || !SnapshotCase(false) { return 1 }
     if !BoundsCases() { return 1 }
     if !InsideCases() { return 1 }
     if ConditionalCoordinates(10, 20, 80, 90, 4, 1.0, 2.0, 3.0, 4.0) != 976 { return 1 }

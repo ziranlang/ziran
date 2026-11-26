@@ -76,7 +76,7 @@ MachineFieldsPlanBuild :: (plan: *MachineFieldsPlan, function: LirFunction,
         for instruction: block.instructions {
             value := instruction.result
             if instruction.op != .Load || value < 0 || instruction.operands.count != 1 ||
-                stack_size[function.values[value]] <= 0 { continue }
+                stack_size[function.values[value]] <= 0 || aggregates.split[value] { continue }
             pointer := instruction.operands[0]
             // A selected memory operand has no standalone address virtual.
             if address_shift[pointer] >= 0 { continue }

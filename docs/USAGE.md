@@ -2214,7 +2214,11 @@ The explicit form, `ziran run --target=c [--no-cache] tool.zi -- ARGS`,
 also accepts compiler options before the filename. The C-generated runner
 builds the program once into `$XDG_CACHE_HOME/ziran/native`, rebuilds it when
 its sources change, and runs it with the arguments, returning its status. The
-entry takes nothing or `(argc: s32, argv: **u8)`. In a project, a tool beside
+runner expires script builds unused for 24 hours after a script finishes,
+scanning at most once per hour. Builds currently compiling or running are
+kept; using a cached build refreshes its expiry. Cleanup covers script build
+directories only, preserving package sources and the loader's native images.
+The entry takes nothing or `(argc: s32, argv: **u8)`. In a project, a tool beside
 the module roots, such as `tools/check.zi`, still imports the project's modules.
 The tool reads its source path from `ZIRAN_SCRIPT_FILE`; see
 `scripts/build_playground.zi` for a maintained build tool.

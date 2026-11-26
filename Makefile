@@ -632,7 +632,7 @@ PACKAGE_SOURCES := cmd/package_artifact.zi cmd/package_zx.zi cmd/package_checked
     cmd/package_add.zi cmd/package_guide.zi \
     cmd/package_capabilities.zi cmd/package_features.zi cmd/package_explain.zi cmd/package_learn.zi cmd/package_learn_teacher.zi cmd/package_learn_tuning.zi cmd/compiler_learning_tuning.zi cmd/compiler_bundle.zi cmd/compiler_lowered_ir.zi std/sort.zi cmd/compiler_learning_policy.zi cmd/compiler_learning_fixture.zi cmd/package_common.zi cmd/compiler_target.zi \
     cmd/package_manifest.zi cmd/package_source.zi cmd/package_lock.zi cmd/package_map.zi cmd/package_options.zi cmd/package_compile_commands.zi cmd/package_template.zi \
-    std/byte_text_linux.zi std/c_string.zi std/file_linux.zi std/number_text.zi std/process_run_linux.zi \
+    std/byte_text_linux.zi std/c_string.zi std/file_linux.zi std/file_tree_linux.zi std/number_text.zi std/process_run_linux.zi \
     std/json_scan.zi std/json_quote.zi std/json_bytes.zi std/json_document.zi std/float_text.zi std/text_tools.zi std/simd.zi std/date_time_linux.zi std/date_time_types.zi \
     std/toml_document.zi std/utf8.zi std/text.zi std/vec.zi VERSION
 # Generated files are listed when the ziran recipe expands, after generation.

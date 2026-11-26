@@ -3,6 +3,8 @@
 #import "byte_text_linux"
 #import "text"
 using Vectors :: #import "vec"
+using Trees :: #import "file_tree_linux"
+using Clock :: #import "date_time_linux"
 
 #scope_export
 ParentDirectory :: (path: string) -> string {
@@ -14,6 +16,64 @@ ParentDirectory :: (path: string) -> string {
 }
 
 #scope_file
+ScriptCacheIdleSeconds :: 86400
+ScriptCacheSweepSeconds :: 3600
+
+// A shared entry lease spans compilation and execution. The short root lock
+// keeps acquiring a lease and removing its directory from racing each other.
+// Cleanup never follows links and only owns the runner's digest directories.
+CacheDigestName :: (name: string) -> bool {
+    if name.count != 64 { return false }
+    for byte: name {
+        if !(byte >= #char "0" && byte <= #char "9") &&
+           !(byte >= #char "a" && byte <= #char "f") { return false }
+    }
+    return true
+}
+
+CacheLastUsed :: (directory: string) -> s64 {
+    path: Vec(u8); BuilderPrint(*path, "%/.last-used", directory)
+    info := Trees.PathStatus(TextView(path[:]), false)
+    if info.kind != .File { info = Trees.PathStatus(directory, false) }
+    return info.modified
+}
+
+CacheTouch :: (directory: string) {
+    path: Vec(u8); BuilderPrint(*path, "%/.last-used", directory)
+    unused PkgWrite(TextView(path[:]), "")
+}
+
+CacheExpire :: (native: string) {
+    now := Clock.UnixNow()
+    if now <= ScriptCacheIdleSeconds { return }
+    lock_path: Vec(u8); BuilderPrint(*lock_path, "%/.maintenance", native)
+    lock := Trees.LockPath(TextView(lock_path[:]), true, false)
+    if lock < 0 { return }
+    defer Trees.UnlockPath(lock)
+    swept_path: Vec(u8); BuilderPrint(*swept_path, "%/.swept", native)
+    previous := Trees.PathStatus(TextView(swept_path[:]), false)
+    if previous.kind == .File && previous.modified > now - ScriptCacheSweepSeconds { return }
+    cursor := OpenDirectory(native)
+    if !cursor.valid { return }
+    defer CloseDirectory(*cursor)
+    while true {
+        entry := NextDirectoryEntry(*cursor)
+        if !entry.valid { break }
+        name := TextFromBytes(entry.name[:entry.name_count])
+        if !CacheDigestName(name) { continue }
+        path: Vec(u8); BuilderPrint(*path, "%/%", native, name)
+        directory := TextView(path[:])
+        if Trees.PathStatus(directory, false).kind != .Directory ||
+           CacheLastUsed(directory) > now - ScriptCacheIdleSeconds { continue }
+        lease_path: Vec(u8); BuilderPrint(*lease_path, "%/.in-use", directory)
+        lease := Trees.LockPath(TextView(lease_path[:]), true, false)
+        if lease < 0 { continue }
+        unused Trees.RemoveTree(directory)
+        Trees.UnlockPath(lease)
+    }
+    unused PkgWrite(TextView(swept_path[:]), "")
+}
+
 Hash :: (value: string) -> string {
     return PkgDigest(value)
 }
@@ -192,6 +252,7 @@ ScriptRun :: (arguments: []string, binary: string, project_root: string,
     if project_root.count > 0 { VecPush(search, project_root) }
     directory := PkgJoin(cache_root, "/native")
     if !PkgMkdirs(cache_root) || !CreatePrivateDirectory(directory) { return PkgFail("cannot create the script cache") }
+    native := directory
     // The whole cache is build output: every cache the compiler keeps under
     // it (native objects, frontend parses) changes between the two key
     // computations without changing a source file.
@@ -200,7 +261,21 @@ ScriptRun :: (arguments: []string, binary: string, project_root: string,
     state := CacheKey(binary, source, root, entry, VecSlice(options, 0, options.count),
         VecSlice(search, 0, search.count), map, libraries, ignored, *valid)
     directory = PkgJoin3(directory, "/", state)
-    if !CreatePrivateDirectory(directory) { return PkgFail("cannot create the script output directory") }
+    lock := Trees.LockPath(PkgJoin(native, "/.maintenance"))
+    if lock < 0 { return PkgFail("cannot lock the script cache") }
+    if !CreatePrivateDirectory(directory) {
+        Trees.UnlockPath(lock)
+        return PkgFail("cannot create the script output directory")
+    }
+    lease := Trees.LockPath(PkgJoin(directory, "/.in-use"), false)
+    if lease < 0 { Trees.UnlockPath(lock); return PkgFail("cannot lease the script cache entry") }
+    CacheTouch(directory)
+    Trees.UnlockPath(lock)
+    defer {
+        CacheTouch(directory)
+        Trees.UnlockPath(lease)
+        CacheExpire(native)
+    }
     ready := PkgJoin(directory, "/.ready")
     stamp := PkgRead(ready)
     program := PkgJoin3(directory, "/", module)

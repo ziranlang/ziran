@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Expire native script builds after 24 hours without use, cleaning up after
+  scripts finish at most once per hour while preserving active builds.
+
 - Bind generated C foreign declarations directly to their linker symbols,
   using readable module names; remove forwarding wrappers and per-binding guards.
 

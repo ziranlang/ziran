@@ -1139,6 +1139,43 @@ main :: (argc: s32, argv: **u8) -> s32 {
         HostAbiGap(view, diagnostic.function, native_target)
         return status
     }
+    if diagnostic.problem == .Assembly && diagnostic.function >= 0 && diagnostic.function < view.functions.count {
+        if !mapping && Link.ZxExecReadDebug(*(zx_owner), *(debug_owner), Lowered.LirDefaultLimits()) == .None {
+            decoded = Debug.ZxDebugProgram(*(debug_owner))
+            view = *(decoded)
+        }
+        function := view.functions[diagnostic.function]
+        if function.origin >= 0 && function.origin < view.origins.count {
+            origin := view.origins[function.origin]
+            if origin.file >= 0 && origin.file < view.sources.count {
+                file := view.sources[origin.file]
+                Diagnostic(NoSpan(), CStr("assembly.gap.machine-assembly-template"),
+                    CStr("%.*s:%d:%d: %.*s at template byte %d"), cast(s32)file.count,
+                    TextPointer(file), origin.line, origin.column, cast(s32)function.name.count,
+                    TextPointer(function.name), diagnostic.operand)
+                return status
+            }
+        }
+        Diagnostic(NoSpan(), CStr("assembly.gap.machine-assembly-template"),
+            CStr("%.*s at template byte %d"), cast(s32)function.name.count,
+            TextPointer(function.name), diagnostic.operand)
+        return status
+    }
+    if diagnostic.problem == .TargetOnly {
+        function := view.functions[diagnostic.function]
+        Diagnostic(NoSpan(), CStr("zx.target-only"),
+            CStr("target-only procedure %.*s has no variant for %s with ABI %.*s and feature mask 0x%llx"),
+            cast(s32)function.name.count, TextPointer(function.name), *target_row[0],
+            cast(s32)Target.TargetABIName(native_target.abi).count, TextPointer(Target.TargetABIName(native_target.abi)),
+            native_target.feature_mask)
+        for variant: function.variants {
+            Diagnostic(NoSpan(), CStr("zx.target-only"), CStr("requires %.*s/%.*s/%.*s, feature mask 0x%llx"),
+                cast(s32)variant.architecture.count, TextPointer(variant.architecture),
+                cast(s32)variant.os.count, TextPointer(variant.os), cast(s32)variant.abi.count, TextPointer(variant.abi),
+                variant.features)
+        }
+        return status
+    }
     if diagnostic.problem == .UnsupportedTarget {
         Diagnostic(NoSpan(), CStr("assembly.gap.machine-platform-service-unavailable"),
             CStr("assembly.gap.machine-platform-service-unavailable: selected target %s has no formatter, host binding or executable runtime for what this program calls; no alternate engine was selected"),

@@ -1,4 +1,4 @@
-LirVersion :: 4
+LirVersion :: 5
 LirNoId :: -1
 
 LirTypeKind :: enum s32 {
@@ -74,6 +74,26 @@ LirExecPackedInstruction :: struct {
 
 LirBlock :: struct { parameters: []s32; instructions: []LirInstruction }
 
+// Operands are ordered as results and then parameters. Their types and
+// layouts come from the enclosing function, never from the template.
+LirAssemblyOperand :: struct { alias: string; constraint: string }
+
+LirAssemblyVariant :: struct {
+    architecture: string
+    os: string
+    abi: string
+    features: u64
+    template: string
+    clobbers: string
+    operands: []LirAssemblyOperand
+    outputs: s32
+    volatile: bool
+}
+
+LirAssemblyVariantLimit :: 30
+LirAssemblyOperandLimit :: 30
+LirAssemblyTextLimit :: 4096
+
 LirFunction :: struct {
     module: s32
     name: string
@@ -86,6 +106,69 @@ LirFunction :: struct {
     blocks: []LirBlock
     entry: s32
     origin: s32
+    variants: []LirAssemblyVariant
+    assembly_required: bool
+    // A local assembly helper reports selection in a final Boolean result.
+    assembly_gate: bool
+}
+
+#scope_file
+
+AssemblyConstraintTrim :: (text: string) -> string {
+    start: s64
+    end := text.count
+    while start < end && text[start] <= 32 { start += 1 }
+    while end > start && text[end - 1] <= 32 { end -= 1 }
+    return text[start:end]
+}
+
+AssemblyConstraintEnd :: (text: string, start: s64) -> s64 {
+    while start < text.count && text[start] != #char "," { start += 1 }
+    return start
+}
+
+AssemblyConstraintWord :: (text: string) -> string {
+    word := AssemblyConstraintTrim(text)
+    start: s64
+    end := word.count
+    while start < end && (word[start] == #char "=" || word[start] == #char "&" || word[start] == #char "%") { start += 1 }
+    while end > start && word[end - 1] == #char "&" { end -= 1 }
+    return AssemblyConstraintTrim(word[start:end])
+}
+
+#scope_export
+
+LirAssemblyConstraint :: (text: string, column: s32) -> string {
+    begin: s64
+    for unused_column: cast(s32)0..column - 1 {
+        end := AssemblyConstraintEnd(text, begin)
+        if end == text.count { return "" }
+        begin = end + 1
+    }
+    end := AssemblyConstraintEnd(text, begin)
+    return AssemblyConstraintWord(text[begin:end])
+}
+
+LirAssemblyUsesMemory :: (constraint: string) -> bool {
+    begin: s64
+    while begin < constraint.count {
+        end := AssemblyConstraintEnd(constraint, begin)
+        if AssemblyConstraintWord(constraint[begin:end]) == "m" { return true }
+        begin = end + 1
+    }
+    return false
+}
+
+LirAssemblyGateAddressed :: (variants: []LirAssemblyVariant, operand: s64) -> bool {
+    for variant: variants {
+        if operand < variant.operands.count && LirAssemblyUsesMemory(variant.operands[operand].constraint) { return true }
+    }
+    return false
+}
+
+LirAssemblyRequiredFunction :: (program: LirProgram) -> s32 {
+    for function, index: program.functions { if function.assembly_required { return cast(s32)index } }
+    return -1
 }
 
 LirConstant :: struct { type: s32; bits: u64; bytes: []u8 }
@@ -120,7 +203,7 @@ LirProgram :: struct {
 LirProblem :: enum s32 {
     None; Version; Limit; Allocation; Type; Constant; Global; Function; Origin
     Block; Terminator; Instruction; Operand; Result; Definition; Dominance
-    Edge; Effect; Alignment; Calling; Unsupported
+    Edge; Effect; Alignment; Calling; Unsupported; Assembly
 }
 
 LirDiagnostic :: struct {

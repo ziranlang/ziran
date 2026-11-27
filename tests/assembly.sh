@@ -125,7 +125,7 @@ reject '#asm architecture and options must be literal strings' <<'ZI'
 OPTIONS :: "volatile";
 F :: () #asm("x86_64", "", "", "", "", OPTIONS) { return }
 ZI
-reject '#asm options must be empty or volatile' <<'ZI'
+reject '#asm options must be empty, volatile, target-only, or volatile;target-only' <<'ZI'
 F :: () #asm("x86_64", "", "", "", "", "magic") { return }
 ZI
 reject '#asm constraint counts must match' <<'ZI'

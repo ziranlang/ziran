@@ -794,7 +794,7 @@ EvaluatePureCall :: (state: *OptState, program: LirProgram,
     if depth >= 64 || !EvalSpend(budget, 1) { return unknown }
     if symbol < 0 || symbol >= program.functions.count { return unknown }
     callee := program.functions[symbol]
-    if callee.external || callee.calling != .Portable || callee.blocks.count < 1 ||
+    if callee.external || callee.calling != .Portable || callee.blocks.count < 1 || callee.variants.count != 0 ||
         callee.result < 0 || callee.result >= program.types.count ||
         callee.parameters.count != arguments.count { return unknown }
     result := program.types[callee.result]

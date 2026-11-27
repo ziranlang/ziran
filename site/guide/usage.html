@@ -1987,23 +1987,30 @@ visibility of following declarations.</p>
 <h2 id="assembly-with-a-portable-body">Assembly with a portable body</h2>
 <p>An ordinary procedure can supply architecture-specific assembly and a required
 Ziran implementation. C output selects assembly when built by GCC or Clang
-for that architecture. Go can opt into native assembly through cgo as described
-below. Other compilers and <code>.zx</code> use the checked Ziran body. Define
-<code>ZIRAN_NO_ASM</code> when compiling generated C to force the portable body.</p>
+for that architecture. Go can opt into native assembly as described below.
+ZX carries the checked Ziran body and the variants through source and saved
+IR builds. Define <code>ZIRAN_NO_ASM</code> when compiling generated C to force the
+portable body.</p>
 <pre><code class="language-zi">Increment :: (value: $T) -&gt; T #asm(&quot;x86_64&quot;, &quot;add $1, %[out]&quot;, &quot;=r&quot;, &quot;0&quot;, &quot;cc&quot;, &quot;&quot;) #asm(&quot;aarch64&quot;, &quot;add %[out], %[value], #1&quot;, &quot;=r&quot;, &quot;r&quot;, &quot;&quot;, &quot;&quot;) {
     return value + 1
 }
 </code></pre>
-<p>Each <code>#asm</code> takes four to six arguments: architecture, assembly template,
+<p>Each <code>#asm</code> takes four to six arguments: target selector, assembly template,
 output constraints, input constraints, and optionally clobbers and options
 (both default to <code>""</code>). The architecture and options are literal strings.
 Templates, constraints and clobbers can also name compile-time string
-constants; options are <code>""</code> or <code>"volatile"</code>. Use semicolons to separate constraints and clobbers; commas
-remain available for the assembler's constraint alternatives. Templates use GNU
+constants. Options are <code>""</code>, <code>"volatile"</code>, <code>"target-only"</code>, or
+<code>"volatile;target-only"</code> for procedures. Use semicolons to separate constraints
+and clobbers. Commas remain available for the assembler's constraint
+alternatives. Templates use GNU
 extended assembly syntax, including named operands, register modifiers,
 multiple instructions, escaped newlines, and assembler directives. Templates
 are quoted as data in generated source. The native compiler and assembler
-validate instruction syntax and machine-specific constraints.</p>
+validate instruction syntax and machine-specific constraints. ZX selectors
+accept <code>architecture[/os/abi][+feature...]</code>. For example,
+<code>x86_64/linux/sysv+avx2</code> covers x86-64 Linux System V with usable AVX2.
+<code>x86_64/windows/win64</code> selects Windows. <code>aarch64</code> uses <code>aapcs64</code> on Linux and
+Android, and <code>arm</code> uses <code>aapcs32</code> for ARMv7 on those operating systems.</p>
 <p>A template constant can be generated in the same file with
 <code>TEMPLATE :: #run MakeTemplate();</code> and used as <code>#asm("x86_64", TEMPLATE, ...)</code>.
 The generator can use builders, loops, pointers and slices. Put its helpers
@@ -2107,10 +2114,34 @@ Callers receive the portable results. Run it over random and edge-case
 inputs. Local <code>#asm</code> blocks are not
 checked this way. <code>tests/spec/asm_dct8.zi</code> is a complete kernel: AV1's 8x8
 inverse DCT with SSSE3, AArch64 and ARMv7 NEON variants, with a portable reference body.</p>
-<p>A <code>.zx</code> bundle is lowered from each procedure's portable body, so a bundle
-holds no machine code and a downloaded bundle cannot run instructions of its
-own; <code>ziran run FILE.zi</code> runs the portable bodies too. Native builds of the
-source keep every variant. Run <code>sh tests/zx_native_asm.sh build/bin/ziran</code>.</p>
+<p>For ZX, the native encoder supports an architecture-specific subset of GNU
+templates. Linux x86-64, Linux and Android AArch64, and Linux and Android
+ARMv7 can specialize on the host CPU in process. AOT targets also include
+x86-64 Windows and use the selected target's baseline ISA. The native encoder
+handles scalar and vector register operands, branch labels, raw pointer and
+slice data access, and typed register-ABI calls. x86-64 also supports GNU
+memory constraints and local data references. A local <code>m</code> operand binds to
+the caller's storage. Use a pointer input and declare <code>memory</code> for indirect
+access, including on ARM.</p>
+<p>Order variants by intended priority. The first eligible variant is selected
+while compiling the native image. An optional mismatch compiles the portable
+body on that same backend. The engine, browser/Wasm and checked native
+lowering use the portable body. Set <code>ZIRAN_ZX_ASM_FEATURE_MASK=0</code> to clear
+detected feature bits during native ZX loading. Baseline variants with an
+empty feature requirement can still match. A selected template that fails
+assembly reports its procedure and template offset. An execution error
+terminates that invocation, with any effects it already performed.</p>
+<p>For an operation with no portable implementation, set <code>"target-only"</code> on
+every variant of a procedure and supply <code>{ unreachable }</code> as its body. Use
+<code>"volatile;target-only"</code> when volatility is also required. ZX counts these
+requirements in its manifest. A native target must satisfy every retained
+requirement before initialization. The engine and Wasm reject that artifact.</p>
+<p>An assembly implementation owns the same result and memory contract as its
+Ziran body. Respect pointer alignment, ranges, aliasing and allocation
+lifetimes, and restore the target's floating-point environment if the template
+changes it. Floating-point templates must agree on rounding, exceptional
+values, signed zero and observable NaN representations for the interface.
+Any comparison tolerance is part of the caller's documented numeric contract.</p>
 <p>Feature variants use isolated functions compiled for the requested ISA. The
 ordinary caller keeps the build's baseline ISA, checks CPU availability once,
 and caches its selection with atomic accesses. x86 GCC/Clang GNU-ABI drivers
@@ -2153,8 +2184,7 @@ unaligned data.</p>
 <p>Assembly and the fallback must implement the same behavior; checking the
 fallback does not prove their equivalence, so test with <code>ZIRAN_ASM_CHECK</code>. These variants do not yet provide
 <code>asm goto</code>, naked functions, standalone assembler files, or direct Go ABI
-assembler output. Saved IR preserves the variants; <code>.zx</code>
-executes only portable code.</p>
+assembler output. Saved IR and <code>.zx</code> preserve the variants.</p>
 <p>Generated Go packages use their checked Go implementation by default. Enable
 the native bridge with <code>CGO_ENABLED=1 go build -tags=ziran_asm .</code> in the
 generated package. Build packages rather than explicit filename lists so Go

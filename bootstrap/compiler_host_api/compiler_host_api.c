@@ -3654,93 +3654,113 @@ compiler_host_api_VerifyGraph(ZxModuleLoader* loader, ModuleImage* root)
             if (compiler_host_api_VerifyImports(loader, image) == 0) {
                 break;
             }
-            ImageMark* value_8 = &(image->mark);
-            (*value_8) = ImageMark_Verified;
+            Bundle* value_8 = image->bundle;
+            int32_t value_9 = compiler_host_api_SelectedBackend(loader->options.backend);
+            uint8_t* target_problem = compiler_host_api_BundleTargetProblem(value_8, value_9, loader->options.unbounded);
+            if (target_problem != ((void *)0)) {
+                String value_10 = StringLiteral("zx.target-only: %s: %s");
+                uint8_t* value_11 = (void *)0;
+                {
+                    String s = value_10;
+                    value_11 = ((StaticText*)(&(s)))->data;
+                }
+                uint8_t* value_13 = (void *)0;
+                if (image->name != ((void *)0)) {
+                    value_13 = image->name;
+                } else {
+                    uint8_t* value_14 = BundleEntryModuleName(image->bundle);
+                    value_13 = value_14;
+                }
+                compiler_host_api_Problem(loader, value_11, value_13, target_problem, (void *)0, (void *)0);
+                break;
+            }
+            ImageMark* value_15 = &(image->mark);
+            (*value_15) = ImageMark_Verified;
             count = count - 1;
             continue;
         }
-        ModuleImage* value_9 = image;
-        size_t value_10 = image->next_requirement;
-        ModuleRequirement* value_11 = (void *)0;
+        ModuleImage* value_16 = image;
+        size_t value_17 = image->next_requirement;
+        ModuleRequirement* value_18 = (void *)0;
         {
-            ModuleImage* image = value_9;
-            size_t index = value_10;
-            value_11 = &(image->requires[index]);
+            ModuleImage* image = value_16;
+            size_t index = value_17;
+            value_18 = &(image->requires[index]);
         }
-        ModuleRequirement* edge = value_11;
-        size_t* value_13 = &(image->next_requirement);
-        (*value_13) = (*value_13) + 1;
+        ModuleRequirement* edge = value_18;
+        size_t* value_20 = &(image->next_requirement);
+        (*value_20) = (*value_20) + 1;
         ModuleImage* dependency = compiler_host_api_ResolveImage(loader, edge->name);
         if (dependency == ((void *)0)) {
             break;
         }
         if (((ImageMark)(dependency->mark)) == ImageMark_Visiting) {
-            String value_14 = StringLiteral("ZX module dependency cycle: %s -> %s");
-            uint8_t* value_15 = (void *)0;
+            String value_21 = StringLiteral("ZX module dependency cycle: %s -> %s");
+            uint8_t* value_22 = (void *)0;
             {
-                String s = value_14;
-                value_15 = ((StaticText*)(&(s)))->data;
+                String s = value_21;
+                value_22 = ((StaticText*)(&(s)))->data;
             }
-            uint8_t* value_17 = (void *)0;
+            uint8_t* value_24 = (void *)0;
             if (image->name != ((void *)0)) {
-                value_17 = image->name;
+                value_24 = image->name;
             } else {
-                String value_18 = StringLiteral("<application>");
-                uint8_t* value_19 = (void *)0;
+                String value_25 = StringLiteral("<application>");
+                uint8_t* value_26 = (void *)0;
                 {
-                    String s = value_18;
-                    value_19 = ((StaticText*)(&(s)))->data;
+                    String s = value_25;
+                    value_26 = ((StaticText*)(&(s)))->data;
                 }
-                value_17 = value_19;
+                value_24 = value_26;
             }
-            compiler_host_api_Problem(loader, value_15, value_17, edge->name, (void *)0, (void *)0);
+            compiler_host_api_Problem(loader, value_22, value_24, edge->name, (void *)0, (void *)0);
             break;
         }
-        ModuleImage** value_21 = &(edge->image);
-        (*value_21) = dependency;
+        ModuleImage** value_28 = &(edge->image);
+        (*value_28) = dependency;
         if (((ImageMark)(dependency->mark)) == ImageMark_Verified) {
             continue;
         }
         if (count >= capacity) {
             void* more = compiler_host_api_Grow((void*)(stack), &(capacity), sizeof(void *));
             if (more == ((void *)0)) {
-                ZxModuleLoader* value_22 = loader;
-                int32_t value_23 = 0;
+                ZxModuleLoader* value_29 = loader;
+                int32_t value_30 = 0;
                 {
-                    ZxModuleLoader* loader = value_22;
-                    String value_25 = StringLiteral("out of memory in ZX module loader");
-                    uint8_t* value_26 = (void *)0;
+                    ZxModuleLoader* loader = value_29;
+                    String value_32 = StringLiteral("out of memory in ZX module loader");
+                    uint8_t* value_33 = (void *)0;
                     {
-                        String s = value_25;
-                        value_26 = ((StaticText*)(&(s)))->data;
+                        String s = value_32;
+                        value_33 = ((StaticText*)(&(s)))->data;
                     }
-                    value_23 = compiler_host_api_Problem(loader, value_26, (void *)0, (void *)0, (void *)0, (void *)0);
+                    value_30 = compiler_host_api_Problem(loader, value_33, (void *)0, (void *)0, (void *)0, (void *)0);
                 }
-                (void)value_23;
+                (void)value_30;
                 break;
             }
             stack = (ModuleImage**)(more);
         }
-        ModuleImage** value_28 = &(stack[count]);
-        (*value_28) = dependency;
+        ModuleImage** value_35 = &(stack[count]);
+        (*value_35) = dependency;
         count = count + 1;
-        ImageMark* value_29 = &(dependency->mark);
-        (*value_29) = ImageMark_Visiting;
+        ImageMark* value_36 = &(dependency->mark);
+        (*value_36) = ImageMark_Visiting;
     }
-    int32_t value_30 = 0;
+    int32_t value_37 = 0;
     if (count == 0) {
-        value_30 = 1;
+        value_37 = 1;
     } else {
-        value_30 = 0;
+        value_37 = 0;
     }
-    int32_t valid = value_30;
+    int32_t valid = value_37;
     while (count != 0) {
         count = count - 1;
         ModuleImage* image = stack[count];
-        ImageMark* value_31 = &(image->mark);
-        (*value_31) = ImageMark_Unchecked;
-        size_t* value_32 = &(image->next_requirement);
-        (*value_32) = 0;
+        ImageMark* value_38 = &(image->mark);
+        (*value_38) = ImageMark_Unchecked;
+        size_t* value_39 = &(image->next_requirement);
+        (*value_39) = 0;
     }
     zir_foreign_compiler_host_api__free((uint8_t*)(stack));
     return valid;
@@ -6940,6 +6960,56 @@ compiler_host_api_OpenBackend(BundleInstance* instance, Bundle* bundle, int32_t 
     return instance->exec != ((void *)0) || instance->wasm != ((void *)0) || instance->native != ((void *)0);
 }
 
+int32_t
+compiler_host_api_SelectedBackend(int32_t policy)
+{
+    if (policy == 1) {
+        return 1;
+    }
+    if (policy == 2) {
+        return zir_foreign_compiler_host_api__NativePlatformBackend();
+    }
+    return zir_foreign_compiler_host_api__AutoPlatformBackend();
+}
+
+uint8_t*
+compiler_host_api_BundleTargetProblem(Bundle* bundle, int32_t selected, int32_t unbounded)
+{
+    if (zir_foreign_compiler_host_api__ExecBundleRequiresAssembly(bundle->exec) == 0) {
+        return (void *)0;
+    }
+    if (bundle->engine_only != 0 || selected == 1 || selected == 2) {
+        String value_0 = StringLiteral("the ZX program requires a compatible native assembly implementation before initialization");
+        uint8_t* value_1 = (void *)0;
+        {
+            String s = value_0;
+            value_1 = ((StaticText*)(&(s)))->data;
+        }
+        return value_1;
+    }
+    NativeBundleSlot* value_3 = (void *)0;
+    if (unbounded != 0) {
+        value_3 = &(bundle->unbounded);
+    } else {
+        value_3 = &(bundle->native);
+    }
+    NativeBundleSlot* slot = value_3;
+    void* value_4 = zir_foreign_compiler_host_api__NativeBundleSlotCode(slot, bundle->exec, &(bundle->digest[0]), unbounded);
+    if (value_4 != ((void *)0)) {
+        return (void *)0;
+    }
+    if ((slot->problem)[0] != 0) {
+        return &(slot->problem[0]);
+    }
+    String value_5 = StringLiteral("the selected platform has no compatible native assembly backend");
+    uint8_t* value_6 = (void *)0;
+    {
+        String s = value_5;
+        value_6 = ((StaticText*)(&(s)))->data;
+    }
+    return value_6;
+}
+
 BundleInstance*
 compiler_host_api_InstantiateWithPolicy(Bundle* bundle, HostBinding* bindings, size_t binding_count, int32_t max_steps, int32_t policy, int32_t unbounded, BundleConsoleWrite write, void* console_context, bool has_console, ZxRunControl* control, int32_t* status)
 {
@@ -6975,51 +7045,45 @@ compiler_host_api_InstantiateWithPolicy(Bundle* bundle, HostBinding* bindings, s
     if (value_9 || (policy != 0 && policy != 1 && policy != 2)) {
         return (void *)0;
     }
+    int32_t selected = compiler_host_api_SelectedBackend(policy);
+    uint8_t* target_problem = compiler_host_api_BundleTargetProblem(bundle, selected, unbounded);
+    if (target_problem != ((void *)0)) {
+        ZirSourceSpan value_10 = compiler_host_api_HostSpan();
+        String value_11 = StringLiteral("zx.target-only");
+        uint8_t* value_12 = (void *)0;
+        {
+            String s = value_11;
+            value_12 = ((StaticText*)(&(s)))->data;
+        }
+        String value_14 = StringLiteral("%s");
+        uint8_t* value_15 = (void *)0;
+        {
+            String s = value_14;
+            value_15 = ((StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_host_api__Diagnostic(value_10, value_12, value_15, target_problem);
+        return (void *)0;
+    }
     size_t bytes = compiler_host_api_BindingCopyBytes(bindings, binding_count);
     if (binding_count != 0 && bytes == 0) {
         return (void *)0;
     }
-    uint8_t* value_10 = zir_foreign_compiler_host_api__calloc(1, sizeof(BundleInstance));
-    BundleInstance* instance = (BundleInstance*)(value_10);
+    uint8_t* value_17 = zir_foreign_compiler_host_api__calloc(1, sizeof(BundleInstance));
+    BundleInstance* instance = (BundleInstance*)(value_17);
     if (instance == ((void *)0)) {
         return (void *)0;
     }
-    bool value_11 = compiler_host_api_CopyBindings(instance, bindings, binding_count, bytes);
-    bool value_12 = !value_11;
-    if (!value_12) {
-        bool value_13 = compiler_host_api_ValidateBindings(bundle, &(instance->set));
-        value_12 = !value_13;
+    bool value_18 = compiler_host_api_CopyBindings(instance, bindings, binding_count, bytes);
+    bool value_19 = !value_18;
+    if (!value_19) {
+        bool value_20 = compiler_host_api_ValidateBindings(bundle, &(instance->set));
+        value_19 = !value_20;
     }
-    if (value_12) {
+    if (value_19) {
         BundleInstanceClose(instance);
         return (void *)0;
-    }
-    int32_t selected = zir_foreign_compiler_host_api__AutoPlatformBackend();
-    if (policy == 1) {
-        selected = 1;
-    }
-    if (policy == 2) {
-        selected = zir_foreign_compiler_host_api__NativePlatformBackend();
     }
     if (bundle->engine_only != 0 && selected != 1) {
-        ZirSourceSpan value_14 = compiler_host_api_HostSpan();
-        String value_15 = StringLiteral("zx.capability");
-        uint8_t* value_16 = (void *)0;
-        {
-            String s = value_15;
-            value_16 = ((StaticText*)(&(s)))->data;
-        }
-        String value_18 = StringLiteral("this bundle requires the instruction engine");
-        uint8_t* value_19 = (void *)0;
-        {
-            String s = value_18;
-            value_19 = ((StaticText*)(&(s)))->data;
-        }
-        zir_foreign_compiler_host_api__Diagnostic(value_14, value_16, value_19);
-        BundleInstanceClose(instance);
-        return (void *)0;
-    }
-    if (has_console && selected != 1) {
         ZirSourceSpan value_21 = compiler_host_api_HostSpan();
         String value_22 = StringLiteral("zx.capability");
         uint8_t* value_23 = (void *)0;
@@ -7027,7 +7091,7 @@ compiler_host_api_InstantiateWithPolicy(Bundle* bundle, HostBinding* bindings, s
             String s = value_22;
             value_23 = ((StaticText*)(&(s)))->data;
         }
-        String value_25 = StringLiteral("a console callback requires the instruction engine");
+        String value_25 = StringLiteral("this bundle requires the instruction engine");
         uint8_t* value_26 = (void *)0;
         {
             String s = value_25;
@@ -7037,14 +7101,32 @@ compiler_host_api_InstantiateWithPolicy(Bundle* bundle, HostBinding* bindings, s
         BundleInstanceClose(instance);
         return (void *)0;
     }
-    bool value_28 = compiler_host_api_OpenBackend(instance, bundle, selected, max_steps, unbounded, write, console_context, has_console, control, status);
-    if (!value_28) {
+    if (has_console && selected != 1) {
+        ZirSourceSpan value_28 = compiler_host_api_HostSpan();
+        String value_29 = StringLiteral("zx.capability");
+        uint8_t* value_30 = (void *)0;
+        {
+            String s = value_29;
+            value_30 = ((StaticText*)(&(s)))->data;
+        }
+        String value_32 = StringLiteral("a console callback requires the instruction engine");
+        uint8_t* value_33 = (void *)0;
+        {
+            String s = value_32;
+            value_33 = ((StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_host_api__Diagnostic(value_28, value_30, value_33);
+        BundleInstanceClose(instance);
+        return (void *)0;
+    }
+    bool value_35 = compiler_host_api_OpenBackend(instance, bundle, selected, max_steps, unbounded, write, console_context, has_console, control, status);
+    if (!value_35) {
         BundleInstanceClose(instance);
         return (void *)0;
     }
     if (status != ((void *)0)) {
-        int32_t* value_29 = &((*(status)));
-        (*value_29) = 1;
+        int32_t* value_36 = &((*(status)));
+        (*value_36) = 1;
     }
     return instance;
 }

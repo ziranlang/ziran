@@ -26,7 +26,7 @@ Parameter :: (parameters: []s32, value: s32) -> s64 {
 Leaf :: (program: LirProgram, call: LirInstruction) -> (instruction: LirInstruction, valid: bool) {
     if call.result < 0 || call.symbol < 0 || call.symbol >= program.functions.count { return .{}, false }
     function := program.functions[call.symbol]
-    if function.external || function.variadic || function.calling != .Portable ||
+    if function.external || function.variadic || function.calling != .Portable || function.variants.count != 0 ||
         function.blocks.count != 1 || function.entry != 0 || !Scalar(program, function.result) { return .{}, false }
     block := function.blocks[0]
     if block.instructions.count != 2 || block.parameters.count != call.operands.count { return .{}, false }
@@ -138,7 +138,8 @@ Expandable :: (program: LirProgram, caller: s64, call: LirInstruction, maximum: 
     if call.op != .Call || call.symbol < 0 || cast(s64)call.symbol >= program.functions.count ||
         cast(s64)call.symbol == caller { return false }
     callee := program.functions[call.symbol]
-    if callee.external || callee.variadic || callee.calling != .Portable || callee.blocks.count == 0 { return false }
+    if callee.external || callee.variadic || callee.calling != .Portable ||
+        callee.variants.count != 0 || callee.blocks.count == 0 { return false }
     size: s64
     returns := false
     for block: callee.blocks {
@@ -504,7 +505,8 @@ LirPureProcedures :: (program: LirProgram, pure: []u8, budget: *LirSsaBudget) ->
     for function_index: 0..program.functions.count - 1 {
         function := program.functions[function_index]
         pure[function_index] = 0
-        if function.external || function.variadic || function.calling != .Portable || function.blocks.count == 0 { continue }
+        if function.external || function.variadic || function.calling != .Portable ||
+            function.blocks.count == 0 || function.variants.count != 0 { continue }
         candidate := true
         for block: function.blocks {
             for instruction: block.instructions {

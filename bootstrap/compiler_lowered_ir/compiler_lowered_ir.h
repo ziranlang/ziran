@@ -9,8 +9,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#define LirVersion 4
+#define LirVersion 5
 #define LirNoId -1
+#define LirAssemblyVariantLimit 30
+#define LirAssemblyOperandLimit 30
+#define LirAssemblyTextLimit 4096
 typedef int32_t LirTypeKind;
 typedef struct LirType LirType;
 typedef int32_t LirCalling;
@@ -18,6 +21,8 @@ typedef uint8_t LirOp;
 typedef struct LirEdge LirEdge;
 typedef struct LirInstruction LirInstruction;
 typedef struct LirBlock LirBlock;
+typedef struct LirAssemblyOperand LirAssemblyOperand;
+typedef struct LirAssemblyVariant LirAssemblyVariant;
 typedef struct LirFunction LirFunction;
 typedef struct LirConstant LirConstant;
 typedef struct LirGlobal LirGlobal;
@@ -133,6 +138,23 @@ struct LirBlock {
     Slice instructions;
 };
 
+struct LirAssemblyOperand {
+    String alias;
+    String constraint;
+};
+
+struct LirAssemblyVariant {
+    String architecture;
+    String os;
+    String abi;
+    uint64_t features;
+    String template;
+    String clobbers;
+    Slice operands;
+    int32_t outputs;
+    bool ziran_keyword_volatile_0;
+};
+
 struct LirFunction {
     int32_t module;
     String name;
@@ -145,6 +167,9 @@ struct LirFunction {
     Slice blocks;
     int32_t entry;
     int32_t origin;
+    Slice variants;
+    bool assembly_required;
+    bool assembly_gate;
 };
 
 struct LirConstant {
@@ -208,6 +233,7 @@ enum {
     LirProblem_Alignment = 18,
     LirProblem_Calling = 19,
     LirProblem_Unsupported = 20,
+    LirProblem_Assembly = 21,
 };
 
 struct LirDiagnostic {
@@ -228,6 +254,10 @@ struct LirLimits {
     int64_t instructions;
     int64_t bytes;
 };
+String compiler_lowered_ir_LirAssemblyConstraint(String text, int32_t column);
+bool compiler_lowered_ir_LirAssemblyUsesMemory(String constraint);
+bool compiler_lowered_ir_LirAssemblyGateAddressed(Slice variants, int64_t operand);
+int32_t compiler_lowered_ir_LirAssemblyRequiredFunction(LirProgram program);
 LirLimits compiler_lowered_ir_LirDefaultLimits(void);
 bool compiler_lowered_ir_LirTerminator(LirOp op);
 bool compiler_lowered_ir_LirEffectful(LirOp op);
@@ -238,12 +268,26 @@ String compiler_lowered_ir_LirOpName(LirOp op);
 #if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_LOWERED_IR_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include <stdint.h>
 #include <stdbool.h>
+static inline bool compiler_lowered_ir_LirAssemblyGateAddressed_ziran_inline(Slice variants, int64_t operand);
+#define compiler_lowered_ir_LirAssemblyGateAddressed(...) compiler_lowered_ir_LirAssemblyGateAddressed_ziran_inline(__VA_ARGS__)
 static inline bool compiler_lowered_ir_LirTerminator_ziran_inline(LirOp op);
 #define compiler_lowered_ir_LirTerminator(...) compiler_lowered_ir_LirTerminator_ziran_inline(__VA_ARGS__)
 static inline bool compiler_lowered_ir_LirEffectful_ziran_inline(LirOp op);
 #define compiler_lowered_ir_LirEffectful(...) compiler_lowered_ir_LirEffectful_ziran_inline(__VA_ARGS__)
 static inline bool compiler_lowered_ir_LirProducesValue_ziran_inline(LirOp op);
 #define compiler_lowered_ir_LirProducesValue(...) compiler_lowered_ir_LirProducesValue_ziran_inline(__VA_ARGS__)
+
+static inline bool
+compiler_lowered_ir_LirAssemblyGateAddressed_ziran_inline(Slice variants, int64_t operand)
+{
+    for (int64_t it_index = 0LL; it_index < (int64_t)(variants).length; it_index++) {
+        LirAssemblyVariant variant = ((LirAssemblyVariant *)variants.data)[it_index];
+        if (operand < (int64_t)(variant.operands).length && compiler_lowered_ir_LirAssemblyUsesMemory((((LirAssemblyOperand *)variant.operands.data)[operand]).constraint)) {
+            return true;
+        }
+    }
+    return false;
+}
 
 static inline bool
 compiler_lowered_ir_LirTerminator_ziran_inline(LirOp op)

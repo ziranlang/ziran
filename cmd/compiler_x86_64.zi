@@ -3,6 +3,8 @@ using ABI :: #import "compiler_abi"
 using Allocated :: #import "compiler_machine_verify_allocated"
 using Bytes :: #import "compiler_x86_bytes"
 using Image :: #import "compiler_machine_image"
+using Inline :: #import "compiler_x86_inline"
+using Lir :: #import "compiler_lowered_ir"
 using Machine :: #import "compiler_machine_ir"
 using Target :: #import "compiler_target"
 using Vectors :: #import "std/vec"
@@ -71,7 +73,10 @@ MachineX64Relocation :: struct {
 // blocks, its end, and the first byte of its frame setup. That last one
 // follows an early return that leaves before any frame exists, so unwind
 // data must not assume the frame starts at the function's first byte.
-MachineX64Function :: struct { begin: s64; body: s64; cold: s64; end: s64; frame: s64 }
+MachineX64Function :: struct {
+    begin: s64; body: s64; cold: s64; end: s64; frame: s64
+    inline_frame: Inline.X86InlineFrame
+}
 MachineX64Range :: struct { begin: s64; end: s64 }
 
 MachineX64Image :: struct {
@@ -131,11 +136,15 @@ ColdTrap :: struct {
 
 State :: struct {
     program: MachineProgram
+    assembly: *LirProgram
+    features: u64
+    inline_fuel: bool
     writer: X86Writer
     diagnostic: MachineDiagnostic
     remaining: s64
     used: s64
     emit: bool
+    encoded_functions: []MachineX64Function
     function_begin: []s64
     function_body: []s64
     function_frame: []s64
@@ -2986,6 +2995,45 @@ Prologue :: (state: *State) -> bool {
     return true
 }
 
+InlineVariant :: (state: *State) -> s64 {
+    if state.assembly == null { return -1 }
+    return MachineAbiAssemblyVariant(state.assembly.functions[state.function], state.assembly.checks,
+        state.program.target, state.features)
+}
+
+InlineFunction :: (state: *State, function: MachineFunction, index: s64) -> bool {
+    source := state.assembly.functions[state.function]
+    variant := source.variants[index]
+    if !Spend(state, variant.template.count + 1) || !Place(state, state.function_frame, state.function) { return false }
+    bad: s64
+    sites: Vec(Inline.X86InlineFuelSite)
+    unwind: Inline.X86InlineFrame
+    defer VecFree(sites)
+    if !X86InlineBody(*state.writer, <<state.assembly, source, variant, state.program.target, *bad,
+        ifx state.inline_fuel then *sites else null, *unwind) {
+        unused Fail(state, .Assembly)
+        state.diagnostic.operand = cast(s32)bad
+        return false
+    }
+    if state.emit {
+        if state.function_body[state.function] != unwind.body { return Fail(state, .Instruction) }
+        state.encoded_functions[state.function].inline_frame = unwind
+    } else { state.function_body[state.function] = unwind.body }
+    for site: sites[:] {
+        Relocate(state, .FuelCounter, 0, -5, site.counter)
+        Relocate(state, .TrapHandler, 0, -4, site.trap)
+    }
+    for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
+        block := state.program.blocks[block_id]
+        if !Place(state, state.block_begin, block_id) { return false }
+        for at: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
+            if !Place(state, state.instruction_begin, at) || !Place(state, state.instruction_end, at) { return false }
+            if state.relocation_of[at] != MachineNoId { state.consumed += 1 }
+        }
+    }
+    return Place(state, state.function_cold, state.function) && Place(state, state.function_end, state.function)
+}
+
 Pass :: (state: *State) -> bool {
     program := state.program
     for function_index: cast(s64)0..program.functions.count - 1 {
@@ -3009,7 +3057,13 @@ Pass :: (state: *State) -> bool {
         // branches meet the same fetch and decoded-cache boundaries however
         // the functions before it change. The gap is int3, never run.
         while state.writer.at % FunctionAlignment != 0 { X86Byte(*state.writer, 0xcc) }
-        if !Spend(state, 1) || !Place(state, state.function_begin, function_index) || !Prologue(state) { return false }
+        if !Spend(state, 1) || !Place(state, state.function_begin, function_index) { return false }
+        variant := InlineVariant(state)
+        if variant >= 0 {
+            if !InlineFunction(state, function, variant) { return false }
+            continue
+        }
+        if !Prologue(state) { return false }
         if state.writer.failed { return Fail(state, .Limit) }
         for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
             state.block = block_id
@@ -3207,7 +3261,8 @@ BuildMachineImage :: (program: MachineProgram, output: *MachineX64Owner,
 // Verifies and measures PROGRAM; with an OUTPUT, writes and publishes the
 // image there. Every diagnostic from verification, form checks or measuring
 // returns before OUTPUT is touched.
-Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64Owner, verify: bool = true) -> MachineX64Result {
+Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64Owner, verify: bool = true,
+    assembly: *LirProgram = null, features: u64 = 0, inline_fuel: bool = false) -> MachineX64Result {
     if verify {
         verified := MachineVerifySelfBuilt(program, limits)
         if verified.problem != .None { return .{diagnostic = verified} }
@@ -3254,7 +3309,7 @@ Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64O
     }
     limit := limits.bytes
     if limit > CodeLimit { limit = CodeLimit }
-    state := State.{program = program, writer = .{limit = limit}, diagnostic = NoDiagnostic(),
+    state := State.{program = program, assembly = assembly, features = features, inline_fuel = inline_fuel, writer = .{limit = limit}, diagnostic = NoDiagnostic(),
         remaining = limits.work,
         function_begin = layout.function_begin[:], function_body = layout.function_body[:],
         function_frame = layout.function_frame[:],
@@ -3285,6 +3340,7 @@ Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64O
     state.emit = true
     state.writer = .{output = output.code[:], limit = limit}
     state.relocations = output.relocations[:]
+    state.encoded_functions = output.functions[:]
     state.relocation_count = 0
     state.consumed = 0
     state.cold_count = 0
@@ -3297,9 +3353,12 @@ Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64O
         return result
     }
     for index: cast(s64)0..program.functions.count - 1 {
-        output.functions[index] = .{begin = layout.function_begin[index], body = layout.function_body[index],
-            cold = layout.function_cold[index], end = layout.function_end[index],
-            frame = layout.function_frame[index]}
+        function := *output.functions[index]
+        function.begin = layout.function_begin[index]
+        function.body = layout.function_body[index]
+        function.cold = layout.function_cold[index]
+        function.end = layout.function_end[index]
+        function.frame = layout.function_frame[index]
     }
     for index: cast(s64)0..program.instructions.count - 1 {
         output.instructions[index] = .{begin = layout.instruction_begin[index], end = layout.instruction_end[index]}
@@ -3387,4 +3446,10 @@ MachineX64Encode :: (program: MachineProgram, limits: MachineLimits, output: *Ma
 MachineX64EncodeAllocated :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64Owner) -> MachineDiagnostic {
     if output == null { return Failure(.Owner).diagnostic }
     return Process(program, limits, output, false).diagnostic
+}
+
+MachineX64EncodeAssembly :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64Owner,
+    lir: *LirProgram, features: u64, fuel: bool) -> MachineDiagnostic {
+    if output == null { return Failure(.Owner).diagnostic }
+    return Process(program, limits, output, false, lir, features, fuel).diagnostic
 }

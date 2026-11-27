@@ -247,7 +247,7 @@ PeLayout :: (program: MachineProgram, encoded: MachineX64Image, hosts: MachinePe
         function := encoded.functions[function_id]
         if function.body <= function.begin { continue }
         if function.body - function.begin > 255 { diagnostic.problem = .Limit; return diagnostic }
-        slots := UnwindSlots(program, function_id)
+        slots := UnwindSlots(program, function, function_id)
         if slots < 0 { diagnostic.problem = .Unsupported; return diagnostic }
         layout.unwind_count += 1
         xdata_size += Align(4 + slots * 2, 4)
@@ -355,13 +355,21 @@ DataDirectory :: (output: []u8, index: s64, rva: s64, size: s64) {
 // The UNWIND_CODE slots for FUNCTION's prologue: the pushed frame pointer,
 // the frame register, and the stack allocation when it has one. Returns -1
 // for an allocation no unwind code can describe.
-UnwindSlots :: (program: MachineProgram, function_id: s64) -> s64 {
-    size := program.frames[function_id].size
-    if size == 0 { return 2 }
+UnwindSlots :: (program: MachineProgram, function: MachineX64Function, function_id: s64) -> s64 {
+    size := UnwindStack(program, function, function_id)
+    // Inline prologues save registers relative to the allocated stack and
+    // keep RSP fixed through the body. RBP is a saved general register.
+    saves := function.inline_frame.count * 2 + (ifx function.inline_frame.body != 0 then 1 else 2)
+    if size == 0 { return saves }
     if size < 0 || size % 8 != 0 { return -1 }
-    if size <= 128 { return 3 }
-    if size / 8 <= 65535 { return 4 }
-    return 5
+    if size <= 128 { return saves + 1 }
+    if size / 8 <= 65535 { return saves + 2 }
+    return saves + 3
+}
+
+UnwindStack :: (program: MachineProgram, function: MachineX64Function, function_id: s64) -> s64 {
+    if function.inline_frame.body != 0 { return function.inline_frame.size }
+    return program.frames[function_id].size
 }
 
 // The .pdata entries, in function order, and the .xdata record each names.
@@ -377,8 +385,8 @@ WriteUnwind :: (program: MachineProgram, encoded: MachineX64Image, layout: Layou
     for function_id: cast(s64)0..encoded.functions.count - 1 {
         function := encoded.functions[function_id]
         if function.body <= function.begin { continue }
-        slots := UnwindSlots(program, function_id)
-        size := program.frames[function_id].size
+        slots := UnwindSlots(program, function, function_id)
+        size := UnwindStack(program, function, function_id)
         frame := function.frame - function.begin
         code := MachinePeTextRva + layout.image.startup_size + function.begin
         PutLittle(output, entry, cast(u64)code, 4)
@@ -388,8 +396,18 @@ WriteUnwind :: (program: MachineProgram, encoded: MachineX64Image, layout: Layou
         output[at] = 1
         output[at + 1] = cast(u8)(function.body - function.begin)
         output[at + 2] = cast(u8)slots
-        output[at + 3] = 5
+        inline := function.inline_frame.body != 0
+        output[at + 3] = ifx inline then 0 else 5
         slot := at + 4
+        index := function.inline_frame.count
+        while index > 0 {
+            index -= 1
+            saved := function.inline_frame.saves[index]
+            output[slot] = saved.code
+            output[slot + 1] = (saved.register << 4) | (ifx saved.vector then cast(u8)8 else cast(u8)4)
+            PutLittle(output, slot + 2, cast(u64)saved.stack, 2)
+            slot += 4
+        }
         if size > 0 {
             output[slot] = cast(u8)(frame + 4 + (ifx size <= 127 then 4 else 7))
             if size <= 128 {
@@ -401,11 +419,13 @@ WriteUnwind :: (program: MachineProgram, encoded: MachineX64Image, layout: Layou
                 slot += 4
             } else {
                 output[slot + 1] = cast(u8)((1 << 4) | 1)
-                PutLittle(output, slot + 2, cast(u64)(size / 8), 4)
+                PutLittle(output, slot + 2, cast(u64)size, 4)
                 slot += 6
             }
         }
-        output[slot] = cast(u8)(frame + 4); output[slot + 1] = 3; slot += 2
+        if !inline {
+            output[slot] = cast(u8)(frame + 4); output[slot + 1] = 3; slot += 2
+        }
         output[slot] = cast(u8)(frame + 1); output[slot + 1] = cast(u8)((5 << 4) | 0); slot += 2
         used := 4 + slots * 2
         end := at + Align(used, 4)

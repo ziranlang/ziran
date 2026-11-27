@@ -1,0 +1,112 @@
+using Lir :: #import "compiler_lowered_ir"
+
+AsmLabel :: struct { name: string; line: s64; offset: s64; data: bool }
+
+#scope_export
+
+AsmTrim :: (s: string) -> string {
+    begin: s64
+    end := s.count
+    while begin < end && s[begin] <= 32 { begin += 1 }
+    while end > begin && s[end - 1] <= 32 { end -= 1 }
+    return s[begin:end]
+}
+
+AsmFind :: (s: string, char: u8) -> s64 {
+    for byte, index: s { if byte == char { return index } }
+    return s.count
+}
+
+AsmClobbers :: (text: string, name: string) -> bool {
+    begin: s64
+    while begin < text.count {
+        end := begin + AsmFind(text[begin:text.count], #char ";")
+        if AsmTrim(text[begin:end]) == name { return true }
+        begin = end + 1
+    }
+    return false
+}
+
+AsmNumber :: (s: string) -> (value: s64, ok: bool) {
+    at: s64
+    negative := s.count > 0 && s[0] == #char "-"
+    if negative || s.count > 0 && s[0] == #char "+" { at += 1 }
+    base: u64 = 10
+    if at + 2 <= s.count && s[at] == #char "0" && s[at + 1] == #char "x" { base = 16; at += 2 }
+    if at == s.count { return 0, false }
+    value: u64
+    for byte: s[at:s.count] {
+        digit: s32 = -1
+        if byte >= #char "0" && byte <= #char "9" { digit = cast(s32)byte - cast(s32)#char "0" }
+        else if byte >= #char "a" && byte <= #char "f" { digit = cast(s32)byte - cast(s32)#char "a" + 10 }
+        else if byte >= #char "A" && byte <= #char "F" { digit = cast(s32)byte - cast(s32)#char "A" + 10 }
+        if digit < 0 || cast(u64)digit >= base || value > (0xffffffffffffffff - cast(u64)digit) / base {
+            return 0, false
+        }
+        value = value * base + cast(u64)digit
+    }
+    return cast(s64)(ifx negative then cast(u64)0 - value else value), true
+}
+
+AsmSquare :: (s: string) -> bool { return s.count >= 2 && s[0] == #char "[" && s[s.count - 1] == #char "]" }
+
+AsmOperandIndex :: (variant: LirAssemblyVariant, name: string) -> s64 {
+    if AsmSquare(name) {
+        for operand, id: variant.operands { if operand.alias == name[1:name.count - 1] { return id } }
+        return -1
+    }
+    id, ok := AsmNumber(name)
+    return ifx ok && id >= 0 && id < variant.operands.count then id else -1
+}
+
+AsmLocalTarget :: (s: string, labels: []AsmLabel, here: s64, data_ok: bool = false) -> s64 {
+    if s.count == 0 { return -1 }
+    tail := s[s.count - 1]
+    if s.count > 1 && (tail == #char "f" || tail == #char "b") {
+        stem := s[0:s.count - 1]
+        _, numeric := AsmNumber(stem)
+        if numeric {
+            target: s64 = -1
+            for label: labels {
+                if label.name != stem { continue }
+                offset := ifx label.data && !data_ok then -1 else label.offset
+                if tail == #char "f" && label.line > here { return offset }
+                if tail == #char "b" && label.line <= here { target = offset }
+            }
+            return target
+        }
+    }
+    for label: labels { if label.name == s { return ifx label.data && !data_ok then -1 else label.offset } }
+    return -1
+}
+
+
+// Split operands while retaining commas inside a memory address or register list.
+AsmArguments :: (text: string, parts: []string) -> s32 {
+    if text.count == 0 { return 0 }
+    start: s64
+    depth: s32
+    count: s32
+    for byte, at: text {
+        if byte == #char "[" || byte == #char "{" || byte == #char "(" { depth += 1 }
+        else if byte == #char "]" || byte == #char "}" || byte == #char ")" { depth -= 1 }
+        if depth < 0 { return -1 }
+        if byte == #char "," && depth == 0 {
+            if count >= parts.count { return -1 }
+            parts[count] = AsmTrim(text[start:at])
+            count += 1
+            start = at + 1
+        }
+    }
+    if depth != 0 || count >= parts.count { return -1 }
+    parts[count] = AsmTrim(text[start:text.count])
+    return count + 1
+}
+
+AsmBit :: (id: s32) -> u64 { return cast(u64)1 << cast(u64)id }
+
+AsmFreeRegister :: (available: u64, preferred: s32, count: s32) -> s32 {
+    if preferred >= 0 && (available & AsmBit(preferred)) != 0 { return preferred }
+    for id: cast(s32)0..count - 1 { if (available & AsmBit(id)) != 0 { return id } }
+    return -1
+}

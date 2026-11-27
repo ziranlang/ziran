@@ -2,7 +2,7 @@ ASSEMBLY_C := $(BUILD_DIR)/compiler-assembly
 ASSEMBLY_MACHINE_SOURCES := cmd/compiler_vector_form.zi cmd/compiler_vectorize.zi cmd/compiler_vector_x86.zi \
      cmd/compiler_target.zi cmd/compiler_machine_image.zi cmd/compiler_abi.zi cmd/compiler_machine_ir.zi \
     cmd/compiler_machine_verify.zi cmd/compiler_machine_aggregate.zi cmd/compiler_machine_fields.zi cmd/compiler_machine_select.zi cmd/compiler_machine_lower.zi \
-    cmd/compiler_machine_verify_allocated.zi cmd/compiler_regalloc.zi cmd/compiler_x86_bytes.zi cmd/compiler_x86_64.zi cmd/compiler_x86_runtime.zi \
+    cmd/compiler_machine_verify_allocated.zi cmd/compiler_regalloc.zi cmd/compiler_asm_template.zi cmd/compiler_x86_bytes.zi cmd/compiler_x86_inline.zi cmd/compiler_x86_64.zi cmd/compiler_x86_runtime.zi \
     cmd/compiler_x86_win64.zi cmd/compiler_x86_host.zi cmd/compiler_x86_image.zi \
     cmd/compiler_encode.zi cmd/compiler_aarch64.zi cmd/compiler_aarch64_runtime.zi cmd/compiler_aarch64_elf.zi cmd/compiler_armv7.zi cmd/compiler_armv7_runtime.zi cmd/compiler_armv7_elf.zi \
     cmd/compiler_arm_bytes.zi \
@@ -63,7 +63,7 @@ ASSEMBLY_NATIVE_MODULES := compiler_vector_form compiler_vectorize compiler_vect
      compiler_abi compiler_machine_image \
     compiler_machine_ir compiler_machine_verify \
     compiler_machine_aggregate compiler_machine_fields compiler_machine_select compiler_machine_lower compiler_machine_verify_allocated compiler_regalloc \
-    compiler_target compiler_learning compiler_learning_policy compiler_x86_bytes compiler_x86_64 compiler_x86_runtime compiler_encode compiler_aarch64 compiler_aarch64_runtime compiler_aarch64_elf compiler_armv7 compiler_armv7_runtime compiler_armv7_elf \
+    compiler_target compiler_learning compiler_learning_policy compiler_asm_template compiler_x86_bytes compiler_x86_inline compiler_x86_64 compiler_x86_runtime compiler_encode compiler_aarch64 compiler_aarch64_runtime compiler_aarch64_elf compiler_armv7 compiler_armv7_runtime compiler_armv7_elf \
     compiler_x86_win64 compiler_x86_host compiler_x86_image \
     compiler_x86_archive \
     compiler_arm_bytes \

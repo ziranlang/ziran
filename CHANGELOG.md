@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- Preserve architecture-specific assembly in ZX revision 29 through source and
+  saved-IR builds. Native ZX selects compatible templates by architecture,
+  OS, ABI and usable CPU features, with the portable body as the default.
+  Explicit target-only procedures verify their requirements before initialization.
+
+- Accept `.ts` and `.tsx` sources directly in the compiler and package tools
+  for the supported native TypeScript subset, replacing the `tsx2zi` prototype.
+
 - Keep small loaded records in scalar registers through member updates,
   stores and block transfers on native targets, avoiding temporary record
   copies while preserving snapshots across writes and calls. Checked memory

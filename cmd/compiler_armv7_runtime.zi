@@ -1,4 +1,5 @@
 using Bytes :: #import "compiler_arm_bytes"
+using Encode :: #import "compiler_encode"
 using Target :: #import "compiler_target"
 
 // Runtime routines an ARMv7 (A32) Linux or Android native executable carries,
@@ -17,9 +18,10 @@ using Target :: #import "compiler_target"
 
 MachineV7RuntimeTrapExit :: 125
 
-// The EABI call numbers: write (4), exit_group (248).
 MachineV7SysWrite :: 4
 MachineV7SysExit :: 248
+MachineV7SysUnmap :: 91
+MachineV7SysMap :: 192
 
 // What the routines use, as image positions.
 MachineV7RuntimePlaces :: struct {
@@ -32,20 +34,24 @@ MachineV7RuntimeUses :: struct {
     exit: bool
     // The console writer.
     write_all: bool
+    resize: bool
 }
 
 // Entry offsets of the emitted routines and the end of their code.
 MachineV7RuntimeEntries :: struct {
     exit: s64
     write_all: s64
+    resize: s64
     end: s64
 }
 
 Label :: enum s32 {
     Exit; WriteAll; WriteLoop; WriteAgain; WriteDone; WriteFail
+    Resize; ResizeOld; ResizeAllocate; ResizeZeroBytes; ResizeMap; ResizeCopy
+    ResizeRelease; ResizeReturn; ResizeNull; ResizeBad; Count
 }
 
-LabelCount :: 6
+LabelCount :: 16
 
 Emitter :: struct {
     writer: Bytes.ArmWriter
@@ -181,9 +187,106 @@ EmitWrite :: (emitter: *Emitter) {
     BranchTo(emitter, .Exit, false)
 }
 
+// The caller provides four 64-bit slots: address, old count, new count,
+// element size. All its registers survive. The aligned header remembers
+// the full count, element size and mapped bytes for validation and free.
+EmitResize :: (emitter: *Emitter) {
+    Mark(emitter, .Resize)
+    Op(emitter, 0xe92d5fff) // push {r0-r12, lr}
+    AddSubImmediate(emitter, 11, 13, 56, false)
+    LoadWord(emitter, 10, 11, 0)  // old data
+    LoadWord(emitter, 0, 11, 8)   // old count low/high
+    LoadWord(emitter, 1, 11, 12)
+    LoadWord(emitter, 2, 11, 24)  // element size
+    MoveWord(emitter, 8, 0)       // old bytes
+    CompareImmediate(emitter, 10, 0)
+    BranchConditionTo(emitter, 1, .ResizeOld)
+    Op(emitter, 0xe1903001)       // orrs r3, r0, r1
+    BranchConditionTo(emitter, 1, .ResizeBad)
+    BranchTo(emitter, .ResizeAllocate, false)
+
+    Mark(emitter, .ResizeOld)
+    AddSubImmediate(emitter, 12, 10, 16, true)
+    for field: cast(s32)0..2 {
+        LoadWord(emitter, 3, 12, field * 4)
+        CompareRegister(emitter, 3, field)
+        BranchConditionTo(emitter, 1, .ResizeBad)
+    }
+    LoadWord(emitter, 8, 12, 12)
+
+    Mark(emitter, .ResizeAllocate)
+    MoveWord(emitter, 6, 0)       // return null for free
+    LoadWord(emitter, 0, 11, 16)  // new count low/high
+    LoadWord(emitter, 1, 11, 20)
+    Op(emitter, 0xe1903001)       // orrs r3, r0, r1
+    BranchConditionTo(emitter, 0, .ResizeRelease)
+    CompareImmediate(emitter, 2, 0)
+    BranchConditionTo(emitter, 0, .ResizeZeroBytes)
+    CompareImmediate(emitter, 1, 0)
+    BranchConditionTo(emitter, 1, .ResizeNull)
+    Op(emitter, 0xe08c9290)       // umull r9, r12, r0, r2
+    CompareImmediate(emitter, 12, 0)
+    BranchConditionTo(emitter, 1, .ResizeNull)
+    MoveWord(emitter, 12, 0x0fffffe0)
+    CompareRegister(emitter, 9, 12)
+    BranchConditionTo(emitter, 8, .ResizeNull)
+    BranchTo(emitter, .ResizeMap, false)
+    Mark(emitter, .ResizeZeroBytes)
+    MoveWord(emitter, 9, 0)
+
+    Mark(emitter, .ResizeMap)
+    MoveWord(emitter, 0, 0)
+    AddSubImmediate(emitter, 1, 9, 16, false)
+    MoveWord(emitter, 2, 3)       // PROT_READ | PROT_WRITE
+    MoveWord(emitter, 3, 0x22)    // MAP_PRIVATE | MAP_ANONYMOUS
+    Op(emitter, 0xe3e04000)       // mvn r4, #0
+    MoveWord(emitter, 5, 0)
+    Syscall(emitter, MachineV7SysMap)
+    Op(emitter, 0xe3700a01)       // cmn r0, #4096
+    BranchConditionTo(emitter, 8, .ResizeNull)
+    for field: cast(s32)0..2 {
+        LoadWord(emitter, 12, 11, 16 + field * 4)
+        StoreWord(emitter, 12, 0, field * 4)
+    }
+    StoreWord(emitter, 9, 0, 12)
+    AddSubImmediate(emitter, 6, 0, 16, false)
+    MoveRegister(emitter, 1, 10)
+    MoveRegister(emitter, 2, 6)
+    MoveRegister(emitter, 3, 8)
+    CompareRegister(emitter, 8, 9)
+    Op(emitter, 0x81a03009)       // movhi r3, r9 (bytes to copy)
+    Mark(emitter, .ResizeCopy)
+    CompareImmediate(emitter, 3, 0)
+    BranchConditionTo(emitter, 0, .ResizeRelease)
+    Op(emitter, 0xe4d1c001)       // ldrb r12, [r1], #1
+    Op(emitter, 0xe4c2c001)       // strb r12, [r2], #1
+    AddSubImmediate(emitter, 3, 3, 1, true)
+    BranchTo(emitter, .ResizeCopy, false)
+
+    Mark(emitter, .ResizeRelease)
+    CompareImmediate(emitter, 10, 0)
+    BranchConditionTo(emitter, 0, .ResizeReturn)
+    AddSubImmediate(emitter, 0, 10, 16, true)
+    AddSubImmediate(emitter, 1, 8, 16, false)
+    Syscall(emitter, MachineV7SysUnmap)
+    Mark(emitter, .ResizeReturn)
+    StoreWord(emitter, 6, 11, 0)
+    Op(emitter, 0xe8bd9fff)       // pop {r0-r12, pc}
+    Mark(emitter, .ResizeNull)
+    MoveWord(emitter, 6, 0)
+    BranchTo(emitter, .ResizeReturn, false)
+    Mark(emitter, .ResizeBad)
+    MoveWord(emitter, 0, NativeTrapPointer)
+    delta := Delta(emitter, emitter.places.trap)
+    if emitter.writer.output.count != 0 { delta -= 2 }
+    field := Bytes.ArmField(*emitter.writer, delta, 24)
+    Op(emitter, cast(u32)(0xea000000 | field))
+}
+
 Emit :: (emitter: *Emitter, uses: MachineV7RuntimeUses) {
     if uses.exit { EmitExit(emitter) }
     if uses.write_all { EmitWrite(emitter) }
+    if uses.resize { EmitResize(emitter) }
 }
 
 #scope_export
@@ -192,14 +295,14 @@ Emit :: (emitter: *Emitter, uses: MachineV7RuntimeUses) {
 // position AT. Writing reproduces the measured positions exactly.
 MachineV7RuntimeEmit :: (output: []u8, at: s64, uses: MachineV7RuntimeUses,
     places: MachineV7RuntimePlaces, entries: *MachineV7RuntimeEntries) -> bool {
-    if cast(s64)Label.WriteFail + 1 != LabelCount { return false }
+    if cast(s64)Label.Count != LabelCount { return false }
     measure: Emitter
     measure.writer = .{at = at, limit = 9223372036854775807}
     measure.places = places
     Emit(*measure, uses)
     if measure.writer.failed { return false }
     labels := measure.labels
-    <<entries = .{exit = labels[cast(s64)Label.Exit], write_all = labels[cast(s64)Label.WriteAll],
+    <<entries = .{exit = labels[cast(s64)Label.Exit], write_all = labels[cast(s64)Label.WriteAll], resize = labels[cast(s64)Label.Resize],
         end = measure.writer.at}
     if output.count == 0 { return true }
     write := measure

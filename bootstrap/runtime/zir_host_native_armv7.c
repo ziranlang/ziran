@@ -214,9 +214,9 @@ ZirNativePatch(unsigned char *field, uintptr_t target, int32_t width, int64_t ad
 }
 
 uint64_t
-ZirNativeCpuKey(void)
+ZirNativeCpuFeatures(void)
 {
-    return (uint64_t)getauxval(AT_HWCAP) ^ ((uint64_t)getauxval(AT_HWCAP2) << 32);
+    return (((uint64_t)getauxval(AT_HWCAP) >> 12) & 1u) << 19; /* NEON */
 }
 
 #endif

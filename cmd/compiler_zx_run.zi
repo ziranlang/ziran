@@ -502,7 +502,7 @@ ContainerFailure :: (action: *u8, result: Link.ZxExecResult) {
 
 #scope_export
 
-// Lowers the linked program's entry, optimizes it and writes revision-28
+// Lowers the linked program's entry, optimizes it and writes revision-29
 // executable ZX with its host interface section: what zi2zx writes. ASSETS
 // are compiler_bundle Asset values in name order. The entry must take no
 // arguments and return an integer, bool or nothing; a library supplies

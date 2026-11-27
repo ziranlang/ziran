@@ -1,5 +1,5 @@
 using Bytes :: #import "compiler_arm_bytes"
-using Image :: #import "compiler_machine_image"
+using Encode :: #import "compiler_encode"
 using Target :: #import "compiler_target"
 
 // Runtime routines an AArch64 Linux or Android native executable carries,
@@ -20,9 +20,10 @@ using Target :: #import "compiler_target"
 
 MachineA64RuntimeTrapExit :: 125
 
-// The system calls the routines use: write (64), exit_group (94).
 MachineA64SysWrite :: 64
 MachineA64SysExit :: 94
+MachineA64SysUnmap :: 215
+MachineA64SysMap :: 222
 
 // What the routines use, as image positions.
 MachineA64RuntimePlaces :: struct {
@@ -35,20 +36,23 @@ MachineA64RuntimeUses :: struct {
     exit: bool
     // The console entries called.
     write_all: bool
+    resize: bool
 }
 
 // Entry offsets of the emitted routines and the end of their code.
 MachineA64RuntimeEntries :: struct {
     exit: s64
     write_all: s64
+    resize: s64
     end: s64
 }
 
 Label :: enum s32 {
     Exit; WriteAll; WriteLoop; WriteAgain; WriteDone; WriteFail
+    Resize; ResizeOld; ResizeAllocate; ResizeCopy; ResizeRelease; ResizeReturn; ResizeNull; ResizeBad; Count
 }
 
-LabelCount :: 6
+LabelCount :: 14
 
 Emitter :: struct {
     writer: Bytes.ArmWriter
@@ -239,10 +243,92 @@ EmitWrite :: (emitter: *Emitter) {
     BranchTo(emitter, .Exit)
 }
 
+// x0 = old data or null, x1 = old count, x2 = new count, x3 = element
+// size. Store count and element size before the aligned block. Anonymous
+// mappings zero new bytes. Release the old mapping only after copying, or
+// on an explicit free. The machine form preserves x1-x8 across the call.
+EmitResize :: (emitter: *Emitter) {
+    Mark(emitter, .Resize)
+    MoveRegister(emitter, 9, 0)  // old data
+    MoveRegister(emitter, 11, 3) // element size
+    MoveRegister(emitter, 13, 2) // new count
+    MoveImmediate64(emitter, 10, 0)
+    CompareImmediate(emitter, 0, 0)
+    BranchConditionTo(emitter, 1, .ResizeOld)
+    CompareImmediate(emitter, 1, 0)
+    BranchConditionTo(emitter, 1, .ResizeBad)
+    BranchTo(emitter, .ResizeAllocate)
+
+    Mark(emitter, .ResizeOld)
+    AddSubImmediate(emitter, 17, 9, 16, true)
+    LoadWord(emitter, 16, 17, 0)
+    CompareRegister(emitter, 16, 1)
+    BranchConditionTo(emitter, 1, .ResizeBad)
+    LoadWord(emitter, 16, 17, 8)
+    CompareRegister(emitter, 16, 11)
+    BranchConditionTo(emitter, 1, .ResizeBad)
+    Op(emitter, 0x9b0b7c2a) // mul x10, x1, x11 (old bytes)
+
+    Mark(emitter, .ResizeAllocate)
+    MoveImmediate64(emitter, 15, 0)
+    CompareImmediate(emitter, 13, 0)
+    BranchConditionTo(emitter, 0, .ResizeRelease)
+    Op(emitter, 0x9bcb7db0) // umulh x16, x13, x11
+    CompareImmediate(emitter, 16, 0)
+    BranchConditionTo(emitter, 1, .ResizeNull)
+    Op(emitter, 0x9b0b7dae) // mul x14, x13, x11 (new bytes)
+    MoveImmediate64(emitter, 16, 0x0fffffe0)
+    CompareRegister(emitter, 14, 16)
+    BranchConditionTo(emitter, 8, .ResizeNull)
+    MoveImmediate64(emitter, 0, 0)
+    AddSubImmediate(emitter, 1, 14, 16, false)
+    MoveImmediate64(emitter, 2, 3)          // PROT_READ | PROT_WRITE
+    MoveImmediate64(emitter, 3, 0x22)       // MAP_PRIVATE | MAP_ANONYMOUS
+    Op(emitter, 0x92800004)                // mov x4, #-1
+    MoveImmediate64(emitter, 5, 0)
+    Syscall(emitter, MachineA64SysMap)
+    CompareImmediate(emitter, 0, 0)
+    BranchConditionTo(emitter, 11, .ResizeNull)
+    StoreWord(emitter, 13, 0, 0)
+    StoreWord(emitter, 11, 0, 8)
+    AddSubImmediate(emitter, 15, 0, 16, false)
+    MoveRegister(emitter, 1, 9)
+    MoveRegister(emitter, 2, 15)
+    CompareRegister(emitter, 10, 14)
+    Op(emitter, 0x9a8e3150) // csel x16, x10, x14, lo (bytes to copy)
+    Mark(emitter, .ResizeCopy)
+    CompareImmediate(emitter, 16, 0)
+    BranchConditionTo(emitter, 0, .ResizeRelease)
+    LoadByte(emitter, 17, 1, 0)
+    StoreByte(emitter, 17, 2, 0)
+    AddSubImmediate(emitter, 1, 1, 1, false)
+    AddSubImmediate(emitter, 2, 2, 1, false)
+    AddSubImmediate(emitter, 16, 16, 1, true)
+    BranchTo(emitter, .ResizeCopy)
+
+    Mark(emitter, .ResizeRelease)
+    CompareImmediate(emitter, 9, 0)
+    BranchConditionTo(emitter, 0, .ResizeReturn)
+    AddSubImmediate(emitter, 0, 9, 16, true)
+    AddSubImmediate(emitter, 1, 10, 16, false)
+    Syscall(emitter, MachineA64SysUnmap)
+    Mark(emitter, .ResizeReturn)
+    MoveRegister(emitter, 0, 15)
+    Op(emitter, 0xd65f03c0) // ret
+    Mark(emitter, .ResizeNull)
+    MoveImmediate64(emitter, 0, 0)
+    Op(emitter, 0xd65f03c0) // ret
+    Mark(emitter, .ResizeBad)
+    MoveImmediate32(emitter, 0, NativeTrapPointer)
+    field := Bytes.ArmField(*emitter.writer, Delta(emitter, emitter.places.trap), 26)
+    Op(emitter, cast(u32)(0x14000000 | field))
+}
+
 Emit :: (emitter: *Emitter, uses: MachineA64RuntimeUses) {
     // A refused or failed write exits through the runtime's exit.
     if uses.exit { EmitExit(emitter) }
     if uses.write_all { EmitWrite(emitter) }
+    if uses.resize { EmitResize(emitter) }
 }
 
 #scope_export
@@ -255,14 +341,14 @@ MachineA64RuntimeConsole :: (uses: MachineA64RuntimeUses) -> bool {
 // position AT. Writing reproduces the measured positions exactly.
 MachineA64RuntimeEmit :: (output: []u8, at: s64, uses: MachineA64RuntimeUses,
     places: MachineA64RuntimePlaces, entries: *MachineA64RuntimeEntries) -> bool {
-    if cast(s64)Label.WriteFail + 1 != LabelCount { return false }
+    if cast(s64)Label.Count != LabelCount { return false }
     measure: Emitter
     measure.writer = .{at = at, limit = 9223372036854775807}
     measure.places = places
     Emit(*measure, uses)
     if measure.writer.failed { return false }
     labels := measure.labels
-    <<entries = .{exit = labels[cast(s64)Label.Exit], write_all = labels[cast(s64)Label.WriteAll],
+    <<entries = .{exit = labels[cast(s64)Label.Exit], write_all = labels[cast(s64)Label.WriteAll], resize = labels[cast(s64)Label.Resize],
         end = measure.writer.at}
     if output.count == 0 { return true }
     write := measure

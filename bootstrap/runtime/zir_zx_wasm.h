@@ -7,7 +7,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* A revision-28 bundle instance running as WebAssembly: the verified
+/* A revision-29 bundle instance running as WebAssembly: the verified
  * program lowered by cmd/compiler_zx_wasm.zi and instantiated through
  * the installed provider (zir_zx_wasm_platform.h), with host calls and
  * module state translated by the embedding API's rules (ExecHosts).

@@ -1,4 +1,4 @@
-// zi2zx - Ziran source to revision-28 executable ZX, the portable ZX viewer
+// zi2zx - Ziran source to revision-29 executable ZX, the portable ZX viewer
 // (`--emit lir|linkage`) and `run`. The frontend, checker, linker and the
 // lowering/engine assembly set keep their C entry points; this file holds the
 // command decisions, the library linkage text and the run preflight.
@@ -97,7 +97,7 @@ NoSpan :: () -> IR.ZirSourceSpan {
 
 Usage :: () {
     Diagnostic(NoSpan(), CStr("command.arguments"),
-            CStr("usage: zi2zx [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--retain module:function] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function [--target zx|wasm] [--opt] [--debug] [--checks] [--thorough|--quickest] [--emit zx|lir|opt-report] -o FILE file.zi|file.zir ...\n       zi2zx --library NAME --export module:function [--export module:function ...] [ZX build options] -o FILE file.zi|file.zir ...\n       ZX module options: [--require-module INTERFACE=NAME] [--import module:function=INTERFACE:EXPORT]\n       zi2zx [--emit zx|lir|linkage] -o FILE file.zx\n       zi2zx run [--backend native|engine] [--module-root DIR | --module-image NAME=SHA256=FILE]... file.zx\n       zi2zx run [--backend native|engine] [--module-root DIR]... [ZX build options] [--root DIR] [--entry module:function] file.zi ...\nrun uses native code on linux-x86_64, linux-aarch64 and linux-armv7 and the portable engine elsewhere; a bundle\nnative code cannot run fails before it starts with a named gap, and nothing falls back to the engine\n"))
+            CStr("usage: zi2zx [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--retain module:function] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function [--target zx|wasm] [--opt] [--debug] [--checks] [--thorough|--quickest] [--emit zx|lir|opt-report] -o FILE file.zi|file.ts|file.tsx|file.zir ...\n       zi2zx --library NAME --export module:function [--export module:function ...] [ZX build options] -o FILE file.zi|file.ts|file.tsx|file.zir ...\n       ZX module options: [--require-module INTERFACE=NAME] [--import module:function=INTERFACE:EXPORT]\n       zi2zx [--emit zx|lir|linkage] -o FILE file.zx\n       zi2zx run [--backend native|engine] [--module-root DIR | --module-image NAME=SHA256=FILE]... file.zx\n       zi2zx run [--backend native|engine] [--module-root DIR]... [ZX build options] [--root DIR] [--entry module:function] file.zi ...\nrun uses native code on linux-x86_64, linux-aarch64 and linux-armv7 and the portable engine elsewhere; a bundle\nnative code cannot run fails before it starts with a named gap, and nothing falls back to the engine\n"))
 }
 
 RunOptions :: struct { backend: s32; max_steps: s32; unbounded: s32 }
@@ -385,7 +385,7 @@ OptReport :: (stream: *void, result: *Opt.LirOptResult) -> s32 {
     return ifx ferror(stream) != 0 then 0 else 1
 }
 
-/* `zi2zx` writes revision-28 executable ZX to its -o file. `zi2zx run FILE.zi`
+/* `zi2zx` writes revision-29 executable ZX to its -o file. `zi2zx run FILE.zi`
  * writes it to INTO instead, with FILE's folder as the default root and its
  * main as the default entry. */
 BuildTo :: (argc: s32, argv: **u8, into: *void) -> s32 {
@@ -734,6 +734,8 @@ IsSource :: (path: *u8) -> s32 {
     length := strlen(path)
     if length > 3 && strcmp(cast(*u8)(cast(usize)path + length - 3), CStr(".zi")) == 0 { return 1 }
     if length > 4 && strcmp(cast(*u8)(cast(usize)path + length - 4), CStr(".zir")) == 0 { return 1 }
+    if length > 3 && strcmp(cast(*u8)(cast(usize)path + length - 3), CStr(".ts")) == 0 { return 1 }
+    if length > 4 && strcmp(cast(*u8)(cast(usize)path + length - 4), CStr(".tsx")) == 0 { return 1 }
     return 0
 }
 
@@ -902,6 +904,9 @@ RunCommand :: (argc: s32, argv: **u8) -> s32 {
     dispatch_host: s32 = 0
     debug_engine: s32 = 0
     heap_report: s32 = 0
+    explicit_backend: bool = false
+    fuel_given: bool = false
+    native_steps: s32 = 0
     /* The platform decides the default, never the bundle: native code on
      * linux-x86_64, linux-aarch64 and linux-armv7, where a native gap is a
      * named error. */
@@ -916,6 +921,7 @@ RunCommand :: (argc: s32, argv: **u8) -> s32 {
             if strcmp(argv[1], CStr("native")) == 0 { backend = Host.POLICY_NATIVE }
             else if strcmp(argv[1], CStr("engine")) == 0 { backend = Host.POLICY_ENGINE }
             else { Usage(); return status }
+            explicit_backend = true
             argc -= 1
             argv = cast(**u8)(cast(usize)argv + size_of(*u8))
         } else if strcmp(argument, CStr("--module-root")) == 0 {
@@ -952,10 +958,10 @@ RunCommand :: (argc: s32, argv: **u8) -> s32 {
             value: s64 = 0
             if RunLimit(argv[1], *value) == 0 { Usage(); return status }
             if strcmp(argument, CStr("--work")) == 0 { limits.work = value }
-            else if strcmp(argument, CStr("--fuel")) == 0 { limits.fuel = value }
+            else if strcmp(argument, CStr("--fuel")) == 0 { limits.fuel = value; fuel_given = true }
             else if strcmp(argument, CStr("--addresses")) == 0 { limits.addresses = value }
             else { limits.frames = value }
-            debug_engine = 1
+            if strcmp(argument, CStr("--fuel")) != 0 { debug_engine = 1 }
             argc -= 1
             argv = cast(**u8)(cast(usize)argv + size_of(*u8))
         } else if strncmp(argument, CStr("--diagnostics="), 14) != 0 {
@@ -974,6 +980,16 @@ RunCommand :: (argc: s32, argv: **u8) -> s32 {
         i += 1
     }
     if source == 0 && argc != 1 { Usage(); return status }
+    if explicit_backend && backend == Host.POLICY_NATIVE {
+        if debug_engine != 0 || (fuel_given && (limits.fuel < 1 || limits.fuel > 2147483647)) {
+            Diagnostic(NoSpan(), CStr("zx.native-limits"),
+                CStr("explicit native execution accepts --fuel from 1 to 2147483647; --work, --frames, --addresses and --heap-report require the engine"))
+            free(cast(*void)roots)
+            free(cast(*void)images)
+            return status
+        }
+        if fuel_given { native_steps = cast(s32)limits.fuel }
+    } else if fuel_given { debug_engine = 1 }
     if image_count != 0 && (source != 0 || dispatch_host != 0 || debug_engine != 0 || root_count != 0) {
         Usage()
         return status
@@ -1013,7 +1029,7 @@ RunCommand :: (argc: s32, argv: **u8) -> s32 {
             return status
         }
     }
-    options: RunOptions = .{backend = backend, max_steps = 0}
+    options: RunOptions = .{backend = backend, max_steps = native_steps}
     path: *u8 = null
     if source == 0 { path = argv[0] }
     ok := RunBundleRaw(cast(*void)bundle, path, roots, root_count, images, image_count,

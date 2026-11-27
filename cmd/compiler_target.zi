@@ -335,7 +335,7 @@ TARGET_ROW_COUNT :: 12
 TargetRowAt :: (index: s32) -> TargetRow {
     if index == 0 {
         return .{arch = .X86_64, os = .Linux, state = .Gap, executable = "elf", milestone = "M2-M3",
-            note = "zx2native writes a static ELF with the files and clock services built in, or linking registered host libraries; the native ZX loader and runtime cutover are not implemented."}
+            note = "Bundles run natively in process by default, with CPU-selected assembly variants. zx2native writes a static ELF with files and clock built in, or links registered host libraries. The full target cutover remains open."}
     }
     if index == 1 {
         return .{arch = .X86_64, os = .Android, state = .Gap, milestone = "M4",
@@ -351,19 +351,19 @@ TargetRowAt :: (index: s32) -> TargetRow {
     }
     if index == 4 {
         return .{arch = .ArmV7, os = .Linux, state = .Gap, executable = "elf", milestone = "M4",
-            note = "Bundles run natively in process by default; zx2native writes a static ELF for a program with no host capability, and other programs fail with a named gap."}
+            note = "Bundles run natively in process by default; zx2native writes a static ELF for supported machine operations without host capabilities. Other forms fail with a named gap."}
     }
     if index == 5 {
         return .{arch = .ArmV7, os = .Android, state = .Gap, executable = "elf", milestone = "M4",
-            note = "Bundles run natively in process by default, with Moto parity recorded; zx2native writes a static ELF for a program with no host capability, and other programs fail with a named gap."}
+            note = "Bundles run natively in process by default, with Moto parity recorded; zx2native writes a static ELF for supported machine operations without host capabilities. Other forms fail with a named gap."}
     }
     if index == 6 {
         return .{arch = .AArch64, os = .Linux, state = .Gap, executable = "elf", milestone = "M4",
-            note = "Bundles run natively in process by default; zx2native writes a static ELF for a program with no host capability, and other programs fail with a named gap."}
+            note = "Bundles run natively in process by default; zx2native writes a static ELF for supported machine operations without host capabilities. Other forms fail with a named gap."}
     }
     if index == 7 {
         return .{arch = .AArch64, os = .Android, state = .Gap, executable = "elf", milestone = "M4",
-            note = "Bundles run natively in process by default, with Pixel parity recorded; zx2native writes a static ELF for a program with no host capability, and other programs fail with a named gap."}
+            note = "Bundles run natively in process by default, with Pixel parity recorded; zx2native writes a static ELF for supported machine operations without host capabilities. Other forms fail with a named gap."}
     }
     if index == 8 {
         return .{arch = .AArch64, os = .Windows, state = .Gap, milestone = "M5",

@@ -72,6 +72,9 @@ AssemblyOperandText :: (out: *void, text: *u8, names: **u8, count: s32, in_templ
 AssemblyGuard :: (out: *void, assembly: *Assembly) {
     fprintf(out, CStr("!defined(ZIRAN_NO_ASM) && (defined(__GNUC__) || defined(__clang__)) && (%s)"),
             architecture_guards[assembly.architecture])
+    if assembly.platform == ASM_LINUX { fputs(CStr(" && defined(__linux__) && !defined(__ANDROID__)"), out) }
+    if assembly.platform == ASM_ANDROID { fputs(CStr(" && defined(__ANDROID__)"), out) }
+    if assembly.platform == ASM_WINDOWS { fputs(CStr(" && defined(_WIN32)"), out) }
     if assembly.features == 0 { return }
     if IsX86(assembly.architecture) { fputs(CStr(" && !defined(_MSC_VER)"), out) }
     // NEON exists on ARMv7-A and later application cores; a soft-float ABI
@@ -303,7 +306,7 @@ AssemblyBody :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target:
     if available != null { fprintf(out, CStr("        *%s = 1;\n"), available) }
     fputs(CStr("        __asm__"), out)
     options := assembly.part[5]
-    if options[0] != 0 { fputs(CStr(" __volatile__"), out) }
+    if AssemblyVolatile(options) { fputs(CStr(" __volatile__"), out) }
     fputc(#char "(", out)
     AssemblyTemplatePrefix(out, assembly)
     AssemblyOperandText(out, assembly.part[1], *names[0], outputs.count + parameters.count, true)
@@ -723,7 +726,7 @@ BlockAssemblyBody :: (out: *void, fn: *IR.ZirFunction, statement: s32, target: N
     for i: cast(s32)0..total - 1 { names[i] = bindings.items[i].alias }
     fputs(CStr("        __asm__"), out)
     options := assembly.part[5]
-    if options[0] != 0 { fputs(CStr(" __volatile__"), out) }
+    if AssemblyVolatile(options) { fputs(CStr(" __volatile__"), out) }
     fputc(#char "(", out)
     if helper { AssemblyTemplatePrefix(out, assembly) }
     AssemblyOperandText(out, assembly.part[1], *names[0], total, true)

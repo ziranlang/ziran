@@ -372,13 +372,26 @@ zi2zx run app.zx
 zi2zx --emit lir -o - app.zx
 zx2wasm -o app.wasm app.zx
 </code></pre>
-<p>The required program section holds deterministic verified lowered
-instructions, stripped of source names and instruction origins. A procedure's
-<code>#asm</code> variants are lowered from its portable body, so a bundle holds no
-machine code of its own. Native output from source serializes and reads this
+<p>Revision 29 stores deterministic verified lowered instructions, stripped of
+source names and instruction origins. A procedure can also carry bounded
+<code>#asm</code> templates with architecture, OS, ABI, CPU features, operand bindings
+and clobbers. Native loading and AOT assemble the first compatible variant.
+When the variants are optional, the same native backend compiles the portable
+body if none matches. The engine and Wasm use that portable body. An explicit
+target-only procedure requires a compatible native variant at preflight,
+before initialization. Native output from source serializes and reads this
 same verified ZX boundary; source and ZX entry routes produce identical ELF
 bytes. <code>--opt --emit lir</code> and <code>--opt --emit opt-report</code> inspect the pre-ZX
 optimization stage; ZX input is never reoptimized.</p>
+<p>The in-process loader detects usable CPU features and OS register state once
+for compilation and keys compiled code by the executable's content identity,
+target ABI and effective feature mask. <code>ZIRAN_ZX_ASM_FEATURE_MASK</code> can clear
+detected bits for a run. AOT selects from the output target's baseline features.
+For an in-process step limit, <code>zi2zx run --backend native --fuel N app.zx</code>
+accepts 1 through 2,147,483,647 steps and meters branches inside templates.
+No execution error retries another variant or the portable body. See the
+<a href="usage.html#assembly-with-a-portable-body">operator contract</a> and
+<a href="https://github.com/ziranlang/ziran/blob/master/ASSEMBLY/zx-executable-format.md">binary format</a>.</p>
 <p>Reading a bundle validates section framing, SHA-256 content identities, the
 instruction decoding, the verifier, the entry identity and the reachable
 symbol and capability set before anything runs. The input bytes may be released

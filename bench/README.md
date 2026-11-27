@@ -637,6 +637,19 @@ timings use a warm cache after the warmup. Compile phases are separate; these
 are not end-to-end build measurements or a language ranking. Reuse the stable
 output path after preserving needed receipts and removing inactive outputs.
 
+On physical Alpha, compare the AVX2 lane-add variant against portable code
+compiled by the same Linux x86-64 native ZX backend.
+
+```sh
+build/bin/ziran run --target=c bench/bench.zi -- zx-asm-variant \
+  --output build/zx-asm-variant-alpha.json
+```
+
+The driver uses one optimized bundle, masks CPU features for the portable
+cohort, and checks the checksum and JIT disassembly in both cohorts. It records
+paired samples for load, native compilation and instantiation, first call and
+warmed throughput, with exclusions reported separately for each metric.
+
 For compiler scaling, module graphs, generic specialization, and source/saved
 IR validation, run:
 

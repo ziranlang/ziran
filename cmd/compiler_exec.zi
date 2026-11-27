@@ -9,7 +9,7 @@ LirExecProblem :: enum s32 {
     None; InvalidProgram; NotReady; Busy; Allocation
     WorkLimit; FuelLimit; FrameLimit; ValueLimit; AddressLimit; ValueBytes
     Type; Pointer; Calling; DivideByZero; InvalidShift; InvalidConversion
-    Trap; Unreachable; Unsupported; Host; Cancelled
+    Trap; Unreachable; Unsupported; Host; Cancelled; TargetOnly
 }
 
 LirExecLimits :: struct {
@@ -5577,6 +5577,7 @@ LirExecInstanceOpen :: (plan: *LirExecPlan, limits: LirExecLimits, identity: u32
         limits.addresses < 0 || limits.value_bytes < 0 {
         return ExecResult(.NotReady)
     }
+    if LirAssemblyRequiredFunction(plan.program) >= 0 { return ExecResult(.TargetOnly) }
     if limits.addresses < plan.program.globals.count { return ExecResult(.AddressLimit) }
     if plan.global_bytes > limits.value_bytes { return ExecResult(.ValueBytes) }
     output.plan = plan
@@ -5843,5 +5844,6 @@ LirExecProblemName :: (problem: LirExecProblem) -> string {
     if problem == .Unreachable { return "unreachable" }
     if problem == .Host { return "host" }
     if problem == .Cancelled { return "cancelled" }
+    if problem == .TargetOnly { return "target-only" }
     return "unsupported"
 }

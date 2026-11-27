@@ -44,8 +44,8 @@ BENCH_ENVIRONMENT: [9]string = .["DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DB
     "SESSION_MANAGER", "XDG_SESSION_ID", "XDG_SESSION_TYPE", "ZIRAN_PROFILE", "ZIRAN_LEARN=off"];
 
 // Files in bench/ that a registered benchmark builds or imports.
-SUPPORT_FILES: [15]string = .["bench.zi", "benchmark_statistics.zi", "standard_compile_entry.zi", "standard_cases.zi", "codec_kernels.py", "json_document.zi",
-    "math_sqrt.zi", "native_cache_fixture.zi", "wasm_tier.zi", "c_teacher_assembly.zi", "c_teacher_profile.zi", "c_teacher_rules.zi", "rill_row.zi", "zx_i386_blocks.zi", "zx_aggregate_load.zi"];
+SUPPORT_FILES: [16]string = .["bench.zi", "benchmark_statistics.zi", "standard_compile_entry.zi", "standard_cases.zi", "codec_kernels.py", "json_document.zi",
+    "math_sqrt.zi", "native_cache_fixture.zi", "wasm_tier.zi", "c_teacher_assembly.zi", "c_teacher_profile.zi", "c_teacher_rules.zi", "rill_row.zi", "zx_i386_blocks.zi", "zx_aggregate_load.zi", "zx_asm_variant_fixture.zi"];
 
 Add :: (list: *Vec(Benchmark), name: string, file: string, runner: Runner, place: Place, summary: string,
     module_path: string = "", compiler_library: bool = false) {
@@ -60,6 +60,7 @@ Registry :: () -> Vec(Benchmark) {
     Add(*list, "assembly", "bench/assembly.py", .Python, .Host, "assembly, portable fallback, C, Go and the ZX engine")
     Add(*list, "assembly-collect", "bench/assembly_collect.zi", .Ziran, .Host, "strict assembly comparison receipts")
     Add(*list, "assembly-compare", "bench/assembly_compare.zi", .Ziran, .Report, "compare collected assembly receipts")
+    Add(*list, "zx-asm-variant", "bench/zx_asm_variant.py", .Python, .Host, "matched native ZX portable and AVX2 lane-add kernels")
     Add(*list, "body-eligibility", "bench/body_eligibility.py", .Python, .Host, "paired checking with output identity")
     Add(*list, "bundle-assets", "bench/bundle_assets.py", .Python, .Host, "checked resource loading with real bundles")
     Add(*list, "bundle-instances", "bench/bundle_instances.py", .Python, .Host, "bundle loading and fresh-instance costs")

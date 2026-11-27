@@ -283,6 +283,12 @@ extern "C" {
 #define DispatchModule "__zx_module_dispatch"
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+typedef struct CheckedAssemblyOperand CheckedAssemblyOperand;
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+typedef struct CheckedAssemblyVariant CheckedAssemblyVariant;
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
 typedef struct ZirParameter ZirParameter;
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
@@ -422,6 +428,28 @@ typedef struct __type_a5e09f9d30b338f8 __type_a5e09f9d30b338f8;
 #define ZIRAN_CONCRETE_FORWARD___type_5edaf1f9ada62dbd
 typedef struct __type_5edaf1f9ada62dbd __type_5edaf1f9ada62dbd;
 #endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+
+struct CheckedAssemblyOperand {
+    uint8_t* constraint;
+    uint8_t* alias;
+    uint8_t* binding;
+    uint8_t* type;
+};
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+
+struct CheckedAssemblyVariant {
+    uint8_t* target;
+    uint8_t* text;
+    uint8_t* clobbers;
+    uint8_t* options;
+    int32_t outputs;
+    int32_t inputs;
+    int32_t record;
+    CheckedAssemblyOperand operands[30];
+};
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
 

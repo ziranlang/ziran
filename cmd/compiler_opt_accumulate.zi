@@ -62,7 +62,7 @@ AddendCall :: (function: LirFunction, self: s32, block: LirBlock, addend: *s32) 
 // The candidate count, or 0 when FUNCTION does not qualify: an integer
 // result, its own entry parameters, and a value on every return.
 AddendCalls :: (program: LirProgram, function: LirFunction, self: s32, budget: *LirSsaBudget) -> s64 {
-    if function.external || function.variadic || function.calling != .Portable { return 0 }
+    if function.external || function.variadic || function.calling != .Portable || function.variants.count != 0 { return 0 }
     if function.result < 0 || function.result >= program.types.count ||
         program.types[function.result].kind != .Integer { return 0 }
     if function.entry < 0 || function.entry >= function.blocks.count ||

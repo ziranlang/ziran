@@ -1,3 +1,6 @@
+using Abi :: #import "compiler_abi"
+using Asm :: #import "compiler_asm_template"
+using Lir :: #import "compiler_lowered_ir"
 using Allocated :: #import "compiler_machine_verify_allocated"
 using Bytes :: #import "compiler_arm_bytes"
 using Encode :: #import "compiler_encode"
@@ -147,6 +150,9 @@ State :: struct {
     flags_kind: FlagsKind
     flags_signed: bool
     flags_swapped: bool
+    assembly: *LirProgram
+    features: u64
+    inline_fuel: bool
 }
 
 // Records the current offset while measuring; while writing, requires it.
@@ -2519,6 +2525,519 @@ Prologue :: (state: *State) -> bool {
     return state.diagnostic.problem == .None
 }
 
+InlineReg :: struct { id: s32; size: s64; vector: bool; valid: bool }
+InlineBinding :: struct { reg: InlineReg; incoming: s32; stack: s64; saved: s64; type: LirType; callable: bool }
+InlinePlan :: struct {
+    bindings: [30]InlineBinding
+    general: u64
+    vector: u64
+    save_general: u64
+    save_vector: u64
+    bytes: s64
+    aggregate: bool
+    memory: bool
+    calls: bool
+}
+
+InlinePhysical :: (text: string) -> InlineReg {
+    if text.count < 2 { return .{} }
+    number, ok := AsmNumber(text[1:text.count])
+    if !ok || number < 0 || number > 31 { return .{} }
+    id := cast(s32)number
+    if text[0] == #char "r" && id < 10 { return .{id = id, size = 4, valid = true} }
+    if text[0] == #char "s" && id % 2 == 0 { return .{id = id / 2, size = 4, valid = true, vector = true} }
+    if text[0] == #char "d" { return .{id = id, size = 8, valid = true, vector = true} }
+    if text[0] == #char "q" && id < 16 { return .{id = id * 2, size = 16, valid = true, vector = true} }
+    return .{}
+}
+
+InlineRegMask :: (reg: InlineReg) -> u64 {
+    mask := AsmBit(reg.id)
+    if (reg.vector && reg.size == 16) || (!reg.vector && reg.size == 8) { mask |= AsmBit(reg.id + 1) }
+    return mask
+}
+
+InlineClobbers :: (plan: *InlinePlan, text: string) -> bool {
+    begin: s64
+    while begin < text.count {
+        end := begin + AsmFind(text[begin:text.count], #char ";")
+        item := AsmTrim(text[begin:end])
+        begin = end + 1
+        if item == "cc" { continue }
+        if item == "memory" { plan.memory = true; continue }
+        dot := AsmFind(item, #char ".")
+        first := InlinePhysical(AsmTrim(item[0:dot]))
+        last := first
+        if dot != item.count {
+            if dot + 2 >= item.count || item[dot + 1] != #char "." { return false }
+            last = InlinePhysical(AsmTrim(item[dot + 2:item.count]))
+        }
+        if !first.valid || !last.valid || first.vector != last.vector || first.size != last.size || first.id > last.id { return false }
+        limit := last.id + (ifx last.size == 16 then 1 else 0)
+        for id: first.id..limit {
+            if first.vector { plan.vector |= AsmBit(id) }
+            else { plan.general |= AsmBit(id) }
+        }
+    }
+    return true
+}
+
+InlineBind :: (state: *State, plan: *InlinePlan, function: LirFunction,
+    variant: LirAssemblyVariant) -> bool {
+    if !InlineClobbers(plan, variant.clobbers) { return false }
+    lir := <<state.assembly
+    target := state.program.target
+    result := lir.types[function.result]
+    plan.aggregate = result.kind == .Record
+    general := plan.general
+    vector := plan.vector
+    general_ordinal: s32
+    float_ordinal: s32
+    stack: s64 = 16
+    ties: [30]s32
+    for operand, index: variant.operands {
+        output := index < variant.outputs
+        binding := *plan.bindings[index]
+        type := ifx output && plan.aggregate then lir.types[result.fields[index]] else ifx output then result else lir.types[function.parameters[index - variant.outputs]]
+        binding.type = type
+        slice := type.kind == .Record
+        pointer := slice || type.kind == .Pointer
+        if !output && pointer { plan.memory = true }
+        floating := type.kind == .Float
+        size: s64 = ifx pointer || type.kind == .Function then 4 else ifx type.kind == .Bool then 1 else cast(s64)((type.bits + 7) / 8)
+        binding.callable = MachineAbiAssemblyCallable(lir, type, target)
+        if binding.callable && AsmClobbers(variant.clobbers, "memory") { plan.calls = true }
+        if size != 1 && size != 2 && size != 4 && size != 8 { return false }
+        binding.reg = .{id = -1, size = size, vector = floating, valid = true}
+        class: MachineRegisterClass = ifx floating then .Float else .General
+        binding.incoming = -1
+        if output { binding.incoming = 0 }
+        else if slice { binding.stack = stack; stack += 16 }
+        else {
+            ordinal := general_ordinal
+            if floating { ordinal = float_ordinal; float_ordinal += 1 }
+            else { general_ordinal += 1 }
+            binding.incoming = MachineAbiArgumentRegister(target, class, ordinal)
+            if binding.incoming < 0 { binding.stack = stack; stack += 8 }
+            else if !floating { binding.incoming *= 2 }
+        }
+        constraint := AsmTrim(operand.constraint[0:AsmFind(operand.constraint, #char ",")])
+        begin: s64
+        while begin < constraint.count && (constraint[begin] == #char "=" || constraint[begin] == #char "&") { begin += 1 }
+        constraint = constraint[begin:constraint.count]
+        tie := ifx output then cast(s64)-1 else AsmOperandIndex(variant, constraint)
+        ties[index] = cast(s32)tie
+        if tie >= 0 {
+            if tie >= variant.outputs { return false }
+            other := plan.bindings[tie].reg
+            if other.vector != floating || other.size != size { return false }
+        } else if floating {
+            if constraint != "t" && constraint != "w" { return false }
+        } else if constraint != "r" && constraint != "g" { return false }
+    }
+    for phase: 0..1 {
+        for index: cast(s64)0..variant.operands.count - 1 {
+            output := index < variant.outputs
+            if (phase == 0) == output || ties[index] >= 0 { continue }
+            binding := *plan.bindings[index]
+            used := ifx binding.reg.vector then vector else general
+            count: s32 = ifx binding.reg.vector then 16 else 10
+            usable := ~used
+            if !binding.reg.vector && binding.reg.size == 8 { usable &= (~(used >> 1)) & 0x155 }
+            id := AsmFreeRegister(usable, binding.incoming, count)
+            if id < 0 { return false }
+            binding.reg.id = id
+            if binding.reg.vector { vector |= InlineRegMask(binding.reg) }
+            else { general |= InlineRegMask(binding.reg) }
+        }
+    }
+    for index: cast(s64)variant.outputs..variant.operands.count - 1 {
+        binding := *plan.bindings[index]
+        tie := ties[index]
+        if tie >= 0 { binding.reg.id = plan.bindings[tie].reg.id }
+        for prior: cast(s64)variant.outputs..index - 1 {
+            earlier := plan.bindings[prior].reg
+            if earlier.vector == binding.reg.vector && (InlineRegMask(earlier) & InlineRegMask(binding.reg)) != 0 { return false }
+        }
+        if binding.incoming >= 0 && binding.reg.id != binding.incoming {
+            plan.bytes += 8
+            binding.saved = -plan.bytes
+        }
+    }
+    plan.save_general = general & 0x3f0
+    plan.save_vector = vector & 0xff00
+    return true
+}
+
+InlineRegister :: (plan: *InlinePlan, variant: LirAssemblyVariant, text: string) -> InlineReg {
+    if text.count == 0 { return .{} }
+    if text[0] != #char "%" {
+        reg := InlinePhysical(text)
+        if !reg.valid { return reg }
+        mask := ifx reg.vector then plan.vector else plan.general
+        if (mask & InlineRegMask(reg)) != InlineRegMask(reg) { return .{} }
+        return reg
+    }
+    start: s64 = 1
+    mode: u8
+    if start < text.count {
+        mode = text[start]
+        if mode == #char "Q" || mode == #char "R" || mode == #char "P" { start += 1 }
+    }
+    index := AsmOperandIndex(variant, text[start:text.count])
+    if index < 0 { return .{} }
+    reg := plan.bindings[index].reg
+    if mode == #char "P" {
+        if !reg.vector || reg.size != 8 { return .{} }
+    } else if mode == #char "Q" || mode == #char "R" {
+        if reg.vector || reg.size != 8 { return .{} }
+        if mode == #char "R" { reg.id += 1 }
+        reg.size = 4
+    } else if !reg.vector && reg.size < 4 { reg.size = 4 }
+    return reg
+}
+
+InlineImmediate :: (text: string) -> (value: s64, ok: bool) {
+    if text.count == 0 || text[0] != #char "#" { return 0, false }
+    value, ok := AsmNumber(text[1:text.count])
+    return value, ok
+}
+
+InlineAddress :: (plan: *InlinePlan, variant: LirAssemblyVariant, text: string, address: *V7Memory) -> bool {
+    if !AsmSquare(text) { return false }
+    parts: [2]string
+    count := AsmArguments(AsmTrim(text[1:text.count - 1]), parts[:])
+    if count < 1 { return false }
+    base := InlineRegister(plan, variant, parts[0])
+    if !base.valid || base.vector || base.size != 4 { return false }
+    address.base = base.id
+    if count == 1 { return true }
+    displacement, ok := InlineImmediate(parts[1])
+    if !ok { return false }
+    address.displacement = displacement
+    return true
+}
+
+InlineCondition :: (name: string) -> s32 {
+    names: [14]string = .["eq", "ne", "hs", "lo", "mi", "pl", "vs", "vc", "hi", "ls", "ge", "lt", "gt", "le"]
+    for condition, at: names { if name == condition { return cast(s32)at } }
+    if name == "cs" { return CondHs }
+    if name == "cc" { return CondLo }
+    return -1
+}
+
+InlineNeon :: (state: *State, plan: *InlinePlan, variant: LirAssemblyVariant, name: string, args: []string) -> bool {
+    if (variant.features & TargetFeatureBit(.Neon)) == 0 { return false }
+    dot := AsmFind(name, #char ".")
+    if dot == name.count { return false }
+    mnemonic := name[0:dot]
+    suffix := name[dot + 1:name.count]
+    if mnemonic == "vld1" || mnemonic == "vst1" {
+        if args.count != 2 || !plan.memory { return false }
+        list := args[0]
+        if list.count < 3 || list[0] != #char "{" || list[list.count - 1] != #char "}" { return false }
+        registers: [2]string
+        count := AsmArguments(AsmTrim(list[1:list.count - 1]), registers[:])
+        if count < 1 { return false }
+        first := InlineRegister(plan, variant, registers[0])
+        if !first.valid || !first.vector || first.size == 4 { return false }
+        two := first.size == 16
+        if count == 2 {
+            second := InlineRegister(plan, variant, registers[1])
+            if !second.valid || !second.vector || first.size != 8 || second.size != 8 || second.id != first.id + 1 { return false }
+            two = true
+        }
+        text := args[1]
+        post := text.count > 0 && text[text.count - 1] == #char "!"
+        if post { text = AsmTrim(text[0:text.count - 1]) }
+        memory: V7Memory
+        if !InlineAddress(plan, variant, text, *memory) || memory.displacement != 0 { return false }
+        lane: u32 = ifx suffix == "8" then 0 else ifx suffix == "16" then 1 else ifx suffix == "32" then 2 else 3
+        if lane == 3 && suffix != "64" { return false }
+        word: u32 = ifx mnemonic == "vld1" then 0xf4200000 else 0xf4000000
+        word |= ifx two then 0x0a00 else 0x0700
+        word |= ifx post then 13 else 15
+        word |= (cast(u32)(first.id & 15) << 12) | (cast(u32)(first.id & 16) << 18) |
+            (cast(u32)memory.base << 16) | (lane << 6)
+        Emit(state, word)
+        return true
+    }
+    if args.count != 3 { return false }
+    a := InlineRegister(plan, variant, args[0])
+    b := InlineRegister(plan, variant, args[1])
+    c := InlineRegister(plan, variant, args[2])
+    if !a.valid || !b.valid || !c.valid || !a.vector || !b.vector || !c.vector ||
+        a.size != b.size || a.size != c.size || a.size < 8 { return false }
+    if suffix.count < 2 { return false }
+    lane := suffix[1:suffix.count]
+    size: u32 = ifx lane == "8" then 0 else ifx lane == "16" then 1 else ifx lane == "32" then 2 else 3
+    if size == 3 && lane != "64" { return false }
+    word: u32
+    if (mnemonic == "vadd" || mnemonic == "vsub") && suffix[0] == #char "i" {
+        word = ifx mnemonic == "vadd" then 0xf2000800 else 0xf3000800
+    } else if mnemonic == "vqadd" && (suffix[0] == #char "s" || suffix[0] == #char "u") {
+        word = ifx suffix[0] == #char "s" then 0xf2000010 else 0xf3000010
+    } else { return false }
+    word |= (size << 20) | (cast(u32)(a.id & 15) << 12) | (cast(u32)(a.id & 16) << 18) |
+        (cast(u32)(b.id & 15) << 16) | (cast(u32)(b.id & 16) << 3) | cast(u32)(c.id & 15) |
+        (cast(u32)(c.id & 16) << 1)
+    if a.size == 16 { word |= 0x40 }
+    Emit(state, word)
+    return true
+}
+
+InlineInstruction :: (state: *State, plan: *InlinePlan, variant: LirAssemblyVariant,
+    name: string, args: []string) -> bool {
+    count := args.count
+    if name == "nop" && count == 0 { Emit(state, 0xe320f000); return true }
+    if count < 1 || count > 3 { return false }
+    if name == "vmov.f32" || name == "vmov.f64" {
+        if count != 2 { return false }
+        a := InlineRegister(plan, variant, args[0]); b := InlineRegister(plan, variant, args[1])
+        size: s64 = ifx name == "vmov.f32" then 4 else 8
+        if !a.valid || !b.valid || !a.vector || !b.vector || a.size != size || b.size != size || a.id >= 16 || b.id >= 16 { return false }
+        FloatMove(state, a.id, b.id, size)
+        return true
+    }
+    if name.count > 1 && name[0] == #char "v" { return InlineNeon(state, plan, variant, name, args) }
+    a := InlineRegister(plan, variant, args[0])
+    if !a.valid || a.vector || a.size != 4 { return false }
+    if name == "ldr" || name == "str" || name == "ldrb" || name == "strb" || name == "ldrh" || name == "strh" || name == "ldrsb" || name == "ldrsh" {
+        if count != 2 || !plan.memory { return false }
+        memory: V7Memory
+        if !InlineAddress(plan, variant, args[1], *memory) { return false }
+        load := name[0] == #char "l"
+        if name == "ldr" || name == "str" || name == "ldrb" || name == "strb" {
+            if memory.displacement < -4095 || memory.displacement > 4095 { return false }
+            WordAccess(state, load, name.count == 4, a.id, memory)
+        } else {
+            if memory.displacement < -255 || memory.displacement > 255 { return false }
+            op: u64 = ifx name == "ldrsb" then 0xd0 else ifx name == "ldrsh" then 0xf0 else 0xb0
+            HalfAccess(state, load, op, a.id, memory)
+        }
+        return true
+    }
+    compare := name == "cmp" || name == "tst"
+    move := name == "mov" || name == "mvn"
+    names: [13]string = .["add", "adds", "sub", "subs", "cmp", "tst", "mov", "mvn", "and", "eor", "orr", "adc", "sbc"]
+    opcodes: [13]s32 = .[OpAdd, OpAdd, OpSub, OpSub, OpCmp, OpTst, OpMov, OpMvn, OpAnd, OpEor, OpOrr, OpAdc, OpSbc]
+    op: s32 = -1
+    for mnemonic, index: names { if mnemonic == name { op = opcodes[index]; break } }
+    if op < 0 || count != (ifx compare || move then 2 else 3) { return false }
+    b := InlineRegister(plan, variant, args[1])
+    c := InlineRegister(plan, variant, args[count - 1])
+    if count == 3 && (!b.valid || b.vector || b.size != 4) { return false }
+    rn := ifx compare then a.id else ifx move then 0 else b.id
+    rd := ifx compare then 0 else a.id
+    set := compare || name == "adds" || name == "subs"
+    if c.valid {
+        if c.vector || c.size != 4 { return false }
+        Data(state, op, set, rd, rn, c.id)
+    } else {
+        immediate, ok := InlineImmediate(args[count - 1])
+        if !ok || immediate < -2147483648 || immediate > 4294967295 { return false }
+        if name == "mov" { MoveWord(state, rd, cast(u32)immediate) }
+        else {
+            if ModifiedImmediate(cast(u32)immediate) < 0 { return false }
+            DataImmediate(state, op, set, rd, rn, cast(u32)immediate)
+        }
+    }
+    return true
+}
+
+InlineMeter :: (state: *State) {
+    Emit(state, 0xe10fa000) // mrs r10, apsr
+    WordAccess(state, false, false, Temp, .{base = StackPointer})
+    MaterializeRelocated(state, Temp, .FuelCounter, 0)
+    WordAccess(state, true, false, Ip, .{base = Temp})
+    WordAccess(state, true, false, Link, .{base = Temp, displacement = 4})
+    DataImmediate(state, OpSub, true, Ip, Ip, 1)
+    DataImmediate(state, OpSbc, true, Link, Link, 0)
+    WordAccess(state, false, false, Ip, .{base = Temp})
+    WordAccess(state, false, false, Link, .{base = Temp, displacement = 4})
+    TrapUnless(state, CondHs, NativeTrapFuel)
+    WordAccess(state, true, false, Temp, .{base = StackPointer})
+    Emit(state, 0xe128f00a) // msr apsr_nzcvq, r10
+}
+
+InlineTemplate :: (state: *State, plan: *InlinePlan, variant: LirAssemblyVariant,
+    labels: []AsmLabel, label_count: *s64, bad: *s64, measure: bool) -> bool {
+    text := variant.template
+    begin: s64
+    while begin < text.count {
+        end := begin
+        while end < text.count && text[end] != 10 && text[end] != #char ";" && text[end] != #char "@" { end += 1 }
+        line := AsmTrim(text[begin:end])
+        <<bad = begin
+        if end < text.count && text[end] == #char "@" {
+            while end < text.count && text[end] != 10 { end += 1 }
+        }
+        begin = end + 1
+        colon := AsmFind(line, #char ":")
+        if colon < line.count {
+            label := AsmTrim(line[0:colon])
+            if label.count == 0 { return false }
+            if measure {
+                if <<label_count == labels.count { return false }
+                _, numeric := AsmNumber(label)
+                if !numeric { for prior: labels[0:<<label_count] { if prior.name == label { return false } } }
+                labels[<<label_count] = .{name = label, line = <<bad, offset = state.writer.at}
+                <<label_count += 1
+            }
+            line = AsmTrim(line[colon + 1:line.count])
+        }
+        if line.count == 0 { continue }
+        split: s64
+        while split < line.count && line[split] > 32 { split += 1 }
+        name := line[0:split]
+        parts: [3]string
+        count := AsmArguments(AsmTrim(line[split:line.count]), parts[:])
+        if count < 0 { return false }
+        branch := name == "b" || name.count == 3 && name[0] == #char "b"
+        if name == "blx" {
+            if !plan.calls || count != 1 || parts[0].count < 2 || parts[0][0] != #char "%" { return false }
+            operand := AsmOperandIndex(variant, parts[0][1:parts[0].count])
+            if operand < variant.outputs || !plan.bindings[operand].callable { return false }
+            Emit(state, 0xe12fff30 | cast(u32)plan.bindings[operand].reg.id)
+        } else if branch {
+            condition := ifx name == "b" then CondAl else InlineCondition(name[1:name.count])
+            if count != 1 || condition < 0 { return false }
+            if state.inline_fuel { InlineMeter(state) }
+            target := ifx measure then state.writer.at else AsmLocalTarget(parts[0], labels[0:<<label_count], <<bad)
+            if target < 0 { return false }
+            Branch(state, target, false, condition)
+        } else if !InlineInstruction(state, plan, variant, name, parts[0:count]) { return false }
+        if state.diagnostic.problem != .None || state.writer.failed { return false }
+    }
+    return true
+}
+
+InlineSaves :: (state: *State, plan: *InlinePlan, start: s64, restore: bool) {
+    offset := start
+    for id: cast(s32)0..15 {
+        if (plan.save_general & AsmBit(id)) != 0 {
+            offset += 4
+            WordAccess(state, restore, false, id, .{base = FramePointer, displacement = -offset})
+        }
+        if (plan.save_vector & AsmBit(id)) != 0 {
+            offset += 8
+            memory := V7Memory.{base = FramePointer, displacement = -offset}
+            if restore { LoadFloat(state, id, memory, 8) }
+            else { StoreFloat(state, memory, id, 8) }
+        }
+    }
+}
+
+InlineGeneral :: (state: *State, reg: InlineReg, memory: V7Memory, load: bool, signed: bool) {
+    if reg.size == 8 {
+        if load { LoadScalar(state, reg.id / 2, memory, 8, false) }
+        else { StoreScalar(state, memory, reg.id / 2, 8) }
+    } else if reg.size == 4 { WordAccess(state, load, false, reg.id, memory) }
+    else if reg.size == 2 {
+        HalfAccess(state, load, ifx load && signed then cast(u64)0xf0 else cast(u64)0xb0, reg.id, memory)
+    } else if load && signed { HalfAccess(state, true, 0xd0, reg.id, memory) }
+    else { WordAccess(state, load, true, reg.id, memory) }
+}
+
+InlineFunction :: (state: *State, function: MachineFunction, source: LirFunction,
+    variant: LirAssemblyVariant) -> bool {
+    if !Spend(state, variant.template.count + 1) { return false }
+    plan: InlinePlan
+    if !InlineBind(state, *plan, source, variant) { return Fail(state, .Assembly) }
+    save_begin := plan.bytes
+    for id: cast(s32)0..15 {
+        if (plan.save_general & AsmBit(id)) != 0 { plan.bytes += 4 }
+        if (plan.save_vector & AsmBit(id)) != 0 { plan.bytes += 8 }
+    }
+    if state.inline_fuel { plan.bytes += 4 }
+    size := (plan.bytes + Bytes.ArmStackAlign - 1) & ~cast(s64)(Bytes.ArmStackAlign - 1)
+    frame := size > 0 || plan.aggregate || plan.calls
+    if frame {
+        Push(state, 0x5c00)
+        Move(state, FramePointer, StackPointer)
+        if size > 0 { AddConstant(state, StackPointer, StackPointer, -size) }
+        InlineSaves(state, *plan, save_begin, false)
+    }
+    for index: cast(s64)variant.outputs..variant.operands.count - 1 {
+        binding := plan.bindings[index]
+        if binding.saved == 0 { continue }
+        memory := V7Memory.{base = FramePointer, displacement = binding.saved}
+        if binding.reg.vector { StoreFloat(state, memory, binding.incoming, binding.reg.size) }
+        else {
+            incoming := InlineReg.{id = binding.incoming, size = binding.reg.size}
+            InlineGeneral(state, incoming, memory, false, false)
+        }
+    }
+    for index: cast(s64)variant.outputs..variant.operands.count - 1 {
+        binding := plan.bindings[index]
+        if binding.reg.id == binding.incoming { continue }
+        memory := V7Memory.{base = FramePointer, displacement = ifx binding.stack > 0 then binding.stack else binding.saved}
+        if !frame { memory = .{base = StackPointer, displacement = binding.stack - 16} }
+        if binding.reg.vector { LoadFloat(state, binding.reg.id, memory, binding.reg.size) }
+        else { InlineGeneral(state, binding.reg, memory, true, binding.type.is_signed) }
+    }
+    if !Place(state, state.function_body, state.function) { return false }
+    if state.inline_fuel { InlineMeter(state) }
+    labels: [256]AsmLabel
+    label_count: s64
+    bad: s64
+    probe := <<state
+    probe.emit = false
+    probe.writer = .{at = state.writer.at, limit = state.writer.limit}
+    if !InlineTemplate(*probe, *plan, variant, labels[:], *label_count, *bad, true) ||
+        !InlineTemplate(state, *plan, variant, labels[:], *label_count, *bad, false) || probe.writer.at != state.writer.at {
+        unused Fail(state, .Assembly)
+        state.diagnostic.operand = cast(s32)bad
+        return false
+    }
+    if plan.aggregate {
+        offset: s64
+        for index: cast(s64)0..variant.outputs - 1 {
+            binding := plan.bindings[index]
+            WordAccess(state, true, false, Temp, .{base = FramePointer})
+            memory := V7Memory.{base = Temp, displacement = offset}
+            if binding.reg.vector { StoreFloat(state, memory, binding.reg.id, binding.reg.size) }
+            else { InlineGeneral(state, binding.reg, memory, false, false) }
+            if binding.type.kind == .Pointer {
+                DataImmediate(state, OpMov, false, Ip, 0, 0)
+                WordAccess(state, false, false, Ip, .{base = Temp, displacement = offset + 4})
+                offset += 4
+            }
+            offset += binding.reg.size
+        }
+        if source.assembly_gate {
+            DataImmediate(state, OpMov, false, Ip, 0, 1)
+            InlineGeneral(state, .{id = Ip, size = 1}, .{base = Temp, displacement = offset}, false, false)
+        }
+    } else if source.assembly_gate { DataImmediate(state, OpMov, false, 0, 0, 1) }
+    else if variant.outputs == 1 {
+        binding := plan.bindings[0]
+        reg := binding.reg
+        if reg.vector { FloatMove(state, 0, reg.id, reg.size) }
+        else {
+            Move(state, 0, reg.id)
+            if reg.size == 8 { Move(state, 1, reg.id + 1) }
+            else if binding.type.kind == .Pointer { DataImmediate(state, OpMov, false, 1, 0, 0) }
+            else { Normalize(state, 0, state.program.types[function.result_type]) }
+        }
+    }
+    if frame {
+        InlineSaves(state, *plan, save_begin, true)
+        Move(state, StackPointer, FramePointer)
+        Pop(state, 0x9c00)
+    } else { Emit(state, 0xe12fff1e) }
+    if state.writer.failed { return Fail(state, .Limit) }
+    for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
+        block := state.program.blocks[block_id]
+        if !Place(state, state.block_begin, block_id) { return false }
+        for at: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
+            if !Place(state, state.instruction_begin, at) || !Place(state, state.instruction_end, at) { return false }
+            if state.relocation_of[at] != MachineNoId { state.consumed += 1 }
+        }
+    }
+    return Place(state, state.function_end, state.function)
+}
+
 // The shared two-pass walk: measure, then write into an exactly sized
 // buffer, requiring identical offsets and relocation counts.
 Pass :: (state: *State) -> bool {
@@ -2534,7 +3053,16 @@ Pass :: (state: *State) -> bool {
                 !Place(state, state.function_end, function_index) { return false }
             continue
         }
-        if !Spend(state, 1) || !Place(state, state.function_begin, function_index) || !Prologue(state) { return false }
+        if !Spend(state, 1) || !Place(state, state.function_begin, function_index) { return false }
+        if state.assembly != null {
+            source := state.assembly.functions[function_index]
+            variant := MachineAbiAssemblyVariant(source, state.assembly.checks, program.target, state.features)
+            if variant >= 0 {
+                if !InlineFunction(state, function, source, source.variants[variant]) { return false }
+                continue
+            }
+        }
+        if !Prologue(state) { return false }
         if state.writer.failed { return Fail(state, .Limit) }
         for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
             state.block = block_id
@@ -2565,7 +3093,8 @@ Failure :: (problem: MachineProblem) -> MachineV7Result {
 // Verifies and measures PROGRAM; with an OUTPUT, writes and publishes the
 // image there. Every diagnostic from verification, form checks or measuring
 // returns before OUTPUT is touched.
-Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineV7Owner, verify: bool = true) -> MachineV7Result {
+Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineV7Owner, verify: bool = true,
+    assembly: *LirProgram = null, features: u64 = 0, inline_fuel: bool = false) -> MachineV7Result {
     if verify {
         verified := MachineVerifySelfBuilt(program, limits)
         if verified.problem != .None { return .{diagnostic = verified} }
@@ -2605,7 +3134,7 @@ Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineV7Ow
         instruction_begin = layout.instruction_begin[:], instruction_end = layout.instruction_end[:],
         relocation_of = layout.relocation_of[:],
         function = MachineNoId, block = MachineNoId, instruction = MachineNoId,
-        flags_value = MachineNoId}
+        flags_value = MachineNoId, assembly = assembly, features = features, inline_fuel = inline_fuel}
     if !Pass(*state) { return .{diagnostic = state.diagnostic, work = state.used} }
     measured := MachineV7Result.{diagnostic = state.diagnostic, code_bytes = state.writer.at,
         relocations = state.relocation_count, work = state.used}
@@ -2697,6 +3226,12 @@ MachineV7Encode :: (program: MachineProgram, limits: MachineLimits, output: *Mac
 MachineV7EncodeAllocated :: (program: MachineProgram, limits: MachineLimits, output: *MachineV7Owner) -> MachineDiagnostic {
     if output == null { return Failure(.Owner).diagnostic }
     return Process(program, limits, output, false).diagnostic
+}
+
+MachineV7EncodeAssembly :: (program: MachineProgram, limits: MachineLimits, output: *MachineV7Owner,
+    assembly: *LirProgram, features: u64, fuel: bool) -> MachineDiagnostic {
+    if output == null { return Failure(.Owner).diagnostic }
+    return Process(program, limits, output, false, assembly, features, fuel).diagnostic
 }
 
 // Exchanges two complete owners; their borrowed views move with the vectors

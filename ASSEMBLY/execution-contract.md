@@ -111,7 +111,7 @@ Keep target-specific assembler, OS syscall, atomic, thread, ABI call, and platfo
 
 ## Non-goals and open boundaries
 
-- The replacement `.zx` format is intentionally incompatible: it is revision 28, and a file of another revision is rejected.
+- The replacement `.zx` format is intentionally incompatible: it is revision 29, and a file of another revision is rejected.
 - Go-only opaque maps/types and C callback/assembly extensions do not become portable types by renaming. They remain target extensions with preflight rejection where the portable verifier cannot preserve them.
 - Raw native FFI has no checked aliasing/memory-effect contract. Differently typed aliases and arbitrary host-backed aliases remain outside current guarantees.
 - Cross-compilation, successful object encoding, a child-agent receipt, or a stored benchmark report does not prove target execution. Completion requires fresh evidence for the exact platform and fixture.

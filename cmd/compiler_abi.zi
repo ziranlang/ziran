@@ -315,3 +315,45 @@ MachineAbiFormClobberRegister :: (target: TargetDescription, form: MachineAbiFor
     }
     return -1
 }
+
+// Variants are ordered by the producer. Checked code uses the portable body
+// because this contract cannot translate checked memory handles to raw ones.
+MachineAbiAssemblyVariant :: (function: LirFunction, checked: bool,
+    target: TargetDescription, features: u64) -> s64 {
+    if checked || function.variants.count == 0 { return -1 }
+    architecture := ifx target.arch == .ArmV7 then "arm" else TargetArchName(target.arch)
+    os := TargetOSName(target.os)
+    abi := TargetABIName(target.abi)
+    for block: function.blocks {
+        for instruction: block.instructions { if instruction.checked { return -1 } }
+    }
+    for variant, index: function.variants {
+        if variant.architecture == architecture && (variant.features & features) == variant.features &&
+            (variant.os == "" || variant.os == os) && (variant.abi == "" || variant.abi == abi) {
+            return index
+        }
+    }
+    return -1
+}
+
+// Raw indirect calls can use the native register ABI. An assembly template
+// cannot manufacture a typed call from a scalar address or reserve an
+// arbitrary outgoing stack layout.
+MachineAbiAssemblyCallable :: (lir: LirProgram, type: LirType, target: TargetDescription) -> bool {
+    if type.kind != .Function { return false }
+    result := AbiClass(lir, type.result)
+    if result != .General && result != .Float && lir.types[type.result].kind != .Void { return false }
+    general: s32
+    floating: s32
+    for parameter: type.parameters {
+        class := AbiClass(lir, parameter)
+        if class == .General {
+            if MachineAbiArgumentRegister(target, class, general) < 0 { return false }
+            general += 1
+        } else if class == .Float {
+            if MachineAbiArgumentRegister(target, class, floating) < 0 { return false }
+            floating += 1
+        } else { return false }
+    }
+    return true
+}

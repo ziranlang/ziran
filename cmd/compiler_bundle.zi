@@ -1,4 +1,4 @@
-// The portable .zx container: revision-28 executable ZX
+// The portable .zx container: revision-29 executable ZX
 // (ASSEMBLY/zx-executable-format.md). Words are little-endian; callers own
 // all storage, and decoded views borrow the bundle bytes.
 
@@ -19,6 +19,7 @@ ExecutableAttachment :: struct { kind: u32; data: string }
 ExecutableHeader :: struct {
     entry: s32
     capabilities: s64
+    assembly_required: s64
     program: string
     assets: []Asset
     program_identity: string
@@ -40,6 +41,7 @@ ExecutableLayout :: struct {
     optional_features: u64
     entry: s32
     capabilities: s64
+    assembly_required: s64
     assets: s64
     optional_sections: s64
     program: string
@@ -62,6 +64,7 @@ ExecutableFraming :: struct {
     optional_features: u64
     entry: s32
     capabilities: s64
+    assembly_required: s64
     assets: s64
     optional_sections: s64
     program: ExecutableRange
@@ -82,7 +85,7 @@ ProgramLimit :: 268435456;  // bytes of the instruction payload
 CapabilityLimit :: 4096;
 SizeLimit :: 4294967296;    // asset names and data
 
-ExecutableVersion :: 28
+ExecutableVersion :: 29
 ExecutableHeaderSize :: 64
 ExecutableDirectoryEntrySize :: 32
 ExecutableManifestSize :: 128
@@ -299,7 +302,7 @@ ExecutablePayload :: (writer: *ExecutableWriter, header: ExecutableHeader, index
         ExecutableU32(writer, ExecutableLirSchema)
         ExecutableU32(writer, cast(u32)header.entry)
         ExecutableU32(writer, cast(u32)header.capabilities) // reachable host capabilities
-        ExecutableU32(writer, 0) // required native variants
+        ExecutableU32(writer, cast(u32)header.assembly_required)
         ExecutableU32(writer, cast(u32)header.assets.count)
         ExecutableU32(writer, 0) // proof metadata is absent/unverified
         ExecutableU32(writer, 0)
@@ -341,6 +344,7 @@ ExecutableValidateHeader :: (header: ExecutableHeader) -> ExecutableProblem {
         return .Entry
     }
     if header.capabilities < 0 || header.capabilities > CapabilityLimit { return .Capabilities }
+    if header.assembly_required < 0 || header.assembly_required > 2147483647 { return .Variant }
     if header.module_linkage.count < 0 ||
         (header.module_linkage.count != 0 && header.interface.count <= 0) { return .Section }
     if header.program_identity.count != ExecutableIdentitySize ||
@@ -558,7 +562,8 @@ ExecutableFrame :: (bytes: string, source: *ExecutableReadSource, length: s64) -
     if layout.entry < 0 { layout.problem = .Entry; return layout }
     if capabilities > cast(u32)CapabilityLimit { layout.problem = .Capabilities; return layout }
     layout.capabilities = cast(s64)capabilities
-    if variants != 0 { layout.problem = .Variant; return layout }
+    if variants > 2147483647 { layout.problem = .Variant; return layout }
+    layout.assembly_required = cast(s64)variants
     layout.identities = .{cursor.at, ExecutableIdentitySize * 3}
     layout.assets = manifest_assets
     return layout
@@ -573,7 +578,8 @@ ExecutableDecodeInternal :: (bytes: string, assets: []Asset) -> ExecutableLayout
     frame := ExecutableFrame(bytes, null, bytes.count)
     layout := ExecutableLayout.{problem = frame.problem, found_version = frame.found_version,
         required_features = frame.required_features, optional_features = frame.optional_features,
-        entry = frame.entry, capabilities = frame.capabilities, optional_sections = frame.optional_sections,
+        entry = frame.entry, capabilities = frame.capabilities, assembly_required = frame.assembly_required,
+        optional_sections = frame.optional_sections,
         program = ExecutableBytes(bytes, frame.program), debug = ExecutableBytes(bytes, frame.debug),
         source = ExecutableBytes(bytes, frame.source), interface = ExecutableBytes(bytes, frame.interface),
         module_linkage = ExecutableBytes(bytes, frame.module_linkage)}
@@ -718,7 +724,7 @@ ExecutableMessage :: (problem: ExecutableProblem) -> string {
     if problem == .Manifest { return "invalid executable ZX manifest" }
     if problem == .Entry { return "invalid executable ZX entry function ID" }
     if problem == .Capabilities { return "executable ZX requires unsupported host capabilities" }
-    if problem == .Variant { return "executable ZX requires unsupported native variants" }
+    if problem == .Variant { return "invalid executable ZX assembly requirement" }
     if problem == .Assets { return "invalid executable ZX asset section" }
     if problem == .Identity { return "executable ZX content identity is invalid" }
     return "invalid executable ZX section layout"

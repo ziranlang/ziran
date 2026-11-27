@@ -10,7 +10,9 @@ X86Rcx :: 1
 X86Rdx :: 2
 X86Rsp :: 4
 X86Rbp :: 5
+X86Rsi :: 6
 X86Rdi :: 7
+X86R10 :: 10
 X86R11 :: 11
 
 // Condition codes in encoding order (the low nibble of Jcc/SETcc).
@@ -166,6 +168,41 @@ X86Encode :: (writer: *X86Writer, prefix: u8, wide: bool, opcode: u32, count: s3
         rm_byte && rm.kind == .Register && rm.register >= 4 && rm.register < 8
     if needs { X86Byte(writer, 64 | rex) }
     X86Opcode(writer, opcode, count)
+    X86EncodeAddress(writer, reg, rm, trailing)
+}
+
+// VEX prefixes encode the opcode map, mandatory prefix, vector length and
+// operand width independently. Only the common 0F, W=0 form can use C5.
+X86VexEncode :: (writer: *X86Writer, prefix: u8, wide: bool, opcode: u8,
+    reg: s32, source: s32, rm: X86Operand, map: u8 = 1, word: bool = false) {
+    indexed := rm.kind == .Indexed
+    if !X86Register(reg) || !X86Register(source) || !X86Register(rm.register) ||
+        indexed && (!X86Register(rm.index) || rm.index == X86Rsp || rm.shift < 0 || rm.shift > 3) {
+        writer.failed = true
+        return
+    }
+    extension: u8 = 0xe0 | map
+    if reg >= 8 { extension ^= 0x80 }
+    if indexed && rm.index >= 8 { extension ^= 0x40 }
+    if rm.register >= 8 { extension ^= 0x20 }
+    options := cast(u8)((15 - source) * 8) | prefix
+    if wide { options |= 4 }
+    if map == 1 && !word && (extension & 0x60) == 0x60 {
+        X86Byte(writer, 0xc5)
+        X86Byte(writer, (extension & 0x80) | options)
+    } else {
+        if word { options |= 0x80 }
+        X86Byte(writer, 0xc4)
+        X86Byte(writer, extension)
+        X86Byte(writer, options)
+    }
+    X86Byte(writer, opcode)
+    X86EncodeAddress(writer, reg, rm, 0)
+}
+
+X86EncodeAddress :: (writer: *X86Writer, reg: s32, rm: X86Operand, trailing: s64) {
+    memory := rm.kind == .Rip || rm.kind == .Relocated
+    indexed := rm.kind == .Indexed
     field := cast(u8)((reg & 7) << 3)
     if rm.kind == .Register {
         X86Byte(writer, 192 | field | cast(u8)(rm.register & 7))

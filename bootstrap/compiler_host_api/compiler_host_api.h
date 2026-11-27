@@ -679,6 +679,11 @@ int32_t zir_foreign_compiler_host_api__ExecBundleCapabilityAbi(void* bundle, siz
 int32_t zir_foreign_compiler_host_api__ExecBundleCapabilityAbi(void* bundle, size_t index, BundleCapabilityAbi* abi) __asm__("ExecBundleCapabilityAbi");
 #endif
 #ifdef __APPLE__
+int32_t zir_foreign_compiler_host_api__ExecBundleRequiresAssembly(void* bundle) __asm__("_ExecBundleRequiresAssembly");
+#else
+int32_t zir_foreign_compiler_host_api__ExecBundleRequiresAssembly(void* bundle) __asm__("ExecBundleRequiresAssembly");
+#endif
+#ifdef __APPLE__
 uint8_t* zir_foreign_compiler_host_api__ExecBundleEntryArguments(void* bundle) __asm__("_ExecBundleEntryArguments");
 #else
 uint8_t* zir_foreign_compiler_host_api__ExecBundleEntryArguments(void* bundle) __asm__("ExecBundleEntryArguments");
@@ -1012,6 +1017,8 @@ bool compiler_host_api_ValidateBindings(Bundle* bundle, BindingSet* set);
 size_t compiler_host_api_BindingCopyBytes(HostBinding* bindings, size_t count);
 bool compiler_host_api_CopyBindings(BundleInstance* instance, HostBinding* bindings, size_t count, size_t bytes);
 bool compiler_host_api_OpenBackend(BundleInstance* instance, Bundle* bundle, int32_t selected, int32_t max_steps, int32_t unbounded, BundleConsoleWrite write, void* console_context, bool has_console, ZxRunControl* control, int32_t* status);
+int32_t compiler_host_api_SelectedBackend(int32_t policy);
+uint8_t* compiler_host_api_BundleTargetProblem(Bundle* bundle, int32_t selected, int32_t unbounded);
 BundleInstance* compiler_host_api_InstantiateWithPolicy(Bundle* bundle, HostBinding* bindings, size_t binding_count, int32_t max_steps, int32_t policy, int32_t unbounded, BundleConsoleWrite write, void* console_context, bool has_console, ZxRunControl* control, int32_t* status);
 BundleInstance* compiler_host_api_Instantiate(Bundle* bundle, HostBinding* bindings, size_t binding_count, int32_t max_steps);
 BundleInstance* BundleInstantiate(Bundle* bundle, HostBinding* bindings, size_t binding_count);

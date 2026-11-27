@@ -1,6 +1,6 @@
 # Assembly-target gap and error policy
 
-Status: normative for the direct assembly target and the revision-28 executable
+Status: normative for the direct assembly target and the revision-29 executable
 path. This policy applies to every delivery milestone and completion matrix cell.
 
 ## Why gaps are not fallbacks

@@ -2256,6 +2256,7 @@ compiler_inline_asm_CheckBlock(ZirFunction* fn, int32_t statement, AssemblyBindi
     uint8_t* mismatch = value_29;
     uint8_t* cursor = (uint8_t*)st->names.assembly_text;
     int32_t architectures_seen[30] = {0};
+    int32_t platforms_seen[30] = {0};
     uint64_t features_seen[30] = {0};
     int32_t variants = 0;
     BlockBindings first = {0};
@@ -2286,56 +2287,93 @@ compiler_inline_asm_CheckBlock(ZirFunction* fn, int32_t statement, AssemblyBindi
             }
             return compiler_inline_asm_AssemblyError(value_36, value_38);
         }
+        uint8_t* value_40 = (assembly.part)[5];
+        bool value_41 = false;
         {
-            int32_t range_first_33 = 0;
-            int32_t range_last_33 = (int32_t)((uint32_t)variants - 1u);
-            int32_t seen = range_first_33;
-            if (seen <= range_last_33) for (;;) {
-                bool value_40 = (architectures_seen)[seen] == assembly.architecture;
-                if (value_40) {
-                    uint64_t value_41 = (uint64_t)((uint64_t)((features_seen)[seen]) & (uint64_t)(assembly.features));
-                    uint64_t value_42 = (features_seen)[seen];
-                    value_40 = (value_41 == value_42);
+            uint8_t* options = value_40;
+            String value_43 = StringLiteral("target-only");
+            uint8_t* value_44 = (void *)0;
+            {
+                String s = value_43;
+                value_44 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            }
+            bool value_46 = compiler_inline_asm_Same(options, value_44);
+            bool value_47 = value_46;
+            if (!value_47) {
+                String value_48 = StringLiteral("volatile;target-only");
+                uint8_t* value_49 = (void *)0;
+                {
+                    String s = value_48;
+                    value_49 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                if (value_40) {
-                    ZirSourceSpan value_43 = st->span;
-                    String value_44 = StringLiteral("duplicate or shadowed #asm block variant");
-                    uint8_t* value_45 = (void *)0;
+                bool value_51 = compiler_inline_asm_Same(options, value_49);
+                value_47 = value_51;
+            }
+            value_41 = value_47;
+        }
+        if (value_41) {
+            ZirSourceSpan value_52 = st->span;
+            String value_53 = StringLiteral("target-only #asm requires a procedure");
+            uint8_t* value_54 = (void *)0;
+            {
+                String s = value_53;
+                value_54 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            }
+            return compiler_inline_asm_AssemblyError(value_52, value_54);
+        }
+        {
+            int32_t range_first_37 = 0;
+            int32_t range_last_37 = (int32_t)((uint32_t)variants - 1u);
+            int32_t seen = range_first_37;
+            if (seen <= range_last_37) for (;;) {
+                bool covers_os = (platforms_seen)[seen] == 0 || (platforms_seen)[seen] == assembly.platform;
+                bool value_56 = (architectures_seen)[seen] == assembly.architecture && covers_os;
+                if (value_56) {
+                    uint64_t value_57 = (uint64_t)((uint64_t)((features_seen)[seen]) & (uint64_t)(assembly.features));
+                    uint64_t value_58 = (features_seen)[seen];
+                    value_56 = (value_57 == value_58);
+                }
+                if (value_56) {
+                    ZirSourceSpan value_59 = st->span;
+                    String value_60 = StringLiteral("duplicate or shadowed #asm block variant");
+                    uint8_t* value_61 = (void *)0;
                     {
-                        String s = value_44;
-                        value_45 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                        String s = value_60;
+                        value_61 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
-                    return compiler_inline_asm_AssemblyError(value_43, value_45);
+                    return compiler_inline_asm_AssemblyError(value_59, value_61);
                 }
-                if (seen == range_last_33) {
+                if (seen == range_last_37) {
                     break;
                 }
                 seen = (int32_t)((uint32_t)seen + 1u);
             }
         }
-        int32_t* value_47 = &(architectures_seen[variants]);
-        (*value_47) = assembly.architecture;
-        uint64_t* value_48 = &(features_seen[variants]);
-        (*value_48) = assembly.features;
+        int32_t* value_63 = &(architectures_seen[variants]);
+        (*value_63) = assembly.architecture;
+        int32_t* value_64 = &(platforms_seen[variants]);
+        (*value_64) = assembly.platform;
+        uint64_t* value_65 = &(features_seen[variants]);
+        (*value_65) = assembly.features;
         uint8_t* aliases[30] = {0};
         uint8_t* constraints[30] = {0};
-        BlockBindings* value_49 = &(current);
-        int32_t value_50 = 0;
+        BlockBindings* value_66 = &(current);
+        int32_t value_67 = 0;
         {
-            BlockBindings* bindings = value_49;
-            value_50 = (int32_t)((uint32_t)(bindings->outputs) + (uint32_t)(bindings->inputs));
+            BlockBindings* bindings = value_66;
+            value_67 = (int32_t)((uint32_t)(bindings->outputs) + (uint32_t)(bindings->inputs));
         }
-        int32_t total = value_50;
+        int32_t total = value_67;
         {
-            int32_t range_first_43 = 0;
-            int32_t range_last_43 = (int32_t)((uint32_t)total - 1u);
-            int32_t i = range_first_43;
-            if (i <= range_last_43) for (;;) {
-                uint8_t** value_52 = &(aliases[i]);
-                (*value_52) = (current.items[i]).alias;
-                uint8_t** value_53 = &(constraints[i]);
-                (*value_53) = (current.items[i]).constraint;
-                if (i == range_last_43) {
+            int32_t range_first_49 = 0;
+            int32_t range_last_49 = (int32_t)((uint32_t)total - 1u);
+            int32_t i = range_first_49;
+            if (i <= range_last_49) for (;;) {
+                uint8_t** value_69 = &(aliases[i]);
+                (*value_69) = (current.items[i]).alias;
+                uint8_t** value_70 = &(constraints[i]);
+                (*value_70) = (current.items[i]).constraint;
+                if (i == range_last_49) {
                     break;
                 }
                 i = (int32_t)((uint32_t)i + 1u);
@@ -2351,44 +2389,44 @@ compiler_inline_asm_CheckBlock(ZirFunction* fn, int32_t statement, AssemblyBindi
             return compiler_inline_asm_AssemblyError(st->span, mismatch);
         }
         {
-            int32_t range_first_56 = 0;
-            int32_t range_last_56 = (int32_t)((uint32_t)total - 1u);
-            int32_t i = range_first_56;
-            if (i <= range_last_56) for (;;) {
+            int32_t range_first_62 = 0;
+            int32_t range_last_62 = (int32_t)((uint32_t)total - 1u);
+            int32_t i = range_first_62;
+            if (i <= range_last_62) for (;;) {
                 BlockBinding* operand = &(current.items[i]);
-                bool value_54 = compiler_inline_asm_Same((first.items[i]).alias, operand->alias);
-                bool value_55 = !value_54;
-                if (!value_55) {
-                    bool value_56 = compiler_inline_asm_Same((first.items[i]).name, operand->name);
-                    value_55 = !value_56;
+                bool value_71 = compiler_inline_asm_Same((first.items[i]).alias, operand->alias);
+                bool value_72 = !value_71;
+                if (!value_72) {
+                    bool value_73 = compiler_inline_asm_Same((first.items[i]).name, operand->name);
+                    value_72 = !value_73;
                 }
-                if (value_55) {
+                if (value_72) {
                     return compiler_inline_asm_AssemblyError(st->span, mismatch);
                 }
                 uint8_t* type = (void *)0;
                 if (lexical) {
                     type = compiler_inline_asm_BlockBindingType(fn, statement, operand->name);
                 } else {
-                    AssemblyBinding value_57 = binding;
-                    type = value_57(context, operand->name);
+                    AssemblyBinding value_74 = binding;
+                    type = value_74(context, operand->name);
                 }
                 bool deferred = fn->is_template != 0 && type != ((void *)0) && type[0] == 0;
-                bool value_58 = !deferred;
-                if (value_58) {
-                    bool value_59 = compiler_inline_asm_TemplateOperandType(fn, type);
-                    value_58 = !value_59;
+                bool value_75 = !deferred;
+                if (value_75) {
+                    bool value_76 = compiler_inline_asm_TemplateOperandType(fn, type);
+                    value_75 = !value_76;
                 }
-                if (value_58) {
-                    ZirSourceSpan value_60 = st->span;
-                    String value_61 = StringLiteral("#asm block bindings must be scalar/pointer locals or parameters");
-                    uint8_t* value_62 = (void *)0;
+                if (value_75) {
+                    ZirSourceSpan value_77 = st->span;
+                    String value_78 = StringLiteral("#asm block bindings must be scalar/pointer locals or parameters");
+                    uint8_t* value_79 = (void *)0;
                     {
-                        String s = value_61;
-                        value_62 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                        String s = value_78;
+                        value_79 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                     }
-                    return compiler_inline_asm_AssemblyError(value_60, value_62);
+                    return compiler_inline_asm_AssemblyError(value_77, value_79);
                 }
-                if (i == range_last_56) {
+                if (i == range_last_62) {
                     break;
                 }
                 i = (int32_t)((uint32_t)i + 1u);
@@ -2399,13 +2437,13 @@ compiler_inline_asm_CheckBlock(ZirFunction* fn, int32_t statement, AssemblyBindi
     if (compiler_inline_asm_CheckBlockFallsThrough(fn, statement) == 0) {
         return 0;
     }
-    int32_t value_64 = 0;
+    int32_t value_81 = 0;
     if (variants > 0) {
-        value_64 = 1;
+        value_81 = 1;
     } else {
-        value_64 = 0;
+        value_81 = 0;
     }
-    return value_64;
+    return value_81;
 }
 
 int32_t
@@ -2923,8 +2961,10 @@ int32_t
 compiler_inline_asm_CheckProcedureVariants(ZirFunction* fn, AssemblyOutputs* outputs, Parameters* parameters, bool deferred_outputs)
 {
     int32_t architecture[30] = {0};
+    int32_t platforms[30] = {0};
     uint64_t features[30] = {0};
     int32_t variants = 0;
+    bool required = false;
     uint8_t* cursor = (uint8_t*)fn->assembly_text;
     while (compiler_inline_asm_NextByte(cursor) != 0) {
         Assembly assembly = {0};
@@ -2941,69 +2981,162 @@ compiler_inline_asm_CheckProcedureVariants(ZirFunction* fn, AssemblyOutputs* out
         if (value_3 == 0) {
             return 0;
         }
-        bool duplicate = false;
+        if (variants == 0) {
+            uint8_t* value_5 = (assembly.part)[5];
+            bool value_6 = false;
+            {
+                uint8_t* options = value_5;
+                String value_8 = StringLiteral("target-only");
+                uint8_t* value_9 = (void *)0;
+                {
+                    String s = value_8;
+                    value_9 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                }
+                bool value_11 = compiler_inline_asm_Same(options, value_9);
+                bool value_12 = value_11;
+                if (!value_12) {
+                    String value_13 = StringLiteral("volatile;target-only");
+                    uint8_t* value_14 = (void *)0;
+                    {
+                        String s = value_13;
+                        value_14 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                    }
+                    bool value_16 = compiler_inline_asm_Same(options, value_14);
+                    value_12 = value_16;
+                }
+                value_6 = value_12;
+            }
+            required = value_6;
+        } else {
+            uint8_t* value_17 = (assembly.part)[5];
+            bool value_18 = false;
+            {
+                uint8_t* options = value_17;
+                String value_20 = StringLiteral("target-only");
+                uint8_t* value_21 = (void *)0;
+                {
+                    String s = value_20;
+                    value_21 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                }
+                bool value_23 = compiler_inline_asm_Same(options, value_21);
+                bool value_24 = value_23;
+                if (!value_24) {
+                    String value_25 = StringLiteral("volatile;target-only");
+                    uint8_t* value_26 = (void *)0;
+                    {
+                        String s = value_25;
+                        value_26 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                    }
+                    bool value_28 = compiler_inline_asm_Same(options, value_26);
+                    value_24 = value_28;
+                }
+                value_18 = value_24;
+            }
+            if (required != value_18) {
+                ZirSourceSpan value_29 = fn->span;
+                String value_30 = StringLiteral("all #asm variants of a procedure must agree on target-only");
+                uint8_t* value_31 = (void *)0;
+                {
+                    String s = value_30;
+                    value_31 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                }
+                return compiler_inline_asm_AssemblyError(value_29, value_31);
+            }
+        }
+        if (variants == 30) {
+            ZirSourceSpan value_33 = fn->span;
+            String value_34 = StringLiteral("too many #asm variants");
+            uint8_t* value_35 = (void *)0;
+            {
+                String s = value_34;
+                value_35 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            }
+            return compiler_inline_asm_AssemblyError(value_33, value_35);
+        }
         {
-            int32_t range_first_10 = 0;
-            int32_t range_last_10 = (int32_t)((uint32_t)variants - 1u);
-            int32_t seen = range_first_10;
-            if (seen <= range_last_10) for (;;) {
-                if ((architecture)[seen] != assembly.architecture) {
-                    if (seen == range_last_10) {
-                        break;
-                    }
-                    seen = (int32_t)((uint32_t)seen + 1u);
-                    continue;
+            int32_t range_first_20 = 0;
+            int32_t range_last_20 = (int32_t)((uint32_t)variants - 1u);
+            int32_t seen = range_first_20;
+            if (seen <= range_last_20) for (;;) {
+                bool covers_os = (platforms)[seen] == 0 || (platforms)[seen] == assembly.platform;
+                bool value_37 = (architecture)[seen] == assembly.architecture && covers_os;
+                if (value_37) {
+                    uint64_t value_38 = (uint64_t)((uint64_t)((features)[seen]) & (uint64_t)(assembly.features));
+                    uint64_t value_39 = (features)[seen];
+                    value_37 = (value_38 == value_39);
                 }
-                uint64_t value_5 = (features)[seen];
-                uint64_t value_6 = assembly.features;
-                if (value_5 == value_6) {
-                    duplicate = true;
-                } else {
-                    uint64_t value_7 = (uint64_t)((uint64_t)((features)[seen]) & (uint64_t)(assembly.features));
-                    uint64_t value_8 = (features)[seen];
-                    if (value_7 == value_8) {
-                        ZirSourceSpan value_9 = fn->span;
-                        String value_10 = StringLiteral("#asm variant is shadowed by an earlier feature or baseline variant");
-                        uint8_t* value_11 = (void *)0;
+                if (value_37) {
+                    uint64_t value_40 = (features)[seen];
+                    uint64_t value_41 = assembly.features;
+                    if (value_40 == value_41 && (platforms)[seen] == assembly.platform) {
+                        ZirSourceSpan value_42 = fn->span;
+                        String value_43 = StringLiteral("duplicate or too many #asm architecture variants");
+                        uint8_t* value_44 = (void *)0;
                         {
-                            String s = value_10;
-                            value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                            String s = value_43;
+                            value_44 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
-                        return compiler_inline_asm_AssemblyError(value_9, value_11);
+                        return compiler_inline_asm_AssemblyError(value_42, value_44);
                     }
+                    ZirSourceSpan value_46 = fn->span;
+                    String value_47 = StringLiteral("#asm variant is shadowed by an earlier feature or baseline variant");
+                    uint8_t* value_48 = (void *)0;
+                    {
+                        String s = value_47;
+                        value_48 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                    }
+                    return compiler_inline_asm_AssemblyError(value_46, value_48);
                 }
-                if (seen == range_last_10) {
+                if (seen == range_last_20) {
                     break;
                 }
                 seen = (int32_t)((uint32_t)seen + 1u);
             }
         }
-        if (duplicate || variants == 30) {
-            ZirSourceSpan value_13 = fn->span;
-            String value_14 = StringLiteral("duplicate or too many #asm architecture variants");
-            uint8_t* value_15 = (void *)0;
-            {
-                String s = value_14;
-                value_15 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
-            }
-            return compiler_inline_asm_AssemblyError(value_13, value_15);
-        }
-        int32_t* value_17 = &(architecture[variants]);
-        (*value_17) = assembly.architecture;
-        uint64_t* value_18 = &(features[variants]);
-        (*value_18) = assembly.features;
+        int32_t* value_50 = &(architecture[variants]);
+        (*value_50) = assembly.architecture;
+        int32_t* value_51 = &(platforms[variants]);
+        (*value_51) = assembly.platform;
+        uint64_t* value_52 = &(features[variants]);
+        (*value_52) = assembly.features;
         variants = (int32_t)((uint32_t)variants + 1u);
         if (compiler_inline_asm_CheckProcedureVariant(&(assembly), fn, outputs, parameters, deferred_outputs) == 0) {
             return 0;
         }
     }
-    int32_t value_19 = 0;
-    if (variants > 0) {
-        value_19 = 1;
-    } else {
-        value_19 = 0;
+    bool value_53 = required;
+    if (value_53) {
+        bool value_54 = fn->stmt_count != 1;
+        bool value_55 = value_54;
+        if (!value_55) {
+            ZirFunction* value_56 = fn;
+            ZirStmt* value_57 = (void *)0;
+            {
+                ZirFunction* fn = value_56;
+                int32_t index = 0;
+                value_57 = (ZirStmt*)(((size_t)(fn->stmts) + ((size_t)(index) * sizeof(ZirStmt))));
+            }
+            value_55 = (((ZirStmtKind)(value_57->kind)) != ((ZirStmtKind)(15)));
+        }
+        value_53 = value_55;
     }
-    return value_19;
+    if (value_53) {
+        ZirSourceSpan value_59 = fn->span;
+        String value_60 = StringLiteral("a target-only #asm procedure requires a single unreachable statement as its body");
+        uint8_t* value_61 = (void *)0;
+        {
+            String s = value_60;
+            value_61 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        }
+        return compiler_inline_asm_AssemblyError(value_59, value_61);
+    }
+    int32_t value_63 = 0;
+    if (variants > 0) {
+        value_63 = 1;
+    } else {
+        value_63 = 0;
+    }
+    return value_63;
 }
 
 int32_t
@@ -3081,53 +3214,62 @@ CheckAssembly(ZirModule* module, ZirFunction* fn)
                 value_20 = (Parameter*)(((size_t)(&(parameters->items[0])) + ((size_t)(index) * sizeof(Parameter))));
             }
             Parameter* parameter = value_20;
-            bool value_22 = parameter->name == ((void *)0);
-            bool value_23 = value_22;
-            if (!value_23) {
-                bool value_24 = compiler_inline_asm_TemplateOperandType(fn, parameter->type);
-                bool value_25 = !value_24;
-                if (value_25) {
-                    bool value_26 = compiler_inline_asm_SliceOperand(parameter->type);
-                    value_25 = !value_26;
-                }
-                value_23 = value_25;
+            ZirType* value_22 = (void *)0;
+            if (parameter->type != ((void *)0)) {
+                ZirType* value_23 = zir_foreign_compiler_inline_asm__FindType(module, parameter->type, (void *)0);
+                value_22 = value_23;
+            } else {
+                value_22 = (void *)0;
             }
-            if (value_23) {
-                compiler_inline_asm_FreeAssemblyOutputs(outputs);
-                ZirSourceSpan value_27 = fn->span;
-                String value_28 = StringLiteral("#asm parameters must be named scalars, pointers or slices of scalars");
-                uint8_t* value_29 = (void *)0;
-                {
-                    String s = value_28;
-                    value_29 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            ZirType* declared = value_22;
+            bool procedure = declared != ((void *)0) && declared->is_procedure_type != 0;
+            bool value_24 = parameter->name == ((void *)0);
+            bool value_25 = value_24;
+            if (!value_25) {
+                bool value_26 = compiler_inline_asm_TemplateOperandType(fn, parameter->type);
+                bool value_27 = !value_26;
+                if (value_27) {
+                    bool value_28 = compiler_inline_asm_SliceOperand(parameter->type);
+                    value_27 = !value_28;
                 }
-                return compiler_inline_asm_AssemblyError(value_27, value_29);
+                value_25 = (value_27 && !procedure);
+            }
+            if (value_25) {
+                compiler_inline_asm_FreeAssemblyOutputs(outputs);
+                ZirSourceSpan value_29 = fn->span;
+                String value_30 = StringLiteral("#asm parameters must be named scalars, pointers or slices of scalars");
+                uint8_t* value_31 = (void *)0;
+                {
+                    String s = value_30;
+                    value_31 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                }
+                return compiler_inline_asm_AssemblyError(value_29, value_31);
             }
             {
-                int32_t range_first_26 = 0;
-                int32_t range_last_26 = (int32_t)((uint32_t)(outputs->count) - 1u);
-                int32_t j = range_first_26;
-                if (j <= range_last_26) for (;;) {
-                    uint8_t* value_31 = parameter->name;
-                    AssemblyOutputs* value_32 = outputs;
-                    uint8_t* value_33 = (void *)0;
+                int32_t range_first_28 = 0;
+                int32_t range_last_28 = (int32_t)((uint32_t)(outputs->count) - 1u);
+                int32_t j = range_first_28;
+                if (j <= range_last_28) for (;;) {
+                    uint8_t* value_33 = parameter->name;
+                    AssemblyOutputs* value_34 = outputs;
+                    uint8_t* value_35 = (void *)0;
                     {
-                        AssemblyOutputs* outputs = value_32;
+                        AssemblyOutputs* outputs = value_34;
                         int32_t index = j;
-                        value_33 = &(outputs->names[index][0]);
+                        value_35 = &(outputs->names[index][0]);
                     }
-                    if (compiler_inline_asm_Same(value_31, value_33)) {
+                    if (compiler_inline_asm_Same(value_33, value_35)) {
                         compiler_inline_asm_FreeAssemblyOutputs(outputs);
-                        ZirSourceSpan value_35 = fn->span;
-                        String value_36 = StringLiteral("#asm parameter conflicts with an output operand name");
-                        uint8_t* value_37 = (void *)0;
+                        ZirSourceSpan value_37 = fn->span;
+                        String value_38 = StringLiteral("#asm parameter conflicts with an output operand name");
+                        uint8_t* value_39 = (void *)0;
                         {
-                            String s = value_36;
-                            value_37 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                            String s = value_38;
+                            value_39 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
-                        return compiler_inline_asm_AssemblyError(value_35, value_37);
+                        return compiler_inline_asm_AssemblyError(value_37, value_39);
                     }
-                    if (j == range_last_26) {
+                    if (j == range_last_28) {
                         break;
                     }
                     j = (int32_t)((uint32_t)j + 1u);
@@ -3516,181 +3658,208 @@ compiler_inline_asm_AssemblyGuard(void* out, Assembly* assembly)
         value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
     zir_foreign_compiler_inline_asm__fprintf(out, value_1, (architecture_guards)[assembly->architecture]);
-    uint64_t value_3 = assembly->features;
-    if (value_3 == 0ULL) {
+    if (assembly->platform == 1) {
+        String value_3 = StringLiteral(" && defined(__linux__) && !defined(__ANDROID__)");
+        uint8_t* value_4 = (void *)0;
+        {
+            String s = value_3;
+            value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_inline_asm__fputs(value_4, out);
+    }
+    if (assembly->platform == 2) {
+        String value_6 = StringLiteral(" && defined(__ANDROID__)");
+        uint8_t* value_7 = (void *)0;
+        {
+            String s = value_6;
+            value_7 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_inline_asm__fputs(value_7, out);
+    }
+    if (assembly->platform == 3) {
+        String value_9 = StringLiteral(" && defined(_WIN32)");
+        uint8_t* value_10 = (void *)0;
+        {
+            String s = value_9;
+            value_10 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_inline_asm__fputs(value_10, out);
+    }
+    uint64_t value_12 = assembly->features;
+    if (value_12 == 0ULL) {
         return;
     }
-    int32_t value_4 = assembly->architecture;
-    bool value_5 = false;
+    int32_t value_13 = assembly->architecture;
+    bool value_14 = false;
     {
-        int32_t architecture = value_4;
-        value_5 = architecture == 0 || architecture == 1;
+        int32_t architecture = value_13;
+        value_14 = architecture == 0 || architecture == 1;
     }
-    if (value_5) {
-        String value_7 = StringLiteral(" && !defined(_MSC_VER)");
-        uint8_t* value_8 = (void *)0;
+    if (value_14) {
+        String value_16 = StringLiteral(" && !defined(_MSC_VER)");
+        uint8_t* value_17 = (void *)0;
         {
-            String s = value_7;
-            value_8 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            String s = value_16;
+            value_17 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_foreign_compiler_inline_asm__fputs(value_8, out);
+        zir_foreign_compiler_inline_asm__fputs(value_17, out);
     }
     if (assembly->architecture == 3) {
-        String value_10 = StringLiteral(" && defined(__linux__) && !defined(__SOFTFP__) && __ARM_ARCH >= 7 && __ARM_ARCH_PROFILE == 'A' && (!defined(__ANDROID__) || __ANDROID_API__ >= 18)");
-        uint8_t* value_11 = (void *)0;
+        String value_19 = StringLiteral(" && defined(__linux__) && !defined(__SOFTFP__) && __ARM_ARCH >= 7 && __ARM_ARCH_PROFILE == 'A' && (!defined(__ANDROID__) || __ANDROID_API__ >= 18)");
+        uint8_t* value_20 = (void *)0;
         {
-            String s = value_10;
-            value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            String s = value_19;
+            value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_foreign_compiler_inline_asm__fputs(value_11, out);
+        zir_foreign_compiler_inline_asm__fputs(value_20, out);
     }
     if (assembly->architecture == 2) {
-        String value_13 = StringLiteral(" && defined(__linux__)");
-        uint8_t* value_14 = (void *)0;
+        String value_22 = StringLiteral(" && defined(__linux__)");
+        uint8_t* value_23 = (void *)0;
         {
-            String s = value_13;
-            value_14 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            String s = value_22;
+            value_23 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_foreign_compiler_inline_asm__fputs(value_14, out);
+        zir_foreign_compiler_inline_asm__fputs(value_23, out);
     }
     {
-        int32_t range_first_13 = 0;
-        int32_t range_last_13 = 20;
-        int32_t i = range_first_13;
-        if (i <= range_last_13) for (;;) {
-            Assembly* value_16 = assembly;
-            bool value_17 = false;
+        int32_t range_first_22 = 0;
+        int32_t range_last_22 = 20;
+        int32_t i = range_first_22;
+        if (i <= range_last_22) for (;;) {
+            Assembly* value_25 = assembly;
+            bool value_26 = false;
             {
-                Assembly* assembly = value_16;
+                Assembly* assembly = value_25;
                 int32_t feature = i;
-                uint64_t value_19 = assembly->features;
-                int32_t value_20 = feature;
-                uint64_t value_21 = 0;
+                uint64_t value_28 = assembly->features;
+                int32_t value_29 = feature;
+                uint64_t value_30 = 0;
                 {
-                    int32_t feature = value_20;
-                    value_21 = ZiShl64(1ULL, (uint64_t)((uint64_t)(feature)), 64);
+                    int32_t feature = value_29;
+                    value_30 = ZiShl64(1ULL, (uint64_t)((uint64_t)(feature)), 64);
                 }
-                uint64_t value_23 = (uint64_t)((uint64_t)value_19 & (uint64_t)value_21);
-                value_17 = value_23 != 0ULL;
+                uint64_t value_32 = (uint64_t)((uint64_t)value_28 & (uint64_t)value_30);
+                value_26 = value_32 != 0ULL;
             }
-            if (!value_17) {
-                if (i == range_last_13) {
+            if (!value_26) {
+                if (i == range_last_22) {
                     break;
                 }
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
             }
             if (assembly->architecture == 2 || assembly->architecture == 3) {
-                String value_24 = StringLiteral(" && defined(%s)");
-                uint8_t* value_25 = (void *)0;
+                String value_33 = StringLiteral(" && defined(%s)");
+                uint8_t* value_34 = (void *)0;
                 {
-                    String s = value_24;
-                    value_25 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                    String s = value_33;
+                    value_34 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                uint8_t* value_27 = (void *)0;
+                uint8_t* value_36 = (void *)0;
                 {
                     int32_t feature = i;
                     if (feature == 12) {
-                        String value_29 = StringLiteral("HWCAP_AES");
-                        uint8_t* value_30 = (void *)0;
-                        {
-                            String s = value_29;
-                            value_30 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
-                        }
-                        value_27 = value_30;
-                        goto value_28;
-                    }
-                    if (feature == 14) {
-                        String value_32 = StringLiteral("HWCAP_CRC32");
-                        uint8_t* value_33 = (void *)0;
-                        {
-                            String s = value_32;
-                            value_33 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
-                        }
-                        value_27 = value_33;
-                        goto value_28;
-                    }
-                    if (feature == 15) {
-                        String value_35 = StringLiteral("HWCAP_PMULL");
-                        uint8_t* value_36 = (void *)0;
-                        {
-                            String s = value_35;
-                            value_36 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
-                        }
-                        value_27 = value_36;
-                        goto value_28;
-                    }
-                    if (feature == 16) {
-                        String value_38 = StringLiteral("HWCAP_SHA2");
+                        String value_38 = StringLiteral("HWCAP_AES");
                         uint8_t* value_39 = (void *)0;
                         {
                             String s = value_38;
                             value_39 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
-                        value_27 = value_39;
-                        goto value_28;
+                        value_36 = value_39;
+                        goto value_37;
                     }
-                    if (feature == 17) {
-                        String value_41 = StringLiteral("HWCAP_ATOMICS");
+                    if (feature == 14) {
+                        String value_41 = StringLiteral("HWCAP_CRC32");
                         uint8_t* value_42 = (void *)0;
                         {
                             String s = value_41;
                             value_42 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
-                        value_27 = value_42;
-                        goto value_28;
+                        value_36 = value_42;
+                        goto value_37;
                     }
-                    if (feature == 18) {
-                        String value_44 = StringLiteral("HWCAP_ASIMD");
+                    if (feature == 15) {
+                        String value_44 = StringLiteral("HWCAP_PMULL");
                         uint8_t* value_45 = (void *)0;
                         {
                             String s = value_44;
                             value_45 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
-                        value_27 = value_45;
-                        goto value_28;
+                        value_36 = value_45;
+                        goto value_37;
                     }
-                    if (feature == 19) {
-                        String value_47 = StringLiteral("HWCAP_NEON");
+                    if (feature == 16) {
+                        String value_47 = StringLiteral("HWCAP_SHA2");
                         uint8_t* value_48 = (void *)0;
                         {
                             String s = value_47;
                             value_48 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
-                        value_27 = value_48;
-                        goto value_28;
+                        value_36 = value_48;
+                        goto value_37;
                     }
-                    value_27 = (void *)0;
-                value_28: ;
-                }
-                zir_foreign_compiler_inline_asm__fprintf(out, value_25, value_27);
-            } else if (assembly->architecture == 4) {
-                String value_50 = StringLiteral(" && defined(__wasm_%s__)");
-                uint8_t* value_51 = (void *)0;
-                {
-                    String s = value_50;
-                    value_51 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
-                }
-                uint8_t* value_53 = (void *)0;
-                {
-                    int32_t feature = i;
-                    uint8_t* value_55 = (void *)0;
-                    if (feature == 20) {
-                        String value_56 = StringLiteral("simd128");
+                    if (feature == 17) {
+                        String value_50 = StringLiteral("HWCAP_ATOMICS");
+                        uint8_t* value_51 = (void *)0;
+                        {
+                            String s = value_50;
+                            value_51 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                        }
+                        value_36 = value_51;
+                        goto value_37;
+                    }
+                    if (feature == 18) {
+                        String value_53 = StringLiteral("HWCAP_ASIMD");
+                        uint8_t* value_54 = (void *)0;
+                        {
+                            String s = value_53;
+                            value_54 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                        }
+                        value_36 = value_54;
+                        goto value_37;
+                    }
+                    if (feature == 19) {
+                        String value_56 = StringLiteral("HWCAP_NEON");
                         uint8_t* value_57 = (void *)0;
                         {
                             String s = value_56;
                             value_57 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
-                        value_55 = value_57;
-                    } else {
-                        value_55 = (void *)0;
+                        value_36 = value_57;
+                        goto value_37;
                     }
-                    value_53 = value_55;
+                    value_36 = (void *)0;
+                value_37: ;
                 }
-                zir_foreign_compiler_inline_asm__fprintf(out, value_51, value_53);
+                zir_foreign_compiler_inline_asm__fprintf(out, value_34, value_36);
+            } else if (assembly->architecture == 4) {
+                String value_59 = StringLiteral(" && defined(__wasm_%s__)");
+                uint8_t* value_60 = (void *)0;
+                {
+                    String s = value_59;
+                    value_60 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                }
+                uint8_t* value_62 = (void *)0;
+                {
+                    int32_t feature = i;
+                    uint8_t* value_64 = (void *)0;
+                    if (feature == 20) {
+                        String value_65 = StringLiteral("simd128");
+                        uint8_t* value_66 = (void *)0;
+                        {
+                            String s = value_65;
+                            value_66 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                        }
+                        value_64 = value_66;
+                    } else {
+                        value_64 = (void *)0;
+                    }
+                    value_62 = value_64;
+                }
+                zir_foreign_compiler_inline_asm__fprintf(out, value_60, value_62);
             }
-            if (i == range_last_13) {
+            if (i == range_last_22) {
                 break;
             }
             i = (int32_t)((uint32_t)i + 1u);
@@ -4592,62 +4761,86 @@ compiler_inline_asm_AssemblyBody(void* out, ZirModule* module, ZirFunction* fn, 
     }
     zir_foreign_compiler_inline_asm__fputs(value_24, out);
     uint8_t* options = (assembly->part)[5];
-    if (options[0] != 0) {
-        String value_26 = StringLiteral(" __volatile__");
-        uint8_t* value_27 = (void *)0;
+    uint8_t* value_26 = options;
+    bool value_27 = false;
+    {
+        uint8_t* options = value_26;
+        String value_29 = StringLiteral("volatile");
+        uint8_t* value_30 = (void *)0;
         {
-            String s = value_26;
-            value_27 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            String s = value_29;
+            value_30 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_foreign_compiler_inline_asm__fputs(value_27, out);
+        bool value_32 = compiler_inline_asm_Same(options, value_30);
+        bool value_33 = value_32;
+        if (!value_33) {
+            String value_34 = StringLiteral("volatile;target-only");
+            uint8_t* value_35 = (void *)0;
+            {
+                String s = value_34;
+                value_35 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            }
+            bool value_37 = compiler_inline_asm_Same(options, value_35);
+            value_33 = value_37;
+        }
+        value_27 = value_33;
+    }
+    if (value_27) {
+        String value_38 = StringLiteral(" __volatile__");
+        uint8_t* value_39 = (void *)0;
+        {
+            String s = value_38;
+            value_39 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_inline_asm__fputs(value_39, out);
     }
     zir_foreign_compiler_inline_asm__fputc(40, out);
     compiler_inline_asm_AssemblyTemplatePrefix(out, assembly);
     compiler_inline_asm_AssemblyOperandText(out, (assembly->part)[1], &(names[0]), (int32_t)((uint32_t)(outputs->count) + (uint32_t)(parameters->count)), true);
     uint8_t* constraints[30] = {0};
     compiler_inline_asm_OperandList((assembly->part)[2], &(constraints[0]));
-    String value_29 = StringLiteral("\n            : ");
-    uint8_t* value_30 = (void *)0;
+    String value_41 = StringLiteral("\n            : ");
+    uint8_t* value_42 = (void *)0;
     {
-        String s = value_29;
-        value_30 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        String s = value_41;
+        value_42 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_foreign_compiler_inline_asm__fputs(value_30, out);
+    zir_foreign_compiler_inline_asm__fputs(value_42, out);
     {
         int32_t range_first_28 = 0;
         int32_t range_last_28 = (int32_t)((uint32_t)(outputs->count) - 1u);
         int32_t i = range_first_28;
         if (i <= range_last_28) for (;;) {
             if (i != 0) {
-                String value_32 = StringLiteral(", ");
-                uint8_t* value_33 = (void *)0;
+                String value_44 = StringLiteral(", ");
+                uint8_t* value_45 = (void *)0;
                 {
-                    String s = value_32;
-                    value_33 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                    String s = value_44;
+                    value_45 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_foreign_compiler_inline_asm__fputs(value_33, out);
+                zir_foreign_compiler_inline_asm__fputs(value_45, out);
             }
             compiler_inline_asm_AssemblyString(out, (constraints)[i]);
-            void* value_35 = out;
-            String value_36 = StringLiteral(" (%s");
-            uint8_t* value_37 = (void *)0;
+            void* value_47 = out;
+            String value_48 = StringLiteral(" (%s");
+            uint8_t* value_49 = (void *)0;
             {
-                String s = value_36;
-                value_37 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                String s = value_48;
+                value_49 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_foreign_compiler_inline_asm__fprintf(value_35, value_37, &(result_name[0]));
+            zir_foreign_compiler_inline_asm__fprintf(value_47, value_49, &(result_name[0]));
             if (outputs->record != 0) {
                 ZirType* record = zir_foreign_compiler_inline_asm__FindType(module, &(fn->return_type[0]), (void *)0);
                 uint8_t field[512] = {0};
                 zir_foreign_compiler_inline_asm__TargetFieldName(record, target, &(((outputs->fields[i]).name)[0]), &(field[0]), 512);
-                void* value_39 = out;
-                String value_40 = StringLiteral(".%s");
-                uint8_t* value_41 = (void *)0;
+                void* value_51 = out;
+                String value_52 = StringLiteral(".%s");
+                uint8_t* value_53 = (void *)0;
                 {
-                    String s = value_40;
-                    value_41 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                    String s = value_52;
+                    value_53 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_foreign_compiler_inline_asm__fprintf(value_39, value_41, &(field[0]));
+                zir_foreign_compiler_inline_asm__fprintf(value_51, value_53, &(field[0]));
             }
             zir_foreign_compiler_inline_asm__fputc(41, out);
             if (i == range_last_28) {
@@ -4657,60 +4850,60 @@ compiler_inline_asm_AssemblyBody(void* out, ZirModule* module, ZirFunction* fn, 
         }
     }
     compiler_inline_asm_OperandList((assembly->part)[3], &(constraints[0]));
-    String value_43 = StringLiteral("\n            : ");
-    uint8_t* value_44 = (void *)0;
+    String value_55 = StringLiteral("\n            : ");
+    uint8_t* value_56 = (void *)0;
     {
-        String s = value_43;
-        value_44 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        String s = value_55;
+        value_56 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_foreign_compiler_inline_asm__fputs(value_44, out);
+    zir_foreign_compiler_inline_asm__fputs(value_56, out);
     bool memory = false;
     {
         int32_t range_first_45 = 0;
         int32_t range_last_45 = (int32_t)((uint32_t)(parameters->count) - 1u);
         int32_t i = range_first_45;
         if (i <= range_last_45) for (;;) {
-            Parameters* value_46 = parameters;
-            Parameter* value_47 = (void *)0;
+            Parameters* value_58 = parameters;
+            Parameter* value_59 = (void *)0;
             {
-                Parameters* parameters = value_46;
+                Parameters* parameters = value_58;
                 int32_t index = i;
-                value_47 = (Parameter*)(((size_t)(&(parameters->items[0])) + ((size_t)(index) * sizeof(Parameter))));
+                value_59 = (Parameter*)(((size_t)(&(parameters->items[0])) + ((size_t)(index) * sizeof(Parameter))));
             }
-            Parameter* parameter = value_47;
+            Parameter* parameter = value_59;
             uint8_t name[512] = {0};
             zir_foreign_compiler_inline_asm__TargetBindingName(fn, target, parameter->name, &(name[0]), 512);
             if (i != 0) {
-                String value_49 = StringLiteral(", ");
-                uint8_t* value_50 = (void *)0;
+                String value_61 = StringLiteral(", ");
+                uint8_t* value_62 = (void *)0;
                 {
-                    String s = value_49;
-                    value_50 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                    String s = value_61;
+                    value_62 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                zir_foreign_compiler_inline_asm__fputs(value_50, out);
+                zir_foreign_compiler_inline_asm__fputs(value_62, out);
             }
             compiler_inline_asm_AssemblyOperandText(out, (constraints)[i], &(names[0]), outputs->count, false);
             bool slice = compiler_inline_asm_SliceOperand(parameter->type);
-            void* value_52 = out;
-            uint8_t* value_53 = (void *)0;
+            void* value_64 = out;
+            uint8_t* value_65 = (void *)0;
             if (slice) {
-                String value_54 = StringLiteral(" ((%s).data)");
-                uint8_t* value_55 = (void *)0;
+                String value_66 = StringLiteral(" ((%s).data)");
+                uint8_t* value_67 = (void *)0;
                 {
-                    String s = value_54;
-                    value_55 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                    String s = value_66;
+                    value_67 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                value_53 = value_55;
+                value_65 = value_67;
             } else {
-                String value_57 = StringLiteral(" (%s)");
-                uint8_t* value_58 = (void *)0;
+                String value_69 = StringLiteral(" (%s)");
+                uint8_t* value_70 = (void *)0;
                 {
-                    String s = value_57;
-                    value_58 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                    String s = value_69;
+                    value_70 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                 }
-                value_53 = value_58;
+                value_65 = value_70;
             }
-            zir_foreign_compiler_inline_asm__fprintf(value_52, value_53, &(name[0]));
+            zir_foreign_compiler_inline_asm__fprintf(value_64, value_65, &(name[0]));
             if (slice || (parameter->type != ((void *)0) && parameter->type[0] == 42)) {
                 memory = true;
             }
@@ -4720,38 +4913,38 @@ compiler_inline_asm_AssemblyBody(void* out, ZirModule* module, ZirFunction* fn, 
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    String value_60 = StringLiteral("\n            : ");
-    uint8_t* value_61 = (void *)0;
+    String value_72 = StringLiteral("\n            : ");
+    uint8_t* value_73 = (void *)0;
     {
-        String s = value_60;
-        value_61 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        String s = value_72;
+        value_73 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_foreign_compiler_inline_asm__fputs(value_61, out);
+    zir_foreign_compiler_inline_asm__fputs(value_73, out);
     compiler_inline_asm_EmitClobbers(out, assembly, memory);
-    String value_63 = StringLiteral(");\n        return");
-    uint8_t* value_64 = (void *)0;
+    String value_75 = StringLiteral(");\n        return");
+    uint8_t* value_76 = (void *)0;
     {
-        String s = value_63;
-        value_64 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        String s = value_75;
+        value_76 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_foreign_compiler_inline_asm__fputs(value_64, out);
+    zir_foreign_compiler_inline_asm__fputs(value_76, out);
     if (outputs->count != 0) {
-        void* value_66 = out;
-        String value_67 = StringLiteral(" %s");
-        uint8_t* value_68 = (void *)0;
+        void* value_78 = out;
+        String value_79 = StringLiteral(" %s");
+        uint8_t* value_80 = (void *)0;
         {
-            String s = value_67;
-            value_68 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            String s = value_79;
+            value_80 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_foreign_compiler_inline_asm__fprintf(value_66, value_68, &(result_name[0]));
+        zir_foreign_compiler_inline_asm__fprintf(value_78, value_80, &(result_name[0]));
     }
-    String value_70 = StringLiteral(";\n");
-    uint8_t* value_71 = (void *)0;
+    String value_82 = StringLiteral(";\n");
+    uint8_t* value_83 = (void *)0;
     {
-        String s = value_70;
-        value_71 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        String s = value_82;
+        value_83 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_foreign_compiler_inline_asm__fputs(value_71, out);
+    zir_foreign_compiler_inline_asm__fputs(value_83, out);
 }
 
 AssemblyOutputs*
@@ -6240,14 +6433,38 @@ compiler_inline_asm_BlockAssemblyBody(void* out, ZirFunction* fn, int32_t statem
     }
     zir_foreign_compiler_inline_asm__fputs(value_5, out);
     uint8_t* options = (assembly->part)[5];
-    if (options[0] != 0) {
-        String value_7 = StringLiteral(" __volatile__");
-        uint8_t* value_8 = (void *)0;
+    uint8_t* value_7 = options;
+    bool value_8 = false;
+    {
+        uint8_t* options = value_7;
+        String value_10 = StringLiteral("volatile");
+        uint8_t* value_11 = (void *)0;
         {
-            String s = value_7;
-            value_8 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            String s = value_10;
+            value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        zir_foreign_compiler_inline_asm__fputs(value_8, out);
+        bool value_13 = compiler_inline_asm_Same(options, value_11);
+        bool value_14 = value_13;
+        if (!value_14) {
+            String value_15 = StringLiteral("volatile;target-only");
+            uint8_t* value_16 = (void *)0;
+            {
+                String s = value_15;
+                value_16 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            }
+            bool value_18 = compiler_inline_asm_Same(options, value_16);
+            value_14 = value_18;
+        }
+        value_8 = value_14;
+    }
+    if (value_8) {
+        String value_19 = StringLiteral(" __volatile__");
+        uint8_t* value_20 = (void *)0;
+        {
+            String s = value_19;
+            value_20 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_inline_asm__fputs(value_20, out);
     }
     zir_foreign_compiler_inline_asm__fputc(40, out);
     if (helper) {
@@ -6259,122 +6476,122 @@ compiler_inline_asm_BlockAssemblyBody(void* out, ZirFunction* fn, int32_t statem
         int32_t range_last_15 = 1;
         int32_t direction = range_first_15;
         if (direction <= range_last_15) for (;;) {
-            String value_10 = StringLiteral("\n            : ");
-            uint8_t* value_11 = (void *)0;
+            String value_22 = StringLiteral("\n            : ");
+            uint8_t* value_23 = (void *)0;
             {
-                String s = value_10;
-                value_11 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                String s = value_22;
+                value_23 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            zir_foreign_compiler_inline_asm__fputs(value_11, out);
-            int32_t value_13 = 0;
+            zir_foreign_compiler_inline_asm__fputs(value_23, out);
+            int32_t value_25 = 0;
             if (direction != 0) {
-                value_13 = bindings->inputs;
+                value_25 = bindings->inputs;
             } else {
-                value_13 = bindings->outputs;
+                value_25 = bindings->outputs;
             }
-            int32_t count = value_13;
+            int32_t count = value_25;
             {
                 int32_t range_first_18 = 0;
                 int32_t range_last_18 = (int32_t)((uint32_t)count - 1u);
                 int32_t i = range_first_18;
                 if (i <= range_last_18) for (;;) {
-                    int32_t value_14 = 0;
+                    int32_t value_26 = 0;
                     if (direction != 0) {
-                        value_14 = (int32_t)((uint32_t)(bindings->outputs) + (uint32_t)i);
+                        value_26 = (int32_t)((uint32_t)(bindings->outputs) + (uint32_t)i);
                     } else {
-                        value_14 = i;
+                        value_26 = i;
                     }
-                    int32_t position = value_14;
+                    int32_t position = value_26;
                     uint8_t* constraint = (bindings->items[position]).constraint;
                     if (i != 0) {
-                        String value_15 = StringLiteral(", ");
-                        uint8_t* value_16 = (void *)0;
+                        String value_27 = StringLiteral(", ");
+                        uint8_t* value_28 = (void *)0;
                         {
-                            String s = value_15;
-                            value_16 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                            String s = value_27;
+                            value_28 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_inline_asm__fputs(value_16, out);
+                        zir_foreign_compiler_inline_asm__fputs(value_28, out);
                     }
                     compiler_inline_asm_AssemblyOperandText(out, constraint, &(names[0]), bindings->outputs, false);
-                    bool value_18 = helper && direction == 0;
-                    if (value_18) {
-                        BlockBindings* value_19 = bindings;
-                        bool value_20 = false;
+                    bool value_30 = helper && direction == 0;
+                    if (value_30) {
+                        BlockBindings* value_31 = bindings;
+                        bool value_32 = false;
                         {
-                            BlockBindings* bindings = value_19;
+                            BlockBindings* bindings = value_31;
                             if (bindings->outputs != 1) {
-                                value_20 = false;
-                                goto value_21;
+                                value_32 = false;
+                                goto value_33;
                             }
                             uint8_t* constraint = (bindings->items[0]).constraint;
-                            String value_22 = StringLiteral("=r");
-                            uint8_t* value_23 = (void *)0;
+                            String value_34 = StringLiteral("=r");
+                            uint8_t* value_35 = (void *)0;
                             {
-                                String s = value_22;
-                                value_23 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                                String s = value_34;
+                                value_35 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                             }
-                            bool value_25 = compiler_inline_asm_Same(constraint, value_23);
-                            bool value_26 = value_25;
-                            if (!value_26) {
-                                String value_27 = StringLiteral("=&r");
-                                uint8_t* value_28 = (void *)0;
+                            bool value_37 = compiler_inline_asm_Same(constraint, value_35);
+                            bool value_38 = value_37;
+                            if (!value_38) {
+                                String value_39 = StringLiteral("=&r");
+                                uint8_t* value_40 = (void *)0;
                                 {
-                                    String s = value_27;
-                                    value_28 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                                    String s = value_39;
+                                    value_40 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                                 }
-                                bool value_30 = compiler_inline_asm_Same(constraint, value_28);
-                                value_26 = value_30;
+                                bool value_42 = compiler_inline_asm_Same(constraint, value_40);
+                                value_38 = value_42;
                             }
-                            value_20 = value_26;
-                        value_21: ;
+                            value_32 = value_38;
+                        value_33: ;
                         }
-                        value_18 = value_20;
+                        value_30 = value_32;
                     }
-                    if (value_18) {
-                        String value_31 = StringLiteral(" (ziran_result)");
-                        uint8_t* value_32 = (void *)0;
+                    if (value_30) {
+                        String value_43 = StringLiteral(" (ziran_result)");
+                        uint8_t* value_44 = (void *)0;
                         {
-                            String s = value_31;
-                            value_32 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                            String s = value_43;
+                            value_44 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_inline_asm__fputs(value_32, out);
+                        zir_foreign_compiler_inline_asm__fputs(value_44, out);
                     } else if (helper) {
                         bool stored = direction == 0 || AssemblyInputNeedsStorage(constraint) != 0;
-                        String value_34 = StringLiteral(" (%sziran_operand_%d)");
-                        uint8_t* value_35 = (void *)0;
+                        String value_46 = StringLiteral(" (%sziran_operand_%d)");
+                        uint8_t* value_47 = (void *)0;
                         {
-                            String s = value_34;
-                            value_35 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                            String s = value_46;
+                            value_47 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
-                        uint8_t* value_37 = (void *)0;
+                        uint8_t* value_49 = (void *)0;
                         if (stored) {
-                            String value_38 = StringLiteral("*");
-                            uint8_t* value_39 = (void *)0;
+                            String value_50 = StringLiteral("*");
+                            uint8_t* value_51 = (void *)0;
                             {
-                                String s = value_38;
-                                value_39 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                                String s = value_50;
+                                value_51 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                             }
-                            value_37 = value_39;
+                            value_49 = value_51;
                         } else {
-                            String value_41 = StringLiteral("");
-                            uint8_t* value_42 = (void *)0;
+                            String value_53 = StringLiteral("");
+                            uint8_t* value_54 = (void *)0;
                             {
-                                String s = value_41;
-                                value_42 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                                String s = value_53;
+                                value_54 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                             }
-                            value_37 = value_42;
+                            value_49 = value_54;
                         }
-                        zir_foreign_compiler_inline_asm__fprintf(out, value_35, value_37, position);
+                        zir_foreign_compiler_inline_asm__fprintf(out, value_47, value_49, position);
                     } else {
                         uint8_t native[512] = {0};
                         compiler_inline_asm_BlockOperandName(fn, target, bindings, position, resolver, context, mapped, &(native[0]));
-                        String value_44 = StringLiteral(" (%s)");
-                        uint8_t* value_45 = (void *)0;
+                        String value_56 = StringLiteral(" (%s)");
+                        uint8_t* value_57 = (void *)0;
                         {
-                            String s = value_44;
-                            value_45 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                            String s = value_56;
+                            value_57 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_inline_asm__fprintf(out, value_45, &(native[0]));
+                        zir_foreign_compiler_inline_asm__fprintf(out, value_57, &(native[0]));
                     }
                     if (i == range_last_18) {
                         break;
@@ -6404,21 +6621,21 @@ compiler_inline_asm_BlockAssemblyBody(void* out, ZirFunction* fn, int32_t statem
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    String value_47 = StringLiteral("\n            : ");
-    uint8_t* value_48 = (void *)0;
+    String value_59 = StringLiteral("\n            : ");
+    uint8_t* value_60 = (void *)0;
     {
-        String s = value_47;
-        value_48 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        String s = value_59;
+        value_60 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_foreign_compiler_inline_asm__fputs(value_48, out);
+    zir_foreign_compiler_inline_asm__fputs(value_60, out);
     compiler_inline_asm_EmitClobbers(out, assembly, memory);
-    String value_50 = StringLiteral(");\n");
-    uint8_t* value_51 = (void *)0;
+    String value_62 = StringLiteral(");\n");
+    uint8_t* value_63 = (void *)0;
     {
-        String s = value_50;
-        value_51 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        String s = value_62;
+        value_63 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
     }
-    zir_foreign_compiler_inline_asm__fputs(value_51, out);
+    zir_foreign_compiler_inline_asm__fputs(value_63, out);
 }
 
 void
@@ -7696,199 +7913,611 @@ compiler_inline_asm_AssemblyTarget(Assembly* assembly, ZirSourceSpan span)
         value_0 = value_3;
     }
     size_t length = value_0;
-    int32_t* value_4 = &(assembly->architecture);
-    (*value_4) = -1;
-    uint64_t* value_5 = &(assembly->features);
-    (*value_5) = 0ULL;
+    uint8_t* slash = zir_foreign_compiler_inline_asm__strchr(name, 47);
+    bool value_4 = slash != ((void *)0);
+    bool value_5 = value_4;
+    if (value_5) {
+        size_t value_6 = 0;
+        {
+            uint8_t* from = name;
+            uint8_t* to = slash;
+            value_6 = (size_t)(to) - (size_t)(from);
+        }
+        value_5 = (value_6 < length);
+    }
+    bool scoped = value_5;
+    size_t value_8 = 0;
+    if (scoped) {
+        size_t value_9 = 0;
+        {
+            uint8_t* from = name;
+            uint8_t* to = slash;
+            value_9 = (size_t)(to) - (size_t)(from);
+        }
+        value_8 = value_9;
+    } else {
+        value_8 = length;
+    }
+    size_t arch_length = value_8;
+    int32_t* value_11 = &(assembly->architecture);
+    (*value_11) = -1;
+    int32_t* value_12 = &(assembly->platform);
+    (*value_12) = 0;
+    uint64_t* value_13 = &(assembly->features);
+    (*value_13) = 0ULL;
     {
-        int32_t range_first_5 = 0;
-        int32_t range_last_5 = 10;
-        int32_t i = range_first_5;
-        if (i <= range_last_5) for (;;) {
-            if (compiler_inline_asm_SameSpan((architecture_names)[i], name, length)) {
-                int32_t* value_6 = &(assembly->architecture);
-                (*value_6) = i;
+        int32_t range_first_9 = 0;
+        int32_t range_last_9 = 10;
+        int32_t i = range_first_9;
+        if (i <= range_last_9) for (;;) {
+            if (compiler_inline_asm_SameSpan((architecture_names)[i], name, arch_length)) {
+                int32_t* value_14 = &(assembly->architecture);
+                (*value_14) = i;
             }
-            if (i == range_last_5) {
+            if (i == range_last_9) {
                 break;
             }
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
     if (assembly->architecture < 0) {
-        String value_7 = StringLiteral("unknown #asm architecture");
-        uint8_t* value_8 = (void *)0;
+        String value_15 = StringLiteral("unknown #asm architecture");
+        uint8_t* value_16 = (void *)0;
         {
-            String s = value_7;
-            value_8 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            String s = value_15;
+            value_16 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
         }
-        return compiler_inline_asm_AssemblyError(span, value_8);
+        return compiler_inline_asm_AssemblyError(span, value_16);
+    }
+    if (scoped) {
+        uint8_t* value_18 = (void *)0;
+        {
+            uint8_t* p = slash;
+            size_t n = 1;
+            value_18 = (uint8_t*)(((size_t)(p) + n));
+        }
+        uint8_t* os = value_18;
+        uint8_t* abi_slash = zir_foreign_compiler_inline_asm__strchr(os, 47);
+        bool value_20 = abi_slash == ((void *)0);
+        bool value_21 = value_20;
+        if (!value_21) {
+            size_t value_22 = 0;
+            {
+                uint8_t* from = name;
+                uint8_t* to = abi_slash;
+                value_22 = (size_t)(to) - (size_t)(from);
+            }
+            value_21 = (value_22 >= length);
+        }
+        if (value_21) {
+            String value_24 = StringLiteral("#asm target requires architecture/os/abi");
+            uint8_t* value_25 = (void *)0;
+            {
+                String s = value_24;
+                value_25 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            }
+            return compiler_inline_asm_AssemblyError(span, value_25);
+        }
+        size_t value_27 = 0;
+        {
+            uint8_t* from = os;
+            uint8_t* to = abi_slash;
+            value_27 = (size_t)(to) - (size_t)(from);
+        }
+        size_t os_length = value_27;
+        String value_29 = StringLiteral("linux");
+        uint8_t* value_30 = (void *)0;
+        {
+            String s = value_29;
+            value_30 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        }
+        if (compiler_inline_asm_SameSpan(value_30, os, os_length)) {
+            int32_t* value_32 = &(assembly->platform);
+            (*value_32) = 1;
+        }
+        String value_33 = StringLiteral("android");
+        uint8_t* value_34 = (void *)0;
+        {
+            String s = value_33;
+            value_34 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        }
+        if (compiler_inline_asm_SameSpan(value_34, os, os_length)) {
+            int32_t* value_36 = &(assembly->platform);
+            (*value_36) = 2;
+        }
+        String value_37 = StringLiteral("windows");
+        uint8_t* value_38 = (void *)0;
+        {
+            String s = value_37;
+            value_38 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        }
+        if (compiler_inline_asm_SameSpan(value_38, os, os_length)) {
+            int32_t* value_40 = &(assembly->platform);
+            (*value_40) = 3;
+        }
+        int32_t value_41 = assembly->architecture;
+        int32_t value_42 = assembly->platform;
+        uint8_t* value_43 = (void *)0;
+        {
+            int32_t architecture = value_41;
+            int32_t platform = value_42;
+            if (platform == 0) {
+                String value_45 = StringLiteral("");
+                uint8_t* value_46 = (void *)0;
+                {
+                    String s = value_45;
+                    value_46 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                }
+                value_43 = value_46;
+                goto value_44;
+            }
+            if (architecture == 0 && platform == 1) {
+                String value_48 = StringLiteral("sysv");
+                uint8_t* value_49 = (void *)0;
+                {
+                    String s = value_48;
+                    value_49 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                }
+                value_43 = value_49;
+                goto value_44;
+            }
+            if (architecture == 0 && platform == 3) {
+                String value_51 = StringLiteral("win64");
+                uint8_t* value_52 = (void *)0;
+                {
+                    String s = value_51;
+                    value_52 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                }
+                value_43 = value_52;
+                goto value_44;
+            }
+            if (platform == 1 || platform == 2) {
+                if (architecture == 2) {
+                    String value_54 = StringLiteral("aapcs64");
+                    uint8_t* value_55 = (void *)0;
+                    {
+                        String s = value_54;
+                        value_55 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                    }
+                    value_43 = value_55;
+                    goto value_44;
+                }
+                if (architecture == 3) {
+                    String value_57 = StringLiteral("aapcs32");
+                    uint8_t* value_58 = (void *)0;
+                    {
+                        String s = value_57;
+                        value_58 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                    }
+                    value_43 = value_58;
+                    goto value_44;
+                }
+            }
+            value_43 = (void *)0;
+        value_44: ;
+        }
+        uint8_t* abi = value_43;
+        bool value_60 = abi == ((void *)0);
+        bool value_61 = value_60;
+        if (!value_61) {
+            uint8_t* value_62 = (void *)0;
+            {
+                uint8_t* p = abi_slash;
+                size_t n = 1;
+                value_62 = (uint8_t*)(((size_t)(p) + n));
+            }
+            size_t value_64 = 0;
+            {
+                uint8_t* from = name;
+                uint8_t* to = abi_slash;
+                value_64 = (size_t)(to) - (size_t)(from);
+            }
+            bool value_66 = compiler_inline_asm_SameSpan(abi, value_62, (length - value_64) - 1);
+            value_61 = !value_66;
+        }
+        if (value_61) {
+            String value_67 = StringLiteral("unknown #asm architecture/os/abi combination");
+            uint8_t* value_68 = (void *)0;
+            {
+                String s = value_67;
+                value_68 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            }
+            return compiler_inline_asm_AssemblyError(span, value_68);
+        }
     }
     while (end != ((void *)0)) {
-        uint8_t* value_10 = (void *)0;
+        uint8_t* value_70 = (void *)0;
         {
             uint8_t* p = end;
             size_t n = 1;
-            value_10 = (uint8_t*)(((size_t)(p) + n));
+            value_70 = (uint8_t*)(((size_t)(p) + n));
         }
-        name = value_10;
+        name = value_70;
         end = zir_foreign_compiler_inline_asm__strchr(name, 43);
-        size_t value_12 = 0;
+        size_t value_72 = 0;
         if (end != ((void *)0)) {
-            size_t value_13 = 0;
+            size_t value_73 = 0;
             {
                 uint8_t* from = name;
                 uint8_t* to = end;
-                value_13 = (size_t)(to) - (size_t)(from);
+                value_73 = (size_t)(to) - (size_t)(from);
             }
-            value_12 = value_13;
+            value_72 = value_73;
         } else {
-            size_t value_15 = zir_foreign_compiler_inline_asm__strlen(name);
-            value_12 = value_15;
+            size_t value_75 = zir_foreign_compiler_inline_asm__strlen(name);
+            value_72 = value_75;
         }
-        length = value_12;
+        length = value_72;
         int32_t feature = -1;
         {
-            int32_t range_first_18 = 0;
-            int32_t range_last_18 = 20;
-            int32_t i = range_first_18;
-            if (i <= range_last_18) for (;;) {
-                bool value_16 = compiler_inline_asm_SameSpan((feature_names)[i], name, length);
-                bool value_17 = value_16;
-                if (value_17) {
-                    int32_t value_18 = assembly->architecture;
-                    uint8_t* value_19 = (void *)0;
+            int32_t range_first_43 = 0;
+            int32_t range_last_43 = 20;
+            int32_t i = range_first_43;
+            if (i <= range_last_43) for (;;) {
+                bool value_76 = compiler_inline_asm_SameSpan((feature_names)[i], name, length);
+                bool value_77 = value_76;
+                if (value_77) {
+                    int32_t value_78 = assembly->architecture;
+                    uint8_t* value_79 = (void *)0;
                     {
-                        int32_t architecture = value_18;
+                        int32_t architecture = value_78;
                         int32_t feature = i;
                         if (architecture == 0 || architecture == 1) {
-                            value_19 = compiler_inline_asm_FeatureX86(feature);
-                            goto value_20;
+                            value_79 = compiler_inline_asm_FeatureX86(feature);
+                            goto value_80;
                         }
                         if (architecture == 2) {
-                            int32_t value_21 = feature;
-                            uint8_t* value_22 = (void *)0;
+                            int32_t value_81 = feature;
+                            uint8_t* value_82 = (void *)0;
                             {
-                                int32_t feature = value_21;
+                                int32_t feature = value_81;
                                 if (feature == 12 || feature == 15) {
-                                    value_22 = compiler_inline_asm_CStr(StringLiteral("+aes"));
-                                    goto value_23;
+                                    value_82 = compiler_inline_asm_CStr(StringLiteral("+aes"));
+                                    goto value_83;
                                 }
                                 if (feature == 14) {
-                                    value_22 = compiler_inline_asm_CStr(StringLiteral("+crc"));
-                                    goto value_23;
+                                    value_82 = compiler_inline_asm_CStr(StringLiteral("+crc"));
+                                    goto value_83;
                                 }
                                 if (feature == 16) {
-                                    value_22 = compiler_inline_asm_CStr(StringLiteral("+sha2"));
-                                    goto value_23;
+                                    value_82 = compiler_inline_asm_CStr(StringLiteral("+sha2"));
+                                    goto value_83;
                                 }
                                 if (feature == 17) {
-                                    value_22 = compiler_inline_asm_CStr(StringLiteral("+lse"));
-                                    goto value_23;
+                                    value_82 = compiler_inline_asm_CStr(StringLiteral("+lse"));
+                                    goto value_83;
                                 }
                                 if (feature == 18) {
-                                    value_22 = compiler_inline_asm_CStr(StringLiteral("+simd"));
-                                    goto value_23;
+                                    value_82 = compiler_inline_asm_CStr(StringLiteral("+simd"));
+                                    goto value_83;
                                 }
-                                value_22 = (void *)0;
-                            value_23: ;
+                                value_82 = (void *)0;
+                            value_83: ;
                             }
-                            value_19 = value_22;
-                            goto value_20;
+                            value_79 = value_82;
+                            goto value_80;
                         }
                         if (architecture == 3) {
-                            int32_t value_24 = feature;
-                            uint8_t* value_25 = (void *)0;
+                            int32_t value_84 = feature;
+                            uint8_t* value_85 = (void *)0;
                             {
-                                int32_t feature = value_24;
-                                uint8_t* value_27 = (void *)0;
+                                int32_t feature = value_84;
+                                uint8_t* value_87 = (void *)0;
                                 if (feature == 19) {
-                                    uint8_t* value_28 = compiler_inline_asm_CStr(StringLiteral("neon"));
-                                    value_27 = value_28;
+                                    uint8_t* value_88 = compiler_inline_asm_CStr(StringLiteral("neon"));
+                                    value_87 = value_88;
                                 } else {
-                                    value_27 = (void *)0;
+                                    value_87 = (void *)0;
                                 }
-                                value_25 = value_27;
+                                value_85 = value_87;
                             }
-                            value_19 = value_25;
-                            goto value_20;
+                            value_79 = value_85;
+                            goto value_80;
                         }
                         if (architecture == 4) {
-                            int32_t value_29 = feature;
-                            uint8_t* value_30 = (void *)0;
+                            int32_t value_89 = feature;
+                            uint8_t* value_90 = (void *)0;
                             {
-                                int32_t feature = value_29;
-                                uint8_t* value_32 = (void *)0;
+                                int32_t feature = value_89;
+                                uint8_t* value_92 = (void *)0;
                                 if (feature == 20) {
-                                    uint8_t* value_33 = compiler_inline_asm_CStr(StringLiteral("simd128"));
-                                    value_32 = value_33;
+                                    uint8_t* value_93 = compiler_inline_asm_CStr(StringLiteral("simd128"));
+                                    value_92 = value_93;
                                 } else {
-                                    value_32 = (void *)0;
+                                    value_92 = (void *)0;
                                 }
-                                value_30 = value_32;
+                                value_90 = value_92;
                             }
-                            value_19 = value_30;
-                            goto value_20;
+                            value_79 = value_90;
+                            goto value_80;
                         }
-                        value_19 = (void *)0;
-                    value_20: ;
+                        value_79 = (void *)0;
+                    value_80: ;
                     }
-                    value_17 = (value_19 != ((void *)0));
+                    value_77 = (value_79 != ((void *)0));
                 }
-                if (value_17) {
+                if (value_77) {
                     feature = i;
                 }
-                if (i == range_last_18) {
+                if (i == range_last_43) {
                     break;
                 }
                 i = (int32_t)((uint32_t)i + 1u);
             }
         }
+        bool value_94 = assembly->architecture == 2;
+        bool value_95 = value_94;
+        if (value_95) {
+            String value_96 = StringLiteral("neon");
+            uint8_t* value_97 = (void *)0;
+            {
+                String s = value_96;
+                value_97 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            }
+            bool value_99 = compiler_inline_asm_SameSpan(value_97, name, length);
+            value_95 = value_99;
+        }
+        if (value_95) {
+            feature = 18;
+        }
         if (feature < 0) {
-            String value_34 = StringLiteral("unknown or unsupported #asm CPU feature for architecture");
-            uint8_t* value_35 = (void *)0;
+            String value_100 = StringLiteral("unknown or unsupported #asm CPU feature for architecture");
+            uint8_t* value_101 = (void *)0;
             {
-                String s = value_34;
-                value_35 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                String s = value_100;
+                value_101 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            return compiler_inline_asm_AssemblyError(span, value_35);
+            return compiler_inline_asm_AssemblyError(span, value_101);
         }
-        Assembly* value_37 = assembly;
-        int32_t value_38 = feature;
-        bool value_39 = false;
+        Assembly* value_103 = assembly;
+        int32_t value_104 = feature;
+        bool value_105 = false;
         {
-            Assembly* assembly = value_37;
-            int32_t feature = value_38;
-            uint64_t value_41 = assembly->features;
-            int32_t value_42 = feature;
-            uint64_t value_43 = 0;
+            Assembly* assembly = value_103;
+            int32_t feature = value_104;
+            uint64_t value_107 = assembly->features;
+            int32_t value_108 = feature;
+            uint64_t value_109 = 0;
             {
-                int32_t feature = value_42;
-                value_43 = ZiShl64(1ULL, (uint64_t)((uint64_t)(feature)), 64);
+                int32_t feature = value_108;
+                value_109 = ZiShl64(1ULL, (uint64_t)((uint64_t)(feature)), 64);
             }
-            uint64_t value_45 = (uint64_t)((uint64_t)value_41 & (uint64_t)value_43);
-            value_39 = value_45 != 0ULL;
+            uint64_t value_111 = (uint64_t)((uint64_t)value_107 & (uint64_t)value_109);
+            value_105 = value_111 != 0ULL;
         }
-        if (value_39) {
-            String value_46 = StringLiteral("duplicate #asm CPU feature");
-            uint8_t* value_47 = (void *)0;
+        if (value_105) {
+            String value_112 = StringLiteral("duplicate #asm CPU feature");
+            uint8_t* value_113 = (void *)0;
             {
-                String s = value_46;
-                value_47 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                String s = value_112;
+                value_113 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
             }
-            return compiler_inline_asm_AssemblyError(span, value_47);
+            return compiler_inline_asm_AssemblyError(span, value_113);
         }
-        uint64_t* value_49 = &(assembly->features);
-        uint64_t value_50 = assembly->features;
-        int32_t value_51 = feature;
-        uint64_t value_52 = 0;
+        uint64_t* value_115 = &(assembly->features);
+        uint64_t value_116 = assembly->features;
+        int32_t value_117 = feature;
+        uint64_t value_118 = 0;
         {
-            int32_t feature = value_51;
-            value_52 = ZiShl64(1ULL, (uint64_t)((uint64_t)(feature)), 64);
+            int32_t feature = value_117;
+            value_118 = ZiShl64(1ULL, (uint64_t)((uint64_t)(feature)), 64);
         }
-        (*value_49) = (uint64_t)((uint64_t)value_50 | (uint64_t)value_52);
+        (*value_115) = (uint64_t)((uint64_t)value_116 | (uint64_t)value_118);
     }
     return 1;
+}
+
+uint8_t*
+compiler_inline_asm_AssemblyAbiName(int32_t architecture, int32_t platform)
+{
+    if (platform == 0) {
+        String value_0 = StringLiteral("");
+        uint8_t* value_1 = (void *)0;
+        {
+            String s = value_0;
+            value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        }
+        return value_1;
+    }
+    if (architecture == 0 && platform == 1) {
+        String value_3 = StringLiteral("sysv");
+        uint8_t* value_4 = (void *)0;
+        {
+            String s = value_3;
+            value_4 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        }
+        return value_4;
+    }
+    if (architecture == 0 && platform == 3) {
+        String value_6 = StringLiteral("win64");
+        uint8_t* value_7 = (void *)0;
+        {
+            String s = value_6;
+            value_7 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        }
+        return value_7;
+    }
+    if (platform == 1 || platform == 2) {
+        if (architecture == 2) {
+            String value_9 = StringLiteral("aapcs64");
+            uint8_t* value_10 = (void *)0;
+            {
+                String s = value_9;
+                value_10 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            }
+            return value_10;
+        }
+        if (architecture == 3) {
+            String value_12 = StringLiteral("aapcs32");
+            uint8_t* value_13 = (void *)0;
+            {
+                String s = value_12;
+                value_13 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            }
+            return value_13;
+        }
+    }
+    return (void *)0;
+}
+
+bool
+AssemblyVariantSelector(uint8_t* text, ZirSourceSpan span, uint8_t** architecture, uint8_t** os, uint8_t** abi, uint64_t* features)
+{
+    Assembly assembly = {0};
+    uint8_t** value_0 = &(assembly.part[0]);
+    (*value_0) = text;
+    if (compiler_inline_asm_AssemblyTarget(&(assembly), span) == 0) {
+        return false;
+    }
+    uint8_t* value_1[4] = {0};
+    String value_2 = StringLiteral("");
+    uint8_t* value_3 = (void *)0;
+    {
+        String s = value_2;
+        value_3 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+    }
+    value_1[0] = value_3;
+    String value_5 = StringLiteral("linux");
+    uint8_t* value_6 = (void *)0;
+    {
+        String s = value_5;
+        value_6 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+    }
+    value_1[1] = value_6;
+    String value_8 = StringLiteral("android");
+    uint8_t* value_9 = (void *)0;
+    {
+        String s = value_8;
+        value_9 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+    }
+    value_1[2] = value_9;
+    String value_11 = StringLiteral("windows");
+    uint8_t* value_12 = (void *)0;
+    {
+        String s = value_11;
+        value_12 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+    }
+    value_1[3] = value_12;
+    uint8_t* platforms[4] = {0};
+    memmove(platforms, value_1, sizeof(platforms));
+    uint8_t** value_14 = &((*(architecture)));
+    (*value_14) = (architecture_names)[assembly.architecture];
+    uint8_t** value_15 = &((*(os)));
+    (*value_15) = (platforms)[assembly.platform];
+    uint8_t** value_16 = &((*(abi)));
+    int32_t value_17 = assembly.architecture;
+    int32_t value_18 = assembly.platform;
+    uint8_t* value_19 = (void *)0;
+    {
+        int32_t architecture = value_17;
+        int32_t platform = value_18;
+        if (platform == 0) {
+            String value_21 = StringLiteral("");
+            uint8_t* value_22 = (void *)0;
+            {
+                String s = value_21;
+                value_22 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            }
+            value_19 = value_22;
+            goto value_20;
+        }
+        if (architecture == 0 && platform == 1) {
+            String value_24 = StringLiteral("sysv");
+            uint8_t* value_25 = (void *)0;
+            {
+                String s = value_24;
+                value_25 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            }
+            value_19 = value_25;
+            goto value_20;
+        }
+        if (architecture == 0 && platform == 3) {
+            String value_27 = StringLiteral("win64");
+            uint8_t* value_28 = (void *)0;
+            {
+                String s = value_27;
+                value_28 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            }
+            value_19 = value_28;
+            goto value_20;
+        }
+        if (platform == 1 || platform == 2) {
+            if (architecture == 2) {
+                String value_30 = StringLiteral("aapcs64");
+                uint8_t* value_31 = (void *)0;
+                {
+                    String s = value_30;
+                    value_31 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                }
+                value_19 = value_31;
+                goto value_20;
+            }
+            if (architecture == 3) {
+                String value_33 = StringLiteral("aapcs32");
+                uint8_t* value_34 = (void *)0;
+                {
+                    String s = value_33;
+                    value_34 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                }
+                value_19 = value_34;
+                goto value_20;
+            }
+        }
+        value_19 = (void *)0;
+    value_20: ;
+    }
+    (*value_16) = value_19;
+    uint64_t* value_36 = &((*(features)));
+    (*value_36) = assembly.features;
+    return true;
+}
+
+bool
+compiler_inline_asm_AssemblyRequired(uint8_t* options)
+{
+    String value_0 = StringLiteral("target-only");
+    uint8_t* value_1 = (void *)0;
+    {
+        String s = value_0;
+        value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+    }
+    bool value_3 = compiler_inline_asm_Same(options, value_1);
+    bool value_4 = value_3;
+    if (!value_4) {
+        String value_5 = StringLiteral("volatile;target-only");
+        uint8_t* value_6 = (void *)0;
+        {
+            String s = value_5;
+            value_6 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        }
+        bool value_8 = compiler_inline_asm_Same(options, value_6);
+        value_4 = value_8;
+    }
+    return value_4;
+}
+
+bool
+compiler_inline_asm_AssemblyVolatile(uint8_t* options)
+{
+    String value_0 = StringLiteral("volatile");
+    uint8_t* value_1 = (void *)0;
+    {
+        String s = value_0;
+        value_1 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+    }
+    bool value_3 = compiler_inline_asm_Same(options, value_1);
+    bool value_4 = value_3;
+    if (!value_4) {
+        String value_5 = StringLiteral("volatile;target-only");
+        uint8_t* value_6 = (void *)0;
+        {
+            String s = value_5;
+            value_6 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        }
+        bool value_8 = compiler_inline_asm_Same(options, value_6);
+        value_4 = value_8;
+    }
+    return value_4;
 }
 
 int32_t
@@ -8208,26 +8837,72 @@ compiler_inline_asm_ReadVariant(uint8_t** cursor, Assembly* assembly, ZirSourceS
     bool value_40 = options[0] != 0;
     bool value_41 = value_40;
     if (value_41) {
-        String value_42 = StringLiteral("volatile");
-        uint8_t* value_43 = (void *)0;
+        uint8_t* value_42 = options;
+        bool value_43 = false;
         {
-            String s = value_42;
-            value_43 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            uint8_t* options = value_42;
+            String value_45 = StringLiteral("volatile");
+            uint8_t* value_46 = (void *)0;
+            {
+                String s = value_45;
+                value_46 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            }
+            bool value_48 = compiler_inline_asm_Same(options, value_46);
+            bool value_49 = value_48;
+            if (!value_49) {
+                String value_50 = StringLiteral("volatile;target-only");
+                uint8_t* value_51 = (void *)0;
+                {
+                    String s = value_50;
+                    value_51 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                }
+                bool value_53 = compiler_inline_asm_Same(options, value_51);
+                value_49 = value_53;
+            }
+            value_43 = value_49;
         }
-        bool value_45 = compiler_inline_asm_Same(options, value_43);
-        value_41 = !value_45;
+        value_41 = !value_43;
     }
-    if (value_41) {
-        String value_46 = StringLiteral("#asm options must be empty or volatile");
-        uint8_t* value_47 = (void *)0;
+    bool value_54 = value_41;
+    bool value_55 = value_54;
+    if (value_55) {
+        uint8_t* value_56 = options;
+        bool value_57 = false;
         {
-            String s = value_46;
-            value_47 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            uint8_t* options = value_56;
+            String value_59 = StringLiteral("target-only");
+            uint8_t* value_60 = (void *)0;
+            {
+                String s = value_59;
+                value_60 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+            }
+            bool value_62 = compiler_inline_asm_Same(options, value_60);
+            bool value_63 = value_62;
+            if (!value_63) {
+                String value_64 = StringLiteral("volatile;target-only");
+                uint8_t* value_65 = (void *)0;
+                {
+                    String s = value_64;
+                    value_65 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+                }
+                bool value_67 = compiler_inline_asm_Same(options, value_65);
+                value_63 = value_67;
+            }
+            value_57 = value_63;
         }
-        return compiler_inline_asm_AssemblyError(span, value_47);
+        value_55 = !value_57;
     }
-    uint8_t** value_49 = &((*(cursor)));
-    (*value_49) = at;
+    if (value_55) {
+        String value_68 = StringLiteral("#asm options must be empty, volatile, target-only, or volatile;target-only");
+        uint8_t* value_69 = (void *)0;
+        {
+            String s = value_68;
+            value_69 = ((compiler_inline_asm_StaticText*)(&(s)))->data;
+        }
+        return compiler_inline_asm_AssemblyError(span, value_69);
+    }
+    uint8_t** value_71 = &((*(cursor)));
+    (*value_71) = at;
     return 1;
 }
 

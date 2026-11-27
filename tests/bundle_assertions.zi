@@ -33,7 +33,7 @@ BundleTestManifestCapabilities :: (test: *NativeTest, data: string) -> u32 {
 
 BundleTestCapabilities :: (test: *NativeTest, mutate: bool) -> bool {
     data := NativeRead(test, CheckPath(test.work, "source.zx"))
-    if !NativeAssert(test, data.count >= 8 && data[:8] == "ZX\x00\x00\x1c\x00\x00\x00", "host bundle header differs") { return false }
+    if !NativeAssert(test, data.count >= 8 && data[:8] == "ZX\x00\x00\x1d\x00\x00\x00", "host bundle header differs") { return false }
     if mutate {
         at := TextFind(data, "AddTenHost")
         if !NativeAssert(test, at >= 0, "bundle is missing the capability being corrupted") { return false }

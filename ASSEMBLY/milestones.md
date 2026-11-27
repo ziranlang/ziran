@@ -117,8 +117,9 @@ Every Linux x86-64 AOT image carries `.eh_frame` with `PT_GNU_EH_FRAME`, and
 `zx2native --emit perf-map` publishes a bounded profiler map (M6a,
 2026-11-24).
 
-There is one ZX format. Every `.zx` is revision 28; the semantic bundle writer
-and reader, the portable VM with `run --vm`, `BundleUsePortableVm`,
+The current ZX format is revision 29. It adds ordered native assembly variants
+and a recomputed target-only procedure count to the verified executable. The
+semantic bundle writer and reader, the portable VM with `run --vm`, `BundleUsePortableVm`,
 `BundleInstantiatePortable`, `libziran-vm.a`, bundle libraries, TinyCC and the
 generated-C native ZX route are removed. On linux-x86_64, `ziran run app.zx`,
 `zi2zx run` and the embedding API's `Auto` policy load the bundle's verified

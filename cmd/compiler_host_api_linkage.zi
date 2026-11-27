@@ -866,6 +866,12 @@ VerifyGraph :: (loader: *ZxModuleLoader, root: *ModuleImage) -> s32 {
         image := stack[count - 1]
         if image.next_requirement == image.require_count {
             if VerifyImports(loader, image) == 0 { break }
+            target_problem := BundleTargetProblem(image.bundle, SelectedBackend(loader.options.backend), loader.options.unbounded)
+            if target_problem != null {
+                unused Problem(loader, CStr("zx.target-only: %s: %s"),
+                    ifx image.name != null then image.name else BundleEntryModuleName(image.bundle), target_problem)
+                break
+            }
             image.mark = .Verified
             count -= 1
             continue

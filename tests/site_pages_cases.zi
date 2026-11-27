@@ -67,7 +67,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     webp := NativeRead(*test, CheckPath(test.repo, "site/packages/webp.html"))
     api := NativeRead(*test, CheckPath(test.repo, "site/api.html"))
     if !NativeAssert(*test, !TextContains(webp, "legacy_compare.sh") &&
-        !TextContains(webp, "original Kryon decoder") && TextContains(api, "revision 28") &&
+        !TextContains(webp, "original Kryon decoder") && TextContains(api, "revision 29") &&
         !TextContains(api, "version 24"), "public references retained an obsolete pipeline or format") { return 1 }
     if !CheckReferenceDoc(*test) { return 1 }
     // Check the live site after the fixtures so stale generated pages do not

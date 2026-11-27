@@ -1,0 +1,22 @@
+host_api :: #system_library "host_api";
+Input :: (key: s64) -> s64 #foreign host_api;
+
+AddLanes :: (dst: []u16, src: []u16) #asm("x86_64/linux/sysv+avx2", "vmovdqu (%[dst]), %%ymm0; vmovdqu (%[src]), %%ymm1; vpaddw %%ymm1, %%ymm0, %%ymm0; vmovdqu %%ymm0, (%[dst]); vzeroupper", "", "r;r", "ymm0..ymm1;memory", "volatile") {
+    for lane: 0..15 { dst[lane] += src[lane] }
+}
+
+#program_export
+Answer :: () -> s64 {
+    seed := Input(0)
+    rounds := Input(1)
+    left: [16]u16
+    right: [16]u16
+    for lane: 0..15 {
+        left[lane] = cast(u16)(seed + lane)
+        right[lane] = cast(u16)(lane * 3 + 1)
+    }
+    for round: 1..rounds { AddLanes(left[:], right[:]) }
+    checksum: s64
+    for lane: 0..15 { checksum += cast(s64)left[lane] * (lane + 1) }
+    return checksum
+}

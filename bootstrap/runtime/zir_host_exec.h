@@ -1,5 +1,5 @@
 /*
- * zir_host_exec.h - revision-28 executable ZX behind the embedding API
+ * zir_host_exec.h - revision-29 executable ZX behind the embedding API
  * (include/ziran_host.h), implemented in cmd/compiler_zx_exec*.zi. The engine
  * is generated Ziran; this interface keeps its headers out of the rest of the
  * library.
@@ -16,7 +16,7 @@ typedef struct ExecBundle ExecBundle;
 typedef struct ExecHosts ExecHosts;
 typedef struct ExecInstance ExecInstance;
 
-/* Reads, verifies and plans a revision-28 executable. The input is borrowed
+/* Reads, verifies and plans a revision-29 executable. The input is borrowed
  * during this call. NULL indicates failure after a diagnostic naming `name`. */
 ExecBundle *ExecBundleOpen(const unsigned char *bytes, size_t size, const char *name);
 /* When present, consumed runs once after a successful read and asset copy,

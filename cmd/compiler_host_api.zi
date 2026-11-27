@@ -1,4 +1,4 @@
-// The embedding API (include/ziran_host.h) over revision-28 executable ZX:
+// The embedding API (include/ziran_host.h) over revision-29 executable ZX:
 // bundles, instances, module state and hot-swapped components, and the
 // hosted module runtime of include/ziran_zx_module.h. A bundle runs on the
 // portable instruction engine (bootstrap/runtime/zir_host_exec.c), on native code
@@ -150,6 +150,7 @@ ExecBundleCapabilityCount :: (bundle: *void) -> usize #foreign compiler "ExecBun
 ExecBundleCapabilityModule :: (bundle: *void, index: usize) -> *u8 #foreign compiler "ExecBundleCapabilityModule";
 ExecBundleCapabilityFunction :: (bundle: *void, index: usize) -> *u8 #foreign compiler "ExecBundleCapabilityFunction";
 ExecBundleCapabilityAbi :: (bundle: *void, index: usize, abi: *BundleCapabilityAbi) -> s32 #foreign compiler "ExecBundleCapabilityAbi";
+ExecBundleRequiresAssembly :: (bundle: *void) -> s32 #foreign compiler "ExecBundleRequiresAssembly";
 ExecBundleEntryArguments :: (bundle: *void) -> *u8 #foreign compiler "ExecBundleEntryArguments";
 ExecBundleEntryReturnType :: (bundle: *void) -> *u8 #foreign compiler "ExecBundleEntryReturnType";
 ExecBundleEntryModule :: (bundle: *void) -> *u8 #foreign compiler "ExecBundleEntryModule";
@@ -630,6 +631,24 @@ OpenBackend :: (instance: *BundleInstance, bundle: *Bundle, selected: s32, max_s
     return instance.exec != null || instance.wasm != null || instance.native != null
 }
 
+SelectedBackend :: (policy: s32) -> s32 {
+    if policy == POLICY_ENGINE { return EXECUTION_ENGINE }
+    if policy == POLICY_NATIVE { return NativePlatformBackend() }
+    return AutoPlatformBackend()
+}
+
+// Consult this for every image of a dependency graph before any image opens.
+BundleTargetProblem :: (bundle: *Bundle, selected: s32, unbounded: s32) -> *u8 {
+    if ExecBundleRequiresAssembly(bundle.exec) == 0 { return null }
+    if bundle.engine_only != 0 || selected == EXECUTION_ENGINE || selected == EXECUTION_WASM {
+        return CStr("the ZX program requires a compatible native assembly implementation before initialization")
+    }
+    slot := ifx unbounded != 0 then *bundle.unbounded else *bundle.native
+    if NativeBundleSlotCode(slot, bundle.exec, *bundle.digest[0], unbounded) != null { return null }
+    if slot.problem[0] != 0 { return *slot.problem[0] }
+    return CStr("the selected platform has no compatible native assembly backend")
+}
+
 // Binding names and the array are copied, sorted for lookup.
 InstantiateWithPolicy :: (bundle: *Bundle, bindings: *HostBinding, binding_count: usize, max_steps: s32, policy: s32,
                           unbounded: s32, write: BundleConsoleWrite, console_context: *void, has_console: bool,
@@ -645,6 +664,12 @@ InstantiateWithPolicy :: (bundle: *Bundle, bindings: *HostBinding, binding_count
     }
     if bundle == null || (binding_count != 0 && bindings == null) || (unbounded != 0 && max_steps > 0) ||
        (policy != POLICY_AUTO && policy != POLICY_ENGINE && policy != POLICY_NATIVE) { return null }
+    selected := SelectedBackend(policy)
+    target_problem := BundleTargetProblem(bundle, selected, unbounded)
+    if target_problem != null {
+        Diagnostic(HostSpan(), CStr("zx.target-only"), CStr("%s"), target_problem)
+        return null
+    }
     bytes := BindingCopyBytes(bindings, binding_count)
     if binding_count != 0 && bytes == 0 { return null }
     instance := cast(*BundleInstance)calloc(1, size_of(BundleInstance))
@@ -655,9 +680,6 @@ InstantiateWithPolicy :: (bundle: *Bundle, bindings: *HostBinding, binding_count
     }
     // Selection is complete before initializers run. Rejection never retries
     // another backend, and Auto does not inspect this bundle's native result.
-    selected := AutoPlatformBackend()
-    if policy == POLICY_ENGINE { selected = EXECUTION_ENGINE }
-    if policy == POLICY_NATIVE { selected = NativePlatformBackend() }
     if bundle.engine_only != 0 && selected != EXECUTION_ENGINE {
         Diagnostic(HostSpan(), CStr("zx.capability"), CStr("this bundle requires the instruction engine"))
         BundleInstanceClose(instance)

@@ -15,6 +15,13 @@ those instructions and applies CPU lowering and platform ABI services.
 writes ELF on Linux and PE32+ on Windows; supported CPU/platform combinations
 and service limits are diagnosed by the selected backend.
 
+Checked procedure specializations carry ordered assembly templates alongside
+portable LIR. The verifier checks their bindings against the common signature.
+The native loader chooses an eligible template during compilation and keys the
+compiled-code cache by executable identity and usable target features. When
+no optional template matches, the same backend compiles the portable LIR.
+A target-only procedure requires a matching native target before initialization.
+
 `ziran run` uses native execution on Linux x86-64, AArch64 and ARMv7. The
 instruction engine can be selected explicitly with `--backend engine` on
 `zi2zx run`. A failed native lowering does not retry on another engine.

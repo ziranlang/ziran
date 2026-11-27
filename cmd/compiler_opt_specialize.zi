@@ -134,7 +134,7 @@ AddsAggregateWork :: (program: LirProgram, function: LirFunction, condition: s32
 Choose :: (program: LirProgram, index: s32, maximum: s64, budget: *LirSsaBudget) -> Candidate {
     choice := Candidate.{parameter = -1, copies = .{-1, -1}}
     function := program.functions[index]
-    if function.external || function.calling != .Portable || function.variadic ||
+    if function.external || function.calling != .Portable || function.variadic || function.variants.count != 0 ||
         function.blocks.count > maximum || function.blocks.count < 2 { return choice }
     for block: function.blocks {
         choice.size += block.instructions.count

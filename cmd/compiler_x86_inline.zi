@@ -1,0 +1,914 @@
+using ABI :: #import "compiler_abi"
+using TemplateParts :: #import "compiler_asm_template"
+using Bytes :: #import "compiler_x86_bytes"
+using Lir :: #import "compiler_lowered_ir"
+using Machine :: #import "compiler_machine_ir"
+using Target :: #import "compiler_target"
+using Vectors :: #import "std/vec"
+
+X86InlineFuelSite :: struct { counter: s64; trap: s64 }
+X86InlineSave :: struct { code: u8; stack: u16; register: u8; vector: bool }
+X86InlineFrame :: struct {
+    size: s64
+    body: s64
+    saves: [22]X86InlineSave
+    count: s64
+}
+
+#scope_file
+
+Register :: struct { id: s32; size: s32; vector: bool; valid: bool }
+Argument :: struct { reg: Register; memory: X86Operand; indirect: bool; immediate: bool; value: s64; width: s32; delta: bool }
+Binding :: struct {
+    reg: Register
+    incoming: s32
+    stack: s64
+    snapshot: s64
+    slot: s64
+    address: s32
+    address_incoming: s32
+    address_slot: s64
+    signed: bool
+    pointer: bool
+    callable: bool
+}
+Plan :: struct {
+    operands: [30]Binding
+    general: u64
+    vector: u64
+    saved: u64
+    saved_vector: u64
+    frame: s64
+    aggregate: bool
+    memory: bool
+    calls: bool
+}
+
+Reg :: (id: s32, size: s32, vector: bool = false) -> Register {
+    return .{id = id, size = size, vector = vector, valid = true}
+}
+
+Physical :: (s: string) -> Register {
+    g64: [8]string = .["rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi"]
+    g32: [8]string = .["eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi"]
+    g16: [8]string = .["ax", "cx", "dx", "bx", "sp", "bp", "si", "di"]
+    g8: [8]string = .["al", "cl", "dl", "bl", "spl", "bpl", "sil", "dil"]
+    for id: cast(s32)0..7 {
+        if s == g64[id] { return Reg(id, 8) }
+        if s == g32[id] { return Reg(id, 4) }
+        if s == g16[id] { return Reg(id, 2) }
+        if s == g8[id] { return Reg(id, 1) }
+    }
+    if s.count > 3 && (s[0:3] == "xmm" || s[0:3] == "ymm") {
+        id, ok := AsmNumber(s[3:s.count])
+        if ok && id >= 0 && id < 16 { return Reg(cast(s32)id, ifx s[0] == #char "x" then 16 else 32, true) }
+    }
+    if s.count < 2 || s[0] != #char "r" { return .{} }
+    end := s.count
+    size: s32 = 8
+    last := s[end - 1]
+    if last == #char "d" || last == #char "w" || last == #char "b" {
+        size = ifx last == #char "d" then 4 else ifx last == #char "w" then 2 else 1
+        end -= 1
+    }
+    id, ok := AsmNumber(s[1:end])
+    if ok && id >= 8 && id < 16 { return Reg(cast(s32)id, size) }
+    return .{}
+}
+
+Bit :: (id: s32) -> u64 { return cast(u64)1 << cast(u64)id }
+
+Clobbers :: (plan: *Plan, s: string) -> bool {
+    at: s64
+    while at < s.count {
+        end := at + AsmFind(s[at:s.count], #char ";")
+        item := AsmTrim(s[at:end])
+        at = end + 1
+        if item == "cc" { continue }
+        if item == "memory" { plan.memory = true; continue }
+        dot := AsmFind(item, #char ".")
+        first := Physical(AsmTrim(item[0:dot]))
+        last := first
+        if dot != item.count {
+            if dot + 2 >= item.count || item[dot + 1] != #char "." { return false }
+            last = Physical(AsmTrim(item[dot + 2:item.count]))
+        }
+        if !first.valid || !last.valid || first.vector != last.vector || first.id > last.id { return false }
+        for id: first.id..last.id {
+            if first.vector { plan.vector |= Bit(id) }
+            else {
+                if id == X86Rsp || id == X86Rbp { return false }
+                plan.general |= Bit(id)
+            }
+        }
+    }
+    return true
+}
+
+Fixed :: (constraint: string) -> s32 {
+    if constraint == "a" { return 0 }
+    if constraint == "c" { return 1 }
+    if constraint == "d" { return 2 }
+    if constraint == "b" { return 3 }
+    if constraint == "S" { return 6 }
+    if constraint == "D" { return 7 }
+    return -1
+}
+
+Choose :: (available: u64, preferred: s32) -> s32 {
+    if preferred >= 0 && (available & Bit(preferred)) != 0 { return preferred }
+    for id: cast(s32)0..15 { if (available & Bit(id)) != 0 { return id } }
+    return -1
+}
+
+BindingPlan :: (plan: *Plan, lir: LirProgram, function: LirFunction,
+    variant: LirAssemblyVariant, target: TargetDescription, column: s32) -> bool {
+    if !Clobbers(plan, variant.clobbers) { return false }
+    result := lir.types[function.result]
+    plan.aggregate = result.kind == .Record
+    general := plan.general | Bit(X86Rsp) | Bit(X86Rbp)
+    if plan.aggregate { general |= Bit(X86R11) | Bit(X86R10) }
+    vector := plan.vector
+    general_ordinal: s32
+    vector_ordinal: s32
+    // At rbp+16: the first argument that the native ABI put on the stack.
+    stack: s64 = 16
+    fixed: [30]s32
+    ties: [30]s32
+    for operand, index: variant.operands {
+        binding := *plan.operands[index]
+        output := index < variant.outputs
+        type := ifx output && plan.aggregate then lir.types[result.fields[index]] else ifx output then result else lir.types[function.parameters[index - variant.outputs]]
+        slice := type.kind == .Record && !output
+        class: MachineRegisterClass = ifx type.kind == .Float then .Float else .General
+        size: s32 = ifx type.kind == .Bool then 1 else ifx type.kind == .Pointer || type.kind == .Function || slice then 8 else (type.bits + 7) / 8
+        if size != 1 && size != 2 && size != 4 && size != 8 { return false }
+        binding.reg = Reg(-1, size, class == .Float)
+        binding.address = -1
+        binding.signed = type.is_signed
+        binding.pointer = type.kind == .Pointer || slice
+        binding.callable = MachineAbiAssemblyCallable(lir, type, target)
+        if binding.callable && AsmClobbers(variant.clobbers, "memory") { plan.calls = true }
+        if !output && binding.pointer { plan.memory = true }
+        binding.incoming = -1
+        if output { binding.incoming = MachineAbiResultRegister(target, class) }
+        else if slice { binding.stack = stack; stack += 16 }
+        else {
+            ordinal := general_ordinal
+            if class == .Float { ordinal = vector_ordinal; vector_ordinal += 1 }
+            else { general_ordinal += 1 }
+            binding.incoming = MachineAbiArgumentRegister(target, class, ordinal)
+            if binding.incoming < 0 { binding.stack = stack; stack += 8 }
+        }
+        constraint := LirAssemblyConstraint(operand.constraint, column)
+        if constraint == "m" {
+            if slice { return false }
+            if !function.assembly_gate {
+                plan.frame += 8
+                binding.slot = -plan.frame
+            }
+            fixed[index] = -1
+            ties[index] = -1
+            continue
+        }
+        tie := ifx output then cast(s64)-1 else AsmOperandIndex(variant, constraint)
+        ties[index] = cast(s32)tie
+        fixed[index] = Fixed(constraint)
+        if tie >= 0 {
+            if tie >= variant.outputs { return false }
+            tied := plan.operands[tie].reg
+            if LirAssemblyConstraint(variant.operands[tie].constraint, column) == "m" ||
+                binding.reg.vector != tied.vector || binding.reg.size != tied.size { return false }
+            continue
+        }
+        if fixed[index] >= 0 {
+            if binding.reg.vector || (general & Bit(fixed[index])) != 0 { return false }
+            general |= Bit(fixed[index])
+            plan.general |= Bit(fixed[index])
+        } else if binding.reg.vector {
+            if constraint != "x" && constraint != "v" { return false }
+        } else if constraint != "r" && constraint != "g" { return false }
+    }
+    // Keep unconstrained inputs in their ABI registers when possible.
+    for phase: 0..1 {
+        for index: cast(s64)0..variant.operands.count - 1 {
+            output := index < variant.outputs
+            if (phase == 0) == output || ties[index] >= 0 { continue }
+            binding := *plan.operands[index]
+            if LirAssemblyConstraint(variant.operands[index].constraint, column) == "m" { continue }
+            id := fixed[index]
+            if id < 0 {
+                if binding.reg.vector {
+                    id = Choose(0xffff & ~vector, binding.incoming)
+                    if id < 0 { return false }
+                    vector |= Bit(id)
+                } else {
+                    available := 0xffff & ~general
+                    free := available & MachineAbiCallGeneralClobbers(target)
+                    id = Choose(ifx free != 0 then free else available, binding.incoming)
+                    if id < 0 { return false }
+                    general |= Bit(id)
+                }
+            }
+            binding.reg.id = id
+        }
+    }
+    for index: cast(s64)variant.outputs..variant.operands.count - 1 {
+        binding := *plan.operands[index]
+        if LirAssemblyConstraint(variant.operands[index].constraint, column) == "m" { continue }
+        tie := ties[index]
+        if tie >= 0 { binding.reg.id = plan.operands[tie].reg.id }
+        for prior: cast(s64)variant.outputs..index - 1 {
+            earlier := plan.operands[prior].reg
+            if earlier.vector == binding.reg.vector && earlier.id == binding.reg.id { return false }
+        }
+        if binding.incoming >= 0 && binding.incoming != binding.reg.id {
+            plan.frame += 8
+            binding.snapshot = -plan.frame
+        }
+    }
+    if function.assembly_gate {
+        caller := MachineAbiCallGeneralClobbers(target)
+        for operand, index: variant.operands {
+            if !LirAssemblyGateAddressed(function.variants, index) { continue }
+            incoming := MachineAbiArgumentRegister(target, .General, general_ordinal)
+            general_ordinal += 1
+            at := stack
+            if incoming < 0 { stack += 8 }
+            if LirAssemblyConstraint(operand.constraint, column) != "m" { continue }
+            binding := *plan.operands[index]
+            available := 0xffff & ~general
+            if plan.calls { available &= ~caller }
+            binding.address = Choose(available, incoming)
+            if binding.address < 0 { return false }
+            general |= Bit(binding.address)
+            binding.address_incoming = incoming
+            if incoming >= 0 {
+                plan.frame += 8
+                at = -plan.frame
+            }
+            binding.address_slot = at
+        }
+    }
+    plan.saved = general & ~(MachineAbiCallGeneralClobbers(target) | Bit(X86Rsp) | Bit(X86Rbp))
+    if target.os == .Windows {
+        plan.saved |= general & (Bit(X86Rsi) | Bit(X86Rdi))
+        plan.saved_vector = vector & 0xffc0
+        if plan.calls { plan.saved |= Bit(X86Rsi) | Bit(X86Rdi); plan.saved_vector = 0xffc0 }
+    }
+    return true
+}
+
+ArgumentRegister :: (plan: *Plan, variant: LirAssemblyVariant, text: string) -> Register {
+    if text.count < 2 || text[0] != #char "%" { return .{} }
+    if text[1] == #char "%" {
+        reg := Physical(text[2:text.count])
+        if !reg.valid { return reg }
+        mask := ifx reg.vector then plan.vector else plan.general
+        if (mask & Bit(reg.id)) == 0 { return .{} }
+        return reg
+    }
+    at: s64 = 1
+    size: s32
+    if text[at] == #char "b" { size = 1 }
+    else if text[at] == #char "w" { size = 2 }
+    else if text[at] == #char "k" { size = 4 }
+    else if text[at] == #char "q" { size = 8 }
+    if size != 0 { at += 1 }
+    id := AsmOperandIndex(variant, text[at:text.count])
+    if id < 0 { return .{} }
+    reg := plan.operands[id].reg
+    if reg.id < 0 { return .{} }
+    if size != 0 {
+        if reg.vector { return .{} }
+        reg.size = size
+    }
+    return reg
+}
+
+Arguments :: (s: string, output: []string) -> s32 {
+    begin: s64
+    depth: s64
+    count: s32
+    if s.count == 0 { return count }
+    for byte, index: s {
+        if byte == #char "(" { depth += 1 }
+        else if byte == #char ")" { depth -= 1 }
+        if depth < 0 { return -1 }
+        if byte == #char "," && depth == 0 {
+            if count == 2 { return -1 }
+            output[count] = AsmTrim(s[begin:index])
+            count += 1
+            begin = index + 1
+        }
+    }
+    if depth != 0 { return -1 }
+    output[count] = AsmTrim(s[begin:s.count])
+    return count + 1
+}
+
+ParseArgument :: (plan: *Plan, variant: LirAssemblyVariant, s: string, labels: []AsmLabel,
+    here: s64, measure: bool) -> (argument: Argument, ok: bool) {
+    if s.count == 0 { return .{}, false }
+    if s[0] == #char "$" {
+        value, ok := AsmNumber(s[1:s.count])
+        if !ok {
+            minus := AsmFind(s[1:s.count], #char "-") + 1
+            if minus < s.count {
+                if measure { return .{immediate = true, delta = true}, true }
+                left := AsmLocalTarget(s[1:minus], labels, here, true)
+                right := AsmLocalTarget(s[minus + 1:s.count], labels, here, true)
+                return .{immediate = true, value = left - right, delta = true}, left >= 0 && right >= 0
+            }
+        }
+        return .{immediate = true, value = value}, ok
+    }
+    open := AsmFind(s, #char "(")
+    if open == s.count {
+        if s[0] == #char "%" {
+            id := AsmOperandIndex(variant, s[1:s.count])
+            if id >= 0 && (plan.operands[id].slot != 0 || plan.operands[id].address >= 0) {
+                binding := plan.operands[id]
+                memory := ifx binding.address >= 0 then X86At(binding.address, 0) else X86At(X86Rbp, binding.slot)
+                return .{indirect = true, width = binding.reg.size, memory = memory}, true
+            }
+        }
+        reg := ArgumentRegister(plan, variant, s)
+        return .{reg = reg, memory = X86Direct(reg.id)}, reg.valid
+    }
+    if s[s.count - 1] != #char ")" { return .{}, false }
+    if open > 0 && s[open + 1:s.count - 1] == "%%rip" {
+        target := ifx measure then 0 else AsmLocalTarget(s[0:open], labels, here, true)
+        return .{indirect = true, memory = X86RipTarget(target)}, target >= 0
+    }
+    displacement: s64
+    if open > 0 {
+        disp, ok := AsmNumber(AsmTrim(s[0:open]))
+        if !ok || !X86Fits32(disp) { return .{}, false }
+        displacement = disp
+    }
+    address: [3]string
+    count := Arguments(AsmTrim(s[open + 1:s.count - 1]), address[:])
+    if count < 1 { return .{}, false }
+    base := ArgumentRegister(plan, variant, address[0])
+    if !base.valid || base.vector || base.size != 8 { return .{}, false }
+    if count == 1 { return .{indirect = true, memory = X86At(base.id, displacement)}, true }
+    index := ArgumentRegister(plan, variant, address[1])
+    if !index.valid || index.vector || index.size != 8 { return .{}, false }
+    shift: s32
+    if count == 3 {
+        scale, ok := AsmNumber(address[2])
+        if !ok { return .{}, false }
+        shift = X86ScaleShift(scale)
+        if shift < 0 { return .{}, false }
+    }
+    return .{indirect = true, memory = X86Indexed(base.id, index.id, displacement, shift)}, true
+}
+
+OperandSize :: (a: Argument, b: Argument, width: s32) -> s32 {
+    size := width
+    if size == 0 && a.reg.valid { size = a.reg.size }
+    if size == 0 && b.reg.valid { size = b.reg.size }
+    if size == 0 { size = ifx a.width != 0 then a.width else b.width }
+    if a.reg.valid && (a.reg.vector || a.reg.size != size) || b.reg.valid && (b.reg.vector || b.reg.size != size) { return 0 }
+    return size
+}
+
+Scalar :: (writer: *X86Writer, op: string, a: Argument, b: Argument, count: s32) -> bool {
+    if op == "movzbl" || op == "movzbq" || op == "movzwl" || op == "movzwq" {
+        if count != 2 || a.immediate || a.reg.vector || !b.reg.valid || b.reg.vector { return false }
+        source_size: s32 = ifx op[4] == #char "b" then 1 else 2
+        if a.reg.valid && a.reg.size != source_size || b.reg.size != (ifx op[5] == #char "q" then 8 else 4) { return false }
+        X86Encode(writer, 0, b.reg.size == 8, ifx source_size == 1 then 0x0fb6 else 0x0fb7, 2,
+            b.reg.id, a.memory, false, source_size == 1)
+        return true
+    }
+    width: s32
+    name := op
+    if name.count > 2 && name != "sub" && name != "imul" && name != "shl" && name != "sal" && name != "sbb" && name != "rol" {
+        tail := name[name.count - 1]
+        if tail == #char "q" { width = 8 }
+        else if tail == #char "l" { width = 4 }
+        else if tail == #char "w" { width = 2 }
+        else if tail == #char "b" { width = 1 }
+        if width != 0 { name = name[0:name.count - 1] }
+    }
+    size := OperandSize(a, b, width)
+    if size == 0 || b.immediate || a.indirect && b.indirect { return false }
+    prefix: u8 = ifx size == 2 then 0x66 else 0
+    wide := size == 8
+    byte := size == 1
+    if count == 1 {
+        if a.immediate { return false }
+        group: u32 = ifx name == "inc" || name == "dec" then 0xff else 0xf7
+        extension: s32 = ifx name == "inc" then 0 else ifx name == "dec" then 1 else ifx name == "not" then 2 else ifx name == "neg" then 3 else ifx name == "div" then 6 else ifx name == "idiv" then 7 else -1
+        if extension < 0 { return false }
+        if byte { group -= 1 }
+        X86Encode(writer, prefix, wide, group, 1, extension, a.memory, false, byte)
+        return true
+    }
+    if count != 2 { return false }
+    if name == "mov" {
+        if a.immediate {
+            if a.delta && !b.reg.valid || size == 8 && b.indirect && !X86Fits32(a.value) { return false }
+            if a.delta && size == 8 {
+                X86Byte(writer, ifx b.reg.id >= 8 then cast(u8)73 else 72)
+                X86Byte(writer, cast(u8)(184 + (b.reg.id & 7)))
+                X86Little(writer, cast(u64)a.value, 8)
+            } else if size == 8 && b.reg.valid { X86MoveImmediate(writer, b.reg.id, cast(u64)a.value) }
+            else { X86StoreImmediate(writer, b.memory, cast(u64)a.value, size) }
+        } else if b.reg.valid { X86Encode(writer, prefix, wide, ifx byte then 0x8a else 0x8b, 1, b.reg.id, a.memory, byte, byte) }
+        else { X86Store(writer, b.memory, a.reg.id, size) }
+        return true
+    }
+    if name == "lea" {
+        if !a.indirect || !b.reg.valid || byte { return false }
+        X86Encode(writer, prefix, wide, 0x8d, 1, b.reg.id, a.memory)
+        return true
+    }
+    if a.delta { return false }
+    if name == "popcnt" || name == "lzcnt" || name == "imul" {
+        if a.immediate || !b.reg.valid || byte || size == 2 { return false }
+        opcode: u32 = ifx name == "popcnt" then 0x0fb8 else ifx name == "lzcnt" then 0x0fbd else 0x0faf
+        X86Encode(writer, ifx name == "imul" then 0 else 0xf3, wide, opcode, 2, b.reg.id, a.memory)
+        return true
+    }
+    if name == "shl" || name == "sal" || name == "shr" || name == "sar" || name == "rol" || name == "ror" {
+        if !a.immediate || a.value < 0 || a.value > 255 { return false }
+        extension: s32 = ifx name == "rol" then 0 else ifx name == "ror" then 1 else ifx name == "shr" then 5 else ifx name == "sar" then 7 else 4
+        X86Encode(writer, prefix, wide, ifx byte then 0xc0 else 0xc1, 1, extension, b.memory, false, byte)
+        X86Byte(writer, cast(u8)a.value)
+        return true
+    }
+    arithmetic: [8]string = .["add", "or", "adc", "sbb", "and", "sub", "xor", "cmp"]
+    extension: s32 = -1
+    for candidate, id: arithmetic { if candidate == name { extension = cast(s32)id; break } }
+    if extension < 0 && name != "test" { return false }
+    if a.immediate {
+        short := !byte && X86Fits8(a.value) && name != "test"
+        imm: s32 = ifx byte || short then 1 else ifx size == 2 then 2 else 4
+        if wide && !X86Fits32(a.value) { return false }
+        opcode: u32 = ifx name == "test" then (ifx byte then 0xf6 else 0xf7) else ifx byte then 0x80 else ifx short then 0x83 else 0x81
+        X86Encode(writer, prefix, wide, opcode, 1, ifx name == "test" then 0 else extension, b.memory, false, byte)
+        X86Little(writer, cast(u64)a.value, imm)
+    } else if name == "test" {
+        rm := ifx b.indirect then b else a
+        reg := ifx b.indirect then a else b
+        X86Encode(writer, prefix, wide, ifx byte then 0x84 else 0x85, 1, reg.reg.id, rm.memory, byte, byte)
+    } else {
+        direction: u32 = ifx a.indirect then 2 else 0
+        rm := ifx a.indirect then a else b
+        reg := ifx a.indirect then b else a
+        opcode := cast(u32)(extension * 8) + direction + (ifx byte then cast(u32)0 else 1)
+        X86Encode(writer, prefix, wide, opcode, 1, reg.reg.id, rm.memory, byte, byte)
+    }
+    return true
+}
+
+Vector :: (writer: *X86Writer, name: string, a: Argument, b: Argument) -> bool {
+    if a.immediate || b.immediate || a.indirect && b.indirect ||
+        a.reg.valid && (!a.reg.vector || a.reg.size > 16) ||
+        b.reg.valid && (!b.reg.vector || b.reg.size > 16) { return false }
+    if name == "movaps" || name == "movups" || name == "movapd" || name == "movupd" {
+        aligned := name[3] == #char "a"
+        prefix: u8 = ifx name[5] == #char "d" then 0x66 else 0
+        if b.indirect { X86Encode(writer, prefix, false, ifx aligned then 0x0f29 else 0x0f11, 2, a.reg.id, b.memory) }
+        else { X86Encode(writer, prefix, false, ifx aligned then 0x0f28 else 0x0f10, 2, b.reg.id, a.memory) }
+        return true
+    }
+    if name == "movdqu" || name == "movdqa" {
+        prefix: u8 = ifx name == "movdqu" then 0xf3 else 0x66
+        if b.indirect { X86Encode(writer, prefix, false, 0x0f7f, 2, a.reg.id, b.memory) }
+        else { X86Encode(writer, prefix, false, 0x0f6f, 2, b.reg.id, a.memory) }
+        return true
+    }
+    if !b.reg.valid { return false }
+    code := PackedOpcode(name)
+    opcode: u32 = ifx code == 0 then 0 else 0x0f00 | cast(u32)code
+    prefix: u8 = 0x66
+    if opcode == 0 {
+        tail := ifx name.count > 2 then name[name.count - 2:name.count] else ""
+        if tail != "ss" && tail != "sd" { return false }
+        stem := name[0:name.count - 2]
+        prefix = ifx tail == "ss" then 0xf3 else 0xf2
+        float_names: [6]string = .["mov", "add", "sub", "mul", "div", "sqrt"]
+        float_opcodes: [6]u32 = .[0x0f10, 0x0f58, 0x0f5c, 0x0f59, 0x0f5e, 0x0f51]
+        for candidate, index: float_names { if stem == candidate { opcode = float_opcodes[index]; break } }
+        if opcode == 0 { return false }
+    }
+    X86Encode(writer, prefix, false, opcode, 2, b.reg.id, a.memory)
+    return true
+}
+
+PackedOpcode :: (name: string) -> u8 {
+    names: [17]string = .["paddb", "paddw", "paddd", "paddq", "paddsw", "paddsb", "psubb", "psubw",
+        "psubd", "psubq", "psubsw", "psubsb", "pxor", "pand", "por", "pmullw", "pcmpeqw"]
+    opcodes: [17]u8 = .[0xfc, 0xfd, 0xfe, 0xd4, 0xed, 0xec, 0xf8, 0xf9,
+        0xfa, 0xfb, 0xe9, 0xe8, 0xef, 0xdb, 0xeb, 0xd5, 0x75]
+    for candidate, index: names { if name == candidate { return opcodes[index] } }
+    return 0
+}
+
+Avx :: (writer: *X86Writer, name: string, a: Argument, b: Argument, c: Argument,
+    count: s32, features: u64) -> bool {
+    avx2 := (features & TargetFeatureBit(.Avx2)) != 0
+    if !avx2 && (features & TargetFeatureBit(.Avx)) == 0 { return false }
+    if a.immediate || b.immediate || c.immediate || a.indirect && b.indirect { return false }
+    if name == "vmovdqu" || name == "vmovdqa" {
+        if count != 2 { return false }
+        vector := ifx b.indirect then a.reg else b.reg
+        other := ifx b.indirect then b else a
+        if !vector.valid || !vector.vector || (!other.indirect && (!other.reg.vector || other.reg.size != vector.size)) {
+            return false
+        }
+        X86VexEncode(writer, ifx name == "vmovdqu" then 2 else 1, vector.size == 32,
+            ifx b.indirect then 0x7f else 0x6f, vector.id, 0, other.memory)
+        return true
+    }
+    opcode := PackedOpcode(name[1:name.count])
+    if opcode == 0 || count != 3 || !b.reg.vector || !c.reg.vector || b.reg.size != c.reg.size ||
+        !a.indirect && (!a.reg.vector || a.reg.size != c.reg.size) || c.reg.size == 32 && !avx2 { return false }
+    X86VexEncode(writer, 1, c.reg.size == 32, opcode, c.reg.id, b.reg.id, a.memory)
+    return true
+}
+
+Condition :: (suffix: string) -> s32 {
+    if suffix == "o" { return 0 }
+    if suffix == "no" { return 1 }
+    if suffix == "b" || suffix == "c" || suffix == "nae" { return X86Below }
+    if suffix == "ae" || suffix == "nb" || suffix == "nc" { return X86AboveEqual }
+    if suffix == "e" || suffix == "z" { return X86Equal }
+    if suffix == "ne" || suffix == "nz" { return X86NotEqual }
+    if suffix == "be" || suffix == "na" { return X86BelowEqual }
+    if suffix == "a" || suffix == "nbe" { return X86Above }
+    if suffix == "s" { return 8 }
+    if suffix == "ns" { return X86NotSign }
+    if suffix == "p" || suffix == "pe" { return X86Parity }
+    if suffix == "np" || suffix == "po" { return X86NotParity }
+    if suffix == "l" || suffix == "nge" { return X86Less }
+    if suffix == "ge" || suffix == "nl" { return X86GreaterEqual }
+    if suffix == "le" || suffix == "ng" { return X86LessEqual }
+    if suffix == "g" || suffix == "nle" { return X86Greater }
+    return -1
+}
+
+// The fuel check can sit between a compare and its branch, so preserve
+// flags on the continuing path. A trap never returns to the template.
+Meter :: (writer: *X86Writer, framed: bool) -> X86InlineFuelSite {
+    X86Byte(writer, 0x9c) // pushfq
+    X86SubtractImmediate(writer, X86RipRelocated(), 1)
+    counter := writer.at - 5
+    X86JumpCondition8(writer, X86AboveEqual, ifx framed then cast(s64)13 else 17)
+    X86Byte(writer, 0x9d) // popfq, also restores stack alignment
+    if !framed {
+        X86Push(writer, X86Rbp)
+        X86Move(writer, X86Rbp, X86Rsp)
+    }
+    X86MoveImmediate32(writer, X86Rdi, 0xffff0004)
+    X86Byte(writer, 0xe8)
+    trap := writer.at
+    X86Little(writer, 0, 4)
+    X86Undefined(writer)
+    X86Byte(writer, 0x9d) // popfq on the continuing path
+    return .{counter = counter, trap = trap}
+}
+
+// GCC dialect groups use the first alternative for AT&T assembly.
+Dialect :: (line: string, output: []u8) -> (text: string, ok: bool) {
+    count: s64
+    at: s64
+    while at < line.count {
+        if line[at] != #char "{" { output[count] = line[at]; count += 1; at += 1; continue }
+        at += 1
+        end := at + AsmFind(line[at:line.count], #char "}")
+        if end == line.count { return "", false }
+        split := at + AsmFind(line[at:end], #char "|")
+        for byte: line[at:split] { output[count] = byte; count += 1 }
+        at = end + 1
+    }
+    return TextView(output[0:count]), true
+}
+
+InlineData :: (writer: *X86Writer, name: string, arguments: string) -> bool {
+    if name == ".byte" {
+        value, ok := AsmNumber(arguments)
+        if !ok || value < -128 || value > 255 { return false }
+        X86Byte(writer, cast(u8)value)
+        return true
+    }
+    if arguments.count < 2 || arguments[0] != #char "\"" || arguments[arguments.count - 1] != #char "\"" { return false }
+    at: s64 = 1
+    while at < arguments.count - 1 {
+        byte := arguments[at]
+        at += 1
+        if byte == #char "\"" { return false }
+        if byte == #char "\\" {
+            if at >= arguments.count - 1 { return false }
+            byte = arguments[at]
+            at += 1
+            if byte == #char "n" { byte = 10 }
+            else if byte == #char "t" { byte = 9 }
+            else if byte == #char "r" { byte = 13 }
+            else if byte != #char "\"" && byte != #char "\\" { return false }
+        }
+        X86Byte(writer, byte)
+    }
+    if name == ".asciz" { X86Byte(writer, 0) }
+    return true
+}
+
+RawAddress :: (argument: Argument) -> bool {
+    return argument.indirect && argument.width == 0 && argument.memory.kind != .Rip
+}
+
+// First measures all labels, then writes the same instructions with resolved
+// rel32 offsets. Only local targets participate in this pass.
+Template :: (writer: *X86Writer, plan: *Plan, variant: LirAssemblyVariant, baseline: u64,
+    labels: []AsmLabel, label_count: *s64, bad: *s64, measure: bool,
+    framed: bool, fuel: *Vec(X86InlineFuelSite)) -> bool {
+    text := variant.template
+    begin: s64
+    after_jump := false
+    while begin < text.count {
+        end := begin
+        quoted := false
+        while end < text.count && text[end] != 10 {
+            if !quoted && (text[end] == #char ";" || text[end] == #char "#") { break }
+            if text[end] == #char "\"" { quoted = !quoted }
+            else if quoted && text[end] == #char "\\" && end + 1 < text.count { end += 1 }
+            end += 1
+        }
+        original := AsmTrim(text[begin:end])
+        <<bad = begin
+        if end < text.count && text[end] == #char "#" {
+            while end < text.count && text[end] != 10 { end += 1 }
+        }
+        begin = end + 1
+        body := original
+        colon := AsmFind(original, #char ":")
+        if colon < original.count && colon < AsmFind(original, #char "\"") {
+            name := AsmTrim(original[0:colon])
+            if name.count == 0 { return false }
+            if measure {
+                if <<label_count == labels.count { return false }
+                _, numeric := AsmNumber(name)
+                if !numeric {
+                    for label: labels[0:<<label_count] { if label.name == name { return false } }
+                }
+                labels[<<label_count] = .{name = name, line = <<bad, offset = writer.at}
+                <<label_count += 1
+            }
+            body = AsmTrim(original[colon + 1:original.count])
+        }
+        if body.count == 0 { continue }
+        dialect: [LirAssemblyTextLimit]u8
+        line := body
+        if AsmFind(body, #char "{") < body.count {
+            resolved, ok := Dialect(body, dialect[:])
+            if !ok { return false }
+            line = resolved
+        }
+        split: s64
+        while split < line.count && line[split] > 32 { split += 1 }
+        name := line[0:split]
+        arguments := AsmTrim(line[split:line.count])
+        if name == ".byte" || name == ".ascii" || name == ".asciz" {
+            if !after_jump { return false }
+            if measure {
+                for index: cast(s64)0..<<label_count - 1 {
+                    if labels[index].offset == writer.at { labels[index].data = true }
+                }
+            }
+            if !InlineData(writer, name, arguments) { return false }
+            continue
+        }
+        after_jump = name == "jmp"
+        if name == "nop" && arguments.count == 0 { X86Byte(writer, 0x90); continue }
+        promised := baseline | variant.features
+        if name == "vzeroupper" && arguments.count == 0 {
+            if (promised & (TargetFeatureBit(.Avx) | TargetFeatureBit(.Avx2))) == 0 { return false }
+            X86Opcode(writer, 0xc5f877, 3)
+            continue
+        }
+        if name == "call" || name == "callq" {
+            if !plan.calls || arguments.count < 3 || arguments[0:2] != "*%" { return false }
+            operand := AsmOperandIndex(variant, arguments[2:arguments.count])
+            if operand < variant.outputs || !plan.operands[operand].callable || plan.operands[operand].reg.id < 0 { return false }
+            X86CallRegister(writer, plan.operands[operand].reg.id)
+            continue
+        }
+        if name[0] == #char "j" {
+            if fuel != null {
+                site := Meter(writer, framed)
+                if !measure && !VecPush(<<fuel, site) { return false }
+            }
+            condition := ifx name == "jmp" then -1 else Condition(name[1:name.count])
+            if name != "jmp" && condition < 0 { return false }
+            target := ifx measure then writer.at else AsmLocalTarget(arguments, labels[0:<<label_count], <<bad)
+            if target < 0 { return false }
+            if condition < 0 { X86Jump32(writer, target) }
+            else { X86JumpCondition32(writer, condition, target) }
+            continue
+        }
+        parts: [3]string
+        count := Arguments(arguments, parts[:])
+        if count < 1 || count > 3 { return false }
+        a, valid_a := ParseArgument(plan, variant, parts[0], labels[0:<<label_count], <<bad, measure)
+        if !valid_a { return false }
+        b: Argument
+        if count >= 2 {
+            second, valid_b := ParseArgument(plan, variant, parts[1], labels[0:<<label_count], <<bad, measure)
+            if !valid_b { return false }
+            b = second
+        }
+        c: Argument
+        if count == 3 {
+            third, valid_c := ParseArgument(plan, variant, parts[2], labels[0:<<label_count], <<bad, measure)
+            if !valid_c { return false }
+            c = third
+        }
+        if (RawAddress(a) || RawAddress(b) || RawAddress(c)) && !plan.memory && name != "lea" && name != "leaq" && name != "leal" && name != "leaw" { return false }
+        if name[0] == #char "v" {
+            if !Avx(writer, name, a, b, c, count, promised) { return false }
+            continue
+        }
+        if name == "pext" || name == "pextl" || name == "pextq" ||
+            name == "pdep" || name == "pdepl" || name == "pdepq" {
+            size := c.reg.size
+            if count != 3 || (promised & TargetFeatureBit(.Bmi2)) == 0 ||
+                !c.reg.valid || !b.reg.valid || b.reg.vector || c.reg.vector || b.reg.size != size ||
+                size != 4 && size != 8 || a.immediate || !a.indirect && (!a.reg.valid || a.reg.vector || a.reg.size != size) ||
+                name.count == 5 && (name[4] == #char "q") != (size == 8) { return false }
+            prefix: u8 = ifx name[1] == #char "e" then 2 else 3
+            X86VexEncode(writer, prefix, false, 0xf5, c.reg.id, b.reg.id, a.memory, map = 2, word = size == 8)
+            continue
+        }
+        if name.count >= 6 && name[0:6] == "popcnt" && (promised & TargetFeatureBit(.Popcnt)) == 0 { return false }
+        if name.count >= 5 && name[0:5] == "lzcnt" && (promised & TargetFeatureBit(.Lzcnt)) == 0 { return false }
+        if name.count > 3 && name[0:3] == "set" {
+            condition := Condition(name[3:name.count])
+            if count != 1 || condition < 0 || OperandSize(a, b, 1) != 1 || a.immediate { return false }
+            X86Encode(writer, 0, false, 0x0f90 + cast(u32)condition, 2, 0, a.memory, false, true)
+        } else if a.reg.vector || b.reg.vector {
+            if count != 2 || !Vector(writer, name, a, b) { return false }
+        } else if !Scalar(writer, name, a, b, count) { return false }
+        if writer.failed { return false }
+    }
+    return true
+}
+
+Inputs :: (writer: *X86Writer, plan: *Plan, variant: LirAssemblyVariant, frame: s64) {
+    for unused_operand, index: variant.operands {
+        binding := plan.operands[index]
+        if binding.address >= 0 && binding.address_incoming >= 0 {
+            X86Store(writer, X86At(X86Rbp, binding.address_slot), binding.address_incoming, 8)
+        }
+    }
+    for index: cast(s64)variant.outputs..variant.operands.count - 1 {
+        binding := plan.operands[index]
+        if binding.slot == 0 { continue }
+        destination := X86At(X86Rbp, binding.slot)
+        if binding.incoming < 0 {
+            X86Load(writer, X86R11, X86At(X86Rbp, binding.stack), binding.reg.size, false)
+            X86Store(writer, destination, X86R11, binding.reg.size)
+        } else if binding.reg.vector { X86FloatStore(writer, destination, binding.incoming, binding.reg.size) }
+        else { X86Store(writer, destination, binding.incoming, binding.reg.size) }
+    }
+    for index: cast(s64)variant.outputs..variant.operands.count - 1 {
+        binding := plan.operands[index]
+        if binding.snapshot == 0 { continue }
+        memory := X86At(X86Rbp, binding.snapshot)
+        if binding.reg.vector { X86FloatStore(writer, memory, binding.incoming, binding.reg.size) }
+        else { X86Store(writer, memory, binding.incoming, 8) }
+    }
+    for index: cast(s64)variant.outputs..variant.operands.count - 1 {
+        binding := plan.operands[index]
+        if binding.reg.id < 0 || binding.incoming == binding.reg.id { continue }
+        memory := X86At(X86Rbp, ifx binding.stack != 0 then binding.stack else binding.snapshot)
+        if frame == 0 { memory = X86At(X86Rsp, binding.stack - 8) }
+        if binding.reg.vector { X86FloatLoad(writer, binding.reg.id, memory, binding.reg.size) }
+        else { X86Load(writer, binding.reg.id, memory, binding.reg.size, binding.signed) }
+    }
+    for unused_operand, index: variant.operands {
+        binding := plan.operands[index]
+        if binding.address < 0 { continue }
+        source := ifx frame > 0 then X86At(X86Rbp, binding.address_slot) else X86At(X86Rsp, binding.address_slot - 8)
+        X86Load(writer, binding.address, source, 8, false)
+    }
+}
+
+#scope_export
+
+// Lowers one selected GNU template as an internal ABI leaf. Its frame only
+// saves declared callee-saved registers, shuffled inputs and the hidden result
+// address. The executable's function symbol still owns the resulting bytes.
+X86InlineBody :: (writer: *X86Writer, lir: LirProgram, function: LirFunction,
+    variant: LirAssemblyVariant, target: TargetDescription, bad: *s64, fuel: *Vec(X86InlineFuelSite),
+    unwind: *X86InlineFrame) -> bool {
+    plan: Plan
+    <<bad = 0
+    column: s32
+    while !BindingPlan(*plan, lir, function, variant, target, column) {
+        if variant.operands.count == 0 || LirAssemblyConstraint(variant.operands[0].constraint, column + 1) == "" { return false }
+        plan = .{}
+        column += 1
+    }
+    hidden: s64
+    if plan.aggregate { plan.frame += 8; hidden = -plan.frame }
+    save_begin := plan.frame
+    for register: cast(s32)0..15 { if (plan.saved & Bit(register)) != 0 { plan.frame += 8 } }
+    vector_begin := (plan.frame + 15) & ~cast(s64)15
+    plan.frame = vector_begin
+    for register: cast(s32)6..15 { if (plan.saved_vector & Bit(register)) != 0 { plan.frame += 16 } }
+    frame := (plan.frame + 15) & ~cast(s64)15
+    if frame == 0 && plan.calls { frame = 16 }
+    if frame == 0 && fuel != null && target.os == .Windows { frame = 16 }
+    unwind.size = frame
+    begin := writer.at
+    if frame > 0 {
+        X86Push(writer, X86Rbp)
+        X86Move(writer, X86Rbp, X86Rsp)
+        X86SubtractStack(writer, frame)
+        offset := save_begin
+        for register: cast(s32)0..15 {
+            if (plan.saved & Bit(register)) == 0 { continue }
+            offset += 8
+            X86Store(writer, X86At(X86Rbp, -offset), register, 8)
+            unwind.saves[unwind.count] = .{code = cast(u8)(writer.at - begin),
+                stack = cast(u16)((frame - offset) / 8), register = cast(u8)register}
+            unwind.count += 1
+        }
+        offset = vector_begin
+        for register: cast(s32)6..15 {
+            if (plan.saved_vector & Bit(register)) == 0 { continue }
+            offset += 16
+            X86Encode(writer, 0xf3, false, 0x0f7f, 2, register, X86At(X86Rbp, -offset))
+            unwind.saves[unwind.count] = .{code = cast(u8)(writer.at - begin),
+                stack = cast(u16)((frame - offset) / 16), register = cast(u8)register, vector = true}
+            unwind.count += 1
+        }
+        if plan.aggregate { X86Store(writer, X86At(X86Rbp, hidden), X86Rax, 8) }
+    }
+    unwind.body = writer.at
+    Inputs(writer, *plan, variant, frame)
+    if fuel != null && !VecPush(<<fuel, Meter(writer, frame > 0)) { return false }
+    labels: [256]AsmLabel
+    label_count: s64
+    measured := X86Writer.{at = writer.at, limit = writer.limit}
+    if !Template(*measured, *plan, variant, target.feature_mask, labels[:], *label_count, bad, true, frame > 0, fuel) ||
+        !Template(writer, *plan, variant, target.feature_mask, labels[:], *label_count, bad, false, frame > 0, fuel) || measured.at != writer.at {
+        return false
+    }
+    if plan.aggregate {
+        X86Load(writer, X86R11, X86At(X86Rbp, hidden), 8, false)
+        offset: s64
+        for index: cast(s64)0..variant.outputs - 1 {
+            binding := plan.operands[index]
+            reg := binding.reg
+            destination := X86At(X86R11, offset)
+            if binding.slot != 0 || binding.address >= 0 {
+                source := ifx binding.address >= 0 then X86At(binding.address, 0) else X86At(X86Rbp, binding.slot)
+                X86Load(writer, X86R10, source, reg.size, false)
+                X86Store(writer, destination, X86R10, reg.size)
+            } else if reg.vector { X86FloatStore(writer, destination, reg.id, reg.size) }
+            else { X86Store(writer, destination, reg.id, reg.size) }
+            offset += reg.size
+        }
+        if function.assembly_gate { X86StoreImmediate(writer, X86At(X86R11, offset), 1, 1) }
+    } else if function.assembly_gate { X86MoveImmediate(writer, X86Rax, 1) }
+    else if variant.outputs == 1 {
+        output := plan.operands[0]
+        reg := output.reg
+        if output.slot != 0 {
+            source := X86At(X86Rbp, output.slot)
+            if reg.vector { X86FloatLoad(writer, output.incoming, source, reg.size) }
+            else { X86Load(writer, output.incoming, source, reg.size, output.signed) }
+        } else if reg.vector {
+            if reg.id != output.incoming { X86FloatLoad(writer, output.incoming, X86Direct(reg.id), reg.size) }
+        } else if reg.id != output.incoming || reg.size < 8 {
+            X86Load(writer, output.incoming, X86Direct(reg.id), reg.size, output.signed)
+        }
+    }
+    if frame > 0 {
+        offset := save_begin
+        for register: cast(s32)0..15 {
+            if (plan.saved & Bit(register)) == 0 { continue }
+            offset += 8
+            X86Load(writer, register, X86At(X86Rbp, -offset), 8, false)
+        }
+        offset = vector_begin
+        for register: cast(s32)6..15 {
+            if (plan.saved_vector & Bit(register)) == 0 { continue }
+            offset += 16
+            X86Encode(writer, 0xf3, false, 0x0f6f, 2, register, X86At(X86Rbp, -offset))
+        }
+        if target.os == .Windows {
+            short := X86Fits8(frame)
+            X86Encode(writer, 0, true, ifx short then 0x83 else 0x81, 1, 0, X86Direct(X86Rsp))
+            X86Little(writer, cast(u64)frame, ifx short then 1 else 4)
+            X86Byte(writer, 0x5d) // pop rbp
+        } else { X86Leave(writer) }
+    }
+    X86Return(writer)
+    return !writer.failed
+}

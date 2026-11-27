@@ -75,7 +75,7 @@ The fixed header is 64 bytes:
 | Offset | Field | Required value |
 |---:|---|---|
 | 0 | `u32 magic` | `0x52494c5a` (`ZLIR`) |
-| 4 | `u32 format_version` | `1` |
+| 4 | `u32 format_version` | `3` |
 | 8 | `u32 lir_schema_version` | current `LirVersion` |
 | 12 | `u32 header_size` | `64` |
 | 16 | `u64 required_features` | bit 0 (`base`) only |
@@ -152,7 +152,23 @@ repeat function_count:
     list<s32> parameters
     s32 result
     u32 calling
-    u32 flags             # bit 0 external, bit 1 variadic
+    u32 flags             # bits 0 external, 1 variadic, 2 checked instruction flags,
+                          # 3 assembly records, 4 assembly required, 5 local assembly gate
+    if flags & 8:
+        u32 variant_count # 1 through 30
+        repeat variant_count:
+            string architecture
+            string os
+            string abi
+            u64 cpu_features
+            string template
+            string clobbers
+            u32 flags     # bit 0 volatile
+            s32 output_count
+            u32 operand_count
+            repeat operand_count:
+                string alias
+                string constraint
     list<s32> values
     u32 block_count
     repeat block_count:
@@ -171,6 +187,8 @@ repeat function_count:
             u32 alignment
             s32 effect
             s32 origin
+            if function.flags & 4:
+                u32 flags # bit 0 checked
     s32 entry
     s32 origin
 ```
@@ -180,6 +198,31 @@ types, constants, calling forms and opcodes. The decoder preserves their bytes
 and field values, then lets the authoritative verifier accept or reject the
 result. Enum values beyond the current declared range and flag bits outside
 the masks above are noncanonical format errors before verification.
+
+## Assembly records
+
+The enclosing function supplies the shared signature. Named operands are
+ordered by scalar result or flat result fields, then by parameter. Slice
+inputs expose their data pointer. Procedure-valued inputs keep their checked
+signature, and any referenced procedure or global address reaches the
+template through a verified operand and the ordinary native relocation path.
+The native assembler resolves template-local branches and supported data
+references against labels in that template.
+
+The order of records establishes priority. An empty OS and ABI matches any
+supported OS/ABI for the architecture. Explicit pairs restrict it further.
+Feature bits use `TargetFeatureBit` and must belong to the named architecture.
+The verifier rejects shadowing by an earlier covering record, out-of-bounds
+metadata, inconsistent signatures and invalid operands. Native code generation
+also checks the selected template, its instructions and their register and
+address encodings. The portable instructions remain in the same function by
+default. Bit 4 declares a target-only function. Bit 5 instead identifies a
+local assembly helper whose last result is a Boolean selection flag. For each
+logical operand that uses `m` in any constraint column of any variant, the
+helper signature has one trailing pointer to that operand's type. These
+pointers follow operand order after the ordinary input parameters. A selected
+x86-64 memory operand uses this address in the caller's live storage, including
+when it aliases a pointer passed in another operand.
 
 ## Checked array value operations
 
@@ -267,15 +310,13 @@ and produces a value, so optimization keeps it and its order.
 
 ## Current boundary
 
-- This file has no imports, exports, capability/link tables, assets, native
-  variants, proofs, signatures, compression, checksum, or content identity.
-  Those belong to the future incompatible ZX revision and linker in step 05.
+- The enclosing ZX container supplies imports, exports, capability/link tables,
+  assets and executable content identity.
 - It does not execute instructions. The portable engine is step 04.
 - It accepts exactly the current verifier's semantic subset. In particular,
   verifier-gated schema fields remain explicitly encoded but cannot become an
   executable decoded program until verifier semantics exist.
-- Format version 1 has no compatibility promise with the planned final ZX
-  container. Readers reject other versions with an explicit rebuild boundary.
+- Readers require the current format and schema versions.
 
 Run the source/saved-IR C, Go and VM regression with:
 

@@ -1,4 +1,4 @@
-// Verified revision-28 executable ZX to one wasm32 module: the module-wide
+// Verified revision-29 executable ZX to one wasm32 module: the module-wide
 // lowering state, wasm byte encoding, the layout of LIR types in linear
 // memory, procedure signatures, host-call shapes and the static data region.
 //

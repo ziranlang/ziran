@@ -7,7 +7,7 @@ using Vectors :: #import "std/vec"
 // decoded byte and table until LirReadFree; the encoded input may be released as
 // soon as LirRead returns.
 
-LirCodecVersion :: 2
+LirCodecVersion :: 3
 LirCodecFeatureBase :: 1
 // Header flag: the program was built with --checks.
 LirCodecFlagChecks :: 1
@@ -77,6 +77,8 @@ LirReadOwner :: struct {
     constants: Vec(LirConstant)
     globals: Vec(LirGlobal)
     functions: Vec(LirFunction)
+    variants: Vec(LirAssemblyVariant)
+    variant_operands: Vec(LirAssemblyOperand)
     initializers: Vec(s32)
     function_parameters: Vec(s32)
     function_values: Vec(s32)
@@ -177,6 +179,25 @@ S32s :: (writer: *Writer, values: []s32) {
     for value: values { S32(writer, value) }
 }
 
+WriteVariants :: (writer: *Writer, variants: []LirAssemblyVariant) {
+    Count(writer, variants.count)
+    for variant: variants {
+        Text(writer, variant.architecture)
+        Text(writer, variant.os)
+        Text(writer, variant.abi)
+        U64(writer, variant.features)
+        Text(writer, variant.template)
+        Text(writer, variant.clobbers)
+        U32(writer, ifx variant.volatile then cast(u32)1 else 0)
+        S32(writer, variant.outputs)
+        Count(writer, variant.operands.count)
+        for operand: variant.operands {
+            Text(writer, operand.alias)
+            Text(writer, operand.constraint)
+        }
+    }
+}
+
 WriteCore :: (writer: *Writer, program: LirProgram) {
     S32(writer, program.version)
     S32(writer, program.entry)
@@ -227,7 +248,11 @@ WriteCore :: (writer: *Writer, program: LirProgram) {
             for instruction: block.instructions { if instruction.checked { checked_function = true } }
         }
         if checked_function { flags |= 4 }
+        if function.variants.count != 0 { flags |= 8 }
+        if function.assembly_required { flags |= 16 }
+        if function.assembly_gate { flags |= 32 }
         U32(writer, flags)
+        if function.variants.count != 0 { WriteVariants(writer, function.variants) }
         S32s(writer, function.values)
         Count(writer, function.blocks.count)
         for block: function.blocks {
@@ -434,6 +459,8 @@ Shape :: struct {
     constants: s64
     globals: s64
     functions: s64
+    variants: s64
+    variant_operands: s64
     initializers: s64
     function_parameters: s64
     function_values: s64
@@ -471,6 +498,8 @@ Decoder :: struct {
     type_parameters_at: s64
     function_parameters_at: s64
     function_values_at: s64
+    variant_at: s64
+    variant_operand_at: s64
     block_at: s64
     block_parameters_at: s64
     instruction_at: s64
@@ -641,6 +670,65 @@ DecodeBlob :: (decoder: *Decoder) -> Span {
     return .{at = start, count = length}
 }
 
+VariantText :: (decoder: *Decoder) -> Span {
+    text := DecodeText(decoder)
+    if text.count >= LirAssemblyTextLimit { DecodeFail(decoder, .Field) }
+    return text
+}
+
+VariantTextView :: (owner: *LirReadOwner, text: Span) -> string {
+    return TextView(VecSlice(owner.text_bytes, text.at, text.at + text.count))
+}
+
+VariantPool :: (decoder: *Decoder, total: *s64, at: *s64, count: s64, width: s64) -> s64 {
+    if decoder.mode == ModeShape { return AddCount(decoder, total, count, width) }
+    begin := <<at
+    if count > <<total - begin { DecodeFail(decoder, .Count); return 0 }
+    <<at += count
+    return begin
+}
+
+DecodeVariants :: (decoder: *Decoder) -> Span {
+    count := DecodeCount(decoder)
+    if count == 0 || count > LirAssemblyVariantLimit { DecodeFail(decoder, .Count); return .{} }
+    start := VariantPool(decoder, *decoder.shape.variants, *decoder.variant_at, count, 112)
+    if !Spend(decoder, count) || decoder.cursor.problem != .None { return .{} }
+    for index: 0..count - 1 {
+        architecture := VariantText(decoder)
+        os := VariantText(decoder)
+        abi := VariantText(decoder)
+        features := DecodeU64(decoder)
+        template := VariantText(decoder)
+        clobbers := VariantText(decoder)
+        flags := DecodeU32(decoder)
+        outputs := DecodeS32(decoder)
+        operands := DecodeCount(decoder)
+        if flags > 1 || outputs < 0 || outputs > operands || operands > LirAssemblyOperandLimit {
+            DecodeFail(decoder, .Field)
+        }
+        if decoder.cursor.problem != .None { return .{} }
+        first := VariantPool(decoder, *decoder.shape.variant_operands, *decoder.variant_operand_at, operands, 32)
+        if !Spend(decoder, operands) || decoder.cursor.problem != .None { return .{} }
+        for operand: 0..operands - 1 {
+            alias := VariantText(decoder)
+            constraint := VariantText(decoder)
+            if decoder.cursor.problem != .None { return .{} }
+            if decoder.mode == ModeFill {
+                decoder.owner.variant_operands[first + operand] = .{alias = VariantTextView(decoder.owner, alias),
+                    constraint = VariantTextView(decoder.owner, constraint)}
+            }
+        }
+        if decoder.mode == ModeFill {
+            decoder.owner.variants[start + index] = .{architecture = VariantTextView(decoder.owner, architecture),
+                os = VariantTextView(decoder.owner, os), abi = VariantTextView(decoder.owner, abi), features = features,
+                template = VariantTextView(decoder.owner, template), clobbers = VariantTextView(decoder.owner, clobbers),
+                outputs = outputs,
+                volatile = flags == 1, operands = VecSlice(decoder.owner.variant_operands, first, first + operands)}
+        }
+    }
+    return .{at = start, count = count}
+}
+
 TopCount :: (decoder: *Decoder, found: s64, expected: s64, width: s64, maximum: s64) -> bool {
     if found > maximum { DecodeFail(decoder, .Limit); return false }
     if decoder.mode == ModeShape { return Storage(decoder, found, width) }
@@ -739,6 +827,10 @@ DecodeCore :: (decoder: *Decoder) {
         result := DecodeS32(decoder)
         raw_calling := DecodeU32(decoder)
         flags := DecodeU32(decoder)
+        if raw_calling > cast(u32)LirCalling.Host { DecodeFail(decoder, .Field) }
+        if flags > cast(u32)63 || ((flags & cast(u32)48) != 0 && (flags & cast(u32)8) == 0) { DecodeFail(decoder, .Flags) }
+        variants_span: Span
+        if (flags & cast(u32)8) != 0 { variants_span = DecodeVariants(decoder) }
         values_span := DecodeS32s(decoder, .FunctionValues)
         block_count := DecodeCount(decoder)
         if decoder.cursor.problem != .None { return }
@@ -862,8 +954,6 @@ DecodeCore :: (decoder: *Decoder) {
         function_entry := DecodeS32(decoder)
         function_origin := DecodeS32(decoder)
         if decoder.cursor.problem != .None { return }
-        if raw_calling > cast(u32)LirCalling.Host { DecodeFail(decoder, .Field) }
-        if flags > cast(u32)7 { DecodeFail(decoder, .Flags) }
         if decoder.mode == ModeFill {
             name := TextView(VecSlice(decoder.owner.text_bytes, name_span.at, name_span.at + name_span.count))
             parameters := VecSlice(decoder.owner.function_parameters,
@@ -874,7 +964,10 @@ DecodeCore :: (decoder: *Decoder) {
                 external = (flags & cast(u32)1) != cast(u32)0,
                 variadic = (flags & cast(u32)2) != cast(u32)0, values = values,
                 blocks = VecSlice(decoder.owner.blocks, block_start, block_start + block_count),
-                entry = function_entry, origin = function_origin}
+                entry = function_entry, origin = function_origin,
+                assembly_required = (flags & cast(u32)16) != 0,
+                assembly_gate = (flags & cast(u32)32) != 0,
+                variants = VecSlice(decoder.owner.variants, variants_span.at, variants_span.at + variants_span.count)}
         }
     }
 }
@@ -953,6 +1046,8 @@ Allocate :: (owner: *LirReadOwner, shape: Shape, compact: bool) -> bool {
         VecResizeBounded(owner.constants, shape.constants, shape.constants) &&
         VecResizeBounded(owner.globals, shape.globals, shape.globals) &&
         VecResizeBounded(owner.functions, shape.functions, shape.functions) &&
+        VecResizeBounded(owner.variants, shape.variants, shape.variants) &&
+        VecResizeBounded(owner.variant_operands, shape.variant_operands, shape.variant_operands) &&
         VecResizeBounded(owner.initializers, shape.initializers, shape.initializers) &&
         VecResizeBounded(owner.function_parameters, shape.function_parameters, shape.function_parameters) &&
         VecResizeBounded(owner.function_values, shape.function_values, shape.function_values) &&
@@ -1047,6 +1142,7 @@ LirReadFree :: (owner: *LirReadOwner) {
     VecFree(owner.modules); VecFree(owner.sources)
     VecFree(owner.types); VecFree(owner.constants); VecFree(owner.globals)
     VecFree(owner.functions); VecFree(owner.initializers); VecFree(owner.blocks); VecFree(owner.instructions); VecFree(owner.edges)
+    VecFree(owner.variants); VecFree(owner.variant_operands)
     VecFree(owner.origins)
     #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
         VecFree(owner.compact_instructions)
@@ -1075,6 +1171,8 @@ LirReadReplace :: (owner: *LirReadOwner, replacement: *LirReadOwner) {
     VecSwap(owner.constants, replacement.constants)
     VecSwap(owner.globals, replacement.globals)
     VecSwap(owner.functions, replacement.functions)
+    VecSwap(owner.variants, replacement.variants)
+    VecSwap(owner.variant_operands, replacement.variant_operands)
     VecSwap(owner.initializers, replacement.initializers)
     VecSwap(owner.function_parameters, replacement.function_parameters)
     VecSwap(owner.function_values, replacement.function_values)

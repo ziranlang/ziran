@@ -19,5 +19,8 @@ checked printing, heap allocation, named imports, integer width conformance
 and implicit widening, automatic vector cleanup, local `TextView` mutation
 checks, record-field vector moves, procedure defaults, procedure values, and
 architecture-specific assembly with a portable body.
+ZX preserves that assembly through saved IR and supports optional native
+selection and explicit target-only procedures. Supported native template
+forms and target limits are listed under `native.assembly` in the registry.
 The registry is intentionally incremental and does not claim complete
 feature coverage; the language reference is docs/LANGUAGE_DIRECTION.md.

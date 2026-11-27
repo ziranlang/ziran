@@ -1,6 +1,6 @@
 # Step 05 — Make ZX a versioned portable executable container
 
-Status: in progress; the [revision-28 executable container](zx-executable-format.md) is the one `.zx` format. It stores verified LIR, runs stripped through the portable engine, and names its host capabilities, module globals and declarations in the host interface section; `ziran bundle`, `ziran run` and the embedding API use it. Library containers ([`ziran pkg zx pack-ir`](zx-library-format.md)) and module-linked bundles (`--require-module`/`--import`) exist; native variants and cross-container partial composition remain open. Delivery order: [milestones](milestones.md) M1 and M3. Depends on [steps 02](02-lowered-ir-and-verifier.md)–[04](04-portable-instruction-engine.md). Next: [native code generation](06-optimization-and-native-backend.md).
+Status: in progress; the [revision-29 executable container](zx-executable-format.md) is the one `.zx` format. It stores verified LIR, runs stripped through the portable engine, and names its host capabilities, module globals and declarations in the host interface section; `ziran bundle`, `ziran run` and the embedding API use it. Library containers ([`ziran pkg zx pack-ir`](zx-library-format.md)) and module-linked bundles (`--require-module`/`--import`) exist; cross-container partial composition remains open. Delivery order: [milestones](milestones.md) M1 and M3. Depends on [steps 02](02-lowered-ir-and-verifier.md)–[04](04-portable-instruction-engine.md). Next: [native code generation](06-optimization-and-native-backend.md).
 
 ## Objective
 
@@ -13,11 +13,11 @@ Replace embedded executable `.zir` with the lowered portable instruction program
 - [Bundle command](../cmd/zi2zx.zi), [package bundle execution](../cmd/package_bundle_run.zi), and [format documentation](../docs/ZX.md).
 - [Law checking](../cmd/compiler_law.zi) and [proof checking](../cmd/compiler_proof.zi).
 
-Proposed modules: `cmd/compiler_exec_serial.zi`, `cmd/compiler_exec_link.zi`, and `cmd/compiler_exec_variants.zi`. Evolve the existing container owner instead of adding a competing bundle wrapper.
+The executable codec and linker live in `cmd/compiler_exec_serial.zi` and `cmd/compiler_exec_link.zi`. Variant records use the same function identities and executable section as the portable instructions.
 
 ## Implementation work
 
-- [x] Define a new incompatible ZX revision with explicit section kinds, lengths, alignment, feature requirements, entry IDs, and deterministic ordering. Choose the revision from the live format history at implementation time. (Revision 28 defined in [zx-executable-format.md](zx-executable-format.md) and implemented in [`compiler_zx_exec.zi`](../cmd/compiler_zx_exec.zi)/[`compiler_exec_serial.zi`](../cmd/compiler_exec_serial.zi); legacy rejection retained in [zx_executable.sh](../tests/zx_executable.sh) and [executable_bundle_cases.zi](../tests/executable_bundle_cases.zi).)
+- [x] Define a new incompatible ZX revision with explicit section kinds, lengths, alignment, feature requirements, entry IDs, and deterministic ordering. Choose the revision from the live format history at implementation time. (The current [ZX revision 29](zx-executable-format.md) includes native variant metadata. Legacy rejection is retained in [zx_executable.sh](../tests/zx_executable.sh) and [executable_bundle_cases.zi](../tests/executable_bundle_cases.zi).)
 - [ ] Encode functions, blocks, values, instructions, types, relocatable symbolic constants, imports, exports, global initializers, and data without host pointer values or compiler struct layouts.
   Revision 28 already serializes ordered initializer IDs and readonly byte data;
   imports/exports, relocatable symbols and the public linked representation keep
@@ -29,10 +29,6 @@ Proposed modules: `cmd/compiler_exec_serial.zi`, `cmd/compiler_exec_link.zi`, an
 - [x] Recompute capability requirements from verified reachable instructions. Cross-check declared tables, library bindings, and host signatures rather than trusting producer-supplied manifests. (The writer stores the recomputed capability count and the reader rejects a mismatched manifest (`capability-count`) ([zx-executable-format.md](zx-executable-format.md), [executable_bundle_cases.zi](../tests/executable_bundle_cases.zi)); host result shapes are checked before use in the same fixture.)
 - [ ] Keep law evidence honest. Either revalidate attached proof material against an adequate non-executable witness or report producer evidence as unverified metadata. A checksum, previous checker flag, or matching law table is not a proof of lowering correctness.
 - [x] Verify the executable itself independently of any optional proof/source section. Certificates for removed bounds checks or other privileged assumptions must be checkable by the consumer; otherwise retain the checks. (The owned reader verifies the stripped program regardless of optional bytes ([`compiler_zx_exec_bundle.zi`](../cmd/compiler_zx_exec_bundle.zi), [zx_executable.sh](../tests/zx_executable.sh) stripped execution); no privileged certificate codec exists, so removed checks are never authorized by uncheckable data.)
-- [ ] Define native variant records with target CPU, OS/ABI where relevant, required feature masks, common signature, and deterministic selection precedence. If no declared implementation matches the selected target/CPU contract, reject before execution; do not run portable code as a native fallback.
-- [ ] Keep generic executable code mandatory for portable bundles. Store native variants as verifiable target-operation/template metadata, not automatically trusted arbitrary machine-code blobs.
-- [ ] Validate variant operands, effects, register clobbers, and boundaries before code generation. Keep feature detection baseline-safe and check OS-enabled register state where required.
-- [ ] Define explicit target-only artifacts separately when a producer intentionally requires an architecture. The CLI must report that reduced portability and reject unsupported hosts before executing code. Landed slice: `zx2native --target ARCH --platform OS` produces target-only executables and the registry preflight rejects unsupported host rows before any input ([compiler_target.zi](../cmd/compiler_target.zi), [target_diagnostics.sh](../tests/target_diagnostics.sh)). A producer-side reduced-portability declaration surface remains open.
 - [x] Encode the stable Gap identifiers needed for target preflight and inspection.
   Unknown required target features reject; they do not select another executable
   section, format revision, or engine.
@@ -40,13 +36,13 @@ Proposed modules: `cmd/compiler_exec_serial.zi`, `cmd/compiler_exec_link.zi`, an
   reported by `ziran capabilities`/`ziran explain` ([package_explain.zi](../cmd/package_explain.zi));
   every row and code checked in [target_diagnostics.sh](../tests/target_diagnostics.sh).)
 - [x] Reject old incompatible bundles with an actionable rebuild diagnostic. Keep legacy-format rejection tests; do not maintain two executable formats indefinitely. (Legacy-revision rejection retained in [zx_executable.sh](../tests/zx_executable.sh); the old VM and TinyCC ZX route are removed per [step 09](09-native-runtime-and-integration.md).)
-- [ ] Include every executable and variant section in cache/content identity while keeping optional debug-only changes from unnecessarily invalidating machine code where a correct split is possible. Landed slice: the in-process native compile cache is keyed by the executable's content digest on the same CPU and shares code across open bundles ([`zir_host_native.c`](../bootstrap/runtime/zir_host_native.c), [native_cache.sh](../tests/native_cache.sh)); variant sections do not exist yet, so their identity rule is unproven.
+
 
 ## Tests
 
 Extend the retained bundle checks: [provider cases](../tests/bundle_provider_cases.zi), [executable bundles](../tests/executable_bundle_cases.zi), [global reachability](../tests/bundle_global_reachability.sh), and [step limits](../tests/bundle_step_limit.sh).
 
-Add malformed new-section fixtures, required/optional feature mutations, variant incompatibility tests, stripped-bundle execution, deterministic source/saved-IR bytes, and proof-table tampering. Verify functionally identical portable behavior with supported variants selected, masked out, and unavailable.
+Add malformed fixtures for future sections, required feature mutations and proof-table tampering. Revision 29 variant records, native selection, feature masking and target-only rejection are covered by the [assembly regression](../tests/generic_assembly_cases.zi) and [executable bundles](../tests/executable_bundle_cases.zi).
 
 ## Exit gate
 

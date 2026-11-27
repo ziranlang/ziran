@@ -36,6 +36,22 @@ Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, subject: *u8) #fo
 DiagnosticTarget :: (span: IR.ZirSourceSpan, code: *u8, target: *u8, capability: *u8,
                      format: *u8, subject: *u8) #foreign compiler "DiagnosticTarget";
 DiagnosticOutOfMemory :: () #foreign compiler "DiagnosticOutOfMemory";
+
+CheckedAssemblyOperand :: struct { constraint: *u8; alias: *u8; binding: *u8; type: *u8 }
+CheckedAssemblyVariant :: struct {
+    target: *u8
+    text: *u8
+    clobbers: *u8
+    options: *u8
+    outputs: s32
+    inputs: s32
+    record: s32
+    operands: [30]CheckedAssemblyOperand
+}
+AssemblyVariantNext :: (module: *IR.ZirModule, function: *IR.ZirFunction, statement: s32,
+                        cursor: **u8, variant: *CheckedAssemblyVariant) -> s32 #foreign compiler "AssemblyVariantNext";
+AssemblyVariantSelector :: (text: *u8, span: IR.ZirSourceSpan, architecture: **u8,
+                            os: **u8, abi: **u8, features: *u64) -> bool #foreign compiler "AssemblyVariantSelector";
 ResolveGlobalAt :: (module: *IR.ZirModule, name: *u8, path: *u8, owner: **IR.ZirModule,
                     global: **IR.ZirGlobal) -> s32 #foreign compiler "ResolveGlobalAt";
 ResolveDefine :: (module: *IR.ZirModule, name: *u8, definition: **IR.ZirDefine,
@@ -1488,6 +1504,23 @@ FindAddressed :: (program: *AssemblyProgram, function: *AssemblyFunction) -> s32
             scope[scope_count].name = body.name
             scope[scope_count].source = statement
             scope_count += 1
+        }
+        if body.kind == ZirStmtKind.BLOCK_OPEN && body.assembly_text != null && body.assembly_text[0] != 0 {
+            cursor := body.assembly_text
+            variant: CheckedAssemblyVariant
+            while AssemblyVariantNext(function.module, source, statement, *cursor, *variant) == 1 {
+                for operand: cast(s32)0..variant.outputs + variant.inputs - 1 {
+                    value := variant.operands[operand]
+                    if !LirAssemblyUsesMemory(IR.CText(value.constraint)) { continue }
+                    binding := scope_count
+                    while binding > 0 {
+                        binding -= 1
+                        if IR.CText(scope[binding].name) != IR.CText(value.binding) { continue }
+                        function.addressed[scope[binding].source] = 1
+                        break
+                    }
+                }
+            }
         }
         if body.kind == ZirStmtKind.IF || body.kind == ZirStmtKind.WHILE ||
            body.kind == ZirStmtKind.BLOCK_OPEN {
@@ -6927,7 +6960,9 @@ Sequence :: (program: *AssemblyProgram, function: *AssemblyFunction, begin: s32,
             Jump(program, function, target, loop.bindings, statement.span)
         } else if statement.kind == ZirStmtKind.BLOCK_OPEN {
             close := Close(program, function.source, index, end)
-            Sequence(program, function, index + 1, close, depth + 1)
+            if statement.assembly_text != null && statement.assembly_text[0] != 0 && !function.checking {
+                LocalAssembly(program, function, index, close, depth)
+            } else { Sequence(program, function, index + 1, close, depth + 1) }
             index = close
         } else if statement.kind == ZirStmtKind.UNREACHABLE {
             Emit(program, function, LirOp.Unreachable, 0, null, 0, -1, statement.span)
@@ -6946,6 +6981,173 @@ Sequence :: (program: *AssemblyProgram, function: *AssemblyFunction, begin: s32,
 }
 
 
+FunctionVariants :: (program: *AssemblyProgram, function: *AssemblyFunction,
+    source: *IR.ZirFunction, statement: s32, cursor: *u8, span: IR.ZirSourceSpan) -> bool {
+    if cursor == null || cursor[0] == 0 { return true }
+    variants: [LIR.LirAssemblyVariantLimit]LIR.LirAssemblyVariant
+    count: s32 = 0
+    while program.failed == 0 {
+        checked: CheckedAssemblyVariant
+        status := AssemblyVariantNext(function.module, source, statement, *cursor, *checked)
+        if status == 0 { break }
+        if status < 0 || count == LIR.LirAssemblyVariantLimit {
+            unused Fail(program, span, "invalid checked assembly variant")
+            return false
+        }
+        architecture: *u8
+        os: *u8
+        abi: *u8
+        features: u64
+        if !AssemblyVariantSelector(checked.target, span, *architecture, *os, *abi, *features) {
+            unused Fail(program, span, "invalid checked assembly selector")
+            return false
+        }
+        operand_count := checked.outputs + checked.inputs
+        operands := cast(*LIR.LirAssemblyOperand)Allocate(program, cast(usize)operand_count,
+            size_of(LIR.LirAssemblyOperand))
+        if operand_count > 0 && operands == null { return false }
+        for index: cast(s32)0..operand_count - 1 {
+            operand := checked.operands[index]
+            operands[index] = .{alias = Owned(Text(program, operand.alias)),
+                constraint = Owned(Text(program, operand.constraint))}
+        }
+        options := Owned(Text(program, checked.options))
+        function.result.assembly_required = options == "target-only" || options == "volatile;target-only"
+        variant := LIR.LirAssemblyVariant.{architecture = Owned(Text(program, architecture)),
+            os = Owned(Text(program, os)), abi = Owned(Text(program, abi)),
+            features = features, template = Owned(Text(program, checked.text)),
+            clobbers = Owned(Text(program, checked.clobbers)), outputs = checked.outputs,
+            volatile = options == "volatile" || options == "volatile;target-only"}
+        parts := cast(*SliceParts)*variant.operands
+        parts.data = cast(*void)operands
+        parts.length = cast(s64)operand_count
+        variants[count] = variant
+        count += 1
+    }
+    if program.failed != 0 { return false }
+    stored := Allocate(program, cast(usize)count, size_of(LIR.LirAssemblyVariant))
+    if stored == null { return count == 0 }
+    memcpy(stored, cast(*void)*variants[0], cast(usize)count * size_of(LIR.LirAssemblyVariant))
+    parts := cast(*SliceParts)*function.result.variants
+    parts.data = stored
+    parts.length = cast(s64)count
+    return true
+}
+
+// The local assembly call reports whether it ran a specialization. Its
+// portable body returns false and leaves the caller's locals untouched. The
+// original portable block stays in the caller, so its lexical storage and
+// cleanup have exactly the same lifetime as an ordinary block's.
+LocalAssembly :: (program: *AssemblyProgram, function: *AssemblyFunction, index: s32, close: s32, depth: s32) {
+    statement := *function.source.stmts[index]
+    span := statement.span
+    variants := statement.assembly_text
+    cursor := variants
+    first: CheckedAssemblyVariant
+    if AssemblyVariantNext(function.module, function.source, index, *cursor, *first) != 1 {
+        unused Fail(program, span, "invalid checked local assembly bindings")
+        return
+    }
+    operands := first.outputs + first.inputs
+    bindings: [LIR.LirAssemblyOperandLimit]s32
+    inputs: [2 * LIR.LirAssemblyOperandLimit]s32
+    fields := cast(*s32)Allocate(program, cast(usize)(first.outputs + 1), size_of(s32))
+    gate := cast(*AssemblyFunction)Allocate(program, 1, size_of(AssemblyFunction))
+    if program.failed != 0 || gate == null || fields == null { return }
+    gate.module = function.module
+    gate.result.assembly_gate = true
+    if !FunctionVariants(program, gate, function.source, index, variants, span) { return }
+    parameters := first.inputs
+    for operand: cast(s32)0..operands - 1 {
+        if LirAssemblyGateAddressed(gate.result.variants, cast(s64)operand) { parameters += 1 }
+    }
+    types := cast(*s32)Allocate(program, cast(usize)parameters, size_of(s32))
+    if parameters > 0 && types == null { return }
+    for operand: cast(s32)0..operands - 1 {
+        binding := Binding(function, first.operands[operand].binding)
+        if binding < 0 {
+            unused Fail(program, span, "assembly operand is outside the lowered scope")
+            return
+        }
+        bindings[operand] = binding
+        local := function.bindings.data[binding]
+        if operand < first.outputs { fields[operand] = local.type }
+        else {
+            input := operand - first.outputs
+            inputs[input] = local.value
+            if local.storage_type >= 0 {
+                inputs[input] = Emit(program, function, LirOp.Load, local.type, *local.value, 1, -1, span)
+            }
+            types[input] = local.type
+        }
+    }
+    address := first.inputs
+    for operand: cast(s32)0..operands - 1 {
+        if !LirAssemblyGateAddressed(gate.result.variants, cast(s64)operand) { continue }
+        local := function.bindings.data[bindings[operand]]
+        if local.storage_type < 0 {
+            unused Fail(program, span, "local assembly memory operand has no caller storage")
+            return
+        }
+        types[address] = local.storage_type
+        inputs[address] = local.value
+        address += 1
+    }
+    for parameter: cast(s32)0..parameters - 1 {
+        argument := AssemblyBinding.{type = types[parameter], storage_type = -1}
+        unused Push(program, cast(*RawVector)*gate.bindings, size_of(AssemblyBinding), cast(*void)*argument)
+    }
+    fields[first.outputs] = 1 // success flag
+    result: s32 = 1
+    if first.outputs != 0 {
+        result = program.types.count
+        if !PushLirType(program, *program.types, .{kind = .Record,
+            fields = S32Items(fields, cast(s64)(first.outputs + 1))}) { return }
+    }
+    symbol := program.functions.count
+    name: [32]u8
+    unused snprintf(*name[0], size_of([32]u8), SVC.Keep("$asm.%d"), symbol)
+    gate.result.module = function.result.module
+    gate.result.name = Owned(Text(program, *name[0]))
+    gate.result.parameters = S32Items(types, cast(s64)parameters)
+    gate.result.result = result
+    gate.result.origin = Origin(program, span)
+    gate.result.entry = Block(program, gate, gate.bindings.data, parameters)
+    gate.current = gate.result.entry
+    if program.failed != 0 { return }
+    Emit(program, gate, LirOp.Fuel, 0, null, 0, -1, span)
+    portable := Zero(program, gate, result, span, 0)
+    Emit(program, gate, LirOp.Return, 0, *portable, 1, -1, span)
+    if !PushFunctionPtr(program, *program.functions, gate) { return }
+
+    returned := Emit(program, function, LirOp.Call, result, *inputs[0], parameters, symbol, span)
+    matched := returned
+    if first.outputs != 0 {
+        matched = Indexed(program, function, LirOp.Extract, 1, *returned, 1, cast(u64)first.outputs, span)
+    }
+    count := function.bindings.count
+    before := Snapshot(program, function, count)
+    assembly := Block(program, function, before, count)
+    fallback := Block(program, function, before, count)
+    join := Block(program, function, before, count)
+    if program.failed != 0 { return }
+    Branch(program, function, matched, assembly, fallback, count, span)
+    Enter(function, assembly, before, count)
+    for operand: cast(s32)0..first.outputs - 1 {
+        binding := *function.bindings.data[bindings[operand]]
+        value := Indexed(program, function, LirOp.Extract, binding.type, *returned, 1, cast(u64)operand, span)
+        if binding.storage_type >= 0 {
+            store: [2]s32 = .[binding.value, value]
+            Emit(program, function, LirOp.Store, 0, *store[0], 2, -1, span)
+        } else { binding.value = value }
+    }
+    Jump(program, function, join, count, span)
+    Enter(function, fallback, before, count)
+    Sequence(program, function, index + 1, close, depth + 1)
+    if function.current >= 0 { Jump(program, function, join, count, span) }
+    Enter(function, join, before, count)
+}
+
 // Find or create the lowered form of one checked function.
 Function :: (program: *AssemblyProgram, module: *IR.ZirModule,
              source: *IR.ZirFunction) -> s32 {
@@ -6959,8 +7161,6 @@ Function :: (program: *AssemblyProgram, module: *IR.ZirModule,
     // callers lower ordinary arguments into an explicit host.call.
     host: bool = false
     if source.is_extern != 0 && source.extern_kind == ZirExternKind.HOST { host = true }
-    // A procedure with `#asm` variants or `#target` tiers is lowered from
-    // its ordinary body, the code every target without those tiers runs.
     concrete: bool = true
     if host == false && (source.checked == 0 || source.is_extern != 0) { concrete = false }
     if concrete == false || source.is_template != 0 {
@@ -6997,6 +7197,7 @@ Function :: (program: *AssemblyProgram, module: *IR.ZirModule,
     parameter_parts := cast(*SliceParts)(*function.result.parameters)
     parameter_parts.data = cast(*void)types
     parameter_parts.length = cast(s64)parameters.count
+    if !host && !FunctionVariants(program, function, source, -1, source.assembly_text, source.span) { return -1 }
     FindAddressed(program, function)
     identity := program.functions.count
     if Push(program, cast(*RawVector)*program.functions, size_of(*AssemblyFunction),
@@ -7238,6 +7439,10 @@ LowerBody :: (program: *AssemblyProgram, builder: *AssemblyFunction) {
     builder.result.entry = entry
     Enter(builder, entry, entry_parameters, count)
     Emit(program, builder, LirOp.Fuel, 0, null, 0, -1, builder.source.span)
+    if builder.result.assembly_required {
+        Emit(program, builder, LirOp.Unreachable, 0, null, 0, -1, builder.source.stmts[0].span)
+        return
+    }
     parameter: s32 = 0
     while parameter < count && program.failed == 0 {
         binding := *builder.bindings.data[parameter]
@@ -8173,6 +8378,35 @@ PrintLir :: (view: *LIR.LirProgram, output: *void) -> s32 {
             value += 1
         }
         PrintText(output, SVC.Keep(")\n"))
+        for variant, ordinal: body.variants {
+            PrintText(output, SVC.Keep("  assembly "))
+            PrintSigned(output, ordinal)
+            if body.assembly_required { PrintText(output, SVC.Keep(" target-only")) }
+            if body.assembly_gate { PrintText(output, SVC.Keep(" local")) }
+            if variant.volatile { PrintText(output, SVC.Keep(" volatile")) }
+            PrintText(output, SVC.Keep(" arch="))
+            PrintString(output, variant.architecture)
+            PrintText(output, SVC.Keep(" os="))
+            PrintString(output, variant.os)
+            PrintText(output, SVC.Keep(" abi="))
+            PrintString(output, variant.abi)
+            PrintText(output, SVC.Keep(" features=0x"))
+            PrintHex64(output, variant.features)
+            PrintText(output, SVC.Keep(" outputs="))
+            PrintSigned(output, cast(s64)variant.outputs)
+            PrintText(output, SVC.Keep(" clobbers="))
+            PrintString(output, variant.clobbers)
+            PrintText(output, SVC.Keep(" operands=("))
+            for operand, index: variant.operands {
+                if index != 0 { fputc_raw(44, output) }
+                PrintString(output, operand.alias)
+                fputc_raw(58, output)
+                PrintString(output, operand.constraint)
+            }
+            PrintText(output, SVC.Keep(") template="))
+            PrintString(output, variant.template)
+            fputc_raw(10, output)
+        }
         block: s64 = 0
         while block < body.blocks.count {
             bp := *body.blocks[block]

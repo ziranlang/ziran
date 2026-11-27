@@ -1,0 +1,54 @@
+Buffer :: struct { lanes: [16]u16 }
+
+Add :: (dst: []u16, src: []u16) #asm("x86_64/linux/sysv+avx2", "vmovdqu (%[dst]), %%ymm0; vmovdqu (%[src]), %%ymm1; vpaddw %%ymm1, %%ymm0, %%ymm0; vmovdqu %%ymm0, (%[dst]); vzeroupper", "", "r;r", "ymm0..ymm1;memory", "volatile") #asm("x86_64+sse2", "movdqu (%[dst]), %%xmm0; movdqu (%[src]), %%xmm1; paddw %%xmm1, %%xmm0; movdqu %%xmm0, (%[dst]); movdqu 16(%[dst]), %%xmm0; movdqu 16(%[src]), %%xmm1; paddw %%xmm1, %%xmm0; movdqu %%xmm0, 16(%[dst])", "", "r;r", "xmm0..xmm1;memory", "volatile") #asm("aarch64+simd", "ld1 {v0.8h}, [%[dst]]; ld1 {v1.8h}, [%[src]]; add v0.8h, v0.8h, v1.8h; st1 {v0.8h}, [%[dst]], #16; add %[src], %[src], #16; ld1 {v0.8h}, [%[dst]]; ld1 {v1.8h}, [%[src]]; add v0.8h, v0.8h, v1.8h; st1 {v0.8h}, [%[dst]]", "", "r;r", "v0..v1;memory", "volatile") #asm("arm+neon", "vld1.16 {q0}, [%[dst]]; vld1.16 {q1}, [%[src]]!; vadd.i16 q0, q0, q1; vst1.16 {q0}, [%[dst]]!; vld1.16 {q0}, [%[dst]]; vld1.16 {q1}, [%[src]]; vadd.i16 q0, q0, q1; vst1.16 {q0}, [%[dst]]", "", "r;r", "q0..q1;memory", "volatile") {
+    for lane: 0..15 { dst[lane] += src[lane] }
+}
+
+// Distinct markers make selection visible even though the kernels agree.
+Mark :: () -> s32 #asm("x86_64/linux/sysv+avx2", "movl $32, %[out]", "=r", "", "", "") #asm("x86_64+sse2", "movl $16, %[out]", "=r", "", "", "") #asm("aarch64+simd", "mov %w[out], #16", "=r", "", "", "") #asm("arm+neon", "mov %[out], #16", "=r", "", "", "") { return 1 }
+
+Callback :: #type () -> s32;
+
+Touch :: () -> s32 { return 42 }
+
+Call :: (callee: Callback) -> s32 #asm("x86_64", "call *%[callee]", "=a", "r", "memory;cc") #asm("aarch64", "blr %[callee]; mov %w[out], w0", "=r", "r", "x0;memory") #asm("arm", "blx %[callee]; mov %[out], r0", "=r", "r", "r0;memory;cc") {
+    return callee()
+}
+
+Next :: (seed: u64) -> u64 { return seed * 6364136223846793005 + 1442695040888963407 }
+
+LocalMemory :: () -> s32 {
+    value: s64
+    alias := *value
+    #asm("x86_64", "movq $7, (%[alias]); movq %[input], %%rax; addq $15, %%rax; movq %%rax, %[out]", "=m:out=value", "m:input=value;r:alias", "rax;cc;memory", "volatile") {
+        value = 11
+    }
+    return cast(s32)value
+}
+
+Answer :: () -> s32 {
+    destination := New(Buffer)
+    source := New(Buffer)
+    defer free(source)
+    defer free(destination)
+    seed: u64 = 17
+    for round: 0..255 {
+        reference: [16]u16
+        for i: 0..15 {
+            seed = Next(seed)
+            destination.*.lanes[i] = ifx round == 0 then 65535 else cast(u16)(seed >> 32)
+            seed = Next(seed)
+            source.*.lanes[i] = ifx round == 0 then 1 else cast(u16)(seed >> 32)
+            reference[i] = destination.*.lanes[i] + source.*.lanes[i]
+        }
+        dst := destination.*.lanes[:]
+        src := source.*.lanes[:]
+        Add(dst, src)
+        Add(dst, dst)
+        for i: 0..15 {
+            if dst[i] != reference[i] + reference[i] || (round == 0 && src[i] != 1) { return 2 }
+        }
+    }
+    if Call(Touch) != 42 { return 3 }
+    return Mark()
+}

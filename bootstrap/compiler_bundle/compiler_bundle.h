@@ -28,7 +28,7 @@ extern "C" {
 #define SizeLimit 4294967296
 #endif
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
-#define ExecutableVersion 28
+#define ExecutableVersion 29
 #endif
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 #define ExecutableHeaderSize 64
@@ -168,6 +168,7 @@ struct ExecutableAttachment {
 struct ExecutableHeader {
     int32_t entry;
     int64_t capabilities;
+    int64_t assembly_required;
     String program;
     Slice assets;
     String program_identity;
@@ -193,6 +194,7 @@ struct ExecutableLayout {
     uint64_t optional_features;
     int32_t entry;
     int64_t capabilities;
+    int64_t assembly_required;
     int64_t assets;
     int64_t optional_sections;
     String program;
@@ -223,6 +225,7 @@ struct ExecutableFraming {
     uint64_t optional_features;
     int32_t entry;
     int64_t capabilities;
+    int64_t assembly_required;
     int64_t assets;
     int64_t optional_sections;
     ExecutableRange program;
@@ -294,7 +297,7 @@ compiler_bundle_ExecutableRequiredFeatures_ziran_inline(bool has_module_linkage)
 static inline uint32_t
 compiler_bundle_ExecutableVersionNumber_ziran_inline(void)
 {
-    return 28;
+    return 29;
 }
 #endif
 

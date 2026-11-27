@@ -100,7 +100,7 @@ int ZirNativeHelperVeneer(NativeStub *out, const NativeVeneerCalls *calls, int32
  * of its reach. */
 int ZirNativePatch(unsigned char *field, uintptr_t target, int32_t width, int64_t addend);
 
-/* This CPU's feature words, part of the code cache key. */
-uint64_t ZirNativeCpuKey(void);
+/* Usable TargetFeature bits, including the OS-enabled register state. */
+uint64_t ZirNativeCpuFeatures(void);
 
 #endif

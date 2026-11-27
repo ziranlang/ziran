@@ -148,6 +148,7 @@ AssemblyVariant :: struct {
 Assembly :: struct {
     part: [6]*u8
     architecture: s32
+    platform: s32
     features: u64
 }
 
@@ -156,6 +157,10 @@ ASM_X86 :: 1
 ASM_AARCH64 :: 2
 ASM_ARM :: 3
 ASM_WASM32 :: 4
+ASM_ANY_OS :: 0
+ASM_LINUX :: 1
+ASM_ANDROID :: 2
+ASM_WINDOWS :: 3
 ARCHITECTURE_COUNT :: 11
 
 architecture_names: [11]*u8 = .{CStr("x86_64"), CStr("x86"), CStr("aarch64"), CStr("arm"), CStr("wasm32"),
@@ -241,12 +246,31 @@ AssemblyTarget :: (assembly: *Assembly, span: IR.ZirSourceSpan) -> s32 {
     name := assembly.part[0]
     end := strchr(name, #char "+")
     length := ifx end != null then Distance(name, end) else strlen(name)
+    slash := strchr(name, #char "/")
+    scoped := slash != null && Distance(name, slash) < length
+    arch_length := ifx scoped then Distance(name, slash) else length
     assembly.architecture = -1
+    assembly.platform = ASM_ANY_OS
     assembly.features = 0
     for i: cast(s32)0..ARCHITECTURE_COUNT - 1 {
-        if SameSpan(architecture_names[i], name, length) { assembly.architecture = i }
+        if SameSpan(architecture_names[i], name, arch_length) { assembly.architecture = i }
     }
     if assembly.architecture < 0 { return AssemblyError(span, CStr("unknown #asm architecture")) }
+    if scoped {
+        os := PtrAdd(slash, 1)
+        abi_slash := strchr(os, #char "/")
+        if abi_slash == null || Distance(name, abi_slash) >= length {
+            return AssemblyError(span, CStr("#asm target requires architecture/os/abi"))
+        }
+        os_length := Distance(os, abi_slash)
+        if SameSpan(CStr("linux"), os, os_length) { assembly.platform = ASM_LINUX }
+        if SameSpan(CStr("android"), os, os_length) { assembly.platform = ASM_ANDROID }
+        if SameSpan(CStr("windows"), os, os_length) { assembly.platform = ASM_WINDOWS }
+        abi := AssemblyAbiName(assembly.architecture, assembly.platform)
+        if abi == null || !SameSpan(abi, PtrAdd(abi_slash, 1), length - Distance(name, abi_slash) - 1) {
+            return AssemblyError(span, CStr("unknown #asm architecture/os/abi combination"))
+        }
+    }
     while end != null {
         name = PtrAdd(end, 1)
         end = strchr(name, #char "+")
@@ -255,11 +279,47 @@ AssemblyTarget :: (assembly: *Assembly, span: IR.ZirSourceSpan) -> s32 {
         for i: cast(s32)0..CPU_FEATURE_COUNT - 1 {
             if SameSpan(feature_names[i], name, length) && FeatureOption(assembly.architecture, i) != null { feature = i }
         }
+        if assembly.architecture == ASM_AARCH64 && SameSpan(CStr("neon"), name, length) { feature = 18 }
         if feature < 0 { return AssemblyError(span, CStr("unknown or unsupported #asm CPU feature for architecture")) }
         if HasFeature(assembly, feature) { return AssemblyError(span, CStr("duplicate #asm CPU feature")) }
         assembly.features = assembly.features | FeatureBit(feature)
     }
     return 1
+}
+
+AssemblyAbiName :: (architecture: s32, platform: s32) -> *u8 {
+    if platform == ASM_ANY_OS { return CStr("") }
+    if architecture == ASM_X86_64 && platform == ASM_LINUX { return CStr("sysv") }
+    if architecture == ASM_X86_64 && platform == ASM_WINDOWS { return CStr("win64") }
+    if platform == ASM_LINUX || platform == ASM_ANDROID {
+        if architecture == ASM_AARCH64 { return CStr("aapcs64") }
+        if architecture == ASM_ARM { return CStr("aapcs32") }
+    }
+    return null
+}
+
+// Expose the normalized checked selector to the executable lowerer. The
+// feature numbering follows TargetFeatureBit in compiler_target.zi.
+#program_export
+AssemblyVariantSelector :: (text: *u8, span: IR.ZirSourceSpan, architecture: **u8,
+    os: **u8, abi: **u8, features: *u64) -> bool {
+    assembly: Assembly
+    assembly.part[0] = text
+    if AssemblyTarget(*assembly, span) == 0 { return false }
+    platforms: [4]*u8 = .{CStr(""), CStr("linux"), CStr("android"), CStr("windows")}
+    <<architecture = architecture_names[assembly.architecture]
+    <<os = platforms[assembly.platform]
+    <<abi = AssemblyAbiName(assembly.architecture, assembly.platform)
+    <<features = assembly.features
+    return true
+}
+
+AssemblyRequired :: (options: *u8) -> bool {
+    return Same(options, CStr("target-only")) || Same(options, CStr("volatile;target-only"))
+}
+
+AssemblyVolatile :: (options: *u8) -> bool {
+    return Same(options, CStr("volatile")) || Same(options, CStr("volatile;target-only"))
 }
 
 // One #asm argument at the cursor, which moves past it: a literal string,
@@ -369,8 +429,8 @@ ReadVariant :: (cursor: **u8, assembly: *Assembly, span: IR.ZirSourceSpan, names
     }
     if AssemblyTarget(assembly, span) == 0 { return 0 }
     options := assembly.part[5]
-    if options[0] != 0 && !Same(options, CStr("volatile")) {
-        return AssemblyError(span, CStr("#asm options must be empty or volatile"))
+    if options[0] != 0 && !AssemblyVolatile(options) && !AssemblyRequired(options) {
+        return AssemblyError(span, CStr("#asm options must be empty, volatile, target-only, or volatile;target-only"))
     }
     <<cursor = at
     return 1

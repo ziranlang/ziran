@@ -103,13 +103,15 @@ PeUnwind :: (test: *NativeTest, path: string, pe: PeFile, optional: s64) -> s64 
         count := Little(bytes, record + 2, 1)
         frame := Little(bytes, record + 3, 1)
         if !NativeAssert(test, version == 1 && flags == 0 && prologue >= 4 && prologue <= 255 &&
-            count >= 2 && count <= 5 && (frame & 15) == 5,
+            count >= 2 && (frame == 0 || frame == 5),
             CheckConcat(path, ": a malformed unwind record")) { return -1 }
         if !NativeAssert(test, record + 4 + cast(s64)count * 2 <= bytes.count,
             CheckConcat(path, ": unwind codes run past the file")) { return -1 }
         push: s64 = -1
         setfp: s64 = -1
         alloc: s64 = -1
+        allocation: u64
+        saved_end: u64
         offset: u64 = 256
         slot: s64 = 0
         while slot < cast(s64)count {
@@ -128,19 +130,34 @@ PeUnwind :: (test: *NativeTest, path: string, pe: PeFile, optional: s64) -> s64 
                 slot += 1
             } else if opcode == 2 {
                 alloc = cast(s64)code_offset
+                allocation = ((operation >> 4) + 1) * 8
                 slot += 1
             } else if opcode == 1 {
                 alloc = cast(s64)code_offset
-                slot += ifx (operation >> 4) == 1 then 3 else 2
+                large := (operation >> 4) == 1
+                fields: s64 = ifx large then 3 else 2
+                if !NativeAssert(test, slot + fields <= cast(s64)count,
+                    CheckConcat(path, ": a large stack allocation leaves the unwind codes")) { return -1 }
+                allocation = ifx large then Little(bytes, at_code + 2, 4) else Little(bytes, at_code + 2, 2) * 8
+                slot += fields
+            } else if opcode == 4 || opcode == 8 {
+                if !NativeAssert(test, frame == 0 && slot + 2 <= cast(s64)count,
+                    CheckConcat(path, ": a saved register leaves the unwind codes")) { return -1 }
+                width: u64 = ifx opcode == 4 then 8 else 16
+                end_offset := (Little(bytes, at_code + 2, 2) + 1) * width
+                if end_offset > saved_end { saved_end = end_offset }
+                slot += 2
             } else {
                 if !NativeAssert(test, false, CheckConcat(path, ": an unknown unwind opcode")) { return -1 }
             }
         }
-        if !NativeAssert(test, push >= 1 && setfp == push + 3 && bytes[code + push - 1] == cast(u8)0x55 &&
-            bytes[code + setfp - 3] == cast(u8)0x48 && bytes[code + setfp - 2] == cast(u8)0x89 &&
-            bytes[code + setfp - 1] == cast(u8)0xe5,
+        frame_end := push + 3
+        if !NativeAssert(test, push >= 1 && bytes[code + push - 1] == cast(u8)0x55 &&
+            (ifx frame == 0 then setfp == -1 else setfp == frame_end) &&
+            bytes[code + frame_end - 3] == cast(u8)0x48 && bytes[code + frame_end - 2] == cast(u8)0x89 &&
+            bytes[code + frame_end - 1] == cast(u8)0xe5,
             CheckConcat(path, ": the frame codes do not match the function's prologue")) { return -1 }
-        if !NativeAssert(test, alloc < 0 || alloc == setfp + 4 || alloc == setfp + 7,
+        if !NativeAssert(test, (alloc < 0 || alloc == frame_end + 4 || alloc == frame_end + 7) && saved_end <= allocation,
             CheckConcat(path, ": the stack allocation does not follow the frame")) { return -1 }
     }
     return size / 12

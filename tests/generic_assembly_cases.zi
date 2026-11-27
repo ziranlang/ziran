@@ -22,6 +22,183 @@ assembly_rejections: [11]AssemblyReject = .[
     .{"bad-body", "not_a_binding"}
 ];
 
+ModuleVariants :: (test: *NativeTest, zx: string) -> bool {
+    provider := CheckPath(test.work, "variant_library.zi")
+    consumer := CheckPath(test.work, "variant_consumer.zi")
+    library := CheckPath(test.work, "variant_library.zx")
+    application := CheckPath(test.work, "variant_consumer.zx")
+    if !NativeWrite(test, provider, #string END
+        Select :: () -> s32 #asm("x86_64", "movl $22, %[out]", "=r", "") { return 11 }
+END
+    ) || !NativeWrite(test, consumer, #string END
+        using Modules :: #import "std/zx_module"
+        host_api :: #system_library "host_api";
+        Select :: (handle: u64) -> s32 #foreign host_api;
+        main :: () -> s32 {
+            handle := Modules.Load("Variant")
+            return Select(handle)
+        }
+END
+    ) { return false }
+    pack := string.[zx, "--root", test.work, "--library", "variant_library", "--export", "variant_library:Select",
+        "--opt", "-o", library, provider]
+    link := string.[zx, "--root", test.work, "--entry", "variant_consumer:main", "--require-module", "Variant=variant_library",
+        "--import", "variant_consumer:Select=Variant:Select", "-o", application, consumer]
+    unused NativeRun(test, pack[:]); unused NativeRun(test, link[:])
+    run := string.[zx, "run", "--backend", "engine", "--module-root", test.work, application]
+    if !NativeExpect(test, run[:], "11\n") { return false }
+    run[3] = "native"
+    return NativeExpect(test, run[:], "22\n")
+}
+
+ArmVariantImages :: (test: *NativeTest, zx: string, native: string, root: string,
+    source: string, raw: string) -> bool {
+    checked := CheckPath(test.work, "variants-checked.zx")
+    executable := CheckPath(test.work, "variants-arm-elf")
+    build := string.[zx, "--root", root, "--entry", "zx_assembly_variants:Answer", "--opt", "--checks",
+        "-o", checked, source]
+    unused NativeRun(test, build[:])
+    targets := string.["aarch64", "armv7"]
+    platforms := string.["linux", "android"]
+    bundles := string.[raw, checked]
+    for arch: targets {
+        emulator := ifx arch == "aarch64" then "qemu-aarch64" else "qemu-arm"
+        probe := string.[emulator, "--version"]
+        can_run := NativeInvoke(test, probe[:]).code == 0
+        for platform: platforms {
+            for bundle: bundles {
+                emit := string.[native, "--target", arch, "--platform", platform, "-o", executable, bundle]
+                unused NativeRun(test, emit[:])
+                if can_run {
+                    execute := string.[emulator, "-cpu", "max", executable]
+                    unused NativeRun(test, execute[:], expected = ifx arch == "aarch64" && bundle == raw then 16 else 1)
+                }
+                if test.failed { return false }
+            }
+        }
+    }
+    return true
+}
+
+ZxVariants :: (test: *NativeTest) -> bool {
+    root := CheckPath(test.repo, "tests/spec")
+    source := CheckPath(root, "zx_assembly_variants.zi")
+    file := CheckPath(test.work, "variants.zx")
+    ir := CheckPath(test.work, "variant-ir")
+    from_ir := CheckPath(test.work, "variants-saved.zx")
+    zx := CheckPath(PathParent(test.ziran), "zi2zx")
+    native := CheckPath(PathParent(test.ziran), "zx2native")
+    build := string.[zx, "--root", root, "--entry", "zx_assembly_variants:Answer", "--opt", "-o", file, source]
+    save := string.[test.ziran, "ir", "--root", root, "-o", ir, source]
+    saved := string.[zx, "--root", ir, "--entry", "zx_assembly_variants:Answer", "--opt", "-o", from_ir,
+        CheckPath(ir, "zx_assembly_variants.zir")]
+    unused NativeRun(test, build[:]); unused NativeRun(test, save[:]); unused NativeRun(test, saved[:])
+    if !NativeAssert(test, NativeSameFile(file, from_ir), "variant source and saved IR differ") { return false }
+    engine := string.[zx, "run", "--backend", "engine", file]
+    execute := string.[zx, "run", "--backend", "native", file]
+    if !NativeExpect(test, engine[:], "1\n") { return false }
+    arch := string.["uname", "-m"]
+    host := NativeRun(test, arch[:])
+    // The mask is part of the native compilation identity even for one bundle.
+    base := test.environment.count
+    VecPush(test.environment, "ZIRAN_ZX_ASM_FEATURE_MASK=0")
+    if !NativeExpect(test, execute[:], "1\n") { return false }
+    unused VecResize(test.environment, base)
+    result := NativeRun(test, execute[:])
+    expected := result.output == "1\n"
+    if host.output == "x86_64\n" { expected = result.output == "32\n" || result.output == "16\n" }
+    if host.output == "aarch64\n" { expected = result.output == "16\n" }
+    if host.output == "armv7l\n" { expected = result.output == "16\n" || result.output == "1\n" }
+    if !NativeAssert(test, expected, CheckConcat("incorrect native result or variant marker: ", result.output)) { return false }
+    if !ArmVariantImages(test, zx, native, root, source, file) { return false }
+    if host.output != "x86_64\n" { return true }
+    if !ModuleVariants(test, zx) { return false }
+    local := CheckPath(test.work, "local-memory.zx")
+    local_build := string.[zx, "--root", root, "--entry", "zx_assembly_variants:LocalMemory", "--opt", "-o", local, source]
+    unused NativeRun(test, local_build[:])
+    local_run := string.[zx, "run", "--backend", "native", local]
+    if !NativeExpect(test, local_run[:], "22\n") { return false }
+    local_run[3] = "engine"
+    if !NativeExpect(test, local_run[:], "11\n") { return false }
+    executable := CheckPath(test.work, "variants-elf")
+    aot := string.[native, "--target", "x86_64", "--platform", "linux", "-o", executable, file]
+    unused NativeRun(test, aot[:])
+    aot_run := string.[executable]
+    unused NativeRun(test, aot_run[:], expected = 16)
+
+    only := CheckPath(test.work, "only.zi")
+    target := CheckPath(test.work, "only.zx")
+    if !NativeWrite(test, only, #string END
+        Start :: () -> s32 { print("initialized\n"); return 1 }
+        initialized: s32 = Start();
+        Pick :: () -> s32 #asm("x86_64/linux/sysv+sse2", "movl $22, %[out]", "=r", "", "", "target-only") { unreachable }
+        main :: () -> s32 { return Pick() + initialized }
+END
+    ) { return false }
+    pack := string.[zx, "--root", test.work, "--entry", "only:main", "--opt", "-o", target, only]
+    unused NativeRun(test, pack[:])
+    target_run := string.[zx, "run", "--backend", "native", target]
+    if !NativeExpect(test, target_run[:], "initialized\n23\n") { return false }
+    target_engine := string.[zx, "run", "--backend", "engine", target]
+    rejected := NativeInvoke(test, target_engine[:])
+    if !NativeAssert(test, rejected.code != 0 && rejected.output == "" && TextContains(rejected.error, "before initialization"),
+        "the engine started a target-only artifact") { return false }
+    VecPush(test.environment, "ZIRAN_ZX_ASM_FEATURE_MASK=0")
+    masked := NativeInvoke(test, target_run[:])
+    unused VecResize(test.environment, base)
+    if !NativeAssert(test, masked.code != 0 && masked.output == "" && TextContains(masked.error, "target-only procedure"),
+        "masked native load started a target-only artifact") { return false }
+    wrong_abi := string.[native, "--target", "x86_64", "--platform", "windows", "-o", executable, target]
+    mismatch := NativeInvoke(test, wrong_abi[:])
+    if !NativeAssert(test, mismatch.code != 0 && TextContains(mismatch.error, "x86_64/linux/sysv"),
+        "target-only AOT accepted an incompatible OS/ABI") { return false }
+    wasm := CheckPath(PathParent(test.ziran), "zx2wasm")
+    browser := string.[wasm, "-o", CheckPath(test.work, "only.wasm"), target]
+    unsupported := NativeInvoke(test, browser[:])
+    if !NativeAssert(test, unsupported.code != 0 && TextContains(unsupported.error, "native assembly before initialization"),
+        CheckConcat("Wasm target-only rejection: ", CheckConcat(unsupported.output, unsupported.error))) { return false }
+
+    unrepresented := CheckPath(test.work, "unrepresented.zi")
+    unrepresented_zx := CheckPath(test.work, "unrepresented.zx")
+    if !NativeWrite(test, unrepresented, #string END
+        Unrepresented :: (value: s32) -> s32 #asm("x86_64", "bswapl %[out]", "=r", "0") { return value }
+        main :: () -> s32 { return Unrepresented(1) }
+END
+    ) { return false }
+    encode := string.[zx, "--root", test.work, "--entry", "unrepresented:main", "--debug", "-o", unrepresented_zx, unrepresented]
+    unused NativeRun(test, encode[:])
+    invoke := string.[zx, "run", "--backend", "native", unrepresented_zx]
+    failure := NativeInvoke(test, invoke[:])
+    if !NativeAssert(test, failure.code != 0 && failure.output == "" &&
+        TextContains(failure.error, "assembly.gap.machine-assembly-template") &&
+        TextContains(failure.error, "Unrepresented"), CheckConcat("selected native template did not diagnose: ", failure.error)) { return false }
+    invoke[3] = "engine"
+    if !NativeExpect(test, invoke[:], "1\n") { return false }
+
+    broken := CheckPath(test.work, "broken.zi")
+    broken_zx := CheckPath(test.work, "broken.zx")
+    if !NativeWrite(test, broken, #string END
+        Recur :: (out: *s32) #asm("x86_64", "movl $10, (%[out]); 1: jmp 1b", "", "r", "memory", "volatile") {
+            print("portable body\n")
+        }
+        main :: () -> s32 {
+            value: s32
+            Recur(*value)
+            return value
+        }
+END
+    ) { return false }
+    pack_broken := string.[zx, "--root", test.work, "--entry", "broken:main", "-o", broken_zx, broken]
+    unused NativeRun(test, pack_broken[:])
+    allowed := string.[zx, "run", "--backend", "engine", broken_zx]
+    if !NativeExpect(test, allowed[:], "portable body\n0\n") { return false }
+    limited := string.[zx, "run", "--backend", "native", "--fuel", "1000", broken_zx]
+    stopped := NativeInvoke(test, limited[:], timeout = 10000)
+    return NativeAssert(test, !stopped.timed_out && stopped.code != 0 && stopped.output == "" &&
+        TextContains(stopped.error, "stopped after 1000 steps"), CheckConcat("native loop did not trap once at the execution limit: ",
+            CheckConcat(stopped.output, stopped.error)))
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "generic-assembly-")
@@ -111,6 +288,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         }
     }
     if !NativeAssert(*test, NativeSameFile(CheckPath(test.work, "source.zx"), CheckPath(test.work, "saved.zx")), "generic source/saved bundles differ") { return 1 }
+    if !ZxVariants(*test) { return 1 }
     rejected := JsonNewArray(*report)
     for item: assembly_rejections {
         path := CheckPath(test.work, CheckConcat(item.name, ".zi"))

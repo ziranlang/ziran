@@ -2,7 +2,7 @@
 
 Status: implemented. This engine is the portable instruction engine:
 `libziran` embeds it, and `ziran run` and the embedding API execute
-revision-28 `.zx` containers on it.
+revision-29 `.zx` containers on it.
 
 ## Public API
 

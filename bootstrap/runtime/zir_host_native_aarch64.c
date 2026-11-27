@@ -159,9 +159,17 @@ ZirNativePatch(unsigned char *field, uintptr_t target, int32_t width, int64_t ad
 }
 
 uint64_t
-ZirNativeCpuKey(void)
+ZirNativeCpuFeatures(void)
 {
-    return (uint64_t)getauxval(AT_HWCAP) ^ ((uint64_t)getauxval(AT_HWCAP2) << 32);
+    /* Linux/Android HWCAP bits report that the kernel supports the feature. */
+    uint64_t cap = getauxval(AT_HWCAP);
+    uint64_t simd = (cap >> 1) & 1u;
+    return (((cap >> 3) & 1u) << 12) | /* AES */
+           (((cap >> 7) & 1u) << 14) | /* CRC32 */
+           (((cap >> 4) & 1u) << 15) | /* PMULL */
+           (((cap >> 6) & 1u) << 16) | /* SHA2 */
+           (((cap >> 8) & 1u) << 17) | /* ATOMICS */
+           (simd << 18) | (simd << 19); /* ASIMD/NEON */
 }
 
 #endif

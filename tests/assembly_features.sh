@@ -10,7 +10,7 @@ unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 cat > "$work/count.zi" <<'ZI'
 Pair :: struct { bits: u64; count: u64; }
 #program_export
-Count :: (value: u64) -> s64 #asm("x86_64+popcnt", "popcnt %[value], %[out]", "=r", "r", "cc", "") #asm("aarch64+simd", "fmov d0, %[value]\n\tcnt v0.8b, v0.8b\n\taddv b0, v0.8b\n\tumov %w[out], v0.b[0]", "=r", "r", "v0", "") {
+Count :: (value: u64) -> s64 #asm("x86_64+popcnt", "popcnt %[value], %[out]", "=r", "r", "cc", "") #asm("aarch64+neon", "fmov d0, %[value]\n\tcnt v0.8b, v0.8b\n\taddv b0, v0.8b\n\tumov %w[out], v0.b[0]", "=r", "r", "v0", "") {
     total: s64
     bits := value
     while bits != 0 { total += cast(s64)(bits & 1); bits >>= 1 }
@@ -355,8 +355,8 @@ ZI
 reject 'unsupported #asm CPU feature' <<'ZI'
 F :: () #asm("arm+simd", "", "", "", "", "") {}
 ZI
-reject 'unsupported #asm CPU feature' <<'ZI'
-F :: () #asm("aarch64+neon", "", "", "", "", "") {}
+reject 'duplicate #asm CPU feature' <<'ZI'
+F :: () #asm("aarch64+neon+simd", "", "", "", "", "") {}
 ZI
 reject 'unsupported #asm CPU feature' <<'ZI'
 F :: () #asm("wasm32+neon", "", "", "", "", "") {}

@@ -642,6 +642,7 @@ CheckBlock :: (fn: *IR.ZirFunction, statement: s32, binding: AssemblyBinding, co
     mismatch := CStr("#asm block variants must bind the same operands in the same order")
     cursor := st.assembly_text
     architectures_seen: [30]s32
+    platforms_seen: [30]s32
     features_seen: [30]u64
     variants: s32 = 0
     first: BlockBindings
@@ -651,12 +652,16 @@ CheckBlock :: (fn: *IR.ZirFunction, statement: s32, binding: AssemblyBinding, co
         Zero(cast(*u8)*current, size_of(BlockBindings))
         if ReadAssembly(*cursor, *assembly, st.span) == 0 || ReadBlockBindings(*assembly, *current, st.span) == 0 { return 0 }
         if variants == ASSEMBLY_OPERANDS { return AssemblyError(st.span, CStr("too many #asm block variants")) }
+        if AssemblyRequired(assembly.part[5]) { return AssemblyError(st.span, CStr("target-only #asm requires a procedure")) }
         for seen: cast(s32)0..variants - 1 {
-            if architectures_seen[seen] == assembly.architecture && (features_seen[seen] & assembly.features) == features_seen[seen] {
+            covers_os := platforms_seen[seen] == ASM_ANY_OS || platforms_seen[seen] == assembly.platform
+            if architectures_seen[seen] == assembly.architecture && covers_os &&
+                (features_seen[seen] & assembly.features) == features_seen[seen] {
                 return AssemblyError(st.span, CStr("duplicate or shadowed #asm block variant"))
             }
         }
         architectures_seen[variants] = assembly.architecture
+        platforms_seen[variants] = assembly.platform
         features_seen[variants] = assembly.features
         aliases: [30]*u8
         constraints: [30]*u8
@@ -873,28 +878,36 @@ CheckProcedureVariant :: (assembly: *Assembly, fn: *IR.ZirFunction, outputs: *As
 // behind an earlier baseline or feature subset. 0 after a diagnostic.
 CheckProcedureVariants :: (fn: *IR.ZirFunction, outputs: *AssemblyOutputs, parameters: *Parameters, deferred_outputs: bool) -> s32 {
     architecture: [30]s32
+    platforms: [30]s32
     features: [30]u64
     variants: s32 = 0
+    required := false
     cursor := fn.assembly_text
     while NextByte(cursor) != 0 {
         assembly: Assembly
         if ReadAssembly(*cursor, *assembly, fn.span) == 0 { return 0 }
-        duplicate := false
+        if variants == 0 { required = AssemblyRequired(assembly.part[5]) }
+        else if required != AssemblyRequired(assembly.part[5]) {
+            return AssemblyError(fn.span, CStr("all #asm variants of a procedure must agree on target-only"))
+        }
+        if variants == ASSEMBLY_OPERANDS { return AssemblyError(fn.span, CStr("too many #asm variants")) }
         for seen: cast(s32)0..variants - 1 {
-            if architecture[seen] != assembly.architecture { continue }
-            if features[seen] == assembly.features {
-                duplicate = true
-            } else if (features[seen] & assembly.features) == features[seen] {
+            covers_os := platforms[seen] == ASM_ANY_OS || platforms[seen] == assembly.platform
+            if architecture[seen] == assembly.architecture && covers_os && (features[seen] & assembly.features) == features[seen] {
+                if features[seen] == assembly.features && platforms[seen] == assembly.platform {
+                    return AssemblyError(fn.span, CStr("duplicate or too many #asm architecture variants"))
+                }
                 return AssemblyError(fn.span, CStr("#asm variant is shadowed by an earlier feature or baseline variant"))
             }
         }
-        if duplicate || variants == ASSEMBLY_OPERANDS {
-            return AssemblyError(fn.span, CStr("duplicate or too many #asm architecture variants"))
-        }
         architecture[variants] = assembly.architecture
+        platforms[variants] = assembly.platform
         features[variants] = assembly.features
         variants += 1
         if CheckProcedureVariant(*assembly, fn, outputs, parameters, deferred_outputs) == 0 { return 0 }
+    }
+    if required && (fn.stmt_count != 1 || StatementAt(fn, 0).kind != .UNREACHABLE) {
+        return AssemblyError(fn.span, CStr("a target-only #asm procedure requires a single unreachable statement as its body"))
     }
     return ifx variants > 0 then 1 else 0
 }
@@ -917,7 +930,9 @@ CheckAssembly :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> s32 {
     }
     for i: cast(s32)0..parameters.count - 1 {
         parameter := ParameterAt(parameters, i)
-        if parameter.name == null || (!TemplateOperandType(fn, parameter.type) && !SliceOperand(parameter.type)) {
+        declared := ifx parameter.type != null then FindType(module, parameter.type, null) else null
+        procedure := declared != null && declared.is_procedure_type != 0
+        if parameter.name == null || (!TemplateOperandType(fn, parameter.type) && !SliceOperand(parameter.type) && !procedure) {
             FreeAssemblyOutputs(outputs)
             return AssemblyError(fn.span, CStr("#asm parameters must be named scalars, pointers or slices of scalars"))
         }

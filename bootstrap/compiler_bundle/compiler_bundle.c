@@ -950,7 +950,7 @@ compiler_bundle_ExecutablePayload(ExecutableWriter* writer, ExecutableHeader hea
         compiler_bundle_ExecutableU32(writer, 3);
         compiler_bundle_ExecutableU32(writer, (uint32_t)(header.entry));
         compiler_bundle_ExecutableU32(writer, (uint32_t)(header.capabilities));
-        compiler_bundle_ExecutableU32(writer, 0);
+        compiler_bundle_ExecutableU32(writer, (uint32_t)(header.assembly_required));
         compiler_bundle_ExecutableU32(writer, (uint32_t)((int64_t)(header.assets).length));
         compiler_bundle_ExecutableU32(writer, 0);
         compiler_bundle_ExecutableU32(writer, 0);
@@ -1023,6 +1023,9 @@ compiler_bundle_ExecutableValidateHeader(ExecutableHeader header)
     if (header.capabilities < 0LL || header.capabilities > 4096LL) {
         return ExecutableProblem_Capabilities;
     }
+    if (header.assembly_required < 0LL || header.assembly_required > 2147483647LL) {
+        return ExecutableProblem_Variant;
+    }
     if ((int64_t)(header.module_linkage).length < 0LL || ((int64_t)(header.module_linkage).length != 0LL && (int64_t)(header.interface).length <= 0LL)) {
         return ExecutableProblem_Section;
     }
@@ -1037,12 +1040,12 @@ compiler_bundle_ExecutableValidateHeader(ExecutableHeader header)
     uint32_t previous = 2147483651;
     {
         Slice value_1 = header.attachments;
-        Slice loop_view_17 = value_1;
-        int64_t loop_count_17 = (int64_t)(loop_view_17).length;
-        int64_t loop_cursor_17 = 0LL;
-        while (loop_cursor_17 < loop_count_17) {
-            int64_t loop_index_17 = loop_cursor_17;
-            ExecutableAttachment attachment = ((ExecutableAttachment *)loop_view_17.data)[loop_index_17];
+        Slice loop_view_20 = value_1;
+        int64_t loop_count_20 = (int64_t)(loop_view_20).length;
+        int64_t loop_cursor_20 = 0LL;
+        while (loop_cursor_20 < loop_count_20) {
+            int64_t loop_index_20 = loop_cursor_20;
+            ExecutableAttachment attachment = ((ExecutableAttachment *)loop_view_20.data)[loop_index_20];
             ExecutableAttachment value_2 = attachment;
             uint32_t value_3 = previous;
             bool value_4 = false;
@@ -1055,7 +1058,7 @@ compiler_bundle_ExecutableValidateHeader(ExecutableHeader header)
                 return ExecutableProblem_Section;
             }
             previous = attachment.kind;
-            loop_cursor_17 = (int64_t)((uint64_t)loop_cursor_17 + UINT64_C(1));
+            loop_cursor_20 = (int64_t)((uint64_t)loop_cursor_20 + UINT64_C(1));
         }
     }
     Slice empty = {0};
@@ -1362,7 +1365,7 @@ compiler_bundle_ExecutableFrame(String bytes, ExecutableReadSource* source, int6
         (*value_4) = ExecutableProblem_Legacy;
         return layout;
     }
-    if (version != 28) {
+    if (version != 29) {
         ExecutableProblem* value_5 = &(layout.problem);
         (*value_5) = ExecutableProblem_Version;
         return layout;
@@ -1684,15 +1687,17 @@ compiler_bundle_ExecutableFrame(String bytes, ExecutableReadSource* source, int6
     }
     int64_t* value_73 = &(layout.capabilities);
     (*value_73) = (int64_t)(capabilities);
-    if (variants != 0) {
+    if (variants > 2147483647) {
         ExecutableProblem* value_74 = &(layout.problem);
         (*value_74) = ExecutableProblem_Variant;
         return layout;
     }
-    ExecutableRange* value_75 = &(layout.identities);
-    (*value_75) = (ExecutableRange){.at = cursor.at, .size = 96LL};
-    int64_t* value_76 = &(layout.assets);
-    (*value_76) = manifest_assets;
+    int64_t* value_75 = &(layout.assembly_required);
+    (*value_75) = (int64_t)(variants);
+    ExecutableRange* value_76 = &(layout.identities);
+    (*value_76) = (ExecutableRange){.at = cursor.at, .size = 96LL};
+    int64_t* value_77 = &(layout.assets);
+    (*value_77) = manifest_assets;
     return layout;
 }
 
@@ -1716,6 +1721,7 @@ compiler_bundle_ExecutableDecodeInternal(String bytes, Slice assets)
     value_0.optional_features = frame.optional_features;
     value_0.entry = frame.entry;
     value_0.capabilities = frame.capabilities;
+    value_0.assembly_required = frame.assembly_required;
     value_0.optional_sections = frame.optional_sections;
     String value_1 = bytes;
     ExecutableRange value_2 = frame.program;
@@ -1949,7 +1955,7 @@ compiler_bundle_ExecutableEncode(Slice output, ExecutableHeader header)
     }
     ExecutableWriter writer = {.output = output};
     compiler_bundle_ExecutableU32(&(writer), 22618);
-    compiler_bundle_ExecutableU32(&(writer), 28);
+    compiler_bundle_ExecutableU32(&(writer), 29);
     compiler_bundle_ExecutableU32(&(writer), 64);
     compiler_bundle_ExecutableU32(&(writer), 32);
     bool value_3 = (int64_t)(header.module_linkage).length != 0LL;
@@ -2049,7 +2055,7 @@ compiler_bundle_ExecutableDecode(String bytes, Slice assets)
 uint32_t
 compiler_bundle_ExecutableVersionNumber(void)
 {
-    return 28;
+    return 29;
 }
 
 String
@@ -2110,7 +2116,7 @@ compiler_bundle_ExecutableMessage(ExecutableProblem problem)
         return StringLiteral("executable ZX requires unsupported host capabilities");
     }
     if (problem == ExecutableProblem_Variant) {
-        return StringLiteral("executable ZX requires unsupported native variants");
+        return StringLiteral("invalid executable ZX assembly requirement");
     }
     if (problem == ExecutableProblem_Assets) {
         return StringLiteral("invalid executable ZX asset section");

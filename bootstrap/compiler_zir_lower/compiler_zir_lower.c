@@ -151,6 +151,16 @@ void zir_foreign_compiler_zir_lower__DiagnosticOutOfMemory(void) __asm__("_Diagn
 void zir_foreign_compiler_zir_lower__DiagnosticOutOfMemory(void) __asm__("DiagnosticOutOfMemory");
 #endif
 #ifdef __APPLE__
+int32_t zir_foreign_compiler_zir_lower__AssemblyVariantNext(ZirModule* module, ZirFunction* function, int32_t statement, uint8_t** cursor, CheckedAssemblyVariant* variant) __asm__("_AssemblyVariantNext");
+#else
+int32_t zir_foreign_compiler_zir_lower__AssemblyVariantNext(ZirModule* module, ZirFunction* function, int32_t statement, uint8_t** cursor, CheckedAssemblyVariant* variant) __asm__("AssemblyVariantNext");
+#endif
+#ifdef __APPLE__
+bool zir_foreign_compiler_zir_lower__AssemblyVariantSelector(uint8_t* text, ZirSourceSpan span, uint8_t** architecture, uint8_t** os, uint8_t** abi, uint64_t* features) __asm__("_AssemblyVariantSelector");
+#else
+bool zir_foreign_compiler_zir_lower__AssemblyVariantSelector(uint8_t* text, ZirSourceSpan span, uint8_t** architecture, uint8_t** os, uint8_t** abi, uint64_t* features) __asm__("AssemblyVariantSelector");
+#endif
+#ifdef __APPLE__
 int32_t zir_foreign_compiler_zir_lower__ResolveGlobalAt(ZirModule* module, uint8_t* name, uint8_t* path, ZirModule** owner, ZirGlobal** global) __asm__("_ResolveGlobalAt");
 #else
 int32_t zir_foreign_compiler_zir_lower__ResolveGlobalAt(ZirModule* module, uint8_t* name, uint8_t* path, ZirModule** owner, ZirGlobal** global) __asm__("ResolveGlobalAt");
@@ -463,6 +473,8 @@ static int32_t compiler_zir_lower_BlockBarrier(AssemblyFunction* function, int32
 static int32_t compiler_zir_lower_EmittedBarrier(AssemblyFunction* function, int32_t block, int32_t end, int32_t blocks) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_Rederive(AssemblyProgram* program, AssemblyFunction* function, int32_t block, int32_t value, int32_t depth, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
 static void compiler_zir_lower_Sequence(AssemblyProgram* program, AssemblyFunction* function, int32_t begin, int32_t end, int32_t depth) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_FunctionVariants(AssemblyProgram* program, AssemblyFunction* function, ZirFunction* source, int32_t statement, uint8_t* cursor, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
+static void compiler_zir_lower_LocalAssembly(AssemblyProgram* program, AssemblyFunction* function, int32_t index, int32_t close, int32_t depth) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_Function(AssemblyProgram* program, ZirModule* module, ZirFunction* source) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_HostFunction(AssemblyProgram* program, ZirModule* module, uint8_t* asked, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_StartupModule(AssemblyProgram* program, ZirProgram* source, int32_t module_index, uint8_t* state) ZIRAN_MAYBE_UNUSED;
@@ -3514,30 +3526,68 @@ compiler_zir_lower_FindAddressed(AssemblyProgram* program, AssemblyFunction* fun
             (*value_114) = statement;
             scope_count = (int32_t)((uint32_t)scope_count + 1u);
         }
-        bool value_115 = ((ZirStmtKind)(body->kind)) == ((ZirStmtKind)(6)) || ((ZirStmtKind)(body->kind)) == ((ZirStmtKind)(7));
-        if (value_115 || ((ZirStmtKind)(body->kind)) == ((ZirStmtKind)(1))) {
-            int32_t* value_116 = &(opens[open_count]);
-            (*value_116) = scope_count;
+        bool value_115 = ((ZirStmtKind)(body->kind)) == ((ZirStmtKind)(1)) && ((uint8_t*)body->names.assembly_text) != ((void *)0);
+        if (value_115 && body->names.assembly_text[0] != 0) {
+            uint8_t* cursor = (uint8_t*)body->names.assembly_text;
+            CheckedAssemblyVariant variant = {0};
+            while (zir_foreign_compiler_zir_lower__AssemblyVariantNext(function->module, source, statement, &(cursor), &(variant)) == 1) {
+                {
+                    int32_t range_first_70 = 0;
+                    int32_t range_last_70 = (int32_t)(((uint32_t)(variant.outputs) + (uint32_t)(variant.inputs)) - 1u);
+                    int32_t operand = range_first_70;
+                    if (operand <= range_last_70) for (;;) {
+                        CheckedAssemblyOperand value = (variant.operands)[operand];
+                        bool value_116 = compiler_lowered_ir_LirAssemblyUsesMemory(compiler_ir_CText(value.constraint));
+                        if (!value_116) {
+                            if (operand == range_last_70) {
+                                break;
+                            }
+                            operand = (int32_t)((uint32_t)operand + 1u);
+                            continue;
+                        }
+                        int32_t binding = scope_count;
+                        while (binding > 0) {
+                            binding = (int32_t)((uint32_t)binding - 1u);
+                            String value_117 = compiler_ir_CText((scope[binding]).name);
+                            if (!StringEqual(value_117, compiler_ir_CText(value.binding))) {
+                                continue;
+                            }
+                            uint8_t* value_118 = &(function->addressed[(scope[binding]).source]);
+                            (*value_118) = 1;
+                            break;
+                        }
+                        if (operand == range_last_70) {
+                            break;
+                        }
+                        operand = (int32_t)((uint32_t)operand + 1u);
+                    }
+                }
+            }
+        }
+        bool value_119 = ((ZirStmtKind)(body->kind)) == ((ZirStmtKind)(6)) || ((ZirStmtKind)(body->kind)) == ((ZirStmtKind)(7));
+        if (value_119 || ((ZirStmtKind)(body->kind)) == ((ZirStmtKind)(1))) {
+            int32_t* value_120 = &(opens[open_count]);
+            (*value_120) = scope_count;
             open_count = (int32_t)((uint32_t)open_count + 1u);
         }
         if (((ZirStmtKind)(body->kind)) == ((ZirStmtKind)(2))) {
             if (open_count == 0) {
-                AssemblyProgram* value_117 = program;
-                ZirSourceSpan value_118 = body->span;
-                String value_119 = StringLiteral("unbalanced checked statement blocks");
-                int32_t value_120 = 0;
+                AssemblyProgram* value_121 = program;
+                ZirSourceSpan value_122 = body->span;
+                String value_123 = StringLiteral("unbalanced checked statement blocks");
+                int32_t value_124 = 0;
                 {
-                    AssemblyProgram* program = value_117;
-                    ZirSourceSpan span = value_118;
-                    String message = value_119;
+                    AssemblyProgram* program = value_121;
+                    ZirSourceSpan span = value_122;
+                    String message = value_123;
                     if (program->failed == 0) {
                         compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                     }
-                    int32_t* value_122 = &(program->failed);
-                    (*value_122) = 1;
-                    value_120 = -1;
+                    int32_t* value_126 = &(program->failed);
+                    (*value_126) = 1;
+                    value_124 = -1;
                 }
-                (void)value_120;
+                (void)value_124;
                 return 0;
             }
             open_count = (int32_t)((uint32_t)open_count - 1u);
@@ -3549,18 +3599,18 @@ compiler_zir_lower_FindAddressed(AssemblyProgram* program, AssemblyFunction* fun
     while (index < source->expr_count && program->failed == 0) {
         ZirExpr* expression = &(source->exprs[index]);
         int32_t target = -1;
-        bool value_123 = ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(7));
-        if (value_123 && StringEqual(compiler_ir_CText(&(expression->op[0])), StringLiteral("&"))) {
+        bool value_127 = ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(7));
+        if (value_127 && StringEqual(compiler_ir_CText(&(expression->op[0])), StringLiteral("&"))) {
             target = expression->right;
         } else {
-            bool value_124 = ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(16)) && expression->left >= 0;
-            if (value_124 && zir_foreign_compiler_zir_lower__CArrayValueType((uint8_t*)(source->exprs[expression->left]).type) != 0) {
+            bool value_128 = ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(16)) && expression->left >= 0;
+            if (value_128 && zir_foreign_compiler_zir_lower__CArrayValueType((uint8_t*)(source->exprs[expression->left]).type) != 0) {
                 target = expression->left;
             } else {
-                bool value_125 = ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(8)) && expression->left >= 0;
-                bool value_126 = value_125 && StringEqual(compiler_ir_CText((uint8_t*)expression->name), StringLiteral("data"));
-                bool value_127 = value_126;
-                if (value_127 && zir_foreign_compiler_zir_lower__CArrayValueType((uint8_t*)(source->exprs[expression->left]).type) != 0) {
+                bool value_129 = ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(8)) && expression->left >= 0;
+                bool value_130 = value_129 && StringEqual(compiler_ir_CText((uint8_t*)expression->name), StringLiteral("data"));
+                bool value_131 = value_130;
+                if (value_131 && zir_foreign_compiler_zir_lower__CArrayValueType((uint8_t*)(source->exprs[expression->left]).type) != 0) {
                     target = expression->left;
                 }
             }
@@ -3573,8 +3623,8 @@ compiler_zir_lower_FindAddressed(AssemblyProgram* program, AssemblyFunction* fun
             target = (source->exprs[target]).left;
         }
         if (target >= 0 && target < source->expr_count && binding_of[target] >= 0) {
-            uint8_t* value_128 = &(function->addressed[binding_of[target]]);
-            (*value_128) = 1;
+            uint8_t* value_132 = &(function->addressed[binding_of[target]]);
+            (*value_132) = 1;
         }
         index = (int32_t)((uint32_t)index + 1u);
     }
@@ -34724,37 +34774,581 @@ compiler_zir_lower_Sequence(AssemblyProgram* program, AssemblyFunction* function
             }
         } else if (((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(1))) {
             int32_t close = compiler_zir_lower_Close(program, function->source, index, end);
-            compiler_zir_lower_Sequence(program, function, (int32_t)((uint32_t)index + 1u), close, (int32_t)((uint32_t)depth + 1u));
+            bool value_255 = ((uint8_t*)statement->names.assembly_text) != ((void *)0) && statement->names.assembly_text[0] != 0;
+            if (value_255 && !function->checking) {
+                compiler_zir_lower_LocalAssembly(program, function, index, close, depth);
+            } else {
+                compiler_zir_lower_Sequence(program, function, (int32_t)((uint32_t)index + 1u), close, (int32_t)((uint32_t)depth + 1u));
+            }
             index = close;
         } else if (((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(15))) {
             compiler_zir_lower_Emit(program, function, (LirOp)(44), 0, (void *)0, 0, -1, statement->span);
-            int32_t* value_255 = &(function->current);
-            (*value_255) = -1;
+            int32_t* value_256 = &(function->current);
+            (*value_256) = -1;
         } else {
-            AssemblyProgram* value_256 = program;
-            ZirSourceSpan value_257 = statement->span;
-            String value_258 = StringLiteral("statement is outside the initial direct scalar backend");
-            int32_t value_259 = 0;
+            AssemblyProgram* value_257 = program;
+            ZirSourceSpan value_258 = statement->span;
+            String value_259 = StringLiteral("statement is outside the initial direct scalar backend");
+            int32_t value_260 = 0;
             {
-                AssemblyProgram* program = value_256;
-                ZirSourceSpan span = value_257;
-                String message = value_258;
+                AssemblyProgram* program = value_257;
+                ZirSourceSpan span = value_258;
+                String message = value_259;
                 if (program->failed == 0) {
                     compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                 }
-                int32_t* value_261 = &(program->failed);
-                (*value_261) = 1;
-                value_259 = -1;
+                int32_t* value_262 = &(program->failed);
+                (*value_262) = 1;
+                value_260 = -1;
             }
-            (void)value_259;
+            (void)value_260;
         }
         index = (int32_t)((uint32_t)index + 1u);
     }
     if (end > begin) {
         compiler_zir_lower_DropBindings(program, function, outer_bindings, (function->source->stmts[((int32_t)((uint32_t)end - 1u))]).span);
     }
-    int32_t* value_262 = &(function->bindings.count);
-    (*value_262) = outer_bindings;
+    int32_t* value_263 = &(function->bindings.count);
+    (*value_263) = outer_bindings;
+}
+
+static bool
+compiler_zir_lower_FunctionVariants(AssemblyProgram* program, AssemblyFunction* function, ZirFunction* source, int32_t statement, uint8_t* cursor, ZirSourceSpan span)
+{
+    if (cursor == ((void *)0) || cursor[0] == 0) {
+        return true;
+    }
+    LirAssemblyVariant variants[30] = {0};
+    int32_t count = 0;
+    while (program->failed == 0) {
+        CheckedAssemblyVariant checked = {0};
+        int32_t status = zir_foreign_compiler_zir_lower__AssemblyVariantNext(function->module, source, statement, &(cursor), &(checked));
+        if (status == 0) {
+            break;
+        }
+        if (status < 0 || count == 30) {
+            AssemblyProgram* value_0 = program;
+            ZirSourceSpan value_1 = span;
+            String value_2 = StringLiteral("invalid checked assembly variant");
+            int32_t value_3 = 0;
+            {
+                AssemblyProgram* program = value_0;
+                ZirSourceSpan span = value_1;
+                String message = value_2;
+                if (program->failed == 0) {
+                    compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
+                }
+                int32_t* value_5 = &(program->failed);
+                (*value_5) = 1;
+                value_3 = -1;
+            }
+            (void)value_3;
+            return false;
+        }
+        uint8_t* architecture = (void *)0;
+        uint8_t* os = (void *)0;
+        uint8_t* abi = (void *)0;
+        uint64_t features = 0;
+        bool value_6 = zir_foreign_compiler_zir_lower__AssemblyVariantSelector(checked.target, span, &(architecture), &(os), &(abi), &(features));
+        if (!value_6) {
+            AssemblyProgram* value_7 = program;
+            ZirSourceSpan value_8 = span;
+            String value_9 = StringLiteral("invalid checked assembly selector");
+            int32_t value_10 = 0;
+            {
+                AssemblyProgram* program = value_7;
+                ZirSourceSpan span = value_8;
+                String message = value_9;
+                if (program->failed == 0) {
+                    compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
+                }
+                int32_t* value_12 = &(program->failed);
+                (*value_12) = 1;
+                value_10 = -1;
+            }
+            (void)value_10;
+            return false;
+        }
+        int32_t operand_count = (int32_t)((uint32_t)(checked.outputs) + (uint32_t)(checked.inputs));
+        void* value_13 = compiler_zir_lower_Allocate(program, (size_t)(operand_count), sizeof(LirAssemblyOperand));
+        LirAssemblyOperand* operands = (LirAssemblyOperand*)(value_13);
+        if (operand_count > 0 && operands == ((void *)0)) {
+            return false;
+        }
+        {
+            int32_t range_first_28 = 0;
+            int32_t range_last_28 = (int32_t)((uint32_t)operand_count - 1u);
+            int32_t index = range_first_28;
+            if (index <= range_last_28) for (;;) {
+                CheckedAssemblyOperand operand = (checked.operands)[index];
+                LirAssemblyOperand* value_14 = &(operands[index]);
+                LirAssemblyOperand value_15 = {0};
+                String value_16 = compiler_zir_lower_Owned(compiler_zir_lower_Text(program, operand.alias));
+                value_15.alias = value_16;
+                String value_17 = compiler_zir_lower_Owned(compiler_zir_lower_Text(program, operand.constraint));
+                value_15.constraint = value_17;
+                (*value_14) = value_15;
+                if (index == range_last_28) {
+                    break;
+                }
+                index = (int32_t)((uint32_t)index + 1u);
+            }
+        }
+        String options = compiler_zir_lower_Owned(compiler_zir_lower_Text(program, checked.options));
+        bool* value_18 = &(function->result.assembly_required);
+        bool value_19 = StringEqual(options, StringLiteral("target-only")) || StringEqual(options, StringLiteral("volatile;target-only"));
+        (*value_18) = value_19;
+        LirAssemblyVariant value_20 = {0};
+        String value_21 = compiler_zir_lower_Owned(compiler_zir_lower_Text(program, architecture));
+        value_20.architecture = value_21;
+        String value_22 = compiler_zir_lower_Owned(compiler_zir_lower_Text(program, os));
+        value_20.os = value_22;
+        String value_23 = compiler_zir_lower_Owned(compiler_zir_lower_Text(program, abi));
+        value_20.abi = value_23;
+        value_20.features = features;
+        String value_24 = compiler_zir_lower_Owned(compiler_zir_lower_Text(program, checked.text));
+        value_20.template = value_24;
+        String value_25 = compiler_zir_lower_Owned(compiler_zir_lower_Text(program, checked.clobbers));
+        value_20.clobbers = value_25;
+        value_20.outputs = checked.outputs;
+        bool value_26 = StringEqual(options, StringLiteral("volatile")) || StringEqual(options, StringLiteral("volatile;target-only"));
+        value_20.ziran_keyword_volatile_0 = value_26;
+        LirAssemblyVariant variant = value_20;
+        SliceParts* parts = (SliceParts*)(&(variant.operands));
+        void** value_27 = &(parts->data);
+        (*value_27) = (void*)(operands);
+        int64_t* value_28 = &(parts->length);
+        (*value_28) = (int64_t)(operand_count);
+        LirAssemblyVariant* value_29 = &(variants[count]);
+        (*value_29) = variant;
+        count = (int32_t)((uint32_t)count + 1u);
+    }
+    if (program->failed != 0) {
+        return false;
+    }
+    void* stored = compiler_zir_lower_Allocate(program, (size_t)(count), sizeof(LirAssemblyVariant));
+    if (stored == ((void *)0)) {
+        return count == 0;
+    }
+    zir_foreign_compiler_zir_lower__memcpy(stored, (void*)(&(variants[0])), (size_t)(count) * sizeof(LirAssemblyVariant));
+    SliceParts* parts = (SliceParts*)(&(function->result.variants));
+    void** value_30 = &(parts->data);
+    (*value_30) = stored;
+    int64_t* value_31 = &(parts->length);
+    (*value_31) = (int64_t)(count);
+    return true;
+}
+
+static void
+compiler_zir_lower_LocalAssembly(AssemblyProgram* program, AssemblyFunction* function, int32_t index, int32_t close, int32_t depth)
+{
+    ZirStmt* statement = &(function->source->stmts[index]);
+    ZirSourceSpan span = statement->span;
+    uint8_t* variants = (uint8_t*)statement->names.assembly_text;
+    uint8_t* cursor = variants;
+    CheckedAssemblyVariant first = {0};
+    if (zir_foreign_compiler_zir_lower__AssemblyVariantNext(function->module, function->source, index, &(cursor), &(first)) != 1) {
+        AssemblyProgram* value_0 = program;
+        ZirSourceSpan value_1 = span;
+        String value_2 = StringLiteral("invalid checked local assembly bindings");
+        int32_t value_3 = 0;
+        {
+            AssemblyProgram* program = value_0;
+            ZirSourceSpan span = value_1;
+            String message = value_2;
+            if (program->failed == 0) {
+                compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
+            }
+            int32_t* value_5 = &(program->failed);
+            (*value_5) = 1;
+            value_3 = -1;
+        }
+        (void)value_3;
+        return;
+    }
+    int32_t operands = (int32_t)((uint32_t)(first.outputs) + (uint32_t)(first.inputs));
+    int32_t bindings[30] = {0};
+    int32_t inputs[60] = {0};
+    void* value_6 = compiler_zir_lower_Allocate(program, (size_t)(((int32_t)((uint32_t)(first.outputs) + 1u))), sizeof(int32_t));
+    int32_t* fields = (int32_t*)(value_6);
+    void* value_7 = compiler_zir_lower_Allocate(program, 1, sizeof(AssemblyFunction));
+    AssemblyFunction* gate = (AssemblyFunction*)(value_7);
+    if (program->failed != 0 || gate == ((void *)0) || fields == ((void *)0)) {
+        return;
+    }
+    ZirModule** value_8 = &(gate->module);
+    (*value_8) = function->module;
+    bool* value_9 = &(gate->result.assembly_gate);
+    (*value_9) = true;
+    bool value_10 = compiler_zir_lower_FunctionVariants(program, gate, function->source, index, variants, span);
+    if (!value_10) {
+        return;
+    }
+    int32_t parameters = first.inputs;
+    {
+        int32_t range_first_23 = 0;
+        int32_t range_last_23 = (int32_t)((uint32_t)operands - 1u);
+        int32_t operand = range_first_23;
+        if (operand <= range_last_23) for (;;) {
+            if (compiler_lowered_ir_LirAssemblyGateAddressed(gate->result.variants, (int64_t)(operand))) {
+                parameters = (int32_t)((uint32_t)parameters + 1u);
+            }
+            if (operand == range_last_23) {
+                break;
+            }
+            operand = (int32_t)((uint32_t)operand + 1u);
+        }
+    }
+    void* value_11 = compiler_zir_lower_Allocate(program, (size_t)(parameters), sizeof(int32_t));
+    int32_t* types = (int32_t*)(value_11);
+    if (parameters > 0 && types == ((void *)0)) {
+        return;
+    }
+    {
+        int32_t range_first_32 = 0;
+        int32_t range_last_32 = (int32_t)((uint32_t)operands - 1u);
+        int32_t operand = range_first_32;
+        if (operand <= range_last_32) for (;;) {
+            int32_t binding = compiler_zir_lower_Binding(function, (first.operands[operand]).binding);
+            if (binding < 0) {
+                AssemblyProgram* value_12 = program;
+                ZirSourceSpan value_13 = span;
+                String value_14 = StringLiteral("assembly operand is outside the lowered scope");
+                int32_t value_15 = 0;
+                {
+                    AssemblyProgram* program = value_12;
+                    ZirSourceSpan span = value_13;
+                    String message = value_14;
+                    if (program->failed == 0) {
+                        compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
+                    }
+                    int32_t* value_17 = &(program->failed);
+                    (*value_17) = 1;
+                    value_15 = -1;
+                }
+                (void)value_15;
+                return;
+            }
+            int32_t* value_18 = &(bindings[operand]);
+            (*value_18) = binding;
+            AssemblyBinding local = function->bindings.data[binding];
+            if (operand < first.outputs) {
+                int32_t* value_19 = &(fields[operand]);
+                (*value_19) = local.type;
+            } else {
+                int32_t input = (int32_t)((uint32_t)operand - (uint32_t)(first.outputs));
+                int32_t* value_20 = &(inputs[input]);
+                (*value_20) = local.value;
+                if (local.storage_type >= 0) {
+                    int32_t* value_21 = &(inputs[input]);
+                    int32_t value_22 = compiler_zir_lower_Emit(program, function, (LirOp)(29), local.type, &(local.value), 1, -1, span);
+                    (*value_21) = value_22;
+                }
+                int32_t* value_23 = &(types[input]);
+                (*value_23) = local.type;
+            }
+            if (operand == range_last_32) {
+                break;
+            }
+            operand = (int32_t)((uint32_t)operand + 1u);
+        }
+    }
+    int32_t address = first.inputs;
+    {
+        int32_t range_first_53 = 0;
+        int32_t range_last_53 = (int32_t)((uint32_t)operands - 1u);
+        int32_t operand = range_first_53;
+        if (operand <= range_last_53) for (;;) {
+            bool value_24 = compiler_lowered_ir_LirAssemblyGateAddressed(gate->result.variants, (int64_t)(operand));
+            if (!value_24) {
+                if (operand == range_last_53) {
+                    break;
+                }
+                operand = (int32_t)((uint32_t)operand + 1u);
+                continue;
+            }
+            AssemblyBinding local = function->bindings.data[(bindings)[operand]];
+            if (local.storage_type < 0) {
+                AssemblyProgram* value_25 = program;
+                ZirSourceSpan value_26 = span;
+                String value_27 = StringLiteral("local assembly memory operand has no caller storage");
+                int32_t value_28 = 0;
+                {
+                    AssemblyProgram* program = value_25;
+                    ZirSourceSpan span = value_26;
+                    String message = value_27;
+                    if (program->failed == 0) {
+                        compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
+                    }
+                    int32_t* value_30 = &(program->failed);
+                    (*value_30) = 1;
+                    value_28 = -1;
+                }
+                (void)value_28;
+                return;
+            }
+            int32_t* value_31 = &(types[address]);
+            (*value_31) = local.storage_type;
+            int32_t* value_32 = &(inputs[address]);
+            (*value_32) = local.value;
+            address = (int32_t)((uint32_t)address + 1u);
+            if (operand == range_last_53) {
+                break;
+            }
+            operand = (int32_t)((uint32_t)operand + 1u);
+        }
+    }
+    {
+        int32_t range_first_66 = 0;
+        int32_t range_last_66 = (int32_t)((uint32_t)parameters - 1u);
+        int32_t parameter = range_first_66;
+        if (parameter <= range_last_66) for (;;) {
+            AssemblyBinding argument = {.type = types[parameter], .storage_type = -1};
+            compiler_zir_lower_Push(program, (RawVector*)(&(gate->bindings)), sizeof(AssemblyBinding), (void*)(&(argument)));
+            if (parameter == range_last_66) {
+                break;
+            }
+            parameter = (int32_t)((uint32_t)parameter + 1u);
+        }
+    }
+    int32_t* value_33 = &(fields[first.outputs]);
+    (*value_33) = 1;
+    int32_t result = 1;
+    if (first.outputs != 0) {
+        result = program->types.count;
+        AssemblyProgram* value_34 = program;
+        LirType value_35 = {0};
+        value_35.kind = (LirTypeKind)(7);
+        Slice value_36 = compiler_zir_lower_S32Items(fields, (int64_t)(((int32_t)((uint32_t)(first.outputs) + 1u))));
+        value_35.fields = value_36;
+        bool value_37 = compiler_zir_lower_PushLirType(value_34, &(program->types), value_35);
+        if (!value_37) {
+            return;
+        }
+    }
+    int32_t symbol = program->functions.count;
+    uint8_t name[32] = {0};
+    uint8_t* value_38 = compiler_services_Keep(StringLiteral("$asm.%d"));
+    zir_foreign_compiler_zir_lower__snprintf(&(name[0]), (32) * (sizeof(uint8_t)), value_38, symbol);
+    int32_t* value_39 = &(gate->result.module);
+    (*value_39) = function->result.module;
+    String* value_40 = &(gate->result.name);
+    String value_41 = compiler_zir_lower_Owned(compiler_zir_lower_Text(program, &(name[0])));
+    (*value_40) = value_41;
+    Slice* value_42 = &(gate->result.parameters);
+    Slice value_43 = compiler_zir_lower_S32Items(types, (int64_t)(parameters));
+    (*value_42) = value_43;
+    int32_t* value_44 = &(gate->result.result);
+    (*value_44) = result;
+    int32_t* value_45 = &(gate->result.origin);
+    int32_t value_46 = compiler_zir_lower_Origin(program, span);
+    (*value_45) = value_46;
+    int32_t* value_47 = &(gate->result.entry);
+    int32_t value_48 = compiler_zir_lower_Block(program, gate, gate->bindings.data, parameters);
+    (*value_47) = value_48;
+    int32_t* value_49 = &(gate->current);
+    (*value_49) = gate->result.entry;
+    if (program->failed != 0) {
+        return;
+    }
+    compiler_zir_lower_Emit(program, gate, (LirOp)(39), 0, (void *)0, 0, -1, span);
+    int32_t portable = compiler_zir_lower_Zero(program, gate, result, span, 0);
+    compiler_zir_lower_Emit(program, gate, (LirOp)(43), 0, &(portable), 1, -1, span);
+    AssemblyProgram* value_50 = program;
+    __type_4903477303ada8c0* value_51 = &(program->functions);
+    bool value_52 = false;
+    {
+        AssemblyProgram* program = value_50;
+        __type_4903477303ada8c0* vector = value_51;
+        AssemblyFunction* value = gate;
+        value_52 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(void *), (void*)(&(value)));
+    }
+    if (!value_52) {
+        return;
+    }
+    int32_t returned = compiler_zir_lower_Emit(program, function, (LirOp)(36), result, &(inputs[0]), parameters, symbol, span);
+    int32_t matched = returned;
+    if (first.outputs != 0) {
+        AssemblyProgram* value_54 = program;
+        AssemblyFunction* value_55 = function;
+        LirOp value_56 = (LirOp)((LirOp)(26));
+        int32_t* value_57 = &(returned);
+        uint64_t value_58 = (uint64_t)(first.outputs);
+        ZirSourceSpan value_59 = span;
+        int32_t value_60 = 0;
+        {
+            AssemblyProgram* program = value_54;
+            AssemblyFunction* function = value_55;
+            LirOp op = (LirOp)(value_56);
+            int32_t type = 1;
+            int32_t* operands = value_57;
+            int32_t count = 1;
+            uint64_t index = value_58;
+            ZirSourceSpan span = value_59;
+            int32_t result = compiler_zir_lower_Emit(program, function, op, type, operands, count, -1, span);
+            if (program->failed == 0 && function->current >= 0) {
+                AssemblyFunction* value_62 = function;
+                int32_t value_63 = function->current;
+                AssemblyBlock* value_64 = (void *)0;
+                {
+                    AssemblyFunction* function = value_62;
+                    int32_t index = value_63;
+                    value_64 = &(function->blocks.data[index]);
+                }
+                AssemblyBlock* block = value_64;
+                LirInstruction* instructions = block->instructions.data;
+                uint64_t* value_66 = &((instructions[((int32_t)((uint32_t)(block->instructions.count) - 1u))]).immediate);
+                (*value_66) = index;
+            }
+            value_60 = result;
+        }
+        matched = value_60;
+    }
+    int32_t count = function->bindings.count;
+    AssemblyBinding* before = compiler_zir_lower_Snapshot(program, function, count);
+    int32_t assembly = compiler_zir_lower_Block(program, function, before, count);
+    int32_t fallback = compiler_zir_lower_Block(program, function, before, count);
+    int32_t join = compiler_zir_lower_Block(program, function, before, count);
+    if (program->failed != 0) {
+        return;
+    }
+    compiler_zir_lower_Branch(program, function, matched, assembly, fallback, count, span);
+    compiler_zir_lower_Enter(function, assembly, before, count);
+    {
+        int32_t range_first_112 = 0;
+        int32_t range_last_112 = (int32_t)((uint32_t)(first.outputs) - 1u);
+        int32_t operand = range_first_112;
+        if (operand <= range_last_112) for (;;) {
+            AssemblyBinding* binding = &(function->bindings.data[(bindings)[operand]]);
+            AssemblyProgram* value_67 = program;
+            AssemblyFunction* value_68 = function;
+            LirOp value_69 = (LirOp)((LirOp)(26));
+            int32_t value_70 = binding->type;
+            int32_t* value_71 = &(returned);
+            uint64_t value_72 = (uint64_t)(operand);
+            ZirSourceSpan value_73 = span;
+            int32_t value_74 = 0;
+            {
+                AssemblyProgram* program = value_67;
+                AssemblyFunction* function = value_68;
+                LirOp op = (LirOp)(value_69);
+                int32_t type = value_70;
+                int32_t* operands = value_71;
+                int32_t count = 1;
+                uint64_t index = value_72;
+                ZirSourceSpan span = value_73;
+                int32_t result = compiler_zir_lower_Emit(program, function, op, type, operands, count, -1, span);
+                if (program->failed == 0 && function->current >= 0) {
+                    AssemblyFunction* value_76 = function;
+                    int32_t value_77 = function->current;
+                    AssemblyBlock* value_78 = (void *)0;
+                    {
+                        AssemblyFunction* function = value_76;
+                        int32_t index = value_77;
+                        value_78 = &(function->blocks.data[index]);
+                    }
+                    AssemblyBlock* block = value_78;
+                    LirInstruction* instructions = block->instructions.data;
+                    uint64_t* value_80 = &((instructions[((int32_t)((uint32_t)(block->instructions.count) - 1u))]).immediate);
+                    (*value_80) = index;
+                }
+                value_74 = result;
+            }
+            int32_t value = value_74;
+            if (binding->storage_type >= 0) {
+                int32_t store[2] = {binding->value, value};
+                compiler_zir_lower_Emit(program, function, (LirOp)(30), 0, &(store[0]), 2, -1, span);
+            } else {
+                int32_t* value_81 = &(binding->value);
+                (*value_81) = value;
+            }
+            if (operand == range_last_112) {
+                break;
+            }
+            operand = (int32_t)((uint32_t)operand + 1u);
+        }
+    }
+    AssemblyProgram* value_82 = program;
+    AssemblyFunction* value_83 = function;
+    ZirSourceSpan value_84 = span;
+    {
+        AssemblyProgram* program = value_82;
+        AssemblyFunction* function = value_83;
+        int32_t target = join;
+        int32_t bindings = count;
+        ZirSourceSpan span = value_84;
+        compiler_zir_lower_Emit(program, function, (LirOp)(41), 0, (void *)0, 0, -1, span);
+        if (program->failed != 0) {
+            goto value_85;
+        }
+        AssemblyFunction* value_86 = function;
+        int32_t value_87 = function->current;
+        AssemblyBlock* value_88 = (void *)0;
+        {
+            AssemblyFunction* function = value_86;
+            int32_t index = value_87;
+            value_88 = &(function->blocks.data[index]);
+        }
+        AssemblyBlock* block = value_88;
+        void* value_90 = compiler_zir_lower_Allocate(program, 1, sizeof(LirEdge));
+        LirEdge* edge = (LirEdge*)(value_90);
+        if (edge == ((void *)0)) {
+            goto value_85;
+        }
+        LirEdge* value_91 = &((*(edge)));
+        LirEdge value_92 = compiler_zir_lower_Edge(program, target, function->bindings.data, bindings);
+        (*value_91) = value_92;
+        LirInstruction* instructions = block->instructions.data;
+        Slice* value_93 = &((instructions[((int32_t)((uint32_t)(block->instructions.count) - 1u))]).edges);
+        Slice value_94 = compiler_zir_lower_LirEdgeItems(edge, 1LL);
+        (*value_93) = value_94;
+        int32_t* value_95 = &(function->current);
+        (*value_95) = -1;
+    value_85: ;
+    }
+    compiler_zir_lower_Enter(function, fallback, before, count);
+    compiler_zir_lower_Sequence(program, function, (int32_t)((uint32_t)index + 1u), close, (int32_t)((uint32_t)depth + 1u));
+    if (function->current >= 0) {
+        AssemblyProgram* value_96 = program;
+        AssemblyFunction* value_97 = function;
+        ZirSourceSpan value_98 = span;
+        {
+            AssemblyProgram* program = value_96;
+            AssemblyFunction* function = value_97;
+            int32_t target = join;
+            int32_t bindings = count;
+            ZirSourceSpan span = value_98;
+            compiler_zir_lower_Emit(program, function, (LirOp)(41), 0, (void *)0, 0, -1, span);
+            if (program->failed != 0) {
+                goto value_99;
+            }
+            AssemblyFunction* value_100 = function;
+            int32_t value_101 = function->current;
+            AssemblyBlock* value_102 = (void *)0;
+            {
+                AssemblyFunction* function = value_100;
+                int32_t index = value_101;
+                value_102 = &(function->blocks.data[index]);
+            }
+            AssemblyBlock* block = value_102;
+            void* value_104 = compiler_zir_lower_Allocate(program, 1, sizeof(LirEdge));
+            LirEdge* edge = (LirEdge*)(value_104);
+            if (edge == ((void *)0)) {
+                goto value_99;
+            }
+            LirEdge* value_105 = &((*(edge)));
+            LirEdge value_106 = compiler_zir_lower_Edge(program, target, function->bindings.data, bindings);
+            (*value_105) = value_106;
+            LirInstruction* instructions = block->instructions.data;
+            Slice* value_107 = &((instructions[((int32_t)((uint32_t)(block->instructions.count) - 1u))]).edges);
+            Slice value_108 = compiler_zir_lower_LirEdgeItems(edge, 1LL);
+            (*value_107) = value_108;
+            int32_t* value_109 = &(function->current);
+            (*value_109) = -1;
+        value_99: ;
+        }
+    }
+    compiler_zir_lower_Enter(function, join, before, count);
 }
 
 static int32_t
@@ -34893,10 +35487,19 @@ compiler_zir_lower_Function(AssemblyProgram* program, ZirModule* module, ZirFunc
     (*value_41) = (void*)(types);
     int64_t* value_42 = &(parameter_parts->length);
     (*value_42) = (int64_t)(parameters->count);
+    bool value_43 = !host;
+    bool value_44 = value_43;
+    if (value_44) {
+        bool value_45 = compiler_zir_lower_FunctionVariants(program, function, source, -1, (uint8_t*)source->assembly_text, source->span);
+        value_44 = !value_45;
+    }
+    if (value_44) {
+        return -1;
+    }
     compiler_zir_lower_FindAddressed(program, function);
     int32_t identity = program->functions.count;
-    bool value_43 = compiler_zir_lower_Push(program, (RawVector*)(&(program->functions)), sizeof(void *), (void*)(&(function)));
-    if (value_43 == false) {
+    bool value_46 = compiler_zir_lower_Push(program, (RawVector*)(&(program->functions)), sizeof(void *), (void*)(&(function)));
+    if (value_46 == false) {
         return -1;
     }
     return identity;
@@ -35614,6 +36217,10 @@ compiler_zir_lower_LowerBody(AssemblyProgram* program, AssemblyFunction* builder
     (*value_0) = entry;
     compiler_zir_lower_Enter(builder, entry, entry_parameters, count);
     compiler_zir_lower_Emit(program, builder, (LirOp)(39), 0, (void *)0, 0, -1, builder->source->span);
+    if (builder->result.assembly_required) {
+        compiler_zir_lower_Emit(program, builder, (LirOp)(44), 0, (void *)0, 0, -1, (builder->source->stmts[0]).span);
+        return;
+    }
     int32_t parameter = 0;
     while (parameter < count && program->failed == 0) {
         AssemblyBinding* binding = &(builder->bindings.data[parameter]);
@@ -36008,7 +36615,7 @@ compiler_zir_lower_LowerProgram(ZirProgram* source, uint8_t* module_name, uint8_
             index = (int32_t)((uint32_t)index + 1u);
         }
         int32_t* value_48 = &(program->result.version);
-        (*value_48) = 4;
+        (*value_48) = 5;
         bool* value_49 = &(program->result.checks);
         (*value_49) = program->source->checks != 0;
         SliceParts* module_parts = (SliceParts*)(&(program->result.modules));
@@ -37199,109 +37806,178 @@ AssemblyPrintLir(LirProgram* view, void* output)
         }
         void* value_60 = output;
         compiler_zir_lower_PrintText(value_60, compiler_services_Keep(StringLiteral(")\n")));
+        {
+            Slice value_61 = body->variants;
+            Slice loop_view_192 = value_61;
+            int64_t loop_count_192 = (int64_t)(loop_view_192).length;
+            int64_t loop_cursor_192 = 0LL;
+            while (loop_cursor_192 < loop_count_192) {
+                int64_t loop_index_192 = loop_cursor_192;
+                LirAssemblyVariant variant = ((LirAssemblyVariant *)loop_view_192.data)[loop_index_192];
+                int64_t ordinal = loop_index_192;
+                void* value_62 = output;
+                compiler_zir_lower_PrintText(value_62, compiler_services_Keep(StringLiteral("  assembly ")));
+                compiler_zir_lower_PrintSigned(output, ordinal);
+                if (body->assembly_required) {
+                    void* value_63 = output;
+                    compiler_zir_lower_PrintText(value_63, compiler_services_Keep(StringLiteral(" target-only")));
+                }
+                if (body->assembly_gate) {
+                    void* value_64 = output;
+                    compiler_zir_lower_PrintText(value_64, compiler_services_Keep(StringLiteral(" local")));
+                }
+                if (variant.ziran_keyword_volatile_0) {
+                    void* value_65 = output;
+                    compiler_zir_lower_PrintText(value_65, compiler_services_Keep(StringLiteral(" volatile")));
+                }
+                void* value_66 = output;
+                compiler_zir_lower_PrintText(value_66, compiler_services_Keep(StringLiteral(" arch=")));
+                compiler_zir_lower_PrintString(output, variant.architecture);
+                void* value_67 = output;
+                compiler_zir_lower_PrintText(value_67, compiler_services_Keep(StringLiteral(" os=")));
+                compiler_zir_lower_PrintString(output, variant.os);
+                void* value_68 = output;
+                compiler_zir_lower_PrintText(value_68, compiler_services_Keep(StringLiteral(" abi=")));
+                compiler_zir_lower_PrintString(output, variant.abi);
+                void* value_69 = output;
+                compiler_zir_lower_PrintText(value_69, compiler_services_Keep(StringLiteral(" features=0x")));
+                compiler_zir_lower_PrintHex64(output, variant.features);
+                void* value_70 = output;
+                compiler_zir_lower_PrintText(value_70, compiler_services_Keep(StringLiteral(" outputs=")));
+                compiler_zir_lower_PrintSigned(output, (int64_t)(variant.outputs));
+                void* value_71 = output;
+                compiler_zir_lower_PrintText(value_71, compiler_services_Keep(StringLiteral(" clobbers=")));
+                compiler_zir_lower_PrintString(output, variant.clobbers);
+                void* value_72 = output;
+                compiler_zir_lower_PrintText(value_72, compiler_services_Keep(StringLiteral(" operands=(")));
+                {
+                    Slice value_73 = variant.operands;
+                    Slice loop_view_217 = value_73;
+                    int64_t loop_count_217 = (int64_t)(loop_view_217).length;
+                    int64_t loop_cursor_217 = 0LL;
+                    while (loop_cursor_217 < loop_count_217) {
+                        int64_t loop_index_217 = loop_cursor_217;
+                        LirAssemblyOperand operand = ((LirAssemblyOperand *)loop_view_217.data)[loop_index_217];
+                        int64_t index = loop_index_217;
+                        if (index != 0LL) {
+                            zir_foreign_compiler_zir_lower__fputc_raw(44, output);
+                        }
+                        compiler_zir_lower_PrintString(output, operand.alias);
+                        zir_foreign_compiler_zir_lower__fputc_raw(58, output);
+                        compiler_zir_lower_PrintString(output, operand.constraint);
+                        loop_cursor_217 = (int64_t)((uint64_t)loop_cursor_217 + UINT64_C(1));
+                    }
+                }
+                void* value_74 = output;
+                compiler_zir_lower_PrintText(value_74, compiler_services_Keep(StringLiteral(") template=")));
+                compiler_zir_lower_PrintString(output, variant.template);
+                zir_foreign_compiler_zir_lower__fputc_raw(10, output);
+                loop_cursor_192 = (int64_t)((uint64_t)loop_cursor_192 + UINT64_C(1));
+            }
+        }
         int64_t block = 0LL;
         while (true) {
-            int64_t value_61 = (int64_t)(body->blocks).length;
-            if (!(block < value_61)) { break; }
+            int64_t value_75 = (int64_t)(body->blocks).length;
+            if (!(block < value_75)) { break; }
             LirBlock* bp = &(((LirBlock *)body->blocks.data)[block]);
-            void* value_62 = output;
-            compiler_zir_lower_PrintText(value_62, compiler_services_Keep(StringLiteral("  b")));
+            void* value_76 = output;
+            compiler_zir_lower_PrintText(value_76, compiler_services_Keep(StringLiteral("  b")));
             compiler_zir_lower_PrintSigned(output, block);
             zir_foreign_compiler_zir_lower__fputc_raw(40, output);
             int64_t block_parameter = 0LL;
             while (true) {
-                int64_t value_63 = (int64_t)(bp->parameters).length;
-                if (!(block_parameter < value_63)) { break; }
+                int64_t value_77 = (int64_t)(bp->parameters).length;
+                if (!(block_parameter < value_77)) { break; }
                 if (block_parameter > 0LL) {
                     zir_foreign_compiler_zir_lower__fputc_raw(44, output);
                     zir_foreign_compiler_zir_lower__fputc_raw(32, output);
                 }
                 int32_t held_parameter = ((int32_t *)bp->parameters.data)[block_parameter];
-                void* value_64 = output;
-                compiler_zir_lower_PrintText(value_64, compiler_services_Keep(StringLiteral("v")));
+                void* value_78 = output;
+                compiler_zir_lower_PrintText(value_78, compiler_services_Keep(StringLiteral("v")));
                 compiler_zir_lower_PrintSigned(output, (int64_t)(held_parameter));
-                void* value_65 = output;
-                compiler_zir_lower_PrintText(value_65, compiler_services_Keep(StringLiteral(":t")));
+                void* value_79 = output;
+                compiler_zir_lower_PrintText(value_79, compiler_services_Keep(StringLiteral(":t")));
                 compiler_zir_lower_PrintSigned(output, (int64_t)(((int32_t *)body->values.data)[held_parameter]));
                 block_parameter = (int64_t)((uint64_t)block_parameter + UINT64_C(1));
             }
-            void* value_66 = output;
-            compiler_zir_lower_PrintText(value_66, compiler_services_Keep(StringLiteral("):\n")));
+            void* value_80 = output;
+            compiler_zir_lower_PrintText(value_80, compiler_services_Keep(StringLiteral("):\n")));
             int64_t instruction = 0LL;
             while (true) {
-                int64_t value_67 = (int64_t)(bp->instructions).length;
-                if (!(instruction < value_67)) { break; }
+                int64_t value_81 = (int64_t)(bp->instructions).length;
+                if (!(instruction < value_81)) { break; }
                 LirInstruction* ip = &(((LirInstruction *)bp->instructions.data)[instruction]);
-                void* value_68 = output;
-                compiler_zir_lower_PrintText(value_68, compiler_services_Keep(StringLiteral("    i")));
+                void* value_82 = output;
+                compiler_zir_lower_PrintText(value_82, compiler_services_Keep(StringLiteral("    i")));
                 compiler_zir_lower_PrintSigned(output, instruction);
                 zir_foreign_compiler_zir_lower__fputc_raw(32, output);
                 if (ip->result >= 0) {
-                    void* value_69 = output;
-                    compiler_zir_lower_PrintText(value_69, compiler_services_Keep(StringLiteral("v")));
+                    void* value_83 = output;
+                    compiler_zir_lower_PrintText(value_83, compiler_services_Keep(StringLiteral("v")));
                     compiler_zir_lower_PrintSigned(output, (int64_t)(ip->result));
-                    void* value_70 = output;
-                    compiler_zir_lower_PrintText(value_70, compiler_services_Keep(StringLiteral(":t")));
+                    void* value_84 = output;
+                    compiler_zir_lower_PrintText(value_84, compiler_services_Keep(StringLiteral(":t")));
                     compiler_zir_lower_PrintSigned(output, (int64_t)(((int32_t *)body->values.data)[ip->result]));
-                    void* value_71 = output;
-                    compiler_zir_lower_PrintText(value_71, compiler_services_Keep(StringLiteral(" = ")));
+                    void* value_85 = output;
+                    compiler_zir_lower_PrintText(value_85, compiler_services_Keep(StringLiteral(" = ")));
                 }
                 String opname = compiler_lowered_ir_LirOpName((LirOp)(ip->op));
                 TextParts* op_parts = (TextParts*)(&(opname));
                 zir_foreign_compiler_zir_lower__fwrite_raw((void*)(op_parts->data), (size_t)(1LL), (size_t)(op_parts->length), output);
                 int64_t operand = 0LL;
                 while (true) {
-                    int64_t value_72 = (int64_t)(ip->operands).length;
-                    if (!(operand < value_72)) { break; }
-                    void* value_73 = output;
-                    compiler_zir_lower_PrintText(value_73, compiler_services_Keep(StringLiteral(" v")));
+                    int64_t value_86 = (int64_t)(ip->operands).length;
+                    if (!(operand < value_86)) { break; }
+                    void* value_87 = output;
+                    compiler_zir_lower_PrintText(value_87, compiler_services_Keep(StringLiteral(" v")));
                     compiler_zir_lower_PrintSigned(output, (int64_t)(((int32_t *)ip->operands.data)[operand]));
                     operand = (int64_t)((uint64_t)operand + UINT64_C(1));
                 }
                 if (ip->symbol >= 0) {
-                    void* value_74 = output;
-                    compiler_zir_lower_PrintText(value_74, compiler_services_Keep(StringLiteral(" symbol=")));
+                    void* value_88 = output;
+                    compiler_zir_lower_PrintText(value_88, compiler_services_Keep(StringLiteral(" symbol=")));
                     compiler_zir_lower_PrintSigned(output, (int64_t)(ip->symbol));
                 }
-                void* value_75 = output;
-                compiler_zir_lower_PrintText(value_75, compiler_services_Keep(StringLiteral(" immediate=")));
+                void* value_89 = output;
+                compiler_zir_lower_PrintText(value_89, compiler_services_Keep(StringLiteral(" immediate=")));
                 compiler_zir_lower_PrintSigned(output, (int64_t)(ip->immediate));
-                void* value_76 = output;
-                compiler_zir_lower_PrintText(value_76, compiler_services_Keep(StringLiteral(" alignment=")));
+                void* value_90 = output;
+                compiler_zir_lower_PrintText(value_90, compiler_services_Keep(StringLiteral(" alignment=")));
                 compiler_zir_lower_PrintSigned(output, (int64_t)(ip->alignment));
                 int64_t edge = 0LL;
                 while (true) {
-                    int64_t value_77 = (int64_t)(ip->edges).length;
-                    if (!(edge < value_77)) { break; }
+                    int64_t value_91 = (int64_t)(ip->edges).length;
+                    if (!(edge < value_91)) { break; }
                     LirEdge* held_edge = &(((LirEdge *)ip->edges.data)[edge]);
-                    void* value_78 = output;
-                    compiler_zir_lower_PrintText(value_78, compiler_services_Keep(StringLiteral(" -> b")));
+                    void* value_92 = output;
+                    compiler_zir_lower_PrintText(value_92, compiler_services_Keep(StringLiteral(" -> b")));
                     compiler_zir_lower_PrintSigned(output, (int64_t)(held_edge->block));
                     zir_foreign_compiler_zir_lower__fputc_raw(40, output);
                     int64_t argument = 0LL;
                     while (true) {
-                        int64_t value_79 = (int64_t)(held_edge->arguments).length;
-                        if (!(argument < value_79)) { break; }
+                        int64_t value_93 = (int64_t)(held_edge->arguments).length;
+                        if (!(argument < value_93)) { break; }
                         if (argument > 0LL) {
                             zir_foreign_compiler_zir_lower__fputc_raw(44, output);
                         }
-                        void* value_80 = output;
-                        compiler_zir_lower_PrintText(value_80, compiler_services_Keep(StringLiteral("v")));
+                        void* value_94 = output;
+                        compiler_zir_lower_PrintText(value_94, compiler_services_Keep(StringLiteral("v")));
                         compiler_zir_lower_PrintSigned(output, (int64_t)(((int32_t *)held_edge->arguments.data)[argument]));
                         argument = (int64_t)((uint64_t)argument + UINT64_C(1));
                     }
                     zir_foreign_compiler_zir_lower__fputc_raw(41, output);
                     edge = (int64_t)((uint64_t)edge + UINT64_C(1));
                 }
-                void* value_81 = output;
-                compiler_zir_lower_PrintText(value_81, compiler_services_Keep(StringLiteral(" effect=")));
+                void* value_95 = output;
+                compiler_zir_lower_PrintText(value_95, compiler_services_Keep(StringLiteral(" effect=")));
                 compiler_zir_lower_PrintSigned(output, (int64_t)(ip->effect));
-                void* value_82 = output;
-                compiler_zir_lower_PrintText(value_82, compiler_services_Keep(StringLiteral(" origin=o")));
+                void* value_96 = output;
+                compiler_zir_lower_PrintText(value_96, compiler_services_Keep(StringLiteral(" origin=o")));
                 compiler_zir_lower_PrintSigned(output, (int64_t)(ip->origin));
                 if (ip->checked) {
-                    void* value_83 = output;
-                    compiler_zir_lower_PrintText(value_83, compiler_services_Keep(StringLiteral(" checked")));
+                    void* value_97 = output;
+                    compiler_zir_lower_PrintText(value_97, compiler_services_Keep(StringLiteral(" checked")));
                 }
                 zir_foreign_compiler_zir_lower__fputc_raw(10, output);
                 instruction = (int64_t)((uint64_t)instruction + UINT64_C(1));

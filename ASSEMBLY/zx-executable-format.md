@@ -1,8 +1,8 @@
-# ZX executable instruction container — revision 28
+# ZX executable instruction container — revision 29
 
 This document specifies the `.zx` executable format. The format owner is `cmd/compiler_bundle.zi`;
 `cmd/compiler_exec_link.zi` binds it to the deterministic LIR codec and
-verifier (current payload schema 4). `zi2zx` writes it; `ziran run`, `zi2zx run`,
+verifier (current payload schema 5). `zi2zx` writes it. `ziran run`, `zi2zx run`,
 the embedding API (`include/ziran_host.h`), `zx2wasm`, and `zx2native` read it.
 Checked packages use the [ZX library format](zx-library-format.md).
 
@@ -25,7 +25,7 @@ truncation, and trailing bytes. There is no recovery scan or legacy fallback.
 | Offset | Width | Value |
 | ---: | ---: | --- |
 | 0 | 4 | `5a 58 00 00` (`ZX\0\0`) |
-| 4 | 4 | format revision `28` |
+| 4 | 4 | format revision `29` |
 | 8 | 4 | header size `64` |
 | 12 | 4 | directory record size `32` |
 | 16 | 8 | required feature mask, `1` for apps or `3` with module linkage |
@@ -38,10 +38,9 @@ truncation, and trailing bytes. There is no recovery scan or legacy fallback.
 | 60 | 4 | reserved; zero |
 
 Required feature bit 0 retains the manifest contract name `portable-lir-schema-3`.
-The internal payload independently carries and verifies current LIR schema 4.
+The internal payload independently carries and verifies current LIR schema 5.
 Required feature bit 1 advertises module linkage. A reader requires bit 0 and
-rejects unknown required bits. A revision-28 reader that knows only bit 0 rejects
-a module bundle. Optional bits are non-executable hints and may be ignored.
+rejects unknown required bits. Optional bits are non-executable hints and may be ignored.
 Any other revision is unsupported, and the reader never sends a payload to the
 `.zir` parser.
 
@@ -63,7 +62,7 @@ Implemented kinds are:
 | 1 | yes | fixed executable manifest |
 | 2 | yes | deterministic stripped internal instruction payload |
 | 3 | yes | canonical assets, including an empty table |
-| 4 | not accepted as required | reserved native variants |
+| 4 | reserved | unused. Assembly records are part of kind 2 |
 | 5 | iff required feature bit 1 is set | module linkage bytes |
 | `0x80000001` | no | opaque debug attachment |
 | `0x80000002` | no | opaque source attachment |
@@ -71,8 +70,8 @@ Implemented kinds are:
 | `0x80000100` and above | no | producer extension attachments |
 
 An unknown optional section is bounded and skipped. An unknown required section
-rejects before LIR decoding. A required kind-4 section rejects as an unsupported
-native variant; arbitrary machine bytes are never selected or executed.
+rejects before LIR decoding. That includes a required kind-4 section. Native
+assembly is represented by the bounded templates in the verified program.
 
 ## Host interface (kind `0x80000003`)
 
@@ -117,7 +116,7 @@ may omit this section.
 | 4 | 4 | LIR schema `3` |
 | 8 | 4 | signed entry function ID; nonnegative |
 | 12 | 4 | reachable host capability count, at most 4,096 |
-| 16 | 4 | required native-variant count; currently `0` |
+| 16 | 4 | number of target-only functions, recomputed from the verified program |
 | 20 | 4 | asset count |
 | 24 | 4 | verified proof status; currently `0` |
 | 28 | 4 | reserved; zero |
@@ -125,15 +124,15 @@ may omit this section.
 | 64 | 32 | asset identity |
 | 96 | 32 | combined executable-content identity |
 
-The program identity is SHA-256 of `ZX28-PROGRAM\0` followed by the exact kind-2
-bytes. The asset identity is SHA-256 of `ZX28-ASSETS\0`, the u32 asset count,
+The program identity is SHA-256 of `ZX29-PROGRAM\0` followed by the exact kind-2
+bytes, including assembly. The asset identity is SHA-256 of `ZX29-ASSETS\0`, the u32 asset count,
 then each sorted asset's u32 name length/name bytes and u32 data length/data
 bytes. For a bundle with required-feature mask `1`, the combined identity is
-SHA-256 of `ZX28-CONTENT\0`, the entry ID as a little-endian u32, the mask as
+SHA-256 of `ZX29-CONTENT\0`, the entry ID as a little-endian u32, the mask as
 a little-endian u64, the program identity and the asset identity.
 
 For a bundle with required-feature mask `3`, the combined identity is SHA-256
-of `ZX28-MODULE-CONTENT\0`, the entry ID as a little-endian u32, the mask as
+of `ZX29-MODULE-CONTENT\0`, the entry ID as a little-endian u32, the mask as
 a little-endian u64, the program identity, the asset identity, the linkage byte
 length as a little-endian u64, the exact kind-5 bytes, the host-interface byte
 length as a little-endian u64 and the exact kind-`0x80000003` bytes.
@@ -156,7 +155,7 @@ constant bytes, globals and initializers, functions, parameter/value type IDs,
 blocks, instructions, operands, edges, symbol IDs, effect ordering, alignments
 and the entry ID. It has no host pointers or compiler/C record layouts.
 
-The executable writer strips source names and origins, then calls the unchanged
+The executable writer strips source names and origins, then calls the
 LIR verifier and codec. The reader copies all LIR strings, blobs and tables into
 `ZxExecOwner`, rejects a debug-bearing required payload, verifies it, checks that
 the manifest and program entry IDs agree, and exposes a borrowed `LirProgram`
@@ -171,8 +170,14 @@ one capability; its module, name and scalar signature are already in the
 verified program. The writer stores the recomputed count and the reader rejects
 a different manifest count (`capability-count`) instead of trusting producer
 metadata. Other external functions and non-portable calling conventions reject.
-The existing bounded portable engine then executes the verified program once
-the embedder has bound every capability.
+The reader also checks the target-only procedure count against the verified
+program. The portable engine and Wasm reject a nonzero count before loading
+initializers. The native compiler checks architecture, OS, ABI and usable CPU
+features. Its first eligible template wins in declaration order. With no
+eligible optional template it compiles the portable body for the requested
+native backend. Native cache identity includes the required program identity,
+compiler/backend revision and effective target features. Source maps and
+origins remain optional attachments.
 
 Outer validation uses the caller's `LirLimits` as well as the inner codec and
 verifier. The reader rejects a container larger than `limits.bytes` before
@@ -225,7 +230,7 @@ an app bundle or an invalid owner.
 
 The format-specific tools keep generated-output replacement semantics: they write a sibling
 temporary and replaces the requested path only after a complete successful
-write. `-o -` streams revision 28 to a pipe. A malformed input cannot replace a
+write. `-o -` streams revision 29 to a pipe. A malformed input cannot replace a
 previous output. Diagnostics distinguish legacy/unknown versions, required
 features or sections, flags, ordering, alignment, overlap, truncation, trailing
 bytes, manifest fields, assets, content identity, LIR codec/verifier rejection,
@@ -239,9 +244,6 @@ entry mismatch, capability, variant, external and symbol failures.
   verified identity, and [`.zx` libraries](zx-library-format.md) exist as a
   separate package format; neither creates a general cross-container symbol
   table.
-- Native target/CPU/OS/ABI variant metadata and template verification are not
-  implemented; a required variant rejects, and no arbitrary machine blob is
-  accepted.
 - The optional debug/source attachment codec exists (section `0x80000001`,
   identity-bound and reader-reverified). Optimization remarks, law witnesses
   and proof revalidation are not implemented; optional bytes remain

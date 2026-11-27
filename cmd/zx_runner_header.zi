@@ -9,7 +9,7 @@ using Vectors :: #import "std/vec"
 // ExecutableVersion in compiler_bundle.zi). The runtime is linked into the
 // runner, so it cannot also import that module; the install_user check runs
 // a bundle the toolchain just wrote and fails when the two differ.
-ZX_FORMAT_REVISION :: 28;
+ZX_FORMAT_REVISION :: 29;
 
 ZxHeaderKind :: enum s32 { Runnable; Missing; NotZx; Older; Newer }
 ZxHeader :: struct { kind: ZxHeaderKind; revision: u32 }

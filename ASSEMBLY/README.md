@@ -5,7 +5,7 @@
 The upgrade is not finished: the M4-M6 rows are open work in
 [plans/open-work.md](../plans/open-work.md). `zi2zx` lowers checked source or
 saved `.zir` to verified, typed SSA, and `zx2native` directly encodes a Linux x86-64 ELF
-executable. Every `.zx` is the [revision-28 executable
+executable. Every `.zx` is the [revision-29 executable
 container](zx-executable-format.md) of those verified instructions: `zi2zx`
 writes it, and `ziran run` and the embedding API
 run it on the portable instruction engine. The C, Go and wasm source-output
@@ -98,7 +98,7 @@ assembler, C compiler, or system linker to produce this executable.
   deep. Procedure values and types that reach themselves through a view are
   rejected. The platform services are the named functions of the
   `ziran.platform` module; a function of that name elsewhere is an ordinary
-  host capability. The revision-28 container records the recomputed capability
+  host capability. The revision-29 container records the recomputed capability
   count. Embedders use `LirExecBindHost` for the scalar ABI or
   `LirExecBindHostTyped` for the typed ABI. Typed scalars and pointers cross in
   `bits`. Every other value crosses in `bytes` as one host image: the value's
@@ -152,8 +152,8 @@ assembler, C compiler, or system linker to produce this executable.
   Native always reads the verified, optimized ZX image, even for source input;
   the current required ZX payload strips source origins, so native map origins
   are empty. Source LIR inspection retains origins. Debug attachments and full
-  source-to-native mapping remain a hard gap. LIR schema 4 rejects older ZX
-  payloads at a rebuild boundary. Textual names are quoted and escaped rather
+  source-to-native mapping remains partial. LIR schema 5 and ZX revision 29
+  require rebuilding older executable payloads. Textual names are quoted and escaped rather
   than allowed to inject extra lines into the instruction listing. Metadata
   names and paths must be nonempty, NUL-free valid UTF-8; malformed wire metadata
   is rejected before reaching JSON output, while valid Unicode is preserved.
@@ -315,7 +315,7 @@ Unsupported constructs fail explicitly; there is no silent fallback to C, Go
 or another engine inside the portable/native assembly route. The C and
 Go backends remain separate source-output routes that can compile platform
 binaries when explicitly selected. Mixed signedness comparisons require explicit
-casts. The bounded revision-28 ZX reader validates container identities, the
+casts. The bounded revision-29 ZX reader validates container identities, the
 instruction schema, entry and declared capabilities before native lowering.
 Benchmark receipts live under `bench/results/` and
 [bench/zx_compare.md](../bench/zx_compare.md). An interim result does not

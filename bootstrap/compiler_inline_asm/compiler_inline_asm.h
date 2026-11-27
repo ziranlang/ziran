@@ -20,6 +20,10 @@ extern "C" {
 #define ASM_AARCH64 2
 #define ASM_ARM 3
 #define ASM_WASM32 4
+#define ASM_ANY_OS 0
+#define ASM_LINUX 1
+#define ASM_ANDROID 2
+#define ASM_WINDOWS 3
 #define ARCHITECTURE_COUNT 11
 #define CPU_FEATURE_COUNT 21
 #define FEATURE_X86_COUNT 14
@@ -101,6 +105,7 @@ struct AssemblyVariant {
 struct Assembly {
     uint8_t* part[6];
     int32_t architecture;
+    int32_t platform;
     uint64_t features;
 };
 
@@ -461,6 +466,10 @@ bool compiler_inline_asm_IsX86(int32_t architecture);
 bool compiler_inline_asm_RuntimeSelected(Assembly* assembly);
 int32_t compiler_inline_asm_AssemblyError(ZirSourceSpan span, uint8_t* message);
 int32_t compiler_inline_asm_AssemblyTarget(Assembly* assembly, ZirSourceSpan span);
+uint8_t* compiler_inline_asm_AssemblyAbiName(int32_t architecture, int32_t platform);
+bool AssemblyVariantSelector(uint8_t* text, ZirSourceSpan span, uint8_t** architecture, uint8_t** os, uint8_t** abi, uint64_t* features);
+bool compiler_inline_asm_AssemblyRequired(uint8_t* options);
+bool compiler_inline_asm_AssemblyVolatile(uint8_t* options);
 int32_t compiler_inline_asm_AssemblyArgument(uint8_t** cursor, uint8_t** start, size_t* length);
 uint8_t* compiler_inline_asm_AssemblyLiteral(uint8_t* start, size_t length, ZirSourceSpan span);
 int32_t compiler_inline_asm_ReadVariant(uint8_t** cursor, Assembly* assembly, ZirSourceSpan span, bool names);

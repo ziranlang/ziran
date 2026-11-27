@@ -1,4 +1,4 @@
-// zx2wasm - verified revision-28 ZX -> WebAssembly. The lowering is part of
+// zx2wasm - verified revision-29 ZX -> WebAssembly. The lowering is part of
 // the portable instruction engine; this command only parses its options,
 // reads the bounded input, lowers and writes the module atomically.
 

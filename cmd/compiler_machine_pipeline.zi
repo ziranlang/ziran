@@ -1,4 +1,5 @@
 using Archive :: #import "compiler_x86_archive"
+using Abi :: #import "compiler_abi"
 using Elf :: #import "compiler_machine_elf"
 using Host :: #import "compiler_x86_host"
 using Image :: #import "compiler_machine_image"
@@ -337,8 +338,16 @@ MachineCodeImageView :: (owner: *MachineNativeOwner) -> MachineImage {
 // Transactional MachineLower -> RegAllocAllocate -> MachineX64Encode, with an
 // optional AOT executable. A failure leaves OUTPUT unchanged.
 Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
-    output: *MachineNativeOwner, emit_executable: bool, fuel: s64, links: MachineHostLinks) -> MachineDiagnostic {
+    output: *MachineNativeOwner, emit_executable: bool, fuel: s64, links: MachineHostLinks,
+    features: u64) -> MachineDiagnostic {
     if output == null { return Problem(.Owner) }
+    for function, index: lir.functions {
+        if function.assembly_required && Abi.MachineAbiAssemblyVariant(function, lir.checks, target, features) < 0 {
+            diagnostic := Problem(.TargetOnly)
+            diagnostic.function = cast(s32)index
+            return diagnostic
+        }
+    }
     built: MachineNativeOwner
     options := MachineDefaultOptions()
     // Code charges fuel unless its budget is the unbounded one: an AOT
@@ -355,8 +364,8 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
     program := MachineProgramView(*built.machine)
     if target.arch == .AArch64 || target.arch == .ArmV7 {
-        if target.arch == .ArmV7 { diagnostic = MachineV7EncodeAllocated(program, limits, *built.encoded_v7) }
-        else { diagnostic = MachineA64EncodeAllocated(program, limits, *built.encoded_a64) }
+        if target.arch == .ArmV7 { diagnostic = MachineV7EncodeAssembly(program, limits, *built.encoded_v7, *lir, features, options.fuel) }
+        else { diagnostic = MachineA64EncodeAssembly(program, limits, *built.encoded_a64, *lir, features, options.fuel) }
         if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
         if emit_executable {
             if links.libraries.count > 0 { MachineNativeFree(*built); return Problem(.Unsupported) }
@@ -384,7 +393,7 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
                     diagnostic = Problem(ifx measured.size > limits.bytes then MachineProblem.Limit else MachineProblem.Allocation)
                 }
                 if diagnostic.problem == .None {
-                    written := MachineA64ElfEncode(program, code, built.executable[:])
+                    written := MachineA64ElfEncode(program, code, built.executable[:], fuel)
                     diagnostic = written.diagnostic
                     if diagnostic.problem == .None && written.size != measured.size { diagnostic = Problem(.Relocation) }
                 }
@@ -410,7 +419,7 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
                     diagnostic = Problem(ifx result.size > limits.bytes then MachineProblem.Limit else MachineProblem.Allocation)
                 }
                 if diagnostic.problem == .None {
-                    written := V7Elf.MachineV7ElfEncode(program, code, built.executable[:])
+                    written := V7Elf.MachineV7ElfEncode(program, code, built.executable[:], fuel)
                     diagnostic = written.diagnostic
                     if diagnostic.problem == .None && written.size != result.size { diagnostic = Problem(.Relocation) }
                 }
@@ -424,7 +433,7 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
         return NoDiagnostic()
     }
     // Allocation verified PROGRAM; the encoders do not verify it again.
-    diagnostic = MachineX64EncodeAllocated(program, limits, *built.encoded)
+    diagnostic = MachineX64EncodeAssembly(program, limits, *built.encoded, *lir, features, options.fuel)
     if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
     if emit_executable {
         image := MachineX64View(*built.encoded)
@@ -470,7 +479,7 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
 MachineCodeBuild :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     output: *MachineNativeOwner) -> MachineDiagnostic {
     none: MachineHostLinks
-    return Build(lir, target, limits, output, false, 0, none)
+    return Build(lir, target, limits, output, false, 0, none, target.feature_mask)
 }
 
 // In-process code for a host that never limits its steps: no fuel checks,
@@ -478,7 +487,15 @@ MachineCodeBuild :: (lir: LirProgram, target: TargetDescription, limits: Machine
 MachineCodeBuildUnbounded :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     output: *MachineNativeOwner) -> MachineDiagnostic {
     none: MachineHostLinks
-    return Build(lir, target, limits, output, false, MachineX64InitialFuel, none)
+    return Build(lir, target, limits, output, false, MachineX64InitialFuel, none, target.feature_mask)
+}
+
+// In-process assembly selection uses the feature mask supplied by the loader.
+MachineCodeBuildFeatures :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
+    output: *MachineNativeOwner, features: u64, unbounded: bool) -> MachineDiagnostic {
+    none: MachineHostLinks
+    fuel := ifx unbounded then MachineX64InitialFuel else cast(s64)0
+    return Build(lir, target, limits, output, false, fuel, none, features)
 }
 
 // The host libraries a Linux x86-64 or Windows x86-64 executable links its
@@ -501,7 +518,7 @@ MachineHostLinks :: struct {
 // is static when it links nothing.
 MachineNativeBuild :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     output: *MachineNativeOwner, fuel: s64, links: MachineHostLinks) -> MachineDiagnostic {
-    return Build(lir, target, limits, output, true, fuel, links)
+    return Build(lir, target, limits, output, true, fuel, links, target.feature_mask)
 }
 
 // The layout of the Linux ELF MachineNativeBuild wrote for LIR into OWNER

@@ -14,10 +14,13 @@ Source → ZIR → LIR → optimized LIR → ZX → native (ELF/PE, x86-64/AArch
 use native execution. Native lowering failures report a named gap before
 execution. They do not retry on the instruction engine.
 
-ZX is revision 28 executable output. `zi2zx --emit lir` exposes the linked
+ZX is revision 29 executable output. `zi2zx --emit lir` exposes the linked
 inspection view; `--opt --emit lir` exposes optimized LIR and
 `--opt --emit opt-report` reports optimizations. Optimization precedes ZX
 emission. `zx2native` consumes decoded and verified ZX; `zx2wasm` emits wasm32.
+ZX retains `#asm` templates alongside portable bodies. Native targets select
+compatible implementations at compilation or load. The engine and Wasm use
+portable bodies and reject target-only programs before initialization.
 See [ZX](ZX.md), [ZIR](ZIR.md) and [architecture](ARCHITECTURE.md).
 
 ## Language and library reference

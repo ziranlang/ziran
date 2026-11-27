@@ -79,6 +79,8 @@ MachineA64DataLayout :: struct {
     trap_status: s64
     stack_limit: s64
     pointer_header: s64
+    table: s64
+    arena: s64
     // Bytes stored, and in memory with the zero fill.
     size: s64
     memory: s64
@@ -157,6 +159,7 @@ ImageNeeds :: (program: MachineProgram, code: MachineA64ElfCode) -> MachineA64El
     for relocation: code.relocations {
         if relocation.kind == .FuelCounter { needs.fuel = true }
         if relocation.kind == .RuntimeTrap { needs.trap = true }
+        if relocation.kind == .RuntimeResize { needs.runtime.resize = true; needs.trap = true }
         if relocation.kind == .StackLimit { needs.stack = true }
         if relocation.kind == .PointerRuntime { needs.pointer = true }
     }
@@ -219,14 +222,15 @@ DataMeasure :: (program: MachineProgram, needs: MachineA64ElfNeeds, layout: *Mac
     if needs.trap { layout.trap_status = Align(at, 4); at = layout.trap_status + 4 }
     if needs.stack { layout.stack_limit = Align(at, 8); at = layout.stack_limit + 8 }
     if needs.pointer {
+        slots := program.globals.count + 1
+        if slots > MachinePointerCapacity { return Problem(.Limit) }
         layout.pointer_header = Align(at, 8)
-        at = layout.pointer_header + MachinePointerHeaderBytes
+        layout.table = Align(layout.pointer_header + MachinePointerHeaderBytes, MachinePointerEntryBytes)
+        at = layout.table + slots * MachinePointerEntryBytes
+        layout.arena = Align(layout.table + (MachinePointerCapacity + 1) * MachinePointerEntryBytes, 16)
     }
-    // Every stored byte is part of the segment's file size; only the frame
-    // arena that the loader zero fills extends past it.
     layout.size = at
-    layout.memory = at
-    if needs.pointer { layout.memory = at + MachinePointerArenaBytes }
+    layout.memory = ifx needs.pointer then layout.arena + MachinePointerArenaBytes else at
     return NoDiagnostic()
 }
 
@@ -383,6 +387,7 @@ RelocationTarget :: (program: MachineProgram, code: MachineA64ElfCode, layout: M
     if relocation.kind == .StackLimit { return MachineA64ElfBase + layout.data + layout.data_layout.stack_limit }
     if relocation.kind == .PointerRuntime { return MachineA64ElfBase + layout.data + layout.data_layout.pointer_header }
     if relocation.kind == .RuntimeTrap { return MachineA64ElfBase + layout.trap }
+    if relocation.kind == .RuntimeResize { return MachineA64ElfBase + layout.routines.resize }
     if relocation.kind == .PlatformService {
         // write_all is the runtime's writer; the formatters are not carried
         // on this row yet, and a program that calls one is a named gap.
@@ -437,7 +442,7 @@ WriteGlobal :: (program: MachineProgram, symbol: s32, at: s64, output: []u8) -> 
     return true
 }
 
-WriteImage :: (program: MachineProgram, code: MachineA64ElfCode, layout: MachineA64ElfLayout, output: []u8) -> bool {
+WriteImage :: (program: MachineProgram, code: MachineA64ElfCode, layout: MachineA64ElfLayout, output: []u8, fuel: s64) -> bool {
     for index: cast(s64)0..output.count - 1 { output[index] = 0 }
     // ELF64 little-endian ET_EXEC, EM_AARCH64, its program headers, no
     // sections.
@@ -490,12 +495,34 @@ WriteImage :: (program: MachineProgram, code: MachineA64ElfCode, layout: Machine
             return false
         }
     }
+    data := layout.data_layout
+    if data.fuel >= 0 { PutLittle(output, layout.data_file + data.fuel, cast(u64)fuel, 8) }
+    table := layout.data_file + data.table
+    if layout.needs.pointer {
+        header := layout.data_file + data.pointer_header
+        data_base := MachineA64ElfBase + layout.data
+        PutLittle(output, header + MachinePointerHeaderUnused, cast(u64)(program.globals.count + 1), 8)
+        PutLittle(output, header + MachinePointerHeaderCapacity, MachinePointerCapacity, 8)
+        PutLittle(output, header + MachinePointerHeaderArenaTop, cast(u64)(data_base + data.arena), 8)
+        PutLittle(output, header + MachinePointerHeaderArenaLimit,
+            cast(u64)(data_base + data.arena + MachinePointerArenaBytes), 8)
+        PutLittle(output, header + MachinePointerHeaderTable, cast(u64)(data_base + data.table), 8)
+        PutLittle(output, table + MachinePointerEntryFlags, MachinePointerLive, 2)
+    }
     for symbol: cast(s64)0..program.globals.count - 1 {
         global := program.globals[symbol]
         offset: s64 = 0
         if !GlobalOffset(program, cast(s32)symbol, global.writable, *offset) { return false }
         at := ifx global.writable then layout.data_file + offset else layout.constants + offset
         if !WriteGlobal(program, cast(s32)symbol, at, output) { return false }
+        if layout.needs.pointer {
+            address := MachineA64ElfBase + (ifx global.writable then layout.data + offset else layout.constants + offset)
+            entry := table + (symbol + 1) * MachinePointerEntryBytes
+            PutLittle(output, entry + MachinePointerEntryBase, cast(u64)address, 8)
+            PutLittle(output, entry + MachinePointerEntrySize, cast(u64)program.types[global.type].size, 8)
+            flags: u64 = ifx global.writable then MachinePointerLive | MachinePointerWritable else MachinePointerLive
+            PutLittle(output, entry + MachinePointerEntryFlags, flags, 2)
+        }
     }
     return true
 }
@@ -507,7 +534,8 @@ HasData :: (layout: MachineA64ElfLayout) -> bool { return layout.data_layout.siz
 // Empty OUTPUT measures. A non-empty OUTPUT must have exactly the measured
 // length. Verification, complete relocation resolution and i32 range checks
 // all finish before the first output byte is changed.
-MachineA64ElfEncode :: (program: MachineProgram, code: MachineA64ElfCode, output: []u8) -> MachineA64ElfResult {
+MachineA64ElfEncode :: (program: MachineProgram, code: MachineA64ElfCode, output: []u8,
+    fuel: s64 = 9223372036854775807) -> MachineA64ElfResult {
     layout: MachineA64ElfLayout
     layout.headers = 1
     diagnostic := ElfLayout(program, code, *layout)
@@ -531,7 +559,7 @@ MachineA64ElfEncode :: (program: MachineProgram, code: MachineA64ElfCode, output
     }
     if output.count == 0 { return result }
     if output.count != result.size { return Failure(.Limit) }
-    if !WriteImage(program, code, layout, output) { return Failure(.Relocation) }
+    if !WriteImage(program, code, layout, output, fuel) { return Failure(.Relocation) }
     return result
 }
 

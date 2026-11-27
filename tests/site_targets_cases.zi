@@ -10,7 +10,36 @@ Numbers :: #import "site_numbers"
 
 SiteTargetsRun :: (test: *NativeTest, command: []string, expected: string, timeout: s64) -> bool {
     result := NativeInvoke(test, command, "", timeout)
-    return NativeAssert(test, result.code == 0 && TextTrim(result.output) == TextTrim(expected), CheckConcat("published artifact disagrees with its independent oracle: ", CheckConcat(TextDetach(TextJoin(command, " ")), CheckConcat("\n", CheckConcat(result.output, result.error)))))
+    return NativeAssert(test, result.code == 0 && TextTrim(result.output) == TextTrim(expected), CheckConcat("target output disagrees with its independent oracle: ", CheckConcat(TextDetach(TextJoin(command, " ")), CheckConcat("\n", CheckConcat(result.output, result.error)))))
+}
+
+// The matrix hashes protect the measured binaries. Rebuild the same inputs
+// for the runtime oracle so a format change leaves historical samples intact.
+SiteCurrentZx :: (test: *NativeTest, document: *JsonDocument, example: s32,
+    library_root: string, bindings: []string) -> string {
+    id := CheckField(document, example, "id")
+    module := id
+    root: string
+    source: string
+    if library_root == "" {
+        source = CheckPath(CheckPath(test.repo, "site"), CheckField(document, example, "source"))
+        root = PathParent(source)
+    } else {
+        module = CheckField(document, example, "module")
+        root = library_root
+        source = CheckPath(root, CheckConcat(module, ".zir"))
+    }
+    executable := CheckPath(test.work, CheckConcat(id, ".zx"))
+    entry := CheckConcat(CheckConcat(module, ":"), CheckField(document, example, "entry"))
+    base := string.[CheckPath(PathParent(test.ziran), "zi2zx"), "--root", root, "--module-path",
+        ifx library_root == "" then CheckPath(test.repo, "std") else library_root, "--entry", entry, "-o", executable]
+    command: Vec(string)
+    defer VecFree(command)
+    for argument: base { VecPush(command, argument) }
+    for binding: bindings { VecPush(command, "--bind"); VecPush(command, binding) }
+    VecPush(command, source)
+    unused NativeRun(test, command[:])
+    return executable
 }
 
 SiteTargetsMatrix :: (test: *NativeTest, libraries: bool) -> bool {
@@ -19,6 +48,26 @@ SiteTargetsMatrix :: (test: *NativeTest, libraries: bool) -> bool {
     if !NativeAssert(test, JsonRead(*document, NativeRead(test, path)), "invalid published benchmark matrix") { return false }
     examples := JsonMember(*document, document.root, "examples"); targets := string.["zx", "wasm", "zir"]
     if !NativeAssert(test, JsonKindOf(*document, examples) == .Array && JsonCount(*document, examples) > 0, "published matrix has no examples") { return false }
+    library_root: string
+    bindings: Vec(string)
+    defer VecFree(bindings)
+    if libraries {
+        library_root = CheckPath(test.work, "library-ir")
+        ir := string.["unzip", "-q", CheckPath(site, CheckField(*document, JsonMember(*document, document.root, "checked_ir"), "path")), "-d", library_root]
+        unused NativeRun(test, ir[:])
+        sources := CheckField(*document, JsonMember(*document, document.root, "sources"), "path")
+        manifest := string.["unzip", "-p", CheckPath(site, sources), "widget_benchmarks.json"]
+        extracted := NativeRun(test, manifest[:])
+        inputs: JsonDocument
+        if test.failed || !NativeAssert(test, JsonRead(*inputs, extracted.output), "invalid published library inputs") { return false }
+        names := JsonMember(*inputs, inputs.root, "bindings")
+        for index: cast(s32)0..JsonCount(*inputs, names) - 1 {
+            binding := JsonString(*inputs, JsonElement(*inputs, names, index))
+            slash := TextFind(binding, "/")
+            if slash >= 0 { binding = binding[slash + 1:binding.count] }
+            VecPush(bindings, TextDetach(TextCopy(binding)))
+        }
+    }
     for index: cast(s32)0..JsonCount(*document, examples) - 1 {
         example := JsonElement(*document, examples, index)
         for target: targets {
@@ -38,7 +87,15 @@ SiteTargetsMatrix :: (test: *NativeTest, libraries: bool) -> bool {
                 continue
             }
             artifact := CheckPath(site, CheckField(*document, JsonElement(*document, files, 0), "path")); command: Vec(string)
-            if target == "zx" { VecPush(command, CheckPath(PathParent(test.ziran), "zi2zx")); VecPush(command, "run"); VecPush(command, artifact) }
+            if target == "zx" {
+                current := SiteCurrentZx(test, *document, example, library_root, bindings[:])
+                if test.failed { return false }
+                published_bytes := NativeRead(test, artifact)
+                current_bytes := NativeRead(test, current)
+                if !NativeAssert(test, published_bytes.count >= 8 && current_bytes.count >= 8, "truncated ZX target artifact") { return false }
+                VecPush(command, CheckPath(PathParent(test.ziran), "zi2zx")); VecPush(command, "run")
+                VecPush(command, ifx published_bytes[:8] == current_bytes[:8] then artifact else current)
+            }
             else { VecPush(command, "node"); VecPush(command, CheckPath(test.repo, "scripts/site_target_wasm.cjs")); VecPush(command, artifact); if CheckField(*document, example, "stdout") != "" { VecPush(command, "--output") } }
             expected := CheckField(*document, example, "expected")
             if !libraries && CheckField(*document, example, "stdout") != "" { expected = CheckField(*document, example, "stdout") }
@@ -110,6 +167,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
     defer NativeCleanup(*test)
     if !SiteNumbersAgree(*test) || !SitePlainNumbers(*test) || !SiteTargetsPresentation(*test) { return 1 }
     if !SiteTargetsMatrix(*test, false) || !SiteTargetsMatrix(*test, true) { return 1 }
-    print("Published ZX/WebAssembly artifacts agree with independent oracles, checked IR decodes and library scenarios execute in local tests\n")
+    print("Current ZX and published WebAssembly agree with independent oracles; checked IR and library inputs are reproducible\n")
     return 0
 }

@@ -341,6 +341,7 @@ MachineProblem :: enum s32 {
     // A host capability an executable imports whose parameters or result
     // the C ABI veneer cannot carry; the diagnostic names its function.
     HostAbi
+    Assembly; TargetOnly
 }
 
 MachineDiagnostic :: struct {

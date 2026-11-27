@@ -140,13 +140,34 @@ ZirNativePatch(unsigned char *field, uintptr_t target, int32_t width, int64_t ad
 }
 
 uint64_t
-ZirNativeCpuKey(void)
+ZirNativeCpuFeatures(void)
 {
-    unsigned a = 0, b = 0, c = 0, d = 0;
-    uint64_t key = 0;
-    if(__get_cpuid(1, &a, &b, &c, &d)) key = ((uint64_t)c << 32) | d;
-    if(__get_cpuid_count(7, 0, &a, &b, &c, &d)) key ^= ((uint64_t)b << 7) ^ ((uint64_t)c << 39);
-    return key;
+    unsigned a, b, c, d;
+    if(!__get_cpuid(1, &a, &b, &c, &d)) return 0;
+    uint64_t mask = ((uint64_t)((c >> 23) & 1u) << 0) | /* POPCNT */
+                    ((uint64_t)((d >> 26) & 1u) << 1) | /* SSE2 */
+                    ((uint64_t)((c >> 9) & 1u) << 2) | /* SSSE3 */
+                    ((uint64_t)((c >> 19) & 1u) << 3) | /* SSE4.1 */
+                    ((uint64_t)((c >> 20) & 1u) << 4) | /* SSE4.2 */
+                    ((uint64_t)((c >> 25) & 1u) << 12) | /* AES */
+                    ((uint64_t)((c >> 1) & 1u) << 13); /* PCLMUL */
+    unsigned state = 0;
+    if((c & (7u << 26)) == (7u << 26)) {
+        /* CPUID reports XSAVE, OSXSAVE and AVX before XGETBV is legal. */
+        __asm__ volatile ("xgetbv" : "=a"(state), "=d"(d) : "c"(0));
+    }
+    int avx = (state & 0x06u) == 0x06u;
+    if(avx) mask |= (UINT64_C(1) << 5) | ((uint64_t)((c >> 12) & 1u) << 11);
+    if(__get_cpuid_count(7, 0, &a, &b, &c, &d)) {
+        if(avx && (b & (1u << 5))) mask |= UINT64_C(1) << 6; /* AVX2 */
+        if((state & 0xe6u) == 0xe6u && (b & (1u << 16)))
+            mask |= UINT64_C(1) << 7; /* AVX512F: opmasks and full ZMM state */
+        mask |= ((uint64_t)((b >> 3) & 1u) << 8) | /* BMI */
+                ((uint64_t)((b >> 8) & 1u) << 9); /* BMI2 */
+    }
+    if(__get_cpuid(0x80000001u, &a, &b, &c, &d) && (c & (1u << 5)))
+        mask |= UINT64_C(1) << 10; /* LZCNT */
+    return mask;
 }
 
 #endif

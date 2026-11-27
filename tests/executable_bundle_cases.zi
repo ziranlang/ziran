@@ -204,8 +204,13 @@ HostCapabilities :: () -> s32 {
     instructions[2] = .{op = .Return, result = -1, operands = returned[:], symbol = -1, origin = -1}
     blocks: [1]Lir.LirBlock = .{.{instructions = instructions[:]}}
     parameters: [1]s32 = .{1}
+    operands: [1]Lir.LirAssemblyOperand = .{.{alias = "out", constraint = "=r"}}
+    variant := Lir.LirAssemblyVariant.{architecture = "x86_64", os = "linux", abi = "sysv",
+        template = "movl $42, %[out]", operands = operands[:], outputs = 1}
+    variants: [1]Lir.LirAssemblyVariant = .{variant}
     functions: [2]Lir.LirFunction = .{
-        .{module = 0, name = "main", result = 1, values = values[:], blocks = blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "main", result = 1, values = values[:], blocks = blocks[:], entry = 0, origin = -1,
+            variants = variants[:]},
         .{module = 0, name = "Input", parameters = parameters[:], result = 1, calling = .Host,
             external = true, entry = -1, origin = -1}}
     program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
@@ -227,6 +232,8 @@ HostCapabilities :: () -> s32 {
     if read.problem != .None { return Fail(45, cast(s32)read.problem) }
     decoded := Link.ZxExecReadProgram(*owner)
     if decoded.functions.count != 2 || !decoded.functions[1].external || decoded.functions[1].calling != .Host { return Fail(46) }
+    if decoded.functions[0].variants.count != 1 || decoded.functions[0].variants[0].template != variant.template ||
+        decoded.functions[0].variants[0].operands[0].alias != "out" { return Fail(59) }
 
     // A run never starts while a required capability is unbound.
     missing := HostRun(decoded, Doubler, false)
@@ -246,6 +253,33 @@ HostCapabilities :: () -> s32 {
     read = Link.ZxExecRead(*owner, TextView(tampered[:]), Lir.LirDefaultLimits())
     VecFree(tampered)
     if read.problem != .CapabilityCount || owner.valid { return Fail(51, cast(s32)read.problem) }
+    tampered = CopyBytes(bytes[:])
+    tampered[176] = 1
+    read = Link.ZxExecRead(*owner, TextView(tampered[:]), Lir.LirDefaultLimits())
+    VecFree(tampered)
+    if read.problem != .Variant || owner.valid { return Fail(58, cast(s32)read.problem) }
+
+    variants[0].template = "movl $73, %[out]"
+    alternate := CopyBytes(bytes[:])
+    defer VecFree(alternate)
+    if Link.ZxExecWrite(program, no_assets[:], alternate[:]).problem != .None ||
+        SameBytes(bytes[192:224], alternate[192:224]) || SameBytes(bytes[256:288], alternate[256:288]) { return Fail(60) }
+    variants[0].template = "movl $42, %[bad]"
+    if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .Assembly { return Fail(61) }
+    variants[0] = variant
+    variants[0].features = 0x8000000000000000
+    if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .Assembly { return Fail(62) }
+    variants[0] = variant
+    invalid_operands: [1]Lir.LirAssemblyOperand = .{.{alias = "out", constraint = "=r,"}}
+    variants[0].operands = invalid_operands[:]
+    if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .Assembly { return Fail(63) }
+    variants[0] = variant
+    variants[0].clobbers = "memory;;cc"
+    if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .Assembly { return Fail(64) }
+    variants[0] = variant
+    functions[0].assembly_required = true
+    if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .Assembly { return Fail(65) }
+    functions[0].assembly_required = false
 
     // Host signatures stay bodiless scalars; ordinary calls and procedure values
     // cannot reach them, and portable code cannot be host-called.
@@ -396,23 +430,23 @@ DebugAttachment :: (program: Lir.LirProgram) -> s32 {
 DigestBoundaries :: (program: Lir.LirProgram) -> s32 {
     sizes: [17]s64 = .{0, 1, 15, 16, 17, 23, 24, 25, 55, 56, 63, 64, 65, 127, 128, 129, 1048577}
     expected: [17]string = .{
-        "6aff20131165b38c5d6fa435d77c6718794cc0e0aebb7130c0c6fc6422fe2093",
-        "3dbe104423e87dabdc8a093c5d9dc94dc5d931a8db7a0cf6c2abd0ba24b65cbb",
-        "9220f71ee4398abf1f41eea73168eebb1bfa1dca18ac08d10305c4034a3d5f4b",
-        "5a39bd30627cd0e198c7af27e161f34ea703145601f15382def91e73b376a0dc",
-        "968678ca2de935cd0a0dc55c2550a3ff4142d3d7f722b40e34f9f35c59a52636",
-        "8107b676d0068f7db143057a221b37b7da88d1fb1c2a58d83ac1775d76b4379b",
-        "eaf2033420b2bda12634de5b1d24d88eacfe2d1c288aba250a8816832d5e7b98",
-        "f9efbe65b18759715591d42a26791ec88f4307b2adea9c91fe64ca643d869f04",
-        "d68a9f4bda9b28926fdf9ce065283817a95a603cb4b746c53adf6a6df409a70c",
-        "ba1f303d8edd36c9be1ce93296701e8069d2dc67bcc0e720d380c408106ec564",
-        "5d43818c44f87852132b086027952507cc7fc0a234e536382538b02367b8598b",
-        "9e79413d20b4b9c5b65fe4b2a80ce833cb6cb98adb6ec5b9e2a3ed8dbfee5cbf",
-        "79fab954c45f9870c8c3791433e21082ac592118007e7fd4ff48d3f199097819",
-        "46a600a628f0e5e3f172d55496c5ae1efa95006f15b73d9d1ddbe1eb26daf04d",
-        "18ca8f87bdd2ee883914360fa14448d264193381056cf11498b841222b00a4ea",
-        "df8d59b9da1f1bb8e507beb95b25006423156afcefb4f6387a9459b37ac46bdc",
-        "7489cb52ff08e4732b830aa3fb82a9c1f09d985c0e76dc95cc9230cd64e5c202"}
+        "3063af6bc0a446f150795e06230f66041cdd2ed9115804a754d346dcd993eb74",
+        "6a02a66615e06c66dd95d33e5ef86f197de511641ecdf7c2f3e7008cc0fd6e21",
+        "34b6c58ae5d38a4bfb6d93e226b51d4561ec4b33a23fec9fb26879c7788f8533",
+        "9b9dee13151ab0b2888fe218a5b5a0e6b8a2bfd9f2667b6b370f8035efa2eabe",
+        "218a44cd1258dd07b71d8bb46376b8239ff95d4adfdb94a1f33e7e5c5ccf0be4",
+        "3e9ae3638649e496ae720439a3aea8b63127770718f0f7deb300607721cbd279",
+        "27835730df5abdea0caf59a1a50d6b1b33f46190b65406e37a22f804001166d6",
+        "03e1c5398b0658a2b87bfebde25ef699bfc0851d863179151123d33ef5efdb6c",
+        "c7779cb6f2c32c145d95a71ecdc19bb21a9a6f3d544cb695c0b1fb6a50f97c4c",
+        "e1e024109bd50d6efb528d9f5da376271159b71782929b96f15d673c5ed9db2c",
+        "777eb4ad0dcb2ed4723575ee86faebf5944de7f5184fc3477d74ec9b8ee354d9",
+        "6d4a2bcdb6c4e8326d4886d2f0f836fd2e4d519823bac53884125a7137ea9ff4",
+        "a731da8f8d68c86cfb94fb39f41bd54115594d67ce02c2f2ab4095dbec4ddd70",
+        "0277ac2b472d19ae6867965639d8467b1e120a2a9964f7f4e64168cc24e83770",
+        "5431c6de6b89036b265f68ddc88defb55cd85984dc00d854322b54011b8e9a9b",
+        "2cae9a74e30b43184c1107416e65b7fa46d4162fee2adce4e5d0e5c4804693dc",
+        "742acd72f6cf1abf6a470eb914ad9ebe1f835cf2c4a0ff20b2ed2cc2cbf0cb5c"}
     payload: Vec(u8)
     if !VecResize(payload, sizes[sizes.count - 1]) { return Fail(85) }
     defer VecFree(payload)
@@ -479,7 +513,7 @@ ModuleLinkage :: (program: Lir.LirProgram) -> s32 {
     layout := Bundle.ExecutableDecode(TextView(bytes[:]), no_assets)
     module_dir := 64 + 3 * 32
     interface_dir := module_dir + 32
-    if layout.problem != .None || layout.found_version != 28 || layout.required_features != 3 ||
+    if layout.problem != .None || layout.found_version != 29 || layout.required_features != 3 ||
         layout.module_linkage != linkage || layout.interface != interface || layout.optional_sections != 1 ||
         ReadU64(bytes[:], module_dir) != ((cast(u64)1 << 32) | 5) ||
         ReadU64(bytes[:], module_dir + 16) != cast(u64)linkage.count { return Fail(94) }

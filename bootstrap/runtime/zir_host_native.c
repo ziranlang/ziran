@@ -369,6 +369,8 @@ machine_problem_name(MachineProblem problem)
     case MachineProblem_Pressure: return "pressure";
     case MachineProblem_Cycle: return "cycle";
     case MachineProblem_Spill: return "spill";
+    case MachineProblem_Assembly: return "assembly-template";
+    case MachineProblem_TargetOnly: return "target-only";
     default: return "rejected";
     }
 }
@@ -416,7 +418,7 @@ native_check_image(const ExecBundle *bundle, const LirProgram *lir, MachineImage
 /* Compiles BUNDLE, with its debug attachment's origins when it has one: the
  * code is the same either way, and traps can then name source lines. */
 static NativeBundleCode *
-native_compile(const ExecBundle *bundle, int unbounded, char *problem, size_t capacity)
+native_compile(const ExecBundle *bundle, int unbounded, uint64_t features, char *problem, size_t capacity)
 {
     const LirProgram *lir = ExecBundleProgram(bundle);
     if(lir == NULL) {
@@ -437,26 +439,48 @@ native_compile(const ExecBundle *bundle, int unbounded, char *problem, size_t ca
         source = &restored;
     }
     code->unbounded = unbounded;
-    MachineDiagnostic diagnostic = unbounded ?
-        compiler_machine_pipeline_MachineCodeBuildUnbounded(*source, native_target(),
-            compiler_machine_ir_MachineDefaultLimits(), &code->owner) :
-        compiler_machine_pipeline_MachineCodeBuild(*source, native_target(),
-            compiler_machine_ir_MachineDefaultLimits(), &code->owner);
-    compiler_exec_debug_ZxDebugFree(&debug);
+    MachineDiagnostic diagnostic = compiler_machine_pipeline_MachineCodeBuildFeatures(*source,
+        native_target(), compiler_machine_ir_MachineDefaultLimits(), &code->owner, features, unbounded != 0);
     if(diagnostic.problem != MachineProblem_None) {
-        const LirFunction *functions = lir->functions.data;
-        String name = {"", 0};
-        if(diagnostic.function >= 0 && diagnostic.function < lir->functions.length)
-            name = functions[diagnostic.function].name;
-        snprintf(problem, capacity,
+        const LirFunction *functions = source->functions.data;
+        const LirFunction *function = diagnostic.function >= 0 && diagnostic.function < source->functions.length
+            ? &functions[diagnostic.function] : NULL;
+        String name = function != NULL ? function->name : (String){"", 0};
+        if(diagnostic.problem == MachineProblem_TargetOnly && function != NULL) {
+            const LirAssemblyVariant *variant = function->variants.data;
+            snprintf(problem, capacity,
+                "target-only procedure %.*s has no compatible variant; first requires %.*s/%.*s/%.*s, "
+                "feature mask 0x%llx (available 0x%llx)", (int)name.length, name.data,
+                (int)variant->architecture.length, variant->architecture.data,
+                (int)variant->os.length, variant->os.data, (int)variant->abi.length, variant->abi.data,
+                (unsigned long long)variant->features, (unsigned long long)features);
+        } else if(diagnostic.problem == MachineProblem_Assembly && function != NULL) {
+            String file = {"", 0};
+            LirOrigin origin = {0};
+            if(function->origin >= 0 && function->origin < source->origins.length) {
+                origin = ((const LirOrigin *)source->origins.data)[function->origin];
+                if(origin.file >= 0 && origin.file < source->sources.length)
+                    file = ((const String *)source->sources.data)[origin.file];
+            }
+            if(file.length > 0)
+                snprintf(problem, capacity,
+                    "%.*s:%d:%d: assembly.gap.machine-assembly-template: %.*s at template byte %d",
+                    (int)file.length, file.data, origin.line, origin.column,
+                    (int)name.length, name.data, diagnostic.operand);
+            else snprintf(problem, capacity,
+                "assembly.gap.machine-assembly-template: %.*s at template byte %d",
+                (int)name.length, name.data, diagnostic.operand);
+        } else snprintf(problem, capacity,
             "assembly.gap.machine-%s: native code generation rejected %.*s "
-            "(function=%d block=%d instruction=%d); no alternate engine was selected",
+            "(function=%d block=%d instruction=%d operand=%d); no alternate engine was selected",
             machine_problem_name(diagnostic.problem),
             (int)name.length, name.data, diagnostic.function, diagnostic.block,
-            diagnostic.instruction);
+            diagnostic.instruction, diagnostic.operand);
+        compiler_exec_debug_ZxDebugFree(&debug);
         native_free_code(code);
         return NULL;
     }
+    compiler_exec_debug_ZxDebugFree(&debug);
     MachineImage image = compiler_machine_pipeline_MachineCodeImageView(&code->owner);
     if(!native_check_image(bundle, lir, image, problem, capacity)) {
         native_free_code(code);
@@ -871,6 +895,22 @@ native_variant_digest(const unsigned char digest[32], int unbounded, unsigned ch
     Sha256End(&hash, out);
 }
 
+/* A mask can disable features for compatibility testing. It cannot enable
+ * a feature the hardware or the OS has not made usable. */
+static uint64_t
+native_cpu_features(void)
+{
+    uint64_t features = ZirNativeCpuFeatures();
+    const char *mask = getenv("ZIRAN_ZX_ASM_FEATURE_MASK");
+    if(mask != NULL && *mask != 0) {
+        char *end;
+        errno = 0;
+        unsigned long long allowed = strtoull(mask, &end, 0);
+        if(errno == 0 && *end == 0 && *mask != '-') features &= (uint64_t)allowed;
+    }
+    return features;
+}
+
 static void
 native_slot_prepare(NativeBundleSlot *slot, const ExecBundle *bundle,
                     const unsigned char bundle_digest[32], int unbounded)
@@ -880,7 +920,7 @@ native_slot_prepare(NativeBundleSlot *slot, const ExecBundle *bundle,
     pthread_mutex_lock(&native_lock);
     if(!slot->ready) {
         uint64_t lookup_started = ProfileStart();
-        uint64_t cpu = ZirNativeCpuKey();
+        uint64_t cpu = native_cpu_features();
         for(NativeBundleCode *code = native_cache; code != NULL; code = code->next)
             if(code->cpu == cpu && !memcmp(code->digest, digest, 32)) {
                 code->references++;
@@ -896,7 +936,7 @@ native_slot_prepare(NativeBundleSlot *slot, const ExecBundle *bundle,
             ProfileEnd("zx.native.lookup", lookup_started);
             if(code == NULL) {
                 uint64_t compile_started = ProfileStart();
-                code = native_compile(bundle, unbounded, slot->problem, sizeof(slot->problem));
+                code = native_compile(bundle, unbounded, cpu, slot->problem, sizeof(slot->problem));
                 ProfileEnd("zx.native.compile", compile_started);
                 if(code != NULL && keyed) {
                     uint64_t store_started = ProfileStart();
@@ -988,7 +1028,7 @@ typedef struct NativeJitCodeLoad {
     uint32_t pad;
     uint64_t code_address;
     uint64_t code_index;
-    /* The name follows, NUL-terminated, padded to 8 bytes. */
+    /* The NUL-terminated, eight-byte-aligned name precedes the code bytes. */
 } NativeJitCodeLoad;
 
 static uint64_t
@@ -1063,6 +1103,7 @@ native_jit_write(const NativeInstance *instance, int file, const char *path)
             end = id + 1 < count ? starts[id + 1] : image.code.bytes.length;
         }
         if(begin < 0 || end <= begin || end > image.code.bytes.length) continue;
+        if((uint64_t)(end - begin) > UINT32_MAX) { ok = 0; break; }
         char fallback[32];
         size_t name_length;
         const char *name;
@@ -1077,7 +1118,9 @@ native_jit_write(const NativeInstance *instance, int file, const char *path)
             .timestamp = header.timestamp, .code_size = (uint32_t)(end - begin), .pad = 0,
             .code_address = (uint64_t)(base + (uintptr_t)begin), .code_index = (uint64_t)id};
         size_t name_field = (name_length + 1 + 7) / 8 * 8;
-        record.total_size = (uint32_t)(sizeof(record) + name_field);
+        size_t record_size = sizeof(record) + name_field + record.code_size;
+        if(record_size > UINT32_MAX || written > UINT32_MAX - record_size) { ok = 0; break; }
+        record.total_size = (uint32_t)record_size;
         if(write(file, &record, sizeof(record)) != (ssize_t)sizeof(record)) { ok = 0; break; }
         written += sizeof(record);
         if(name_length > 0 &&
@@ -1086,7 +1129,11 @@ native_jit_write(const NativeInstance *instance, int file, const char *path)
         static const unsigned char padding[8];
         size_t pad = name_field - name_length;
         if(pad > 0 && write(file, padding, pad) != (ssize_t)pad) { ok = 0; break; }
-        written += pad;
+        if(write(file, (const void *)(base + (uintptr_t)begin), record.code_size) != (ssize_t)record.code_size) {
+            ok = 0;
+            break;
+        }
+        written += pad + record.code_size;
     }
     if(!ok) { unlink(path); return; }
     header.total_size = (uint32_t)written;
@@ -1157,7 +1204,7 @@ native_trap_site(const NativeInstance *instance, char *text, size_t capacity)
         return;
     }
     char problem[512];
-    NativeBundleCode *named = native_compile(instance->bundle, instance->unbounded, problem, sizeof(problem));
+    NativeBundleCode *named = native_compile(instance->bundle, instance->unbounded, instance->code->cpu, problem, sizeof(problem));
     if(named == NULL) { snprintf(text, capacity, "function=? block=? (%s)", problem); return; }
     native_trap_site_in(instance, &named->owner, text, capacity);
     native_free_code(named);

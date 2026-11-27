@@ -1,4 +1,4 @@
-// Verified revision-28 executable ZX to one wasm32 module. Wasm is another
+// Verified revision-29 executable ZX to one wasm32 module. Wasm is another
 // lowering of the one pipeline, .zi -> ZIR -> LIR -> verify -> LIR
 // optimizations -> .zx, beside the portable interpreter and native machine
 // code. The lowering reads only the decoded, verified executable payload, so
@@ -77,7 +77,7 @@ LowerProgramSuspendable :: (program: *LirProgram, image: *ZxWasmImage) -> bool {
     return program != null && LowerModule(program, image, true, false)
 }
 
-// Reads and verifies a revision-28 executable ZX image and lowers its payload.
+// Reads and verifies a revision-29 executable ZX image and lowers its payload.
 LowerExecutable :: (zx: *u8, size: usize, image: *ZxWasmImage) -> bool {
     return LowerExecutableWith(zx, size, image, false)
 }
@@ -387,6 +387,10 @@ Release :: (lower: *Lower) {
 Kind :: (lower: *Lower, kind: u32) -> bool { return (lower.print_kinds & (cast(u32)1 << kind)) != 0 }
 
 LowerModule :: (program: *LirProgram, image: *ZxWasmImage, suspendable: bool, unbounded: bool) -> bool {
+    if LirAssemblyRequiredFunction(<<program) >= 0 {
+        WasmDiagnose("zx.target-only", "the ZX program requires native assembly before initialization")
+        return false
+    }
     lower: Lower
     lower.suspendable = suspendable
     lower.unbounded = unbounded

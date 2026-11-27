@@ -70,7 +70,7 @@ const LirProgram *ZxLowerView(const ZxLowerOwner *owner);
 const LirOptResult *ZxLowerOptimization(const ZxLowerOwner *owner);
 void ZxLowerFree(ZxLowerOwner *owner);
 
-/* Lowers the linked program's entry, optimizes it and writes revision-28
+/* Lowers the linked program's entry, optimizes it and writes revision-29
  * executable ZX with its host interface section: what zi2zx
  * writes. `assets` is a slice of compiler_bundle Asset values in name order.
  * The entry must take no arguments and return an integer, bool or nothing.

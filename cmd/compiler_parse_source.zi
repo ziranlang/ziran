@@ -4,6 +4,28 @@ using Parser :: #import "compiler_parse_types"
 TSX :: #import "compiler_tsx"
 
 #scope_file
+procedure_type_modifiers :: (cursor: *u8) -> bool {
+    seen_reads := false
+    seen_c_call := false
+    while true {
+        cursor = skip_ws(cursor)
+        if strncmp(cursor, ParserCString("#reads"), 6) == 0 &&
+            (cursor[6] == #char ";" || isspace(cast(s32)cursor[6]) != 0) {
+            if seen_reads { return false }
+            seen_reads = true
+            cursor = cast(*u8)(cast(usize)cursor + strlen(ParserCString("#reads")))
+        } else if strncmp(cursor, ParserCString("#c_call"), 7) == 0 &&
+            (cursor[7] == #char ";" || isspace(cast(s32)cursor[7]) != 0) {
+            if seen_c_call { return false }
+            seen_c_call = true
+            cursor = cast(*u8)(cast(usize)cursor + strlen(ParserCString("#c_call")))
+        } else {
+            return cursor[0] == #char ";" && cursor[1] == 0
+        }
+    }
+}
+
+#scope_file
 compiler :: #system_library "ziran";
 libc :: #system_library "libc";
 
@@ -1280,25 +1302,20 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                                                                         is_c_call: s32 = cast(s32)(c_call != cast(*u8)((null)))
                                                                         reads: *u8 = strstr(t, ParserCString("#reads"))
                                                                         reads_arguments: s32 = cast(s32)(reads != cast(*u8)((null)))
-                                                                        if ((reads_arguments != 0) && ((((is_c_call != 0) || (strcmp(skip_ws(cast(*u8)(cast(usize)(reads) + cast(usize)(strlen(ParserCString("#reads"))) * size_of(u8))), ParserCString(";")) != 0)) || (return_length == cast(usize)(0))) || (strstr(cast(*u8)(cast(usize)(reads) + cast(usize)(1) * size_of(u8)), ParserCString("#reads")) != cast(*u8)((null))))) {
-                                                                            die_at(Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), ParserCString("#reads goes once after a procedure type's result, as in -> s32 #reads;"))
-                                                                            unreachable
-                                                                        }
-                                                                        if (is_c_call != 0) {
-                                                                            if (((cast(s32)(cast(s8)((skip_ws(cast(*u8)(cast(usize)(c_call) + cast(usize)(strlen(ParserCString("#c_call"))) * size_of(u8))))[0])) != 59) || (cast(s32)(cast(s8)((skip_ws(cast(*u8)(cast(usize)(c_call) + cast(usize)(strlen(ParserCString("#c_call"))) * size_of(u8))))[1])) != 0)) || (return_length == cast(usize)(0))) {
-                                                                                die_at(Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), ParserCString("procedure type requires Result #c_call;"))
+                                                                        if reads_arguments != 0 || is_c_call != 0 {
+                                                                            modifier := ifx reads != null && (c_call == null || cast(usize)reads < cast(usize)c_call) then reads else c_call
+                                                                            if return_length == 0 || !procedure_type_modifiers(modifier) {
+                                                                                die_at(Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), ParserCString("procedure type modifiers are #reads and #c_call, once each after the result"))
                                                                                 unreachable
                                                                             }
                                                                         } else {
-                                                                            if !(reads_arguments != 0) {
-                                                                                if ((return_length == cast(usize)(0)) || (cast(s32)(cast(s8)((ret_storage_33[0]).items[(return_length - cast(usize)(1))])) != 59)) {
-                                                                                    die_at(Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), ParserCString("procedure type requires a result type and ';'"))
-                                                                                    unreachable
-                                                                                }
+                                                                            if ((return_length == cast(usize)(0)) || (cast(s32)(cast(s8)((ret_storage_33[0]).items[(return_length - cast(usize)(1))])) != 59)) {
+                                                                                die_at(Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), ParserCString("procedure type requires a result type and ';'"))
+                                                                                unreachable
+                                                                            }
+                                                                            (ret_storage_33[0]).items[ParserPre15(*(return_length))] = cast(u8)(0)
+                                                                            while loop_115 := ((return_length > cast(usize)(0)) && (isspace(cast(s32)(((cast(u8)((ret_storage_33[0]).items[(return_length - cast(usize)(1))]))))) != 0)) {
                                                                                 (ret_storage_33[0]).items[ParserPre15(*(return_length))] = cast(u8)(0)
-                                                                                while loop_115 := ((return_length > cast(usize)(0)) && (isspace(cast(s32)(((cast(u8)((ret_storage_33[0]).items[(return_length - cast(usize)(1))]))))) != 0)) {
-                                                                                    (ret_storage_33[0]).items[ParserPre15(*(return_length))] = cast(u8)(0)
-                                                                                }
                                                                             }
                                                                         }
                                                                         if (strcmp(cast(*u8)(*((ret_storage_33[0]).items)), ParserCString("()")) == 0) {

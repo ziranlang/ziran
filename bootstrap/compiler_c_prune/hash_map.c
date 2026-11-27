@@ -196,7 +196,7 @@ hash_map_hash_map_HashMapRehash_for_string_s64(__type_7a2629767503dccc* map, int
         bool value_7 = false;
         void *value_8 = ZirVecGrow((void *)(map->keys).data, &(map->keys).capacity, (map->keys).count, sizeof(*(map->keys).data));
         if (value_8 != NULL) {
-            (map->keys).data = (String *)value_8;
+            (map->keys).data = value_8;
             (map->keys).data[(map->keys).count++] = value_6;
             value_7 = true;
         }
@@ -205,7 +205,7 @@ hash_map_hash_map_HashMapRehash_for_string_s64(__type_7a2629767503dccc* map, int
         bool value_10 = false;
         void *value_11 = ZirVecGrow((void *)(map->values).data, &(map->values).capacity, (map->values).count, sizeof(*(map->values).data));
         if (value_11 != NULL) {
-            (map->values).data = (int64_t *)value_11;
+            (map->values).data = value_11;
             (map->values).data[(map->values).count++] = value_9;
             value_10 = true;
         }
@@ -214,7 +214,7 @@ hash_map_hash_map_HashMapRehash_for_string_s64(__type_7a2629767503dccc* map, int
         bool value_13 = false;
         void *value_14 = ZirVecGrow((void *)(map->states).data, &(map->states).capacity, (map->states).count, sizeof(*(map->states).data));
         if (value_14 != NULL) {
-            (map->states).data = (uint8_t *)value_14;
+            (map->states).data = value_14;
             (map->states).data[(map->states).count++] = value_12;
             value_13 = true;
         }

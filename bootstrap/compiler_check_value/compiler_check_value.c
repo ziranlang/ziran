@@ -3182,14 +3182,9 @@ private_check_readonly_text_destination(Checker* c, int32_t index)
         }
     }
     if ((int32_t)(((ZirExprKind)(e->kind))) == 10 || (int32_t)(((ZirExprKind)(e->kind))) == 8) {
-        bool value_14 = (int32_t)(((ZirExprKind)((fn->exprs[e->left]).kind))) == 1;
-        bool value_15 = value_14;
-        if (value_15) {
-            uint8_t* value_16 = (uint8_t*)(fn->exprs[e->left]).type;
-            bool value_17 = zir_foreign_compiler_check_value__strcmp(value_16, compiler_check_types_CheckCString(StringLiteral("string"))) != 0;
-            value_15 = !value_17;
-        }
-        if (value_15) {
+        uint8_t* value_14 = (uint8_t*)(fn->exprs[e->left]).type;
+        bool value_15 = zir_foreign_compiler_check_value__strcmp(value_14, compiler_check_types_CheckCString(StringLiteral("string"))) != 0;
+        if (!value_15) {
             return 1;
         }
         return private_check_readonly_text_destination(c, e->left);
@@ -3311,7 +3306,7 @@ compiler_check_value_closure_join(String a, String b, String tail)
         bool value_2 = false;
         void *value_3 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
         if (value_3 != NULL) {
-            (bytes).data = (uint8_t *)value_3;
+            (bytes).data = value_3;
             (bytes).data[(bytes).count++] = value_1;
             value_2 = true;
         }
@@ -3323,7 +3318,7 @@ compiler_check_value_closure_join(String a, String b, String tail)
         bool value_5 = false;
         void *value_6 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
         if (value_6 != NULL) {
-            (bytes).data = (uint8_t *)value_6;
+            (bytes).data = value_6;
             (bytes).data[(bytes).count++] = value_4;
             value_5 = true;
         }
@@ -3335,7 +3330,7 @@ compiler_check_value_closure_join(String a, String b, String tail)
         bool value_8 = false;
         void *value_9 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
         if (value_9 != NULL) {
-            (bytes).data = (uint8_t *)value_9;
+            (bytes).data = value_9;
             (bytes).data[(bytes).count++] = value_7;
             value_8 = true;
         }

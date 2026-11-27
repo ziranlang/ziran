@@ -2348,14 +2348,22 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
             memset(cast(*void)element_storage_12, 0, size_of(CheckArray128_u8))
             array: s32 = ArrayElementType(left, cast(*u8)(*((element_storage_12[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), null)
             string_local: s32 = cast(s32)(!(strcmp(left, CheckCString("string")) != 0))
+            pointer := left[0] == #char "*"
+            if pointer {
+                copy_text(*element_storage_12.items[0], size_of(CheckArray128_u8), skip_ws(cast(*u8)(cast(usize)left + 1)))
+                if e.third < 0 || strcmp(*element_storage_12.items[0], CheckCString("void")) == 0 {
+                    error(c, e.span, CheckCString("pointer slice requires a non-void element type and an explicit upper bound"), e.text)
+                    break check_switch_243
+                }
+            }
             if ((!(string_local != 0) && !(array != 0)) && (VecElementType((c).module, left, null, cast(usize)(0)) != 0)) {
                 copy_text(cast(*u8)(*((member_type_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), slice_vec_place(c, index, left))
                 e = cast(*IR.ZirExpr)(cast(usize)(((c).fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
                 type = cast(*u8)(*((member_type_storage_0[0]).items))
                 break check_switch_243
             }
-            if ((!(string_local != 0) && !(array != 0)) && !(SliceElementType(left, cast(*u8)(*((element_storage_12[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0)) {
-                error(c, (e).span, CheckCString("slice source requires a string, array, or slice"), (e).text)
+            if !pointer && ((!(string_local != 0) && !(array != 0)) && !(SliceElementType(left, cast(*u8)(*((element_storage_12[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0)) {
+                error(c, (e).span, CheckCString("slice source requires a string, array, slice, or bounded pointer"), (e).text)
                 break check_switch_243
             }
             if ((array != 0) && !(assignable(c, (e).left) != 0)) {

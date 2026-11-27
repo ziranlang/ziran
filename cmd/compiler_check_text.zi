@@ -150,9 +150,93 @@ reads_slot :: (module: *IR.ZirModule, type: *u8) -> *IR.ZirType {
 }
 
 #scope_file
+byte_view_type :: (type: *u8) -> bool {
+    if type == null { return false }
+    type = skip_ws(type)
+    return IR.CText(type) == "*u8" || IR.CText(type) == "*s8" ||
+        IR.CText(type) == "[]u8" || IR.CText(type) == "[]s8"
+}
+
+#scope_file
+reads_byte_slot_argument :: (slot: *IR.ZirType, fn: *IR.ZirFunction, argument: s32) -> bool {
+    parameters := ParametersOf(*slot.body[0])
+    index := fn.exprs[argument].argument_index
+    if index < 0 || index >= parameters.count { return false }
+    parameter := (cast(*ZirParameter)(*parameters.items.items[0]))[index]
+    type := ifx parameter.value_type != null then parameter.value_type else parameter.type
+    return byte_view_type(type)
+}
+
+// A byte load consumes the value, while an address of that element lends the
+// original storage. Assignments through either form violate the read contract.
+#scope_file
+byte_element_flow :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction,
+    parents: *Parents, value: s32) -> s32 {
+    parent := parents.of[value]
+    if parent < -1 {
+        statement := fn.stmts[-2 - parent]
+        return ifx statement.kind == .ASSIGN && statement.lhs_root == value then 0 else 1
+    }
+    if parent >= 0 && fn.exprs[parent].kind == .UNARY {
+        operation := IR.CText(*fn.exprs[parent].op[0])
+        if operation == "&" { return value_flow(scope, module, fn, parents, parent) }
+        if operation == "++" || operation == "--" { return 0 }
+    }
+    return 1
+}
+
+#scope_file
+byte_value_flow :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction,
+    parents: *Parents, value: s32) -> s32 {
+    parent := parents.of[value]
+    if parent < -1 {
+        statement := fn.stmts[-2 - parent]
+        if statement.expr_root != value { return 0 }
+        if statement.kind == .RETURN { return 2 }
+        if statement.kind == .EXPR || statement.kind == .UNUSED { return 1 }
+        if statement.kind == .DECL && statement.lhs_root < 0 &&
+            statement.is_using == 0 && byte_view_type(statement.type) {
+            return local_flow(scope, module, fn, parents, -2 - parent)
+        }
+        return 0
+    }
+    if parent < 0 { return 0 }
+    expression := fn.exprs[parent]
+    if expression.kind == .CALL {
+        if IR.CText(expression.name) == "TextView" {
+            return value_flow(scope, module, fn, parents, parent)
+        }
+        return argument_flow(scope, module, fn, parents, parent, value, null)
+    }
+    if expression.kind == .INDEX && expression.left == value {
+        return byte_element_flow(scope, module, fn, parents, parent)
+    }
+    if expression.kind == .UNARY && IR.CText(*expression.op[0]) == "*" {
+        return byte_element_flow(scope, module, fn, parents, parent)
+    }
+    if expression.kind == .MEMBER && expression.left == value &&
+        IR.CText(expression.name) == "count" { return 1 }
+    if expression.kind == .SLICE && expression.left == value {
+        return value_flow(scope, module, fn, parents, parent)
+    }
+    if expression.kind == .CAST && byte_view_type(expression.type) {
+        return value_flow(scope, module, fn, parents, parent)
+    }
+    if expression.kind == .BINARY && comparison(*expression.op[0]) != 0 { return 1 }
+    if expression.kind == .CONDITIONAL && (expression.right == value || expression.third == value) {
+        return value_flow(scope, module, fn, parents, parent)
+    }
+    return 0
+}
+
+#scope_file
 argument_flow :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, parents: *Parents, call: s32, argument: s32, field: *u8) -> s32 {
     e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(call) * size_of(IR.ZirExpr))
-    if (reads_slot(module, (e).slot_type) != cast(*IR.ZirType)((null))) {
+    slot := reads_slot(module, e.slot_type)
+    if slot != null {
+        if byte_view_type(fn.exprs[argument].type) && !reads_byte_slot_argument(slot, fn, argument) {
+            return 0
+        }
         return (ifx (argument != (e).left) then 1 else 0)
     }
     if (((((e).left >= 0) || ((e).is_function_value != 0)) || !((e).name != null)) || !(((e).name)[0] != 0)) {
@@ -190,6 +274,9 @@ argument_flow :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction,
 
 #scope_file
 value_flow :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, parents: *Parents, value: s32) -> s32 {
+    if byte_view_type(fn.exprs[value].type) {
+        return byte_value_flow(scope, module, fn, parents, value)
+    }
     parent: s32 = ((parents).of)[value]
     if (parent < (-1)) {
         s: s32 = ((-2) - parent)
@@ -234,7 +321,7 @@ value_flow :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, pa
             return (ifx (((e).left == value) && !(strcmp((e).name, CheckCString("count")) != 0)) then 1 else 0)
         }
         else if check_choice_271 == cast(IR.ZirExprKind)((10)) {
-            return (ifx ((e).left == value) then 1 else 0)
+            return (ifx ((e).left == value) then byte_element_flow(scope, module, fn, parents, parent) else 0)
         }
         else if check_choice_271 == cast(IR.ZirExprKind)((16)) {
             return (ifx ((e).left == value) then value_flow(scope, module, fn, parents, parent) else 0)
@@ -389,7 +476,7 @@ parameter_flow :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction
     if (type != cast(*u8)((null))) {
         type = skip_ws(type)
     }
-    typed: s32 = cast(s32)((type != cast(*u8)((null))) && ((ifx (field == cast(*u8)((null))) then cast(s32)(!(strcmp(type, CheckCString("string")) != 0)) else cast(s32)((((type)[0] != 0) && (strcmp(type, CheckCString("string")) != 0)) && !(pointer_type(type) != 0))) != 0))
+    typed: s32 = cast(s32)((type != cast(*u8)((null))) && ((ifx (field == cast(*u8)((null))) then cast(s32)(IR.CText(type) == "string" || byte_view_type(type)) else cast(s32)((((type)[0] != 0) && (strcmp(type, CheckCString("string")) != 0)) && !(pointer_type(type) != 0))) != 0))
     if (((name != cast(*u8)((null))) && (typed != 0)) && !((item).is_using != 0)) {
         result = 1
         {
@@ -1933,7 +2020,7 @@ reads_only :: (scope: *TextScope, owner: *IR.ZirModule, fn: *IR.ZirFunction, kep
             type: *u8 = skip_ws((ifx ((item).value_type != null) then (item).value_type else (item).type))
             record_owner: *IR.ZirModule = null
             record: *IR.ZirType = null
-            if !(strcmp(type, CheckCString("string")) != 0) {
+            if IR.CText(type) == "string" || byte_view_type(type) {
                 if ((((p >= 64) || ((fn).is_extern != 0)) || ((fn).is_template != 0)) || (parameter_flow(scope, owner, fn, p, null) != 1)) {
                     if (!((fn).is_extern != 0) || !(reading_foreign(owner, cast(*u8)(*((fn).name))) != 0)) {
                         snprintf(kept, size, CheckCString("%s"), name)

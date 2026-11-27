@@ -129,9 +129,6 @@ storage_type_error :: (module: *IR.ZirModule, source: *u8, path: *RecordPath, in
         if !((pointee)[0] != 0) {
             return CheckCString("pointer requires an element type")
         }
-        if (((path != cast(*RecordPath)((null))) && (cast(s32)(cast(s8)((pointee)[0])) == 91)) && (cast(s32)(cast(s8)((pointee)[1])) != 93)) {
-            return CheckCString("pointers to fixed arrays, and Vecs of them, are not supported; wrap the array in a record")
-        }
         return storage_type_error(module, pointee, path, 1, checked, detail, detail_capacity)
     }
     if (cast(s32)(cast(s8)((type_storage_0[0]).items[0])) == 91) {
@@ -176,6 +173,10 @@ storage_type_error :: (module: *IR.ZirModule, source: *u8, path: *RecordPath, in
     }
     if ((record).is_procedure_type != 0) {
         return null
+    }
+    if VecElementType(module, cast(*u8)*type_storage_0[0].items, cast(*u8)*element_storage_1[0].items, size_of(CheckArray128_u8)) != 0 &&
+       element_storage_1[0].items[0] == #char "[" && element_storage_1[0].items[1] != #char "]" {
+        return CheckCString("fixed arrays are not supported as Vec elements; wrap the array in a record")
     }
     if ((((record).is_enum != 0) || ((record).is_map != 0)) || (indirect != 0)) {
         return null
@@ -819,7 +820,13 @@ check_type_declarations_with_buffers :: (module: *IR.ZirModule, buffers: *CheckT
                         }
                         type: *IR.ZirType = FindType(module, colon, null)
                         base_type: *IR.ZirType = (ifx (type != cast(*IR.ZirType)((null))) then type else FindType(module, base, null))
-                        if (((!((cast(*u8)(*((((buffers).parameters_2).items[parameter]).items)))[0] != 0) || !(strcmp(colon, CheckCString("void")) != 0)) || ((ifx ((record).is_c_call != 0) then cast(s32)(local_storage_error(module, colon) != cast(*u8)((null))) else (cast(s32)((((cast(*u8)(TargetTypeZiran(cast(*void)((colon)), 0))) == cast(*u8)((null))) && ((cast(*u8)(TargetTypeZiran(cast(*void)((base)), 0))) == cast(*u8)((null)))) && (base_type == cast(*IR.ZirType)((null)))))) != 0)) || ((base_type != null) && ((base_type).is_procedure_type != 0))) {
+                        // A C function pointer may receive another C function pointer.
+                        // Both declarations still validate their own signatures. Native
+                        // procedure slots and indirection through a callback stay rejected.
+                        c_callback_parameter: bool = ((record).is_c_call != 0) && (colon == base) && (type != null) && ((type).is_c_call != 0)
+                        procedure_parameter_invalid: bool = (base_type != null) && ((base_type).is_procedure_type != 0) && !c_callback_parameter
+                        pointer_array_parameter: bool = (colon != base) && (base[0] == #char "[") && (base[1] != #char "]") && (local_storage_error(module, colon) == null)
+                        if (((!((cast(*u8)(*((((buffers).parameters_2).items[parameter]).items)))[0] != 0) || !(strcmp(colon, CheckCString("void")) != 0)) || ((ifx ((record).is_c_call != 0) then cast(s32)(local_storage_error(module, colon) != cast(*u8)((null))) else (cast(s32)((((cast(*u8)(TargetTypeZiran(cast(*void)((colon)), 0))) == cast(*u8)((null))) && ((cast(*u8)(TargetTypeZiran(cast(*void)((base)), 0))) == cast(*u8)((null)))) && (base_type == cast(*IR.ZirType)((null))) && !pointer_array_parameter))) != 0)) || procedure_parameter_invalid) {
                             return record_declaration_error(record, CheckCString("invalid slot parameter"), cast(*u8)(*((((buffers).parameters_2).items[parameter]).items)))
                         }
                         {

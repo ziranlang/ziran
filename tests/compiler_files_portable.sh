@@ -3,6 +3,7 @@ set -eu
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 export YUE_DESKTOP_RECOVERY=0
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+bootstrap=${BOOTSTRAP_ROOT:-"$root/bootstrap"}
 mkdir -p "$root/build"
 work=$(mktemp -d "$root/build/compiler-files-portable.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -12,10 +13,10 @@ compile_fixture() {
     output=$2
     shift 2
     for module in ir context_types parse_types parse_s14_types check_types text statement declaration source scan files; do
-        set -- "$@" -I"$root/bootstrap/compiler_$module"
+        set -- "$@" -I"$bootstrap/compiler_$module"
     done
     "$compiler" -std=c11 -Wall -Wextra -Werror -Wno-unused-label -I"$root/include" "$@" \
-        -c "$root/bootstrap/compiler_files/compiler_files.c" -o "$work/files.o"
+        -c "$bootstrap/compiler_files/compiler_files.c" -o "$work/files.o"
     "$compiler" -std=c11 -Wall -Wextra -Werror -I"$root/include" -I"$root/bootstrap/runtime" "$@" \
         "$root/tests/compiler_files_portable.c" "$work/files.o" \
         "$root/bootstrap/runtime/zir_files_host.c" "$root/bootstrap/runtime/zir_memory.c" -o "$output"

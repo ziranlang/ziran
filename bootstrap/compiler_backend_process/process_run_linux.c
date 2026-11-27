@@ -125,7 +125,7 @@ process_run_linux_Put(Prepared* prepared, String text)
         bool value_1 = false;
         void *value_2 = ZirVecGrow((void *)(prepared->bytes).data, &(prepared->bytes).capacity, (prepared->bytes).count, sizeof(*(prepared->bytes).data));
         if (value_2 != NULL) {
-            (prepared->bytes).data = (uint8_t *)value_2;
+            (prepared->bytes).data = value_2;
             (prepared->bytes).data[(prepared->bytes).count++] = value_0;
             value_1 = true;
         }
@@ -135,7 +135,7 @@ process_run_linux_Put(Prepared* prepared, String text)
     bool value_4 = false;
     void *value_5 = ZirVecGrow((void *)(prepared->bytes).data, &(prepared->bytes).capacity, (prepared->bytes).count, sizeof(*(prepared->bytes).data));
     if (value_5 != NULL) {
-        (prepared->bytes).data = (uint8_t *)value_5;
+        (prepared->bytes).data = value_5;
         (prepared->bytes).data[(prepared->bytes).count++] = value_3;
         value_4 = true;
     }
@@ -178,7 +178,7 @@ process_run_linux_Prepare(ProcessOptions options, Prepared* prepared)
             bool value_8 = false;
             void *value_9 = ZirVecGrow((void *)(prepared->argument_offsets).data, &(prepared->argument_offsets).capacity, (prepared->argument_offsets).count, sizeof(*(prepared->argument_offsets).data));
             if (value_9 != NULL) {
-                (prepared->argument_offsets).data = (int64_t *)value_9;
+                (prepared->argument_offsets).data = value_9;
                 (prepared->argument_offsets).data[(prepared->argument_offsets).count++] = value_7;
                 value_8 = true;
             }
@@ -220,7 +220,7 @@ process_run_linux_Prepare(ProcessOptions options, Prepared* prepared)
             bool value_13 = false;
             void *value_14 = ZirVecGrow((void *)(prepared->names).data, &(prepared->names).capacity, (prepared->names).count, sizeof(*(prepared->names).data));
             if (value_14 != NULL) {
-                (prepared->names).data = (int64_t *)value_14;
+                (prepared->names).data = value_14;
                 (prepared->names).data[(prepared->names).count++] = value_12;
                 value_13 = true;
             }
@@ -230,7 +230,7 @@ process_run_linux_Prepare(ProcessOptions options, Prepared* prepared)
                 bool value_16 = false;
                 void *value_17 = ZirVecGrow((void *)(prepared->values).data, &(prepared->values).capacity, (prepared->values).count, sizeof(*(prepared->values).data));
                 if (value_17 != NULL) {
-                    (prepared->values).data = (int64_t *)value_17;
+                    (prepared->values).data = value_17;
                     (prepared->values).data[(prepared->values).count++] = value_15;
                     value_16 = true;
                 }
@@ -244,7 +244,7 @@ process_run_linux_Prepare(ProcessOptions options, Prepared* prepared)
                 bool value_19 = false;
                 void *value_20 = ZirVecGrow((void *)(prepared->values).data, &(prepared->values).capacity, (prepared->values).count, sizeof(*(prepared->values).data));
                 if (value_20 != NULL) {
-                    (prepared->values).data = (int64_t *)value_20;
+                    (prepared->values).data = value_20;
                     (prepared->values).data[(prepared->values).count++] = value_18;
                     value_19 = true;
                 }
@@ -299,7 +299,7 @@ process_run_linux_Prepare(ProcessOptions options, Prepared* prepared)
         bool value_36 = false;
         void *value_37 = ZirVecGrow((void *)(prepared->arguments).data, &(prepared->arguments).capacity, (prepared->arguments).count, sizeof(*(prepared->arguments).data));
         if (value_37 != NULL) {
-            (prepared->arguments).data = (ProcessArgumentSlot *)value_37;
+            (prepared->arguments).data = value_37;
             (prepared->arguments).data[(prepared->arguments).count++] = value_35;
             value_36 = true;
         }
@@ -311,7 +311,7 @@ process_run_linux_Prepare(ProcessOptions options, Prepared* prepared)
     bool value_39 = false;
     void *value_40 = ZirVecGrow((void *)(prepared->arguments).data, &(prepared->arguments).capacity, (prepared->arguments).count, sizeof(*(prepared->arguments).data));
     if (value_40 != NULL) {
-        (prepared->arguments).data = (ProcessArgumentSlot *)value_40;
+        (prepared->arguments).data = value_40;
         (prepared->arguments).data[(prepared->arguments).count++] = value_38;
         value_39 = true;
     }
@@ -841,7 +841,7 @@ process_run_linux_RunProcess(ProcessOptions options, ProcessRun* run)
                 bool value_4 = false;
                 void *value_5 = ZirVecGrow((void *)(run->output).data, &(run->output).capacity, (run->output).count, sizeof(*(run->output).data));
                 if (value_5 != NULL) {
-                    (run->output).data = (uint8_t *)value_5;
+                    (run->output).data = value_5;
                     (run->output).data[(run->output).count++] = value_3;
                     value_4 = true;
                 }

@@ -146,7 +146,7 @@ ReadEntireFileCapped(String path, int64_t maximum)
             bool value_15 = false;
             void *value_16 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
             if (value_16 != NULL) {
-                (bytes).data = (uint8_t *)value_16;
+                (bytes).data = value_16;
                 (bytes).data[(bytes).count++] = value_14;
                 value_15 = true;
             }
@@ -217,7 +217,7 @@ ReadFileIntoCapped(String path, int64_t maximum, __type_131eebaaeb761e42* bytes)
             bool value_4 = false;
             void *value_5 = ZirVecGrow((void *)((*(bytes))).data, &((*(bytes))).capacity, ((*(bytes))).count, sizeof(*((*(bytes))).data));
             if (value_5 != NULL) {
-                ((*(bytes))).data = (uint8_t *)value_5;
+                ((*(bytes))).data = value_5;
                 ((*(bytes))).data[((*(bytes))).count++] = value_3;
                 value_4 = true;
             }
@@ -228,7 +228,7 @@ ReadFileIntoCapped(String path, int64_t maximum, __type_131eebaaeb761e42* bytes)
                     value_8 = value_7 <= ((*(bytes))).capacity;
                     if (!value_8) {
                         void *value_9 = ZirVecReserve((void *)((*(bytes))).data, &((*(bytes))).capacity, ((*(bytes))).count, value_7 - ((*(bytes))).count, sizeof(*((*(bytes))).data));
-                        if (value_9 != NULL) { ((*(bytes))).data = (uint8_t *)value_9; value_8 = true; }
+                        if (value_9 != NULL) { ((*(bytes))).data = value_9; value_8 = true; }
                     }
                     if (value_8) {
                         if (value_7 > ((*(bytes))).count) memset(((*(bytes))).data + ((*(bytes))).count, 0, (size_t)(value_7 - ((*(bytes))).count) * sizeof(*((*(bytes))).data));
@@ -286,7 +286,7 @@ file_ReadEntireFile(String path)
             bool value_6 = false;
             void *value_7 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
             if (value_7 != NULL) {
-                (bytes).data = (uint8_t *)value_7;
+                (bytes).data = value_7;
                 (bytes).data[(bytes).count++] = value_5;
                 value_6 = true;
             }
@@ -339,7 +339,7 @@ file_ReadFileInto(String path, __type_131eebaaeb761e42* bytes)
             bool value_2 = false;
             void *value_3 = ZirVecGrow((void *)((*(bytes))).data, &((*(bytes))).capacity, ((*(bytes))).count, sizeof(*((*(bytes))).data));
             if (value_3 != NULL) {
-                ((*(bytes))).data = (uint8_t *)value_3;
+                ((*(bytes))).data = value_3;
                 ((*(bytes))).data[((*(bytes))).count++] = value_1;
                 value_2 = true;
             }

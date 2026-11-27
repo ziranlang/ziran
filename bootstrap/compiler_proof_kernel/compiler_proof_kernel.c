@@ -214,7 +214,7 @@ compiler_proof_kernel_PolyAdd(ProofKernel* k, Polynomial* p, Monomial* m, uint64
         bool value_22 = false;
         void *value_23 = ZirVecGrow((void *)(p->terms).data, &(p->terms).capacity, (p->terms).count, sizeof(*(p->terms).data));
         if (value_23 != NULL) {
-            (p->terms).data = (Monomial *)value_23;
+            (p->terms).data = value_23;
             (p->terms).data[(p->terms).count++] = value_21;
             value_22 = true;
         }

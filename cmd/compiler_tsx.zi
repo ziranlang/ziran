@@ -1064,14 +1064,16 @@ ForOfAhead :: (p: *Parser) -> bool {
     keyword := Scan.NextCodeToken(p.source, name.end, name.after_line, name.after_column)
     return p.source[keyword.begin:keyword.end] == "of"
 }
-CapturePlace :: (p: *Parser, expr: s32) -> bool {
-    if expr < 0 { return false }
+AssignedBinding :: (p: *Parser, expr: s32) -> string {
+    if expr < 0 { return "" }
     node := p.fn.exprs[expr]
-    if node.kind == .IDENT { return IR.CText(node.name) == "__tsx_environment" }
-    if node.kind == .MEMBER || node.kind == .POINTER_MEMBER || node.kind == .INDEX {
-        return CapturePlace(p, node.left)
+    if node.kind == .IDENT { return IR.CText(node.name) }
+    if node.kind == .MEMBER && node.left >= 0 &&
+       p.fn.exprs[node.left].kind == .IDENT &&
+       IR.CText(p.fn.exprs[node.left].name) == "__tsx_environment" {
+        return IR.CText(node.name)
     }
-    return false
+    return ""
 }
 PersistentPlace :: (p: *Parser, expr: s32) -> bool {
     if expr < 0 { return false }
@@ -1163,7 +1165,6 @@ ParseStatement :: (p: *Parser) {
         }
         Expect(p, ")")
         if p.failed { return }
-        if CapturePlace(p, place) { Fail(p, "callback captures are immutable snapshots"); return }
         st := Statement(p, .ASSIGN, Join(TextOf(p, place), "=", TextOf(p, value)), span)
         if st != null { st.lhs_root = place; st.expr_root = value; unused IR.CopyText(st.assignment_op[:], "=") }
     } else if Take(p, "return") {
@@ -1282,13 +1283,13 @@ ParseStatement :: (p: *Parser) {
         left := Expression(p)
         op := Token(p)
         if op == "=" || op == "+=" || op == "-=" || op == "*=" || op == "/=" {
-            if CapturePlace(p, left) { Fail(p, "callback captures are immutable snapshots"); return }
-            if left >= 0 && p.fn.exprs[left].kind == .IDENT {
+            binding_name := AssignedBinding(p, left)
+            if binding_name.count > 0 {
                 local := p.locals.count
                 while local > 0 {
                     local -= 1
                     binding := p.locals[local]
-                    if binding.name == IR.CText(p.fn.exprs[left].name) {
+                    if binding.name == binding_name {
                         if binding.immutable { Fail(p, "cannot assign to a const binding"); return }
                         break
                     }

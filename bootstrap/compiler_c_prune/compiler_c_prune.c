@@ -74,7 +74,7 @@ compiler_c_prune_PruneProgram(ZirCPruneModule* modules, int32_t count, void* sim
             bool value_6 = false;
             void *value_7 = ZirVecGrow((void *)(all).data, &(all).capacity, (all).count, sizeof(*(all).data));
             if (value_7 != NULL) {
-                (all).data = (Chunks *)value_7;
+                (all).data = value_7;
                 (all).data[(all).count++] = value_5;
                 value_6 = true;
             }
@@ -84,7 +84,7 @@ compiler_c_prune_PruneProgram(ZirCPruneModule* modules, int32_t count, void* sim
                 bool value_10 = false;
                 void *value_11 = ZirVecGrow((void *)(headers).data, &(headers).capacity, (headers).count, sizeof(*(headers).data));
                 if (value_11 != NULL) {
-                    (headers).data = (String *)value_11;
+                    (headers).data = value_11;
                     (headers).data[(headers).count++] = value_9;
                     value_10 = true;
                 }
@@ -97,7 +97,7 @@ compiler_c_prune_PruneProgram(ZirCPruneModule* modules, int32_t count, void* sim
                 bool value_15 = false;
                 void *value_16 = ZirVecGrow((void *)(sources).data, &(sources).capacity, (sources).count, sizeof(*(sources).data));
                 if (value_16 != NULL) {
-                    (sources).data = (String *)value_16;
+                    (sources).data = value_16;
                     (sources).data[(sources).count++] = value_14;
                     value_15 = true;
                 }
@@ -556,7 +556,7 @@ compiler_c_prune_WordAt(Prune* prune, String word, bool add)
     bool value_2 = false;
     void *value_3 = ZirVecGrow((void *)(prune->words).data, &(prune->words).capacity, (prune->words).count, sizeof(*(prune->words).data));
     if (value_3 != NULL) {
-        (prune->words).data = (Word *)value_3;
+        (prune->words).data = value_3;
         (prune->words).data[(prune->words).count++] = value_1;
         value_2 = true;
     }
@@ -649,7 +649,7 @@ compiler_c_prune_AddNames(Prune* prune, Chunk* chunk, String text)
         bool value_1 = false;
         void *value_2 = ZirVecGrow((void *)(prune->names).data, &(prune->names).capacity, (prune->names).count, sizeof(*(prune->names).data));
         if (value_2 != NULL) {
-            (prune->names).data = (String *)value_2;
+            (prune->names).data = value_2;
             (prune->names).data[(prune->names).count++] = value_0;
             value_1 = true;
         }
@@ -708,7 +708,7 @@ compiler_c_prune_ParseChunks(Prune* prune, String text, Chunks* chunks)
                 bool value_9 = false;
                 void *value_10 = ZirVecGrow((void *)(chunks->items).data, &(chunks->items).capacity, (chunks->items).count, sizeof(*(chunks->items).data));
                 if (value_10 != NULL) {
-                    (chunks->items).data = (Chunk *)value_10;
+                    (chunks->items).data = value_10;
                     (chunks->items).data[(chunks->items).count++] = value_8;
                     value_9 = true;
                 }
@@ -1043,7 +1043,7 @@ compiler_c_prune_InlineSection(__type_131eebaaeb761e42* out, Prune* prune, ZirCP
     bool value_9 = false;
     void *value_10 = ZirVecGrow((void *)(declarations).data, &(declarations).capacity, (declarations).count, sizeof(*(declarations).data));
     if (value_10 != NULL) {
-        (declarations).data = (uint8_t *)value_10;
+        (declarations).data = value_10;
         (declarations).data[(declarations).count++] = value_8;
         value_9 = true;
     }
@@ -1053,7 +1053,7 @@ compiler_c_prune_InlineSection(__type_131eebaaeb761e42* out, Prune* prune, ZirCP
         bool value_13 = false;
         void *value_14 = ZirVecGrow((void *)(bodies).data, &(bodies).capacity, (bodies).count, sizeof(*(bodies).data));
         if (value_14 != NULL) {
-            (bodies).data = (uint8_t *)value_14;
+            (bodies).data = value_14;
             (bodies).data[(bodies).count++] = value_12;
             value_13 = true;
         }
@@ -1121,7 +1121,7 @@ compiler_c_prune_Finish(__type_131eebaaeb761e42 out, bool ok)
         bool value_3 = false;
         void *value_4 = ZirVecGrow((void *)(out).data, &(out).capacity, (out).count, sizeof(*(out).data));
         if (value_4 != NULL) {
-            (out).data = (uint8_t *)value_4;
+            (out).data = value_4;
             (out).data[(out).count++] = value_2;
             value_3 = true;
         }

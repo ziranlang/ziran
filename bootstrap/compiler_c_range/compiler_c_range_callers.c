@@ -729,26 +729,27 @@ compiler_c_range_callers_Reachable(ZirModule* module, ZirFunction* callee)
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    bool value_0 = !own || callee->is_public != 0 || callee->exported != 0 || (callee->export_symbol)[0] != 0 || callee->is_template != 0;
-    bool value_1 = value_0 || callee->is_specialization != 0 || callee->is_conversion != 0 || callee->retained_root != 0;
-    bool value_2 = value_1 || (((uint8_t*)callee->assembly_text) != ((void *)0) && callee->assembly_text[0] != 0) || callee->is_extern != 0;
-    bool value_3 = value_2 || callee->is_global_initializer != 0 || (callee->go_method)[0] != 0;
-    bool value_4 = value_3 || compiler_c_range_facts_NativeProgramMain(module, callee);
-    bool value_5 = value_4;
+    bool value_0 = !own || callee->is_public != 0 || callee->is_package_private != 0 || callee->exported != 0 || (callee->export_symbol)[0] != 0;
+    bool value_1 = value_0 || callee->is_template != 0 || callee->is_specialization != 0 || callee->is_conversion != 0;
+    bool value_2 = value_1 || callee->retained_root != 0 || (((uint8_t*)callee->assembly_text) != ((void *)0) && callee->assembly_text[0] != 0);
+    bool value_3 = value_2 || callee->is_extern != 0 || callee->is_global_initializer != 0 || (callee->go_method)[0] != 0;
+    bool value_4 = value_3;
+    bool value_5 = value_4 || compiler_c_range_facts_NativeProgramMain(module, callee);
     bool value_6 = value_5;
-    if (!value_6) {
-        bool value_7 = (callee->overload_name)[0] != 0;
-        bool value_8 = value_7;
-        if (value_8) {
-            Slice value_9 = {callee->overload_name, 128};
-            String value_10 = compiler_ir_BufferText(value_9);
-            Slice value_11 = {callee->name, 128};
-            bool value_12 = !StringEqual(value_10, compiler_ir_BufferText(value_11));
-            value_8 = value_12;
+    bool value_7 = value_6;
+    if (!value_7) {
+        bool value_8 = (callee->overload_name)[0] != 0;
+        bool value_9 = value_8;
+        if (value_9) {
+            Slice value_10 = {callee->overload_name, 128};
+            String value_11 = compiler_ir_BufferText(value_10);
+            Slice value_12 = {callee->name, 128};
+            bool value_13 = !StringEqual(value_11, compiler_ir_BufferText(value_12));
+            value_9 = value_13;
         }
-        value_6 = value_8;
+        value_7 = value_9;
     }
-    return value_6;
+    return value_7;
 }
 
 static bool

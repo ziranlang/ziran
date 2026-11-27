@@ -2,6 +2,7 @@
 #ifndef ZIRAN_COMPILER_C_EMIT_H
 #define ZIRAN_COMPILER_C_EMIT_H
 
+#include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
 #ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
@@ -269,6 +270,10 @@ void NativeGoModuleIdentity(ZirProgram** programs, int32_t count, ZirModule* mod
 void NativeGoFunctionName(ZirProgram** programs, int32_t count, ZirModule* module, ZirFunction* fn, uint8_t* out, size_t size);
 void NativeHeaderGuard(uint8_t* stem, uint8_t* out, size_t size);
 void zir_emit_slot_native_type(uint8_t* source, ZirTarget target, uint8_t* out, size_t size);
+void compiler_c_emit_UnresolvedSlotType(void* context, uint8_t* source, uint8_t* out, size_t size);
+bool compiler_c_emit_PointerArrayDeclaration(uint8_t* source, uint8_t* name, ZirResolveTarget resolve_type, void* context, uint8_t* out, size_t size);
+void compiler_c_emit_NamedCType(uint8_t* type, uint8_t* name, uint8_t* out, size_t size);
+void compiler_c_emit_NamedCFunction(uint8_t* result, uint8_t* name, uint8_t* parameters, uint8_t* out, size_t size);
 void zir_emit_slot_type_at_use(uint8_t* source, ZirTarget target, ZirResolveTarget resolve_type, void* context, uint8_t* out, size_t size);
 void EmitSlotType(void* out, ZirType* slot, ZirTarget target, ZirResolveTarget resolve_type, void* context);
 int32_t zir_emit_width(uint8_t* type);

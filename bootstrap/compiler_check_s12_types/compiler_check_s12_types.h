@@ -12,6 +12,10 @@ typedef struct BorrowPlace BorrowPlace;
 #define ZIRAN_TYPE_FORWARD_ActiveTextBorrow
 typedef struct ActiveTextBorrow ActiveTextBorrow;
 #endif
+#ifndef ZIRAN_TYPE_FORWARD_BorrowBranch
+#define ZIRAN_TYPE_FORWARD_BorrowBranch
+typedef struct BorrowBranch BorrowBranch;
+#endif
 #ifndef ZIRAN_TYPE_FORWARD_S12Array128_u8
 #define ZIRAN_TYPE_FORWARD_S12Array128_u8
 typedef struct S12Array128_u8 S12Array128_u8;
@@ -216,6 +220,12 @@ struct ActiveTextBorrow {
     BorrowPlace backing;
     int32_t depth;
     int32_t vec;
+    int32_t branch;
+};
+
+struct BorrowBranch {
+    int32_t parent;
+    int32_t group;
 };
 
 struct S12Array128_u8 {
@@ -232,6 +242,8 @@ struct Origin {
     uint64_t lent;
     uint64_t lent_vec;
     int32_t global_vec;
+    uint64_t borrowed_pointers;
+    int32_t readonly_bytes;
 };
 
 struct BorrowBinding {
@@ -286,6 +298,8 @@ struct BorrowCheck {
     ActiveTextBorrow* active;
     int32_t active_count;
     int32_t active_capacity;
+    BorrowBranch* branches;
+    int32_t branch;
     BorrowPath* paths;
     BorrowSource* sources;
     int32_t depth;

@@ -522,7 +522,7 @@ HostProviderVisible :: (function: *ZirFunction) -> bool {
 // identity; modules loaded outside a package map share the implicit empty one.
 SamePackage :: (viewer: *ZirModule, owner: *ZirModule) -> bool {
     if viewer == null || owner == null { return false }
-    return CText(*viewer.package[0]) == CText(*owner.package[0])
+    return CText(cast(*u8)*viewer.package[0]) == CText(cast(*u8)*owner.package[0])
 }
 
 // Cross-module visibility of one declaration. Public names are always

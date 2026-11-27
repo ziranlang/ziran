@@ -421,9 +421,6 @@ EmitVecCallWithBuffers :: (e: *Emitter, expr: *IR.ZirExpr, out: *u8, size: usize
             e.indent -= 1
             EmitIndent(e); fputs(CStr("}()\n"), e.out)
         } else {
-            scalar := CTargetType(*element[0], e.target)
-            if scalar != null { copy_text(*mapped[0], IR.ZIR_NAME_MAX * 2, scalar) }
-            else { e.resolve(e.context, *element[0], *mapped[0], IR.ZIR_NAME_MAX * 2) }
             if bounded {
                 EmitIndent(e); fprintf(e.out, CStr("if (%s >= 0 && %s >= 0 && %s <= %s && (%s).capacity <= %s) {\n"),
                                        *requested[0], *maximum[0], *requested[0], *maximum[0], *buffers.vector[0], *maximum[0])
@@ -441,8 +438,8 @@ EmitVecCallWithBuffers :: (e: *Emitter, expr: *IR.ZirExpr, out: *u8, size: usize
                 EmitIndent(e); fprintf(e.out, CStr("void *%s = ZirVecReserve((void *)(%s).data, &(%s).capacity, (%s).count, %s - (%s).count, sizeof(*(%s).data));\n"),
                                        *grown[0], *buffers.vector[0], *buffers.vector[0], *buffers.vector[0], *requested[0], *buffers.vector[0], *buffers.vector[0])
             }
-            EmitIndent(e); fprintf(e.out, CStr("if (%s != NULL) { (%s).data = (%s *)%s; %s = true; }\n"),
-                                   *grown[0], *buffers.vector[0], *mapped[0], *grown[0], *result_name[0])
+            EmitIndent(e); fprintf(e.out, CStr("if (%s != NULL) { (%s).data = %s; %s = true; }\n"),
+                                   *grown[0], *buffers.vector[0], *grown[0], *result_name[0])
             e.indent -= 1
             EmitIndent(e); fputs(CStr("}\n"), e.out)
             if resize {
@@ -485,16 +482,13 @@ EmitVecCallWithBuffers :: (e: *Emitter, expr: *IR.ZirExpr, out: *u8, size: usize
             EmitIndent(e); fprintf(e.out, CStr("%s.Capacity = int64(cap(%s.Data))\n"), *buffers.vector[0], *buffers.vector[0])
             EmitIndent(e); fprintf(e.out, CStr("%s = true\n"), *result_name[0])
         } else {
-            scalar := CTargetType(*element[0], e.target)
-            if scalar != null { copy_text(*mapped[0], IR.ZIR_NAME_MAX * 2, scalar) }
-            else { e.resolve(e.context, *element[0], *mapped[0], IR.ZIR_NAME_MAX * 2) }
             grown: [IR.ZIR_NAME_MAX]u8
             Fresh(e, *grown[0])
             EmitIndent(e); fprintf(e.out, CStr("void *%s = ZirVecGrow((void *)(%s).data, &(%s).capacity, (%s).count, sizeof(*(%s).data));\n"),
                                    *grown[0], *buffers.vector[0], *buffers.vector[0], *buffers.vector[0], *buffers.vector[0])
             EmitIndent(e); fprintf(e.out, CStr("if (%s != NULL) {\n"), *grown[0])
             e.indent += 1
-            EmitIndent(e); fprintf(e.out, CStr("(%s).data = (%s *)%s;\n"), *buffers.vector[0], *mapped[0], *grown[0])
+            EmitIndent(e); fprintf(e.out, CStr("(%s).data = %s;\n"), *buffers.vector[0], *grown[0])
             EmitIndent(e); fprintf(e.out, CStr("(%s).data[(%s).count++] = %s;\n"),
                                    *buffers.vector[0], *buffers.vector[0], *item_name[0])
             EmitIndent(e); fprintf(e.out, CStr("%s = true;\n"), *result_name[0])
@@ -572,9 +566,6 @@ EmitVecCallWithBuffers :: (e: *Emitter, expr: *IR.ZirExpr, out: *u8, size: usize
             EmitIndent(e); fprintf(e.out, CStr("%s.Capacity = int64(cap(%s.Data))\n"), *buffers.vector[0], *buffers.vector[0])
             EmitIndent(e); fprintf(e.out, CStr("%s = true\n"), *result_name[0])
         } else {
-            scalar := CTargetType(*element[0], e.target)
-            if scalar != null { copy_text(*mapped[0], IR.ZIR_NAME_MAX * 2, scalar) }
-            else { e.resolve(e.context, *element[0], *mapped[0], IR.ZIR_NAME_MAX * 2) }
             Fresh(e, *grown[0])
             EmitIndent(e); fprintf(e.out, CStr("if ((%s).count > 0) {\n"), *buffers.source[0])
             e.indent += 1
@@ -582,7 +573,7 @@ EmitVecCallWithBuffers :: (e: *Emitter, expr: *IR.ZirExpr, out: *u8, size: usize
                                    *grown[0], *buffers.vector[0], *buffers.vector[0], *buffers.vector[0], *buffers.source[0], *buffers.vector[0])
             EmitIndent(e); fprintf(e.out, CStr("if (%s != NULL) {\n"), *grown[0])
             e.indent += 1
-            EmitIndent(e); fprintf(e.out, CStr("(%s).data = (%s *)%s;\n"), *buffers.vector[0], *mapped[0], *grown[0])
+            EmitIndent(e); fprintf(e.out, CStr("(%s).data = %s;\n"), *buffers.vector[0], *grown[0])
             EmitIndent(e); fprintf(e.out, CStr("memcpy((%s).data, (%s).data, (size_t)(%s).count * sizeof(*(%s).data));\n"),
                                    *buffers.vector[0], *buffers.source[0], *buffers.source[0], *buffers.vector[0])
             EmitIndent(e); fprintf(e.out, CStr("(%s).count = (%s).count;\n"), *buffers.vector[0], *buffers.source[0])
@@ -1390,6 +1381,96 @@ EmitOwnedCaptureDrop :: (e: *Emitter, expr: *IR.ZirExpr) {
     e.pure = 0
 }
 
+EmitPointerSlice :: (e: *Emitter, expr: *IR.ZirExpr, buffers: *EmitExprBuffers) {
+    base_type := e.fn.exprs[expr.left].type
+    view: [IR.ZIR_NAME_MAX]u8
+    temp: [IR.ZIR_NAME_MAX]u8
+    // A raw pointer has no implicit count. The checked frontend
+    // requires an explicit high bound; evaluate all three parts once.
+    EmitExpr(e, expr.left, base_type, *buffers.source[0], IR.ZIR_TEXT_MAX)
+    Fresh(e, *view[0])
+    Declare(e, *view[0], base_type, *buffers.source[0])
+    if expr.right >= 0 {
+        EmitExpr(e, expr.right, CStr("s64"), *buffers.low[0], IR.ZIR_TEXT_MAX)
+    } else { copy_text(*buffers.low[0], IR.ZIR_TEXT_MAX, CStr("0")) }
+    Fresh(e, *temp[0])
+    Declare(e, *temp[0], CStr("s64"), *buffers.low[0])
+    copy_text(*buffers.low[0], IR.ZIR_TEXT_MAX, *temp[0])
+    EmitExpr(e, expr.third, CStr("s64"), *buffers.high[0], IR.ZIR_TEXT_MAX)
+    Fresh(e, *temp[0])
+    Declare(e, *temp[0], CStr("s64"), *buffers.high[0])
+    copy_text(*buffers.high[0], IR.ZIR_TEXT_MAX, *temp[0])
+    if e.target == .ZIR_GO {
+        CheckFormat(snprintf(*buffers.result[0], IR.ZIR_TEXT_MAX,
+            CStr("unsafe.Slice(%s, %s)[%s:%s:%s]"), *view[0], *buffers.high[0],
+            *buffers.low[0], *buffers.high[0], *buffers.high[0]), IR.ZIR_TEXT_MAX)
+    } else {
+        EmitIndent(e)
+        fprintf(e.out, CStr("if ((%s == NULL && %s != 0) || (%s >= 0 && (uint64_t)%s > (uint64_t)SIZE_MAX / sizeof(*%s))) { fputs(\"ziran: pointer slice range out of bounds\\n\", stderr); abort(); }\n"),
+            *view[0], *buffers.high[0], *buffers.high[0], *buffers.high[0], *view[0])
+        CheckFormat(snprintf(*buffers.result[0], IR.ZIR_TEXT_MAX,
+            CStr("SliceRange(((Slice){%s, %s}), %s, %s, sizeof(*%s))"), *view[0],
+            *buffers.high[0], *buffers.low[0], *buffers.high[0], *view[0]), IR.ZIR_TEXT_MAX)
+    }
+}
+
+EmitStringByteAddress :: (e: *Emitter, expr: *IR.ZirExpr, buffers: *EmitExprBuffers) -> s32 {
+    operand := *e.fn.exprs[expr.right]
+    if strcmp(*expr.op[0], CStr("&")) != 0 || operand.kind != .INDEX ||
+       strcmp(e.fn.exprs[operand.left].type, CStr("string")) != 0 { return 0 }
+    temp: [IR.ZIR_NAME_MAX]u8
+    // Taking a byte address borrows the string; it is not a store.
+    // The common checker rejects writes through the resulting alias.
+    EmitExpr(e, operand.left, CStr("string"), *buffers.source[0], IR.ZIR_TEXT_MAX)
+    Fresh(e, *temp[0])
+    Declare(e, *temp[0], CStr("string"), *buffers.source[0])
+    EmitExpr(e, operand.right, CStr("s64"), *buffers.b[0], IR.ZIR_TEXT_MAX)
+    if e.target == .ZIR_GO {
+        CheckFormat(snprintf(*buffers.result[0], IR.ZIR_TEXT_MAX,
+            CStr("&unsafe.Slice(unsafe.StringData(%s), len(%s))[%s]"),
+            *temp[0], *temp[0], *buffers.b[0]), IR.ZIR_TEXT_MAX)
+    } else {
+        CheckFormat(snprintf(*buffers.result[0], IR.ZIR_TEXT_MAX,
+            CStr("(uint8_t *)&ZIRAN_INDEX(%s.data, %s.length, %s)"),
+            *temp[0], *temp[0], *buffers.b[0]), IR.ZIR_TEXT_MAX)
+    }
+    return 1
+}
+
+EmitTextView :: (e: *Emitter, expr: *IR.ZirExpr, out: *u8, size: usize, buffers: *EmitExprBuffers) {
+    if expr.first_child < 0 || e.fn.exprs[expr.first_child].next_sibling >= 0 {
+        Val.Fatal(expr, CStr("TextView requires one []u8 or Text argument"))
+    }
+    temp: [IR.ZIR_NAME_MAX]u8
+    text_type := e.fn.exprs[expr.first_child].type
+    if OwnedTextType(e.module, text_type) != 0 {
+        bytes: [IR.ZIR_NAME_MAX * 4]u8
+        EmitDestination(e, expr.first_child, *buffers.a[0], IR.ZIR_TEXT_MAX)
+        CEmitFieldPath(e.module, e.target, text_type, CStr("bytes"), 0, *buffers.a[0], *bytes[0], IR.ZIR_NAME_MAX * 4)
+        if e.target == .ZIR_GO {
+            Fresh(e, *temp[0])
+            EmitIndent(e); fprintf(e.out, CStr("%s := %s\n"), *temp[0], *bytes[0])
+            CheckFormat(snprintf(out, size, CStr("unsafe.String(unsafe.SliceData(%s.Data), %s.Count)"), *temp[0], *temp[0]), size)
+        } else {
+            CheckFormat(snprintf(out, size, CStr("StringView((%s).count > 0 ? (const char *)(%s).data : \"\", (size_t)(%s).count)"),
+                                 *bytes[0], *bytes[0], *bytes[0]), size)
+        }
+        e.pure = 1
+        return
+    }
+    EmitExpr(e, expr.first_child, CStr("[]u8"), *buffers.a[0], IR.ZIR_TEXT_MAX)
+    if e.target == .ZIR_GO {
+        Fresh(e, *temp[0])
+        Declare(e, *temp[0], CStr("[]u8"), *buffers.a[0])
+        CheckFormat(snprintf(out, size, CStr("unsafe.String(unsafe.SliceData(%s), len(%s))"), *temp[0], *temp[0]), size)
+    } else {
+        Fresh(e, *temp[0])
+        EmitIndent(e); fprintf(e.out, CStr("Slice %s = %s;\n"), *temp[0], *buffers.a[0])
+        CheckFormat(snprintf(out, size, CStr("StringView((const char *)(%s).data, (size_t)(%s).length)"), *temp[0], *temp[0]), size)
+    }
+    e.pure = 1
+}
+
 EmitExprWithBuffers :: (e: *Emitter, index: s32, expected: *u8, out: *u8, size: usize, buffers: *EmitExprBuffers) {
     expr := *e.fn.exprs[index]
     type := CCanonical(expr.type)
@@ -1584,7 +1665,10 @@ EmitExprWithBuffers :: (e: *Emitter, index: s32, expected: *u8, out: *u8, size: 
         capacity: s32 = 0
         low_pure: s32 = 1
         high_pure: s32 = 1
-        if strcmp(base_type, CStr("string")) == 0 {
+        if base_type[0] == #char "*" {
+            EmitPointerSlice(e, expr, buffers)
+            pure = 0
+        } else if strcmp(base_type, CStr("string")) == 0 {
             EmitExpr(e, expr.left, CStr("string"), *buffers.source[0], IR.ZIR_TEXT_MAX)
             base_pure := e.pure
             handled := false
@@ -1882,10 +1966,11 @@ EmitExprWithBuffers :: (e: *Emitter, index: s32, expected: *u8, out: *u8, size: 
         }
     } else if expr.kind == .STRING {
         if strlen(expr.text) >= IR.ZIR_TEXT_MAX / 4 {
-            capacity := strlen(expr.text) * 4 + 16
+            capacity := strlen(expr.text) * 4 + 64
             lit := cast(*u8)AllocateOrExit(capacity)
             name: [IR.ZIR_NAME_MAX]u8
-            EmitStringLiteral(expr, e.target, lit, capacity)
+            if e.target == .ZIR_GO { Val.EmitGoStringViewLiteral(expr, lit, capacity) }
+            else { EmitStringLiteral(expr, e.target, lit, capacity) }
             Fresh(e, *name[0])
             if e.target == .ZIR_C {
                 if CStringLiteralBytes(lit) > C_STRING_LITERAL_MAX {
@@ -1897,13 +1982,14 @@ EmitExprWithBuffers :: (e: *Emitter, index: s32, expected: *u8, out: *u8, size: 
                 }
                 CheckFormat(snprintf(*buffers.result[0], IR.ZIR_TEXT_MAX, CStr("StringLiteral(%s)"), *name[0]), IR.ZIR_TEXT_MAX)
             } else {
-                EmitIndent(e); fprintf(e.out, CStr("const %s = %s\n"), *name[0], lit)
+                EmitIndent(e); fprintf(e.out, CStr("var %s = %s\n"), *name[0], lit)
                 copy_text(*buffers.result[0], IR.ZIR_TEXT_MAX, *name[0])
             }
             free(cast(*void)lit)
             pure = 1
         } else {
-            EmitStringLiteral(expr, e.target, *buffers.a[0], IR.ZIR_TEXT_MAX)
+            if e.target == .ZIR_GO { Val.EmitGoStringViewLiteral(expr, *buffers.a[0], IR.ZIR_TEXT_MAX) }
+            else { EmitStringLiteral(expr, e.target, *buffers.a[0], IR.ZIR_TEXT_MAX) }
             if e.target == .ZIR_C {
                 CheckFormat(snprintf(*buffers.result[0], IR.ZIR_TEXT_MAX, CStr("StringLiteral(%s)"), *buffers.a[0]), IR.ZIR_TEXT_MAX)
             } else {
@@ -2018,32 +2104,7 @@ EmitExprWithBuffers :: (e: *Emitter, index: s32, expected: *u8, out: *u8, size: 
                                      native, c_name, *buffers.a[0], bw), IR.ZIR_TEXT_MAX)
             }
         } else if strcmp(expr.name, CStr("TextView")) == 0 {
-            if expr.first_child < 0 || e.fn.exprs[expr.first_child].next_sibling >= 0 {
-                Val.Fatal(expr, CStr("TextView requires one []u8 or Text argument"))
-            }
-            text_type := e.fn.exprs[expr.first_child].type
-            if OwnedTextType(e.module, text_type) != 0 {
-                bytes: [IR.ZIR_NAME_MAX * 4]u8
-                EmitDestination(e, expr.first_child, *buffers.a[0], IR.ZIR_TEXT_MAX)
-                CEmitFieldPath(e.module, e.target, text_type, CStr("bytes"), 0, *buffers.a[0], *bytes[0], IR.ZIR_NAME_MAX * 4)
-                if e.target == .ZIR_GO {
-                    CheckFormat(snprintf(out, size, CStr("string(%s.Data[:%s.Count])"), *bytes[0], *bytes[0]), size)
-                } else {
-                    CheckFormat(snprintf(out, size, CStr("StringView((%s).count > 0 ? (const char *)(%s).data : \"\", (size_t)(%s).count)"),
-                                         *bytes[0], *bytes[0], *bytes[0]), size)
-                }
-                e.pure = 1
-                return
-            }
-            EmitExpr(e, expr.first_child, CStr("[]u8"), *buffers.a[0], IR.ZIR_TEXT_MAX)
-            if e.target == .ZIR_GO {
-                CheckFormat(snprintf(out, size, CStr("string(%s)"), *buffers.a[0]), size)
-            } else {
-                Fresh(e, *temp[0])
-                EmitIndent(e); fprintf(e.out, CStr("Slice %s = %s;\n"), *temp[0], *buffers.a[0])
-                CheckFormat(snprintf(out, size, CStr("StringView((const char *)(%s).data, (size_t)(%s).length)"), *temp[0], *temp[0]), size)
-            }
-            e.pure = 1
+            EmitTextView(e, expr, out, size, buffers)
             return
         } else if strcmp(expr.name, CStr("VecPush")) == 0 || strcmp(expr.name, CStr("VecReserve")) == 0 ||
                   strcmp(expr.name, CStr("VecResize")) == 0 || strcmp(expr.name, CStr("VecResizeBounded")) == 0 ||
@@ -2251,7 +2312,9 @@ EmitExprWithBuffers :: (e: *Emitter, index: s32, expected: *u8, out: *u8, size: 
             }
         }
     } else if expr.kind == .UNARY {
-        if strcmp(*expr.op[0], CStr("-")) == 0 && e.fn.exprs[expr.right].kind == .INT {
+        if EmitStringByteAddress(e, expr, buffers) != 0 {
+            pure = 0
+        } else if strcmp(*expr.op[0], CStr("-")) == 0 && e.fn.exprs[expr.right].kind == .INT {
             Literal(e, *e.fn.exprs[expr.right], type, 1, *buffers.result[0], IR.ZIR_TEXT_MAX)
             pure = 1
         } else if e.target == .ZIR_GO && strcmp(*expr.op[0], CStr("-")) == 0 &&

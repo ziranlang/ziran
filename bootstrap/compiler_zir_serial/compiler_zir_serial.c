@@ -6754,9 +6754,9 @@ compiler_zir_serial_validate_program(ZirProgram* program)
                     bool value_81 = (type->is_file_private != 0 && type->is_file_private != 1) || (type->is_file_private != 0 && type->is_public != 0);
                     bool value_82 = value_81 || (type->is_procedure_type != 0 && !((type->procedure_return_type)[0] != 0)) || (type->is_c_call != 0 && type->is_c_call != 1);
                     bool value_83 = value_82 || (type->is_c_call != 0 && !(type->is_procedure_type != 0)) || (type->reads_arguments != 0 && type->reads_arguments != 1);
-                    bool value_84 = value_83 || (type->reads_arguments != 0 && (!(type->is_procedure_type != 0) || type->is_c_call != 0));
-                    bool value_85 = value_84 || (!(type->is_procedure_type != 0) && (type->procedure_return_type)[0] != 0) || (int32_t)((int8_t)((type->name)[0])) == 35;
-                    bool value_86 = value_85 || (type->is_union != 0 && type->is_union != 1) || (type->is_union != 0 && (type->is_enum != 0 || type->is_procedure_type != 0 || type->is_extern != 0 || type->is_owned_vec != 0));
+                    bool value_84 = value_83 || (type->reads_arguments != 0 && !(type->is_procedure_type != 0)) || (!(type->is_procedure_type != 0) && (type->procedure_return_type)[0] != 0);
+                    bool value_85 = value_84 || (int32_t)((int8_t)((type->name)[0])) == 35 || (type->is_union != 0 && type->is_union != 1);
+                    bool value_86 = value_85 || (type->is_union != 0 && (type->is_enum != 0 || type->is_procedure_type != 0 || type->is_extern != 0 || type->is_owned_vec != 0));
                     bool value_87 = value_86 || (type->is_enum_flags != 0 && type->is_enum_flags != 1) || (type->is_enum_specified != 0 && type->is_enum_specified != 1);
                     bool value_88 = value_87;
                     bool value_89 = value_88;

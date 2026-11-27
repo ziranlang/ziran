@@ -845,7 +845,7 @@ compiler_link_NameKind(ZirModule* module, Kind kind)
             bool value_24 = false;
             void *value_25 = ZirVecGrow((void *)(renames).data, &(renames).capacity, (renames).count, sizeof(*(renames).data));
             if (value_25 != NULL) {
-                (renames).data = (Rename *)value_25;
+                (renames).data = value_25;
                 (renames).data[(renames).count++] = value_23;
                 value_24 = true;
             }

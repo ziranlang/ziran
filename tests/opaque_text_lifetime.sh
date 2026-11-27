@@ -24,10 +24,24 @@ Bad :: (pointer: *Node) -> s32 {
     return cast(s32)view[0]
 }
 ZI
-for fixture in opaque alias; do
+cat > "$work/readonly_call.zi" <<'ZI'
+Bytes :: (text: string) -> *u8 { return *text[0] }
+Write :: (data: *u8) { data[0] = cast(u8)98 }
+Bad :: () { Write(Bytes("literal")) }
+ZI
+cat > "$work/readonly_slice.zi" <<'ZI'
+Bytes :: (text: string) -> *u8 { return *text[0] }
+Bad :: () {
+    pointer := Bytes("literal")
+    alias := pointer
+    bytes := alias[0:3]
+    bytes[0] = cast(u8)98
+}
+ZI
+for fixture in opaque alias readonly_call readonly_slice; do
     if "$ziran" check --diagnostics=json --root "$work" "$work/$fixture.zi" \
         > "$work/stdout" 2> "$work/diagnostics.jsonl"; then
-        echo "unsafe $fixture text backing was accepted" >&2
+        echo "unsafe $fixture text access was accepted" >&2
         exit 1
     fi
     "$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- code "$work/diagnostics.jsonl" check.slice_lifetime

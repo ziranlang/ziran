@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+- Check explicitly bounded native pointer slices and preserve their caller's
+  backing storage through pointer-returning helpers. Reject expired views and
+  writes through string aliases. Preserve zero-copy Go text views and real
+  portable/Go literal terminators without changing the visible string length.
+
+- Preserve native C linkage for package-private implementations used by another
+  module in the same package. Keep their types, constants and generated default
+  helpers available internally while rejecting external source access. Keep
+  generic specialization linkage consistent with strict checked-IR metadata.
+
+- Allow checked Scoped callbacks to update borrowed models and read captured
+  views for the invocation. Preserve immutable owned captures and reject escaping
+  views. Inline array and record copies retain their own backing storage. Track
+  mutually exclusive branches without dropping loans at their join.
+
+- Support native pointers to fixed arrays in locals, records, parameters,
+  returns, callable slots and collections across C, Go and portable output.
+
+- Fingerprint artifact dependencies from their working bytes without creating
+  a Git index or changing the shared index. Preserve content identity when a
+  concurrent commit records unchanged bytes; report unreadable input explicitly.
+
 - Add checked native record initialization with `nativeInit<T>` and explicit
   borrowed slice types with `NativeSlice<T>`. Lower TSX `BuilderPrint` through
   the shared native formatting rules, preserving explicit integer widths and

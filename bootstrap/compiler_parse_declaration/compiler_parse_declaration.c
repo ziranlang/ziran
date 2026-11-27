@@ -1185,6 +1185,7 @@ compiler_parse_declaration_add_default_helpers_with_buffers(ZirProgram* program,
                             ZirSourceSpan span = function->span;
                             int32_t is_public = function->is_public;
                             int32_t is_file_private = function->is_file_private;
+                            int32_t is_package_private = function->is_package_private;
                             zir_foreign_compiler_parse_declaration__copy_text((uint8_t*)(&((result_type_storage_4[0]).items)), (size_t)(sizeof(ParserArray128_u8)), zir_foreign_compiler_parse_declaration__trim((uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t))))));
                             bool value_75 = function->is_template != 0;
                             bool value_76 = value_75;
@@ -1242,8 +1243,10 @@ compiler_parse_declaration_add_default_helpers_with_buffers(ZirProgram* program,
                             (*value_89) = is_public;
                             int32_t* value_90 = &(helper->is_file_private);
                             (*value_90) = is_file_private;
-                            ZirStmt* value_91 = zir_foreign_compiler_parse_declaration__FunctionAddStmt(helper, (ZirStmtKind)(10), (uint8_t*)(&(buffers->body.items)), span);
-                            if (value_91 == (ZirStmt*)(((void *)0))) {
+                            int32_t* value_91 = &(helper->is_package_private);
+                            (*value_91) = is_package_private;
+                            ZirStmt* value_92 = zir_foreign_compiler_parse_declaration__FunctionAddStmt(helper, (ZirStmtKind)(10), (uint8_t*)(&(buffers->body.items)), span);
+                            if (value_92 == (ZirStmt*)(((void *)0))) {
                                 zir_foreign_compiler_parse_declaration__die(compiler_parse_types_ParserCString(StringLiteral("out of memory creating default argument body")));
                                 abort();
                             }
@@ -1255,8 +1258,8 @@ compiler_parse_declaration_add_default_helpers_with_buffers(ZirProgram* program,
                     }
                     zir_loop_break_8: ;
                 }
-                int32_t* value_92 = &((module->functions[fi]).default_helpers_created);
-                (*value_92) = 1;
+                int32_t* value_93 = &((module->functions[fi]).default_helpers_created);
+                (*value_93) = 1;
                 zir_foreign_compiler_parse_declaration__CompilerFree((void*)(parameters));
                 zir_foreign_compiler_parse_declaration__CompilerFree((void*)(defaults));
                 compiler_parse_s14_types_S14ParserPost1(&(fi));

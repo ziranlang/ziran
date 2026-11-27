@@ -3,6 +3,7 @@ set -eu
 
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+bootstrap=${BOOTSTRAP_ROOT:-"$repo/bootstrap"}
 bin=$(CDPATH= cd -- "$(dirname -- "$ziran")" && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -150,18 +151,18 @@ for input in "$work/scanner.zi" "$work/ir/scanner.zir"; do
     test "$(GO111MODULE=off go run "$output/go/"*.go)" = "$expected"
 done
 
-# Checked-in bootstrap output must agree with both the bootstrapped compiler
+# Selected bootstrap output must agree with both the bootstrapped compiler
 # and checked IR, so fresh builds cannot silently use a stale lexical policy.
 "$ziran" ir --root "$repo/cmd" -o "$work/scan-ir" "$repo/cmd/compiler_scan.zi"
 for input in "$repo/cmd/compiler_scan.zi" "$work/scan-ir/compiler_scan.zir"; do
     "$bin/zi2c" --no-main --root "$repo/cmd" -o "$work/scan-c" "$input"
-    cmp "$repo/bootstrap/compiler_scan/compiler_scan.c" "$work/scan-c/compiler_scan.c"
-    cmp "$repo/bootstrap/compiler_scan/compiler_scan.h" "$work/scan-c/compiler_scan.h"
+    cmp "$bootstrap/compiler_scan/compiler_scan.c" "$work/scan-c/compiler_scan.c"
+    cmp "$bootstrap/compiler_scan/compiler_scan.h" "$work/scan-c/compiler_scan.h"
 done
 
 # Exercise the actual C frontend boundary, including truncation, borrowed
 # source lifetime, lookahead copies, null input, and interned source spans.
-${CC:-cc} ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/bootstrap/runtime" -I"$repo/bootstrap/compiler_ir" -I"$repo/bootstrap/compiler_scan" \
+${CC:-cc} ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/bootstrap/runtime" -I"$bootstrap/compiler_ir" -I"$bootstrap/compiler_scan" \
     "$repo/tests/compiler_scan_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" \
     -o "$work/lexer"
 "$work/lexer"

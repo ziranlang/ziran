@@ -325,7 +325,7 @@ convert_Conversion(VectorType t, VectorType r, bool reinterpret)
     bool value_5 = false;
     void *value_6 = ZirVecGrow((void *)(helper.parameters).data, &(helper.parameters).capacity, (helper.parameters).count, sizeof(*(helper.parameters).data));
     if (value_6 != NULL) {
-        (helper.parameters).data = (Parameter *)value_6;
+        (helper.parameters).data = value_6;
         (helper.parameters).data[(helper.parameters).count++] = value_4;
         value_5 = true;
     }
@@ -375,7 +375,7 @@ convert_Gather(VectorType t, VectorType r)
     bool value_4 = false;
     void *value_5 = ZirVecGrow((void *)(helper.parameters).data, &(helper.parameters).capacity, (helper.parameters).count, sizeof(*(helper.parameters).data));
     if (value_5 != NULL) {
-        (helper.parameters).data = (Parameter *)value_5;
+        (helper.parameters).data = value_5;
         (helper.parameters).data[(helper.parameters).count++] = value_3;
         value_4 = true;
     }
@@ -384,7 +384,7 @@ convert_Gather(VectorType t, VectorType r)
     bool value_7 = false;
     void *value_8 = ZirVecGrow((void *)(helper.parameters).data, &(helper.parameters).capacity, (helper.parameters).count, sizeof(*(helper.parameters).data));
     if (value_8 != NULL) {
-        (helper.parameters).data = (Parameter *)value_8;
+        (helper.parameters).data = value_8;
         (helper.parameters).data[(helper.parameters).count++] = value_6;
         value_7 = true;
     }

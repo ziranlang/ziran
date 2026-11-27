@@ -70,7 +70,9 @@ CompilerModuleSeed :: (test: *NativeTest, name: string, work: string) -> bool {
     ir := CheckPath(work, "seed-ir")
     save := string.[test.ziran, "ir", "--root", root, "-o", ir, source]
     unused NativeRun(test, save[:])
-    seed := CheckPath(CheckPath(test.repo, "bootstrap"), name)
+    bootstrap := EnvironmentText("BOOTSTRAP_ROOT")
+    if bootstrap == "" { bootstrap = CheckPath(test.repo, "bootstrap") }
+    seed := CheckPath(bootstrap, name)
     files := NativeFiles(seed, "")
     if !NativeAssert(test, files.count > 0, CheckConcat("missing bootstrap seed: ", seed)) { return false }
     tools := PathParent(test.ziran)

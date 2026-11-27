@@ -202,15 +202,6 @@ reject_read_of_moved :: (c: *State.Checker, root: s32, node: s32) {
     }
 }
 
-#scope_file
-pointer_to_array :: (type: *u8) -> s32 {
-    base: *u8 = type
-    while check_loop_5 := (cast(s32)(cast(s8)((base)[0])) == 42) {
-        S12Post1(*(base))
-    }
-    return cast(s32)((base != type) && (cast(s32)(cast(s8)((base)[0])) == 91))
-}
-
 #scope_export
 #program_export "private_check_check_go_method"
 check_go_method :: (c: *State.Checker, fn: *IR.ZirFunction) -> s32 {
@@ -420,9 +411,6 @@ check_function_with_buffers :: (c: *State.Checker, fn: *IR.ZirFunction, buffers:
                     }
                     if (!((fn).is_template != 0) && !(type_resolvable((c).module, colon) != 0)) {
                         error(c, (fn).span, CheckCString("unknown parameter type"), colon)
-                    }
-                    if (pointer_to_array(colon) != 0) {
-                        error(c, (fn).span, CheckCString("pointers to arrays are not supported; pass the element pointer"), cast(*u8)(*((((buffers).params).items[a]).items)))
                     }
                     if ((contains_vec((c).module, colon, 0) != 0) && ((fn).is_extern != 0)) {
                         error(c, (fn).span, CheckCString("Vec cannot cross an extern signature"), cast(*u8)(*((((buffers).params).items[a]).items)))
@@ -679,7 +667,9 @@ check_function_with_buffers :: (c: *State.Checker, fn: *IR.ZirFunction, buffers:
                         while check_loop_22 := (cast(s32)(cast(s8)((base)[0])) == 42) {
                             S12Post1(*(base))
                         }
-                        if (((cast(*u8)(TargetTypeZiran(cast(*void)((base)), 0))) != cast(*u8)((null))) || (FindType((c).module, base, null) != cast(*IR.ZirType)((null)))) {
+                        if base[0] == #char "[" && local_storage_error(c.module, base) == null {
+                            resolvable = 1
+                        } else if (((cast(*u8)(TargetTypeZiran(cast(*void)((base)), 0))) != cast(*u8)((null))) || (FindType((c).module, base, null) != cast(*IR.ZirType)((null)))) {
                             resolvable = 1
                         }
                         // An inferred type is empty after its initializer already failed.

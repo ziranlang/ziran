@@ -424,7 +424,7 @@ compiler_backend_process_PathJoin(String left, String right)
         bool value_7 = false;
         void *value_8 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
         if (value_8 != NULL) {
-            (bytes).data = (uint8_t *)value_8;
+            (bytes).data = value_8;
             (bytes).data[(bytes).count++] = value_6;
             value_7 = true;
         }
@@ -635,7 +635,7 @@ compiler_backend_process_PrepareArguments(Slice arguments, __type_6897586eed124d
             bool value_3 = false;
             void *value_4 = ZirVecGrow((void *)((*(pointers))).data, &((*(pointers))).capacity, ((*(pointers))).count, sizeof(*((*(pointers))).data));
             if (value_4 != NULL) {
-                ((*(pointers))).data = (uint8_t* *)value_4;
+                ((*(pointers))).data = value_4;
                 ((*(pointers))).data[((*(pointers))).count++] = value_2;
                 value_3 = true;
             }
@@ -649,7 +649,7 @@ compiler_backend_process_PrepareArguments(Slice arguments, __type_6897586eed124d
     bool value_6 = false;
     void *value_7 = ZirVecGrow((void *)((*(pointers))).data, &((*(pointers))).capacity, ((*(pointers))).count, sizeof(*((*(pointers))).data));
     if (value_7 != NULL) {
-        ((*(pointers))).data = (uint8_t* *)value_7;
+        ((*(pointers))).data = value_7;
         ((*(pointers))).data[((*(pointers))).count++] = value_5;
         value_6 = true;
     }
@@ -675,7 +675,7 @@ compiler_backend_process_WordsInto(String value, __type_6897586eed124d12* output
                 bool value_3 = false;
                 void *value_4 = ZirVecGrow((void *)((*(output))).data, &((*(output))).capacity, ((*(output))).count, sizeof(*((*(output))).data));
                 if (value_4 != NULL) {
-                    ((*(output))).data = (uint8_t* *)value_4;
+                    ((*(output))).data = value_4;
                     ((*(output))).data[((*(output))).count++] = value_2;
                     value_3 = true;
                 }
@@ -873,7 +873,7 @@ compiler_backend_process_AppendIncludedLinks(__type_6897586eed124d12* files, __t
             bool value_8 = false;
             void *value_9 = ZirVecGrow((void *)(links).data, &(links).capacity, (links).count, sizeof(*(links).data));
             if (value_9 != NULL) {
-                (links).data = (MapLink *)value_9;
+                (links).data = value_9;
                 (links).data[(links).count++] = value_7;
                 value_8 = true;
             }
@@ -892,7 +892,7 @@ compiler_backend_process_AppendIncludedLinks(__type_6897586eed124d12* files, __t
             bool value_11 = false;
             void *value_12 = ZirVecGrow((void *)(owners).data, &(owners).capacity, (owners).count, sizeof(*(owners).data));
             if (value_12 != NULL) {
-                (owners).data = (MapOwner *)value_12;
+                (owners).data = value_12;
                 (owners).data[(owners).count++] = value_10;
                 value_11 = true;
             }
@@ -997,7 +997,7 @@ compiler_backend_process_AppendIncludedLinks(__type_6897586eed124d12* files, __t
                                 bool value_29 = false;
                                 void *value_30 = ZirVecGrow((void *)((*(tail))).data, &((*(tail))).capacity, ((*(tail))).count, sizeof(*((*(tail))).data));
                                 if (value_30 != NULL) {
-                                    ((*(tail))).data = (uint8_t* *)value_30;
+                                    ((*(tail))).data = value_30;
                                     ((*(tail))).data[((*(tail))).count++] = value_28;
                                     value_29 = true;
                                 }
@@ -1050,7 +1050,7 @@ compiler_backend_process_AddCArgument(__type_6897586eed124d12* output, String fl
         bool value_3 = false;
         void *value_4 = ZirVecGrow((void *)((*(output))).data, &((*(output))).capacity, ((*(output))).count, sizeof(*((*(output))).data));
         if (value_4 != NULL) {
-            ((*(output))).data = (uint8_t* *)value_4;
+            ((*(output))).data = value_4;
             ((*(output))).data[((*(output))).count++] = value_2;
             value_3 = true;
         }
@@ -1070,7 +1070,7 @@ compiler_backend_process_AddCArgument(__type_6897586eed124d12* output, String fl
         bool value_8 = false;
         void *value_9 = ZirVecGrow((void *)((*(output))).data, &((*(output))).capacity, ((*(output))).count, sizeof(*((*(output))).data));
         if (value_9 != NULL) {
-            ((*(output))).data = (uint8_t* *)value_9;
+            ((*(output))).data = value_9;
             ((*(output))).data[((*(output))).count++] = value_7;
             value_8 = true;
         }
@@ -1114,7 +1114,7 @@ compiler_backend_process_AddSource(__type_6897586eed124d12* files, String path)
         bool value_6 = false;
         void *value_7 = ZirVecGrow((void *)((*(files))).data, &((*(files))).capacity, ((*(files))).count, sizeof(*((*(files))).data));
         if (value_7 != NULL) {
-            ((*(files))).data = (uint8_t* *)value_7;
+            ((*(files))).data = value_7;
             ((*(files))).data[((*(files))).count++] = value_5;
             value_6 = true;
         }
@@ -1516,7 +1516,7 @@ compiler_backend_process_FinishCompile(String out, String name, bool forced_lang
             bool value_14 = false;
             void *value_15 = ZirVecGrow((void *)((*(objects))).data, &((*(objects))).capacity, ((*(objects))).count, sizeof(*((*(objects))).data));
             if (value_15 != NULL) {
-                ((*(objects))).data = (uint8_t* *)value_15;
+                ((*(objects))).data = value_15;
                 ((*(objects))).data[((*(objects))).count++] = value_13;
                 value_14 = true;
             }
@@ -1846,7 +1846,7 @@ compiler_backend_process_CompileAndLink(String out, String name, bool forced_lan
             value_14 = value_13 <= (outputs).capacity;
             if (!value_14) {
                 void *value_15 = ZirVecReserve((void *)(outputs).data, &(outputs).capacity, (outputs).count, value_13 - (outputs).count, sizeof(*(outputs).data));
-                if (value_15 != NULL) { (outputs).data = (PendingOutput *)value_15; value_14 = true; }
+                if (value_15 != NULL) { (outputs).data = value_15; value_14 = true; }
             }
             if (value_14) {
                 for (int64_t value_16 = value_13; value_16 < (outputs).count; ++value_16) {
@@ -2227,7 +2227,7 @@ compiler_backend_process_PointerTexts(__type_6897586eed124d12* source)
         bool value_5 = false;
         void *value_6 = ZirVecGrow((void *)(result).data, &(result).capacity, (result).count, sizeof(*(result).data));
         if (value_6 != NULL) {
-            (result).data = (String *)value_6;
+            (result).data = value_6;
             (result).data[(result).count++] = value_4;
             value_5 = true;
         }
@@ -2273,7 +2273,7 @@ compiler_backend_process_CloneTexts(__type_6897586eed124d12* source)
             bool value_7 = false;
             void *value_8 = ZirVecGrow((void *)(result).data, &(result).capacity, (result).count, sizeof(*(result).data));
             if (value_8 != NULL) {
-                (result).data = (String *)value_8;
+                (result).data = value_8;
                 (result).data[(result).count++] = value_6;
                 value_7 = true;
             }
@@ -2381,7 +2381,7 @@ compiler_backend_process_AddTextArgument(__type_9f828aa1372cb21a* output, String
     bool value_2 = false;
     void *value_3 = ZirVecGrow((void *)((*(output))).data, &((*(output))).capacity, ((*(output))).count, sizeof(*((*(output))).data));
     if (value_3 != NULL) {
-        ((*(output))).data = (String *)value_3;
+        ((*(output))).data = value_3;
         ((*(output))).data[((*(output))).count++] = value_1;
         value_2 = true;
     }
@@ -2401,7 +2401,7 @@ compiler_backend_process_AddTextArgument(__type_9f828aa1372cb21a* output, String
     bool value_6 = false;
     void *value_7 = ZirVecGrow((void *)((*(output))).data, &((*(output))).capacity, ((*(output))).count, sizeof(*((*(output))).data));
     if (value_7 != NULL) {
-        ((*(output))).data = (String *)value_7;
+        ((*(output))).data = value_7;
         ((*(output))).data[((*(output))).count++] = value_5;
         value_6 = true;
     }
@@ -2425,7 +2425,7 @@ compiler_backend_process_AppendLog(__type_131eebaaeb761e42* log, Slice output)
         bool value_4 = false;
         void *value_5 = ZirVecGrow((void *)((*(log))).data, &((*(log))).capacity, ((*(log))).count, sizeof(*((*(log))).data));
         if (value_5 != NULL) {
-            ((*(log))).data = (uint8_t *)value_5;
+            ((*(log))).data = value_5;
             ((*(log))).data[((*(log))).count++] = value_3;
             value_4 = true;
         }
@@ -2444,7 +2444,7 @@ compiler_backend_process_AppendLog(__type_131eebaaeb761e42* log, Slice output)
             bool value_8 = false;
             void *value_9 = ZirVecGrow((void *)((*(log))).data, &((*(log))).capacity, ((*(log))).count, sizeof(*((*(log))).data));
             if (value_9 != NULL) {
-                ((*(log))).data = (uint8_t *)value_9;
+                ((*(log))).data = value_9;
                 ((*(log))).data[((*(log))).count++] = value_7;
                 value_8 = true;
             }
@@ -2456,7 +2456,7 @@ compiler_backend_process_AppendLog(__type_131eebaaeb761e42* log, Slice output)
             bool value_11 = false;
             void *value_12 = ZirVecGrow((void *)((*(log))).data, &((*(log))).capacity, ((*(log))).count, sizeof(*((*(log))).data));
             if (value_12 != NULL) {
-                ((*(log))).data = (uint8_t *)value_12;
+                ((*(log))).data = value_12;
                 ((*(log))).data[((*(log))).count++] = value_10;
                 value_11 = true;
             }
@@ -2768,7 +2768,7 @@ compiler_backend_process_ReportToolchain(String out, __type_131eebaaeb761e42* lo
             bool value_6 = false;
             void *value_7 = ZirVecGrow((void *)(text).data, &(text).capacity, (text).count, sizeof(*(text).data));
             if (value_7 != NULL) {
-                (text).data = (uint8_t *)value_7;
+                (text).data = value_7;
                 (text).data[(text).count++] = value_5;
                 value_6 = true;
             }
@@ -3033,7 +3033,7 @@ compiler_backend_process_ReadJobOutput(Job* job)
         bool value_3 = false;
         void *value_4 = ZirVecGrow((void *)(job->output).data, &(job->output).capacity, (job->output).count, sizeof(*(job->output).data));
         if (value_4 != NULL) {
-            (job->output).data = (uint8_t *)value_4;
+            (job->output).data = value_4;
             (job->output).data[(job->output).count++] = value_2;
             value_3 = true;
         }
@@ -3120,7 +3120,7 @@ compiler_backend_process_ProfileName(String name)
     bool value_1 = false;
     void *value_2 = ZirVecGrow((void *)(zir_g_ebee27c61794d0ae).data, &(zir_g_ebee27c61794d0ae).capacity, (zir_g_ebee27c61794d0ae).count, sizeof(*(zir_g_ebee27c61794d0ae).data));
     if (value_2 != NULL) {
-        (zir_g_ebee27c61794d0ae).data = (String *)value_2;
+        (zir_g_ebee27c61794d0ae).data = value_2;
         (zir_g_ebee27c61794d0ae).data[(zir_g_ebee27c61794d0ae).count++] = value_0;
         value_1 = true;
     }

@@ -201,7 +201,7 @@ if "$ziran" check --root "$work" "$work/non_collection.zi" \
     echo 'for accepted a non-iterable scalar' >&2
     exit 1
 fi
-grep -Fq 'slice source requires a string, array, or slice' "$work/non_collection.err"
+grep -Fq 'slice source requires a string, array, slice, or bounded pointer' "$work/non_collection.err"
 
 cat > "$work/duplicate_binding.zi" <<'ZI'
 Answer :: () -> s32 {

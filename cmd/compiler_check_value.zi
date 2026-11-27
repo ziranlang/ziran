@@ -1556,7 +1556,7 @@ readonly_text_destination :: (c: *Checker, index: s32) -> s32 {
         }
     }
     if ((cast(s32)((e).kind) == 10) || (cast(s32)((e).kind) == 8)) {
-        if ((cast(s32)((((fn).exprs)[(e).left]).kind) == 1) && !(strcmp((((fn).exprs)[(e).left]).type, CheckCString("string")) != 0)) {
+        if !(strcmp((((fn).exprs)[(e).left]).type, CheckCString("string")) != 0) {
             return 1
         }
         return readonly_text_destination(c, (e).left)

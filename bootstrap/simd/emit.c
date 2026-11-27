@@ -226,7 +226,7 @@ emit_SplitMacros(__type_131eebaaeb761e42* output, Slice helpers, String* marker)
                                     bool value_17 = false;
                                     void *value_18 = ZirVecGrow((void *)(declarations).data, &(declarations).capacity, (declarations).count, sizeof(*(declarations).data));
                                     if (value_18 != NULL) {
-                                        (declarations).data = (uint8_t *)value_18;
+                                        (declarations).data = value_18;
                                         (declarations).data[(declarations).count++] = value_16;
                                         value_17 = true;
                                     }

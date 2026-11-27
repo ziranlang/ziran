@@ -593,6 +593,7 @@ add_default_helpers_with_buffers :: (program: *IR.ZirProgram, module: *IR.ZirMod
                     span: IR.ZirSourceSpan = (function).span
                     is_public: s32 = (function).is_public
                     is_file_private: s32 = (function).is_file_private
+                    is_package_private: s32 = (function).is_package_private
                     copy_text(cast(*u8)(*((result_type_storage_4[0]).items)), cast(usize)size_of(ParserArray128_u8), trim(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))))
                     if (((function).is_template != 0) && ((!(InferExpressionType(module, value, span, cast(*u8)(*((result_type_storage_4[0]).items)), cast(usize)size_of(ParserArray128_u8)) != 0) || !(strcmp(cast(*u8)(*((result_type_storage_4[0]).items)), ParserCString("void")) != 0)) || !(strcmp(cast(*u8)(*((result_type_storage_4[0]).items)), ParserCString("null")) != 0))) {
                         die_at(span, ParserCString("cannot resolve polymorphic default in declaration scope: %s"), cast(*u8)(*((function).name)))
@@ -621,6 +622,7 @@ add_default_helpers_with_buffers :: (program: *IR.ZirProgram, module: *IR.ZirMod
                     }
                     (helper).is_public = is_public
                     (helper).is_file_private = is_file_private
+                    (helper).is_package_private = is_package_private
                     if (FunctionAddStmt(helper, cast(IR.ZirStmtKind)(10), cast(*u8)(*(((buffers).body).items)), span) == cast(*IR.ZirStmt)((null))) {
                         die(ParserCString("out of memory creating default argument body"))
                         unreachable

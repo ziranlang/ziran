@@ -21,10 +21,7 @@ TextFromBytes :: (buffer: []u8) -> string {
 BytesFromPointer :: (data: *u8, count: u64) -> []u8 {
     result: []u8
     if data == null || count > cast(u64)9223372036854775807 { return result }
-    descriptor: *ByteDescriptor = cast(*ByteDescriptor)(*result)
-    descriptor.data = data
-    descriptor.length = cast(s64)count
-    return result
+    return data[0:cast(s64)count]
 }
 
 // The returned string borrows the C buffer and retains its lifetime.
@@ -36,9 +33,5 @@ TextFromCString :: (value: *u8) -> string {
         if length >= cast(u64)9223372036854775807 { return "" }
         length += 1
     }
-    result: string = ""
-    descriptor: *TextDescriptor = cast(*TextDescriptor)(*result)
-    descriptor.data = value
-    descriptor.length = cast(usize)length
-    return result
+    return TextView(value[0:cast(s64)length])
 }

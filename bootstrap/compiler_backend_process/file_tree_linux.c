@@ -587,7 +587,7 @@ file_tree_linux_JoinPath(String directory, String name)
         bool value_4 = false;
         void *value_5 = ZirVecGrow((void *)(result).data, &(result).capacity, (result).count, sizeof(*(result).data));
         if (value_5 != NULL) {
-            (result).data = (uint8_t *)value_5;
+            (result).data = value_5;
             (result).data[(result).count++] = value_3;
             value_4 = true;
         }
@@ -753,7 +753,7 @@ file_tree_linux_CreateTemporaryDirectory(String parent, String prefix)
             bool value_13 = false;
             void *value_14 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
             if (value_14 != NULL) {
-                (output).data = (uint8_t *)value_14;
+                (output).data = value_14;
                 (output).data[(output).count++] = value_12;
                 value_13 = true;
             }
@@ -934,7 +934,7 @@ file_tree_linux_CopyText(Slice bytes)
         bool value_2 = false;
         void *value_3 = ZirVecGrow((void *)(result).data, &(result).capacity, (result).count, sizeof(*(result).data));
         if (value_3 != NULL) {
-            (result).data = (uint8_t *)value_3;
+            (result).data = value_3;
             (result).data[(result).count++] = value_1;
             value_2 = true;
         }
@@ -1115,7 +1115,7 @@ file_tree_linux_ListDirectory(String path, __type_9f828aa1372cb21a* names)
         bool value_5 = false;
         void *value_6 = ZirVecGrow((void *)(found).data, &(found).capacity, (found).count, sizeof(*(found).data));
         if (value_6 != NULL) {
-            (found).data = (String *)value_6;
+            (found).data = value_6;
             (found).data[(found).count++] = value_4;
             value_5 = true;
         }
@@ -1171,7 +1171,7 @@ file_tree_linux_ListDirectory(String path, __type_9f828aa1372cb21a* names)
             value_16 = value_15 <= ((*(names))).capacity;
             if (!value_16) {
                 void *value_17 = ZirVecReserve((void *)((*(names))).data, &((*(names))).capacity, ((*(names))).count, value_15 - ((*(names))).count, sizeof(*((*(names))).data));
-                if (value_17 != NULL) { ((*(names))).data = (String *)value_17; value_16 = true; }
+                if (value_17 != NULL) { ((*(names))).data = value_17; value_16 = true; }
             }
         }
         value_13 = !value_16;
@@ -1198,7 +1198,7 @@ file_tree_linux_ListDirectory(String path, __type_9f828aa1372cb21a* names)
         bool value_21 = false;
         void *value_22 = ZirVecGrow((void *)((*(names))).data, &((*(names))).capacity, ((*(names))).count, sizeof(*((*(names))).data));
         if (value_22 != NULL) {
-            ((*(names))).data = (String *)value_22;
+            ((*(names))).data = value_22;
             ((*(names))).data[((*(names))).count++] = value_20;
             value_21 = true;
         }
@@ -1299,7 +1299,7 @@ file_tree_linux_RemoveTree(String path)
                 bool value_16 = false;
                 void *value_17 = ZirVecGrow((void *)(child).data, &(child).capacity, (child).count, sizeof(*(child).data));
                 if (value_17 != NULL) {
-                    (child).data = (uint8_t *)value_17;
+                    (child).data = value_17;
                     (child).data[(child).count++] = value_15;
                     value_16 = true;
                 }
@@ -1806,7 +1806,7 @@ file_tree_linux_ReplaceFile(String path, String text)
         bool value_7 = false;
         void *value_8 = ZirVecGrow((void *)(temporary_text).data, &(temporary_text).capacity, (temporary_text).count, sizeof(*(temporary_text).data));
         if (value_8 != NULL) {
-            (temporary_text).data = (uint8_t *)value_8;
+            (temporary_text).data = value_8;
             (temporary_text).data[(temporary_text).count++] = value_6;
             value_7 = true;
         }

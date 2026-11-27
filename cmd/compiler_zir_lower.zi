@@ -2019,7 +2019,10 @@ String :: (program: *AssemblyProgram, function: *AssemblyFunction, expression: *
     if length == 0 {
         data = Emit(program, function, LirOp.Null, pointer, null, 0, -1, span)
     } else {
-        global := StringGlobal(program, function.module, bytes, length, span)
+        // Literal storage includes a real terminator for native C-string
+        // boundaries. The string view below still counts only its own bytes.
+        bytes[length] = 0
+        global := StringGlobal(program, function.module, bytes, length + 1, span)
         if global < 0 { return -1 }
         array := program.globals.data[global].result.type
         base := Emit(program, function, LirOp.GlobalAddress,
@@ -2980,7 +2983,16 @@ LowerSlice :: (program: *AssemblyProgram, function: *AssemblyFunction,
     data: s32 = -1
     count: s32 = -1
     element: s32 = -1
-    if CArrayValueType(source.type) != 0 {
+    pointer_slice := source.type[0] == #char "*"
+    if pointer_slice {
+        data = Expression(program, function, expression.left, depth + 1)
+        if program.failed != 0 { return -1 }
+        pointer := TypeAt(program, function.values.data[data])
+        if pointer.kind != .Pointer || expression.third < 0 {
+            return Fail(program, expression.span, "pointer slice requires a checked pointer and explicit upper bound")
+        }
+        element = pointer.element
+    } else if CArrayValueType(source.type) != 0 {
         base := Address(program, function, expression.left, depth + 1)
         if program.failed != 0 { return -1 }
         pointer := TypeAt(program, function.values.data[base])
@@ -3028,6 +3040,9 @@ LowerSlice :: (program: *AssemblyProgram, function: *AssemblyFunction,
     low = Convert(program, function, low, 8, expression.span)
     high = Convert(program, function, high, 8, expression.span)
     if program.failed != 0 { return -1 }
+    // The supplied upper bound describes this view, never a new allocation.
+    // ElementAddress retains the pointer token and checks its backing extent.
+    if pointer_slice { count = high }
     pointer_type := PointerType(program, element, expression.span)
     address_operands := cast(*s32)Allocate(program, 4, size_of(s32))
     if address_operands == null { return -1 }

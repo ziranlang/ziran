@@ -234,13 +234,15 @@ Invoking an empty callable traps; dropping an empty or moved callable is harmles
 `Scoped<Signature>` borrows captured lexical places for the calling scope. It
 uses typed stack storage and a checked invoke trampoline, with no heap-owned
 capture or release slot. The callback reads the captured places when invoked;
-it does not move their owned values. A callee may invoke the callback or pass
-it to another checked Scoped parameter. Transient props records and local
-bindings preserve its lexical lifetime. Returning it, retaining it in global,
-reference or owned collection storage, taking its address, or moving an owned
-capture is rejected. Owned callbacks cannot capture Scoped values. Foreign
-procedures cannot take Scoped parameters because their bodies have no checked
-no-escape guarantee.
+it does not move their owned values. Mutable captured places and referenced
+native models may be updated during that invocation, including through checked
+native actions. Captured `const` bindings still cannot be rebound. A callee may
+invoke the callback or pass it to another checked Scoped parameter. Transient
+props records and local bindings preserve its lexical lifetime. Returning it,
+retaining it in global, reference or owned collection storage, taking its address,
+or moving an owned capture is rejected. Owned callbacks cannot capture Scoped
+values. Foreign procedures cannot take Scoped parameters because their bodies
+have no checked no-escape guarantee.
 
 These restrictions follow nested records, arrays and collection element types
 without a nesting cutoff. Recursive declarations are checked by their identity;

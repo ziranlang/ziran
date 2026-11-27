@@ -423,6 +423,15 @@ Declare :: (e: *Emitter, name: *u8, type: *u8, value: *u8) {
         DeclareArray(e, bname, type, val)
         return
     }
+    if e.target == .ZIR_C {
+        declaration: [IR.ZIR_NAME_MAX * 4]u8
+        if CEmit.PointerArrayDeclaration(type, bname, CEmit.ResolveTypeAtUse,
+            cast(*void)e.module, *declaration[0], IR.ZIR_NAME_MAX * 4) {
+            EmitIndent(e)
+            fprintf(e.out, CStr("%s = %s;\n"), *declaration[0], ifx val != null && val[0] != 0 then val else CStr("0"))
+            return
+        }
+    }
     target_type := cast(*u8)Native.TargetType(cast(*void)type, e.target)
     resolved_type: [IR.ZIR_NAME_MAX * 2]u8
     if type[0] == #char "*" {
@@ -436,6 +445,11 @@ Declare :: (e: *Emitter, name: *u8, type: *u8, value: *u8) {
             copy_text(*base_type[0], IR.ZIR_NAME_MAX, CStr("byte"))
         } else if scalar != null {
             copy_text(*base_type[0], IR.ZIR_NAME_MAX, scalar)
+        } else if e.target == .ZIR_GO && pointee[0] == #char "[" {
+            if CNativeGoType(e.module, pointee, *base_type[0], IR.ZIR_NAME_MAX) == 0 {
+                Diagnostic(e.fn.span, CStr("emit.array_element"), CStr("unsupported Go array element type: %s"), pointee)
+                exit(1)
+            }
         } else {
             e.resolve(e.context, pointee, *base_type[0], IR.ZIR_NAME_MAX)
         }
@@ -1425,7 +1439,18 @@ Literal :: (e: *Emitter, expr: *IR.ZirExpr, type: *u8, neg_in: s32, out: *u8, si
 
 #program_export
 EmitStringLiteral :: (expr: *IR.ZirExpr, target: Native.ZirTarget, out: *u8, size: usize) {
+    EmitStringLiteralStorage(expr, target, false, out, size)
+}
+
+#program_export
+EmitGoStringViewLiteral :: (expr: *IR.ZirExpr, out: *u8, size: usize) {
+    EmitStringLiteralStorage(expr, .ZIR_GO, true, out, size)
+}
+
+EmitStringLiteralStorage :: (expr: *IR.ZirExpr, target: Native.ZirTarget, terminated: bool, out: *u8, size: usize) {
     used: usize = 0
+    decoded: usize = 0
+    if terminated { out[used] = #char "("; used += 1 }
     remaining: s32 = 0
     scalar: u32 = 0
     minimum: u32 = 0
@@ -1486,6 +1511,7 @@ EmitStringLiteral :: (expr: *IR.ZirExpr, target: Native.ZirTarget, out: *u8, siz
         }
         for idx: cast(s32)0..count - 1 {
             byte := bytes[idx]
+            decoded += 1
             if remaining != 0 {
                 if (byte & 0xc0) != 0x80 { Fatal(expr, CStr("string is not valid UTF-8")) }
                 scalar = (scalar << 6) | cast(u32)(byte & 63)
@@ -1526,8 +1552,13 @@ EmitStringLiteral :: (expr: *IR.ZirExpr, target: Native.ZirTarget, out: *u8, siz
     }
     if cursor[0] != #char "\"" { Fatal(expr, CStr("unterminated string literal")) }
     if remaining != 0 { Fatal(expr, CStr("string is not valid UTF-8")) }
-    out[used] = #char "\""; used += 1
-    out[used] = 0
+    if terminated {
+        // The backing literal owns a real NUL; the view counts only source bytes.
+        CheckFormat(snprintf(PtrAdd(out, used), size - used, CStr("\\x00\")[:%zu]"), decoded), size - used)
+    } else {
+        out[used] = #char "\""; used += 1
+        out[used] = 0
+    }
 }
 
 #program_export
@@ -1569,11 +1600,12 @@ ScalarLiteral :: (type_in: *u8, text: *u8, target: Native.ZirTarget, span: IR.Zi
         if expr.kind == .STRING && strcmp(type, CStr("string")) == 0 {
             tlen := strlen(expr.text)
             if tlen >= IR.ZIR_TEXT_MAX / 4 {
-                capacity := tlen * 4 + 16
+                capacity := tlen * 4 + 64
                 lit := cast(*u8)AllocateOrExit(capacity)
                 bytes := cast(*u8)AllocateOrExit(tlen + 1)
                 decoded: usize = 0
-                EmitStringLiteral(expr, target, lit, capacity)
+                if target == .ZIR_GO { EmitGoStringViewLiteral(expr, lit, capacity) }
+                else { EmitStringLiteral(expr, target, lit, capacity) }
                 DecodeStringLiteral(expr.text, bytes, tlen + 1, *decoded)
                 if strlen(lit) + 32 < size {
                     if target == .ZIR_C { CheckFormat(snprintf(out, size, CStr("{%s, %zu}"), lit, decoded), size) }
@@ -1583,7 +1615,8 @@ ScalarLiteral :: (type_in: *u8, text: *u8, target: Native.ZirTarget, span: IR.Zi
                 free(cast(*void)bytes)
                 free(cast(*void)lit)
             } else {
-                EmitStringLiteral(expr, target, val_buf, IR.ZIR_TEXT_MAX)
+                if target == .ZIR_GO { EmitGoStringViewLiteral(expr, val_buf, IR.ZIR_TEXT_MAX) }
+                else { EmitStringLiteral(expr, target, val_buf, IR.ZIR_TEXT_MAX) }
                 if target == .ZIR_C {
                     CheckFormat(snprintf(out, size, CStr("{%s, sizeof(%s) - 1}"), val_buf, val_buf), size)
                 } else {

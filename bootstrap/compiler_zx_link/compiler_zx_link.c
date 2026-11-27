@@ -2026,7 +2026,7 @@ compiler_zx_link_FoldUnwrittenGlobals(ZirProgram* program)
                         bool value_22 = false;
                         void *value_23 = ZirVecGrow((void *)(slots).data, &(slots).capacity, (slots).count, sizeof(*(slots).data));
                         if (value_23 != NULL) {
-                            (slots).data = (UnwrittenSlot *)value_23;
+                            (slots).data = value_23;
                             (slots).data[(slots).count++] = value_21;
                             value_22 = true;
                         }

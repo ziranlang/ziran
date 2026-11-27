@@ -141,7 +141,7 @@ text_tools_TextSplit(String text, String separator)
         bool value_2 = false;
         void *value_3 = ZirVecGrow((void *)(pieces).data, &(pieces).capacity, (pieces).count, sizeof(*(pieces).data));
         if (value_3 != NULL) {
-            (pieces).data = (String *)value_3;
+            (pieces).data = value_3;
             (pieces).data[(pieces).count++] = value_1;
             value_2 = true;
         }
@@ -164,7 +164,7 @@ text_tools_TextSplit(String text, String separator)
         bool value_7 = false;
         void *value_8 = ZirVecGrow((void *)(pieces).data, &(pieces).capacity, (pieces).count, sizeof(*(pieces).data));
         if (value_8 != NULL) {
-            (pieces).data = (String *)value_8;
+            (pieces).data = value_8;
             (pieces).data[(pieces).count++] = value_6;
             value_7 = true;
         }
@@ -176,7 +176,7 @@ text_tools_TextSplit(String text, String separator)
     bool value_10 = false;
     void *value_11 = ZirVecGrow((void *)(pieces).data, &(pieces).capacity, (pieces).count, sizeof(*(pieces).data));
     if (value_11 != NULL) {
-        (pieces).data = (String *)value_11;
+        (pieces).data = value_11;
         (pieces).data[(pieces).count++] = value_9;
         value_10 = true;
     }
@@ -207,7 +207,7 @@ text_tools_TextLines(String text)
             bool value_2 = false;
             void *value_3 = ZirVecGrow((void *)(lines).data, &(lines).capacity, (lines).count, sizeof(*(lines).data));
             if (value_3 != NULL) {
-                (lines).data = (String *)value_3;
+                (lines).data = value_3;
                 (lines).data[(lines).count++] = value_1;
                 value_2 = true;
             }
@@ -224,7 +224,7 @@ text_tools_TextLines(String text)
         bool value_5 = false;
         void *value_6 = ZirVecGrow((void *)(lines).data, &(lines).capacity, (lines).count, sizeof(*(lines).data));
         if (value_6 != NULL) {
-            (lines).data = (String *)value_6;
+            (lines).data = value_6;
             (lines).data[(lines).count++] = value_4;
             value_5 = true;
         }
@@ -374,7 +374,7 @@ text_tools_TextLower(String text)
         bool value_2 = false;
         void *value_3 = ZirVecGrow((void *)(result).data, &(result).capacity, (result).count, sizeof(*(result).data));
         if (value_3 != NULL) {
-            (result).data = (uint8_t *)value_3;
+            (result).data = value_3;
             (result).data[(result).count++] = value_1;
             value_2 = true;
         }
@@ -559,7 +559,7 @@ text_tools_TextHexDecodeInto(String value, __type_131eebaaeb761e42* output, int6
             bool value_11 = false;
             void *value_12 = ZirVecGrow((void *)(decoded).data, &(decoded).capacity, (decoded).count, sizeof(*(decoded).data));
             if (value_12 != NULL) {
-                (decoded).data = (uint8_t *)value_12;
+                (decoded).data = value_12;
                 (decoded).data[(decoded).count++] = value_10;
                 value_11 = true;
             }
@@ -618,7 +618,7 @@ text_tools_TextHex(Slice bytes)
         bool value_2 = false;
         void *value_3 = ZirVecGrow((void *)(result).data, &(result).capacity, (result).count, sizeof(*(result).data));
         if (value_3 != NULL) {
-            (result).data = (uint8_t *)value_3;
+            (result).data = value_3;
             (result).data[(result).count++] = value_1;
             value_2 = true;
         }
@@ -627,7 +627,7 @@ text_tools_TextHex(Slice bytes)
         bool value_5 = false;
         void *value_6 = ZirVecGrow((void *)(result).data, &(result).capacity, (result).count, sizeof(*(result).data));
         if (value_6 != NULL) {
-            (result).data = (uint8_t *)value_6;
+            (result).data = value_6;
             (result).data[(result).count++] = value_4;
             value_5 = true;
         }

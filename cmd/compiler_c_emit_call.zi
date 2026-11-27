@@ -401,7 +401,11 @@ EmitGlobalSlotWrappersNode :: (out: *void, module: *IR.ZirModule, global: *IR.Zi
         resolved_type: [IR.ZIR_NAME_MAX]u8
         CSlotNativeType(source, target, *native_type[0], IR.ZIR_NAME_MAX)
         resolver(context, *native_type[0], *resolved_type[0], IR.ZIR_NAME_MAX)
-        fprintf(out, CStr(", %s slot_arg_%d"), *resolved_type[0], argument)
+        argument_name: [IR.ZIR_NAME_MAX]u8
+        declaration: [IR.ZIR_NAME_MAX * 4]u8
+        CheckFormat(snprintf(*argument_name[0], IR.ZIR_NAME_MAX, CStr("slot_arg_%d"), argument), IR.ZIR_NAME_MAX)
+        CEmit.NamedCType(*resolved_type[0], *argument_name[0], *declaration[0], IR.ZIR_NAME_MAX * 4)
+        fprintf(out, CStr(", %s"), *declaration[0])
         sep := ifx argument != 0 then CStr(", ") else CStr("")
         length += cast(usize)CheckFormat(snprintf(PtrAdd(call_buf, length), IR.ZIR_TEXT_MAX - length,
                                                   CStr("%sslot_arg_%d"), sep, argument), IR.ZIR_TEXT_MAX - length)
@@ -771,7 +775,11 @@ EmitSlotWrappers :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction,
             source := skip_ws(PtrAdd(strchr(param, #char ":"), 1))
             resolved_type: [IR.ZIR_NAME_MAX]u8
             CSlotTypeAtUse(source, target, CEmit.ResolveTypeAtUse, cast(*void)slot_owner, *resolved_type[0], IR.ZIR_NAME_MAX)
-            fprintf(out, CStr(", %s slot_arg_%d"), *resolved_type[0], argument)
+            argument_name: [IR.ZIR_NAME_MAX]u8
+            declaration: [IR.ZIR_NAME_MAX * 4]u8
+            CheckFormat(snprintf(*argument_name[0], IR.ZIR_NAME_MAX, CStr("slot_arg_%d"), argument), IR.ZIR_NAME_MAX)
+            CEmit.NamedCType(*resolved_type[0], *argument_name[0], *declaration[0], IR.ZIR_NAME_MAX * 4)
+            fprintf(out, CStr(", %s"), *declaration[0])
             sep := ifx argument != 0 then CStr(", ") else CStr("")
             length += cast(usize)CheckFormat(snprintf(PtrAdd(call_buf, length), IR.ZIR_TEXT_MAX - length,
                                                       CStr("%sslot_arg_%d"), sep, argument), IR.ZIR_TEXT_MAX - length)

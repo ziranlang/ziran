@@ -1643,31 +1643,8 @@ NativeHeaderGuard :: (stem: *u8, out: *u8, size: usize) {
 
 #program_export "zir_emit_slot_native_type"
 SlotNativeType :: (source: *u8, target: Native.ZirTarget, out: *u8, size: usize) {
+    if target == .ZIR_C && PointerArrayDeclaration(source, CStr(""), UnresolvedSlotType, null, out, size) { return }
     if source[0] == #char "*" {
-        array := source
-        pointers: s32 = 0
-        while array[0] == #char "*" {
-            pointers += 1
-            array = skip_ws(PtrAdd(array, 1))
-        }
-        if target == .ZIR_C && array[0] == #char "[" {
-            dimensions: [IR.ZIR_NAME_MAX]u8
-            element: [IR.ZIR_NAME_MAX]u8
-            end := array
-            while end[0] == #char "[" {
-                close := strchr(end, #char "]")
-                if close == null { break }
-                end = skip_ws(PtrAdd(close, 1))
-            }
-            length := cast(usize)end - cast(usize)array
-            if length >= IR.ZIR_NAME_MAX { length = IR.ZIR_NAME_MAX - 1 }
-            memcpy(cast(*void)*dimensions[0], cast(*void)array, length)
-            dimensions[length] = 0
-            SlotNativeType(end, target, *element[0], IR.ZIR_NAME_MAX)
-            stars := CStr("****************************************************************")
-            CheckFormat(snprintf(out, size, CStr("%s (%.*s)%s"), *element[0], pointers, stars, *dimensions[0]), size)
-            return
-        }
         pointee: [IR.ZIR_NAME_MAX]u8
         SlotNativeType(skip_ws(PtrAdd(source, 1)), target, *pointee[0], IR.ZIR_NAME_MAX)
         CheckFormat(snprintf(out, size, CStr("%s*"), *pointee[0]), size)
@@ -1675,6 +1652,66 @@ SlotNativeType :: (source: *u8, target: Native.ZirTarget, out: *u8, size: usize)
     }
     scalar := cast(*u8)Native.TargetType(cast(*void)source, target)
     copy_text(out, size, ifx scalar != null then scalar else source)
+}
+
+UnresolvedSlotType :: (context: *void, source: *u8, out: *u8, size: usize) { copy_text(out, size, source) }
+
+// Array suffixes bind more tightly than pointer prefixes in C declarations.
+// Build the named declarator before resolving its scalar/record element type.
+PointerArrayDeclaration :: (source: *u8, name: *u8, resolve_type: ZirResolveTarget,
+                            context: *void, out: *u8, size: usize) -> bool {
+    declarator: [IR.ZIR_NAME_MAX * 4]u8
+    work: [IR.ZIR_NAME_MAX * 4]u8
+    copy_text(*declarator[0], IR.ZIR_NAME_MAX * 4, name)
+    p := skip_ws(source)
+    pointer := false
+    indirect_array := false
+    while true {
+        if p[0] == #char "*" {
+            CheckFormat(snprintf(*work[0], IR.ZIR_NAME_MAX * 4, CStr("*%s"), *declarator[0]), IR.ZIR_NAME_MAX * 4)
+            p = skip_ws(PtrAdd(p, 1))
+            pointer = true
+        } else if p[0] == #char "[" && p[1] != #char "]" {
+            close := strchr(p, #char "]")
+            if close == null { return false }
+            length := cast(s32)(cast(usize)close - cast(usize)p + 1)
+            fmt := ifx pointer then CStr("(%s)%.*s") else CStr("%s%.*s")
+            CheckFormat(snprintf(*work[0], IR.ZIR_NAME_MAX * 4, fmt, *declarator[0], length, p), IR.ZIR_NAME_MAX * 4)
+            indirect_array = indirect_array || pointer
+            p = skip_ws(PtrAdd(close, 1))
+            pointer = false
+        } else { break }
+        copy_text(*declarator[0], IR.ZIR_NAME_MAX * 4, *work[0])
+    }
+    if !indirect_array { return false }
+    element: [IR.ZIR_NAME_MAX * 2]u8
+    scalar := cast(*u8)Native.TargetType(cast(*void)p, .ZIR_C)
+    if SliceElementType(p, null, 0) != 0 { scalar = CStr("Slice") }
+    if scalar != null { copy_text(*element[0], IR.ZIR_NAME_MAX * 2, scalar) }
+    else if resolve_type != null { resolve_type(context, p, *element[0], IR.ZIR_NAME_MAX * 2) }
+    else { copy_text(*element[0], IR.ZIR_NAME_MAX * 2, p) }
+    CheckFormat(snprintf(out, size, CStr("%s %s"), *element[0], *declarator[0]), size)
+    return true
+}
+
+NamedCType :: (type: *u8, name: *u8, out: *u8, size: usize) {
+    // Insert the name in the innermost pointer group of an abstract array type.
+    // A leading newline keeps a definition's name on its own line.
+    group := strstr(type, CStr("(*"))
+    close := ifx group != null then strchr(group, #char ")") else null
+    if close != null {
+        length := cast(s32)(cast(usize)close - cast(usize)type)
+        CheckFormat(snprintf(out, size, CStr("%.*s%s%s"), length, type, name, close), size)
+    } else {
+        CheckFormat(snprintf(out, size, CStr("%s%s%s"), type, ifx name[0] == #char "\n" then CStr("") else CStr(" "), name), size)
+    }
+}
+
+NamedCFunction :: (result: *u8, name: *u8, parameters: *u8, out: *u8, size: usize) {
+    signature := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    defer { free(cast(*void)signature) }
+    CheckFormat(snprintf(signature, IR.ZIR_TEXT_MAX, CStr("%s(%s)"), name, parameters), IR.ZIR_TEXT_MAX)
+    NamedCType(result, signature, out, size)
 }
 
 #program_export "zir_emit_slot_type_at_use"
@@ -2094,10 +2131,11 @@ EmitNativeMainDeclaration :: (out: *void) {
 
 #program_export
 EmitSymbolDeclaration :: (out: *void, result: *u8, name: *u8, parameters: *u8, symbol: *u8) {
-    fprintf(out, CStr("#ifdef __APPLE__\n%s %s(%s) __asm__(\"_%s\");\n#else\n"),
-            result, name, parameters, symbol)
-    fprintf(out, CStr("%s %s(%s) __asm__(\"%s\");\n#endif\n"),
-            result, name, parameters, symbol)
+    declaration := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    defer { free(cast(*void)declaration) }
+    NamedCFunction(result, name, parameters, declaration, IR.ZIR_TEXT_MAX)
+    fprintf(out, CStr("#ifdef __APPLE__\n%s __asm__(\"_%s\");\n#else\n"), declaration, symbol)
+    fprintf(out, CStr("%s __asm__(\"%s\");\n#endif\n"), declaration, symbol)
 }
 
 #program_export

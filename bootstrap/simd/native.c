@@ -118,7 +118,7 @@ native_NativeNames(Slice names)
             bool value_17 = false;
             void *value_18 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
             if (value_18 != NULL) {
-                (output).data = (NativeName *)value_18;
+                (output).data = value_18;
                 (output).data[(output).count++] = value_16;
                 value_17 = true;
             }
@@ -187,7 +187,7 @@ native_Aliases(Slice names)
                     bool value_11 = false;
                     void *value_12 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
                     if (value_12 != NULL) {
-                        (output).data = (Alias *)value_12;
+                        (output).data = value_12;
                         (output).data[(output).count++] = value_10;
                         value_11 = true;
                     }
@@ -241,7 +241,7 @@ native_NativeMacros(__type_131eebaaeb761e42* output)
                 bool value_5 = false;
                 void *value_6 = ZirVecGrow((void *)(names).data, &(names).capacity, (names).count, sizeof(*(names).data));
                 if (value_6 != NULL) {
-                    (names).data = (String *)value_6;
+                    (names).data = value_6;
                     (names).data[(names).count++] = value_4;
                     value_5 = true;
                 }
@@ -261,7 +261,7 @@ native_NativeMacros(__type_131eebaaeb761e42* output)
         bool value_11 = false;
         void *value_12 = ZirVecGrow((void *)(sorted).data, &(sorted).capacity, (sorted).count, sizeof(*(sorted).data));
         if (value_12 != NULL) {
-            (sorted).data = (String *)value_12;
+            (sorted).data = value_12;
             (sorted).data[(sorted).count++] = value_10;
             value_11 = true;
         }
@@ -352,7 +352,7 @@ native_NativeHelper(String op, VectorType t, String body, String result)
                 bool value_8 = false;
                 void *value_9 = ZirVecGrow((void *)(helper.parameters).data, &(helper.parameters).capacity, (helper.parameters).count, sizeof(*(helper.parameters).data));
                 if (value_9 != NULL) {
-                    (helper.parameters).data = (Parameter *)value_9;
+                    (helper.parameters).data = value_9;
                     (helper.parameters).data[(helper.parameters).count++] = value_7;
                     value_8 = true;
                 }
@@ -368,7 +368,7 @@ native_NativeHelper(String op, VectorType t, String body, String result)
         bool value_11 = false;
         void *value_12 = ZirVecGrow((void *)(helper.parameters).data, &(helper.parameters).capacity, (helper.parameters).count, sizeof(*(helper.parameters).data));
         if (value_12 != NULL) {
-            (helper.parameters).data = (Parameter *)value_12;
+            (helper.parameters).data = value_12;
             (helper.parameters).data[(helper.parameters).count++] = value_10;
             value_11 = true;
         }
@@ -379,7 +379,7 @@ native_NativeHelper(String op, VectorType t, String body, String result)
             bool value_14 = false;
             void *value_15 = ZirVecGrow((void *)(helper.parameters).data, &(helper.parameters).capacity, (helper.parameters).count, sizeof(*(helper.parameters).data));
             if (value_15 != NULL) {
-                (helper.parameters).data = (Parameter *)value_15;
+                (helper.parameters).data = value_15;
                 (helper.parameters).data[(helper.parameters).count++] = value_13;
                 value_14 = true;
             }
@@ -389,7 +389,7 @@ native_NativeHelper(String op, VectorType t, String body, String result)
         bool value_17 = false;
         void *value_18 = ZirVecGrow((void *)(helper.parameters).data, &(helper.parameters).capacity, (helper.parameters).count, sizeof(*(helper.parameters).data));
         if (value_18 != NULL) {
-            (helper.parameters).data = (Parameter *)value_18;
+            (helper.parameters).data = value_18;
             (helper.parameters).data[(helper.parameters).count++] = value_16;
             value_17 = true;
         }
@@ -399,7 +399,7 @@ native_NativeHelper(String op, VectorType t, String body, String result)
             bool value_20 = false;
             void *value_21 = ZirVecGrow((void *)(helper.parameters).data, &(helper.parameters).capacity, (helper.parameters).count, sizeof(*(helper.parameters).data));
             if (value_21 != NULL) {
-                (helper.parameters).data = (Parameter *)value_21;
+                (helper.parameters).data = value_21;
                 (helper.parameters).data[(helper.parameters).count++] = value_19;
                 value_20 = true;
             }
@@ -502,7 +502,7 @@ native_NativeHelpers(void)
             bool value_15 = false;
             void *value_16 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
             if (value_16 != NULL) {
-                (output).data = (Helper *)value_16;
+                (output).data = value_16;
                 (output).data[(output).count++] = value_14;
                 value_15 = true;
             }
@@ -513,7 +513,7 @@ native_NativeHelpers(void)
             bool value_20 = false;
             void *value_21 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
             if (value_21 != NULL) {
-                (output).data = (Helper *)value_21;
+                (output).data = value_21;
                 (output).data[(output).count++] = value_19;
                 value_20 = true;
             }
@@ -524,7 +524,7 @@ native_NativeHelpers(void)
             bool value_25 = false;
             void *value_26 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
             if (value_26 != NULL) {
-                (output).data = (Helper *)value_26;
+                (output).data = value_26;
                 (output).data[(output).count++] = value_24;
                 value_25 = true;
             }
@@ -552,7 +552,7 @@ native_NativeHelpers(void)
                 bool value_31 = false;
                 void *value_32 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
                 if (value_32 != NULL) {
-                    (output).data = (Helper *)value_32;
+                    (output).data = value_32;
                     (output).data[(output).count++] = value_30;
                     value_31 = true;
                 }
@@ -567,7 +567,7 @@ native_NativeHelpers(void)
                 bool value_40 = false;
                 void *value_41 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
                 if (value_41 != NULL) {
-                    (output).data = (Helper *)value_41;
+                    (output).data = value_41;
                     (output).data[(output).count++] = value_39;
                     value_40 = true;
                 }
@@ -601,7 +601,7 @@ native_NativeHelpers(void)
             bool value_46 = false;
             void *value_47 = ZirVecGrow((void *)(helper.parameters).data, &(helper.parameters).capacity, (helper.parameters).count, sizeof(*(helper.parameters).data));
             if (value_47 != NULL) {
-                (helper.parameters).data = (Parameter *)value_47;
+                (helper.parameters).data = value_47;
                 (helper.parameters).data[(helper.parameters).count++] = value_45;
                 value_46 = true;
             }
@@ -610,7 +610,7 @@ native_NativeHelpers(void)
             bool value_49 = false;
             void *value_50 = ZirVecGrow((void *)(helper.parameters).data, &(helper.parameters).capacity, (helper.parameters).count, sizeof(*(helper.parameters).data));
             if (value_50 != NULL) {
-                (helper.parameters).data = (Parameter *)value_50;
+                (helper.parameters).data = value_50;
                 (helper.parameters).data[(helper.parameters).count++] = value_48;
                 value_49 = true;
             }
@@ -640,7 +640,7 @@ native_NativeHelpers(void)
             bool value_62 = false;
             void *value_63 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
             if (value_63 != NULL) {
-                (output).data = (Helper *)value_63;
+                (output).data = value_63;
                 (output).data[(output).count++] = value_61;
                 value_62 = true;
             }
@@ -710,7 +710,7 @@ native_NativeSection(__type_131eebaaeb761e42* output, Slice helpers, String* mar
             bool value_3 = false;
             void *value_4 = ZirVecGrow((void *)(names).data, &(names).capacity, (names).count, sizeof(*(names).data));
             if (value_4 != NULL) {
-                (names).data = (String *)value_4;
+                (names).data = value_4;
                 (names).data[(names).count++] = value_2;
                 value_3 = true;
             }

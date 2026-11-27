@@ -924,7 +924,7 @@ archive again would duplicate its module globals. A foreign C host instead
 uses the default to link that archive once.
 
 Identity includes the locked package graph and toolchain revisions, actual
-checkout HEADs, launcher/compiler bytes, native platform/ABI, recipe and input
+checkout working content, launcher/compiler bytes, native platform/ABI, recipe and input
 bytes, resolved options, dependency descriptors, CC executable bytes/version and
 relevant native build environment (`PATH`, `CFLAGS`, `CPPFLAGS`, `CXX`,
 `CXXFLAGS`, `LDFLAGS`, `LDLIBS`, `AR`, `LD`, `RANLIB`, `PKG_CONFIG`,
@@ -934,6 +934,12 @@ checkout in the resolved graph disables reuse; declared ignored inputs are
 hashed regardless. Dirty builds receive unique publication directories, so
 local edits cannot hit or overwrite clean results. Two independent consumers
 with the same graph, options and environment share a clean artifact.
+
+Working-content fingerprints read tracked and nonignored paths, including file
+bytes, executable status, symlink targets and submodule revisions, without
+writing a Git index. Committing unchanged bytes during a provider invocation
+preserves its content identity; changing bytes prevents publication. Unreadable
+content fails the request instead of substituting a commit ID.
 
 The package-driver entry point is
 `PkgBuildArtifact(project: string, package: string, artifact: string, target: string) -> s32`.

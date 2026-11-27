@@ -573,6 +573,13 @@ with `#reads` after its result:
 SelectionPainter :: #type (x: s32, props: TextProps, label: string) -> s32 #reads;
 ```
 
+The same contract can annotate a C-call procedure type, as in
+`-> s32 #reads #c_call;`. It also protects byte inputs declared as `*u8`,
+`*s8`, `[]u8` or `[]s8`: a callback may read them during the call, but cannot
+write through them, return their views or retain their addresses. Context
+and result pointers of other types remain writable. The contract is checked
+when storing a callback and is preserved in saved IR.
+
 Each procedure stored in the type, as a slot's value, a record field, an
 argument or a global's initializer, must only read its string parameters
 and the string fields of its record parameters, including fields of records

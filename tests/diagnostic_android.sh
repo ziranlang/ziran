@@ -3,6 +3,7 @@
 set -eu
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+bootstrap=${BOOTSTRAP_ROOT:-"$root/bootstrap"}
 ziran=${1:-"$root/build/bin/ziran"}
 mkdir -p "$root/build/tests"
 work=$(mktemp -d "$root/build/tests/diagnostic-android.XXXXXX")
@@ -69,10 +70,10 @@ for target in native android; do
         set --
     fi
     for module in ir context_types parse_types parse_s14_types check_types text statement declaration source scan diagnostic; do
-        set -- "$@" -I"$root/bootstrap/compiler_$module"
+        set -- "$@" -I"$bootstrap/compiler_$module"
     done
     "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Wno-unused-label "$@" -I"$root/include" \
-        -c "$root/bootstrap/compiler_diagnostic/compiler_diagnostic.c" -o "$work/diagnostic.o"
+        -c "$bootstrap/compiler_diagnostic/compiler_diagnostic.c" -o "$work/diagnostic.o"
     "${CC:-cc}" -std=c11 -Wall -Wextra -Werror "$@" -I"$root/include" -I"$root/bootstrap/runtime" \
         "$work/diagnostic.o" "$root/bootstrap/runtime/zir_diagnostic_host.c" \
         "$root/bootstrap/runtime/zir_atomics.c" "$work/test.c" -o "$work/test-$target"

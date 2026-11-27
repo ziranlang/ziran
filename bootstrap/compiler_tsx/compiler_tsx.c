@@ -109,7 +109,7 @@ static int32_t compiler_tsx_JSX(Parser* p) ZIRAN_MAYBE_UNUSED;
 static void compiler_tsx_Block(Parser* p) ZIRAN_MAYBE_UNUSED;
 static void compiler_tsx_Declare(Parser* p, String name, String type, int32_t expr, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
 static bool compiler_tsx_ForOfAhead(Parser* p) ZIRAN_MAYBE_UNUSED;
-static bool compiler_tsx_CapturePlace(Parser* p, int32_t expr) ZIRAN_MAYBE_UNUSED;
+static String compiler_tsx_AssignedBinding(Parser* p, int32_t expr) ZIRAN_MAYBE_UNUSED;
 static bool compiler_tsx_PersistentPlace(Parser* p, int32_t expr) ZIRAN_MAYBE_UNUSED;
 static void compiler_tsx_ForOf(Parser* p, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
 static void compiler_tsx_ParseStatement(Parser* p) ZIRAN_MAYBE_UNUSED;
@@ -129,7 +129,7 @@ compiler_tsx_Join(String a, String b, String c)
         bool value_2 = false;
         void *value_3 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
         if (value_3 != NULL) {
-            (bytes).data = (uint8_t *)value_3;
+            (bytes).data = value_3;
             (bytes).data[(bytes).count++] = value_1;
             value_2 = true;
         }
@@ -141,7 +141,7 @@ compiler_tsx_Join(String a, String b, String c)
         bool value_5 = false;
         void *value_6 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
         if (value_6 != NULL) {
-            (bytes).data = (uint8_t *)value_6;
+            (bytes).data = value_6;
             (bytes).data[(bytes).count++] = value_4;
             value_5 = true;
         }
@@ -153,7 +153,7 @@ compiler_tsx_Join(String a, String b, String c)
         bool value_8 = false;
         void *value_9 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
         if (value_9 != NULL) {
-            (bytes).data = (uint8_t *)value_9;
+            (bytes).data = value_9;
             (bytes).data[(bytes).count++] = value_7;
             value_8 = true;
         }
@@ -745,7 +745,7 @@ compiler_tsx_Parameters(Parser* p, bool bind, String* defaults, ZirFunction* dec
             bool value_32 = false;
             void *value_33 = ZirVecGrow((void *)(p->locals).data, &(p->locals).capacity, (p->locals).count, sizeof(*(p->locals).data));
             if (value_33 != NULL) {
-                (p->locals).data = (LocalBinding *)value_33;
+                (p->locals).data = value_33;
                 (p->locals).data[(p->locals).count++] = value_31;
                 value_32 = true;
             }
@@ -2281,7 +2281,7 @@ compiler_tsx_BuilderPrintStatement(Parser* p, ZirSourceSpan span)
         bool value_49 = false;
         void *value_50 = ZirVecGrow((void *)(values).data, &(values).capacity, (values).count, sizeof(*(values).data));
         if (value_50 != NULL) {
-            (values).data = (int32_t *)value_50;
+            (values).data = value_50;
             (values).data[(values).count++] = value_48;
             value_49 = true;
         }
@@ -2409,7 +2409,7 @@ compiler_tsx_BuilderPrintStatement(Parser* p, ZirSourceSpan span)
                     value_82 = value_81 <= (bytes).capacity;
                     if (!value_82) {
                         void *value_83 = ZirVecReserve((void *)(bytes).data, &(bytes).capacity, (bytes).count, value_81 - (bytes).count, sizeof(*(bytes).data));
-                        if (value_83 != NULL) { (bytes).data = (uint8_t *)value_83; value_82 = true; }
+                        if (value_83 != NULL) { (bytes).data = value_83; value_82 = true; }
                     }
                     if (value_82) {
                         if (value_81 > (bytes).count) memset((bytes).data + (bytes).count, 0, (size_t)(value_81 - (bytes).count) * sizeof(*(bytes).data));
@@ -2653,7 +2653,7 @@ compiler_tsx_ResolveName(Parser* p, String name)
                     bool value_3 = false;
                     void *value_4 = ZirVecGrow((void *)(p->captures).data, &(p->captures).capacity, (p->captures).count, sizeof(*(p->captures).data));
                     if (value_4 != NULL) {
-                        (p->captures).data = (String *)value_4;
+                        (p->captures).data = value_4;
                         (p->captures).data[(p->captures).count++] = value_2;
                         value_3 = true;
                     }
@@ -3309,7 +3309,7 @@ compiler_tsx_Quoted(Parser* p)
     bool value_10 = false;
     void *value_11 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
     if (value_11 != NULL) {
-        (bytes).data = (uint8_t *)value_11;
+        (bytes).data = value_11;
         (bytes).data[(bytes).count++] = value_9;
         value_10 = true;
     }
@@ -3339,7 +3339,7 @@ compiler_tsx_Quoted(Parser* p)
                 bool value_17 = false;
                 void *value_18 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
                 if (value_18 != NULL) {
-                    (bytes).data = (uint8_t *)value_18;
+                    (bytes).data = value_18;
                     (bytes).data[(bytes).count++] = value_16;
                     value_17 = true;
                 }
@@ -3349,7 +3349,7 @@ compiler_tsx_Quoted(Parser* p)
                 bool value_20 = false;
                 void *value_21 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
                 if (value_21 != NULL) {
-                    (bytes).data = (uint8_t *)value_21;
+                    (bytes).data = value_21;
                     (bytes).data[(bytes).count++] = value_19;
                     value_20 = true;
                 }
@@ -3358,7 +3358,7 @@ compiler_tsx_Quoted(Parser* p)
                 bool value_23 = false;
                 void *value_24 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
                 if (value_24 != NULL) {
-                    (bytes).data = (uint8_t *)value_24;
+                    (bytes).data = value_24;
                     (bytes).data[(bytes).count++] = value_22;
                     value_23 = true;
                 }
@@ -3370,7 +3370,7 @@ compiler_tsx_Quoted(Parser* p)
                 bool value_26 = false;
                 void *value_27 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
                 if (value_27 != NULL) {
-                    (bytes).data = (uint8_t *)value_27;
+                    (bytes).data = value_27;
                     (bytes).data[(bytes).count++] = value_25;
                     value_26 = true;
                 }
@@ -3380,7 +3380,7 @@ compiler_tsx_Quoted(Parser* p)
             bool value_29 = false;
             void *value_30 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
             if (value_30 != NULL) {
-                (bytes).data = (uint8_t *)value_30;
+                (bytes).data = value_30;
                 (bytes).data[(bytes).count++] = value_28;
                 value_29 = true;
             }
@@ -3392,7 +3392,7 @@ compiler_tsx_Quoted(Parser* p)
     bool value_32 = false;
     void *value_33 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
     if (value_33 != NULL) {
-        (bytes).data = (uint8_t *)value_33;
+        (bytes).data = value_33;
         (bytes).data[(bytes).count++] = value_31;
         value_32 = true;
     }
@@ -3721,7 +3721,7 @@ compiler_tsx_FinishArrow(Parser* p, size_t parent, int64_t previous, int64_t pre
         value_17 = value_16 <= (p->locals).capacity;
         if (!value_17) {
             void *value_18 = ZirVecReserve((void *)(p->locals).data, &(p->locals).capacity, (p->locals).count, value_16 - (p->locals).count, sizeof(*(p->locals).data));
-            if (value_18 != NULL) { (p->locals).data = (LocalBinding *)value_18; value_17 = true; }
+            if (value_18 != NULL) { (p->locals).data = value_18; value_17 = true; }
         }
         if (value_17) {
             if (value_16 > (p->locals).count) memset((p->locals).data + (p->locals).count, 0, (size_t)(value_16 - (p->locals).count) * sizeof(*(p->locals).data));
@@ -3741,7 +3741,7 @@ compiler_tsx_FinishArrow(Parser* p, size_t parent, int64_t previous, int64_t pre
             value_23 = value_22 <= (p->captures).capacity;
             if (!value_23) {
                 void *value_24 = ZirVecReserve((void *)(p->captures).data, &(p->captures).capacity, (p->captures).count, value_22 - (p->captures).count, sizeof(*(p->captures).data));
-                if (value_24 != NULL) { (p->captures).data = (String *)value_24; value_23 = true; }
+                if (value_24 != NULL) { (p->captures).data = value_24; value_23 = true; }
             }
             if (value_23) {
                 if (value_22 > (p->captures).count) memset((p->captures).data + (p->captures).count, 0, (size_t)(value_22 - (p->captures).count) * sizeof(*(p->captures).data));
@@ -3758,7 +3758,7 @@ compiler_tsx_FinishArrow(Parser* p, size_t parent, int64_t previous, int64_t pre
         value_28 = value_27 <= (p->captures).capacity;
         if (!value_28) {
             void *value_29 = ZirVecReserve((void *)(p->captures).data, &(p->captures).capacity, (p->captures).count, value_27 - (p->captures).count, sizeof(*(p->captures).data));
-            if (value_29 != NULL) { (p->captures).data = (String *)value_29; value_28 = true; }
+            if (value_29 != NULL) { (p->captures).data = value_29; value_28 = true; }
         }
         if (value_28) {
             if (value_27 > (p->captures).count) memset((p->captures).data + (p->captures).count, 0, (size_t)(value_27 - (p->captures).count) * sizeof(*(p->captures).data));
@@ -5761,7 +5761,7 @@ compiler_tsx_QuoteText(String text)
     bool value_2 = false;
     void *value_3 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
     if (value_3 != NULL) {
-        (bytes).data = (uint8_t *)value_3;
+        (bytes).data = value_3;
         (bytes).data[(bytes).count++] = value_1;
         value_2 = true;
     }
@@ -5773,7 +5773,7 @@ compiler_tsx_QuoteText(String text)
             bool value_5 = false;
             void *value_6 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
             if (value_6 != NULL) {
-                (bytes).data = (uint8_t *)value_6;
+                (bytes).data = value_6;
                 (bytes).data[(bytes).count++] = value_4;
                 value_5 = true;
             }
@@ -5784,7 +5784,7 @@ compiler_tsx_QuoteText(String text)
             bool value_8 = false;
             void *value_9 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
             if (value_9 != NULL) {
-                (bytes).data = (uint8_t *)value_9;
+                (bytes).data = value_9;
                 (bytes).data[(bytes).count++] = value_7;
                 value_8 = true;
             }
@@ -5793,7 +5793,7 @@ compiler_tsx_QuoteText(String text)
             bool value_11 = false;
             void *value_12 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
             if (value_12 != NULL) {
-                (bytes).data = (uint8_t *)value_12;
+                (bytes).data = value_12;
                 (bytes).data[(bytes).count++] = value_10;
                 value_11 = true;
             }
@@ -5803,7 +5803,7 @@ compiler_tsx_QuoteText(String text)
             bool value_14 = false;
             void *value_15 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
             if (value_15 != NULL) {
-                (bytes).data = (uint8_t *)value_15;
+                (bytes).data = value_15;
                 (bytes).data[(bytes).count++] = value_13;
                 value_14 = true;
             }
@@ -5812,7 +5812,7 @@ compiler_tsx_QuoteText(String text)
             bool value_17 = false;
             void *value_18 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
             if (value_18 != NULL) {
-                (bytes).data = (uint8_t *)value_18;
+                (bytes).data = value_18;
                 (bytes).data[(bytes).count++] = value_16;
                 value_17 = true;
             }
@@ -5822,7 +5822,7 @@ compiler_tsx_QuoteText(String text)
             bool value_20 = false;
             void *value_21 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
             if (value_21 != NULL) {
-                (bytes).data = (uint8_t *)value_21;
+                (bytes).data = value_21;
                 (bytes).data[(bytes).count++] = value_19;
                 value_20 = true;
             }
@@ -5831,7 +5831,7 @@ compiler_tsx_QuoteText(String text)
             bool value_23 = false;
             void *value_24 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
             if (value_24 != NULL) {
-                (bytes).data = (uint8_t *)value_24;
+                (bytes).data = value_24;
                 (bytes).data[(bytes).count++] = value_22;
                 value_23 = true;
             }
@@ -5841,7 +5841,7 @@ compiler_tsx_QuoteText(String text)
             bool value_26 = false;
             void *value_27 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
             if (value_27 != NULL) {
-                (bytes).data = (uint8_t *)value_27;
+                (bytes).data = value_27;
                 (bytes).data[(bytes).count++] = value_25;
                 value_26 = true;
             }
@@ -5852,7 +5852,7 @@ compiler_tsx_QuoteText(String text)
     bool value_29 = false;
     void *value_30 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
     if (value_30 != NULL) {
-        (bytes).data = (uint8_t *)value_30;
+        (bytes).data = value_30;
         (bytes).data[(bytes).count++] = value_28;
         value_29 = true;
     }
@@ -5891,7 +5891,7 @@ compiler_tsx_JSXText(String raw)
             bool value_2 = false;
             void *value_3 = ZirVecGrow((void *)(lines).data, &(lines).capacity, (lines).count, sizeof(*(lines).data));
             if (value_3 != NULL) {
-                (lines).data = (String *)value_3;
+                (lines).data = value_3;
                 (lines).data[(lines).count++] = value_1;
                 value_2 = true;
             }
@@ -5907,7 +5907,7 @@ compiler_tsx_JSXText(String raw)
     bool value_5 = false;
     void *value_6 = ZirVecGrow((void *)(lines).data, &(lines).capacity, (lines).count, sizeof(*(lines).data));
     if (value_6 != NULL) {
-        (lines).data = (String *)value_6;
+        (lines).data = value_6;
         (lines).data[(lines).count++] = value_4;
         value_5 = true;
     }
@@ -5987,7 +5987,7 @@ compiler_tsx_JSXText(String raw)
                     bool value_13 = false;
                     void *value_14 = ZirVecGrow((void *)(out).data, &(out).capacity, (out).count, sizeof(*(out).data));
                     if (value_14 != NULL) {
-                        (out).data = (uint8_t *)value_14;
+                        (out).data = value_14;
                         (out).data[(out).count++] = value_12;
                         value_13 = true;
                     }
@@ -6003,7 +6003,7 @@ compiler_tsx_JSXText(String raw)
                 bool value_16 = false;
                 void *value_17 = ZirVecGrow((void *)(out).data, &(out).capacity, (out).count, sizeof(*(out).data));
                 if (value_17 != NULL) {
-                    (out).data = (uint8_t *)value_17;
+                    (out).data = value_17;
                     (out).data[(out).count++] = value_15;
                     value_16 = true;
                 }
@@ -7214,7 +7214,7 @@ compiler_tsx_JSX(Parser* p)
         bool value_103 = false;
         void *value_104 = ZirVecGrow((void *)(names).data, &(names).capacity, (names).count, sizeof(*(names).data));
         if (value_104 != NULL) {
-            (names).data = (String *)value_104;
+            (names).data = value_104;
             (names).data[(names).count++] = value_102;
             value_103 = true;
         }
@@ -7885,7 +7885,7 @@ compiler_tsx_Block(Parser* p)
         value_30 = value_29 <= (p->locals).capacity;
         if (!value_30) {
             void *value_31 = ZirVecReserve((void *)(p->locals).data, &(p->locals).capacity, (p->locals).count, value_29 - (p->locals).count, sizeof(*(p->locals).data));
-            if (value_31 != NULL) { (p->locals).data = (LocalBinding *)value_31; value_30 = true; }
+            if (value_31 != NULL) { (p->locals).data = value_31; value_30 = true; }
         }
         if (value_30) {
             if (value_29 > (p->locals).count) memset((p->locals).data + (p->locals).count, 0, (size_t)(value_29 - (p->locals).count) * sizeof(*(p->locals).data));
@@ -7968,21 +7968,22 @@ compiler_tsx_ForOfAhead(Parser* p)
     return StringEqual(StringRangeAt(value_9, (int64_t)keyword.begin, (int64_t)keyword.end), StringLiteral("of"));
 }
 
-static bool
-compiler_tsx_CapturePlace(Parser* p, int32_t expr)
+static String
+compiler_tsx_AssignedBinding(Parser* p, int32_t expr)
 {
     if (expr < 0) {
-        return false;
+        return StringLiteral("");
     }
     ZirExpr node = p->fn->exprs[expr];
     if (((ZirExprKind)(node.kind)) == ((ZirExprKind)(1))) {
-        return StringEqual(compiler_ir_CText((uint8_t*)node.name), StringLiteral("__tsx_environment"));
+        return compiler_ir_CText((uint8_t*)node.name);
     }
-    bool value_0 = ((ZirExprKind)(node.kind)) == ((ZirExprKind)(8)) || ((ZirExprKind)(node.kind)) == ((ZirExprKind)(9));
-    if (value_0 || ((ZirExprKind)(node.kind)) == ((ZirExprKind)(10))) {
-        return compiler_tsx_CapturePlace(p, node.left);
+    bool value_0 = ((ZirExprKind)(node.kind)) == ((ZirExprKind)(8)) && node.left >= 0 && ((ZirExprKind)((p->fn->exprs[node.left]).kind)) == ((ZirExprKind)(1));
+    bool value_1 = value_0;
+    if (value_1 && StringEqual(compiler_ir_CText((uint8_t*)(p->fn->exprs[node.left]).name), StringLiteral("__tsx_environment"))) {
+        return compiler_ir_CText((uint8_t*)node.name);
     }
-    return false;
+    return StringLiteral("");
 }
 
 static bool
@@ -8721,7 +8722,7 @@ compiler_tsx_ForOf(Parser* p, ZirSourceSpan span)
     bool value_251 = false;
     void *value_252 = ZirVecGrow((void *)(p->steps).data, &(p->steps).capacity, (p->steps).count, sizeof(*(p->steps).data));
     if (value_252 != NULL) {
-        (p->steps).data = (LoopStep *)value_252;
+        (p->steps).data = value_252;
         (p->steps).data[(p->steps).count++] = value_250;
         value_251 = true;
     }
@@ -8826,7 +8827,7 @@ compiler_tsx_ForOf(Parser* p, ZirSourceSpan span)
     bool value_289 = false;
     void *value_290 = ZirVecGrow((void *)(p->locals).data, &(p->locals).capacity, (p->locals).count, sizeof(*(p->locals).data));
     if (value_290 != NULL) {
-        (p->locals).data = (LocalBinding *)value_290;
+        (p->locals).data = value_290;
         (p->locals).data[(p->locals).count++] = value_288;
         value_289 = true;
     }
@@ -8859,7 +8860,7 @@ compiler_tsx_ForOf(Parser* p, ZirSourceSpan span)
         value_301 = value_300 <= (p->steps).capacity;
         if (!value_301) {
             void *value_302 = ZirVecReserve((void *)(p->steps).data, &(p->steps).capacity, (p->steps).count, value_300 - (p->steps).count, sizeof(*(p->steps).data));
-            if (value_302 != NULL) { (p->steps).data = (LoopStep *)value_302; value_301 = true; }
+            if (value_302 != NULL) { (p->steps).data = value_302; value_301 = true; }
         }
         if (value_301) {
             if (value_300 > (p->steps).count) memset((p->steps).data + (p->steps).count, 0, (size_t)(value_300 - (p->steps).count) * sizeof(*(p->steps).data));
@@ -8879,7 +8880,7 @@ compiler_tsx_ForOf(Parser* p, ZirSourceSpan span)
         value_309 = value_308 <= (p->locals).capacity;
         if (!value_309) {
             void *value_310 = ZirVecReserve((void *)(p->locals).data, &(p->locals).capacity, (p->locals).count, value_308 - (p->locals).count, sizeof(*(p->locals).data));
-            if (value_310 != NULL) { (p->locals).data = (LocalBinding *)value_310; value_309 = true; }
+            if (value_310 != NULL) { (p->locals).data = value_310; value_309 = true; }
         }
         if (value_309) {
             if (value_308 > (p->locals).count) memset((p->locals).data + (p->locals).count, 0, (size_t)(value_308 - (p->locals).count) * sizeof(*(p->locals).data));
@@ -9181,62 +9182,65 @@ compiler_tsx_ParseStatement(Parser* p)
         if (p->failed) {
             return;
         }
-        if (compiler_tsx_CapturePlace(p, place)) {
-            Parser* value_91 = p;
-            String value_92 = StringLiteral("callback captures are immutable snapshots");
-            {
-                Parser* p = value_91;
-                String message = value_92;
-                if (!p->failed) {
-                    compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
-                }
-                bool* value_94 = &(p->failed);
-                (*value_94) = true;
-            }
-            return;
-        }
-        Parser* value_95 = p;
-        Parser* value_96 = p;
-        String value_97 = StringView(NULL, 0);
+        Parser* value_91 = p;
+        Parser* value_92 = p;
+        String value_93 = StringView(NULL, 0);
         {
-            Parser* p = value_96;
+            Parser* p = value_92;
             int32_t expr = place;
             if (expr < 0) {
-                value_97 = StringLiteral("");
-                goto value_98;
+                value_93 = StringLiteral("");
+                goto value_94;
             }
-            value_97 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
-        value_98: ;
+            value_93 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
+        value_94: ;
         }
-        Parser* value_99 = p;
-        String value_100 = StringView(NULL, 0);
+        Parser* value_95 = p;
+        String value_96 = StringView(NULL, 0);
         {
-            Parser* p = value_99;
+            Parser* p = value_95;
             int32_t expr = value;
             if (expr < 0) {
-                value_100 = StringLiteral("");
-                goto value_101;
+                value_96 = StringLiteral("");
+                goto value_97;
             }
-            value_100 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
-        value_101: ;
+            value_96 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
+        value_97: ;
         }
-        String value_102 = compiler_tsx_Join(value_97, StringLiteral("="), value_100);
-        ZirStmt* st = compiler_tsx_Statement(value_95, (ZirStmtKind)(4), value_102, span);
+        String value_98 = compiler_tsx_Join(value_93, StringLiteral("="), value_96);
+        ZirStmt* st = compiler_tsx_Statement(value_91, (ZirStmtKind)(4), value_98, span);
         if (st != ((void *)0)) {
-            int32_t* value_103 = &(st->lhs_root);
-            (*value_103) = place;
-            int32_t* value_104 = &(st->expr_root);
-            (*value_104) = value;
-            Slice value_105 = {st->assignment_op, 4};
-            compiler_ir_CopyText(value_105, StringLiteral("="));
+            int32_t* value_99 = &(st->lhs_root);
+            (*value_99) = place;
+            int32_t* value_100 = &(st->expr_root);
+            (*value_100) = value;
+            Slice value_101 = {st->assignment_op, 4};
+            compiler_ir_CopyText(value_101, StringLiteral("="));
         }
     } else {
-        Parser* value_106 = p;
-        String value_107 = StringLiteral("return");
-        bool value_108 = false;
+        Parser* value_102 = p;
+        String value_103 = StringLiteral("return");
+        bool value_104 = false;
         {
-            Parser* p = value_106;
-            String text = value_107;
+            Parser* p = value_102;
+            String text = value_103;
+            Parser* value_106 = p;
+            String value_107 = StringView(NULL, 0);
+            {
+                Parser* p = value_106;
+                String value_109 = p->source;
+                value_107 = StringRangeAt(value_109, (int64_t)p->token.begin, (int64_t)p->token.end);
+            }
+            if (!StringEqual(value_107, text)) {
+                value_104 = false;
+                goto value_105;
+            }
+            compiler_tsx_Advance(p);
+            value_104 = true;
+        value_105: ;
+        }
+        if (value_104) {
+            int32_t expr = -1;
             Parser* value_110 = p;
             String value_111 = StringView(NULL, 0);
             {
@@ -9244,67 +9248,60 @@ compiler_tsx_ParseStatement(Parser* p)
                 String value_113 = p->source;
                 value_111 = StringRangeAt(value_113, (int64_t)p->token.begin, (int64_t)p->token.end);
             }
-            if (!StringEqual(value_111, text)) {
-                value_108 = false;
-                goto value_109;
-            }
-            compiler_tsx_Advance(p);
-            value_108 = true;
-        value_109: ;
-        }
-        if (value_108) {
-            int32_t expr = -1;
-            Parser* value_114 = p;
-            String value_115 = StringView(NULL, 0);
-            {
-                Parser* p = value_114;
-                String value_117 = p->source;
-                value_115 = StringRangeAt(value_117, (int64_t)p->token.begin, (int64_t)p->token.end);
-            }
-            bool value_118 = !StringEqual(value_115, StringLiteral(";"));
-            if (value_118) {
-                Parser* value_119 = p;
-                String value_120 = StringView(NULL, 0);
+            bool value_114 = !StringEqual(value_111, StringLiteral(";"));
+            if (value_114) {
+                Parser* value_115 = p;
+                String value_116 = StringView(NULL, 0);
                 {
-                    Parser* p = value_119;
-                    String value_122 = p->source;
-                    value_120 = StringRangeAt(value_122, (int64_t)p->token.begin, (int64_t)p->token.end);
+                    Parser* p = value_115;
+                    String value_118 = p->source;
+                    value_116 = StringRangeAt(value_118, (int64_t)p->token.begin, (int64_t)p->token.end);
                 }
-                value_118 = (!StringEqual(value_120, StringLiteral("}")));
+                value_114 = (!StringEqual(value_116, StringLiteral("}")));
             }
-            if (value_118) {
+            if (value_114) {
                 expr = compiler_tsx_Expression(p, 1);
             }
-            Parser* value_123 = p;
-            Parser* value_124 = p;
-            int32_t value_125 = expr;
-            String value_126 = StringView(NULL, 0);
+            Parser* value_119 = p;
+            Parser* value_120 = p;
+            int32_t value_121 = expr;
+            String value_122 = StringView(NULL, 0);
             {
-                Parser* p = value_124;
-                int32_t expr = value_125;
+                Parser* p = value_120;
+                int32_t expr = value_121;
                 if (expr < 0) {
-                    value_126 = StringLiteral("");
-                    goto value_127;
+                    value_122 = StringLiteral("");
+                    goto value_123;
                 }
-                value_126 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
-            value_127: ;
+                value_122 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
+            value_123: ;
             }
-            String value_128 = compiler_tsx_Join(StringLiteral("return "), value_126, StringLiteral(""));
-            ZirStmt* st = compiler_tsx_Statement(value_123, (ZirStmtKind)(10), value_128, span);
+            String value_124 = compiler_tsx_Join(StringLiteral("return "), value_122, StringLiteral(""));
+            ZirStmt* st = compiler_tsx_Statement(value_119, (ZirStmtKind)(10), value_124, span);
             if (st != ((void *)0)) {
-                int32_t* value_129 = &(st->expr_root);
-                (*value_129) = expr;
+                int32_t* value_125 = &(st->expr_root);
+                (*value_125) = expr;
             }
         } else {
-            Parser* value_130 = p;
-            String value_131 = StringView(NULL, 0);
+            Parser* value_126 = p;
+            String value_127 = StringView(NULL, 0);
             {
-                Parser* p = value_130;
-                String value_133 = p->source;
-                value_131 = StringRangeAt(value_133, (int64_t)p->token.begin, (int64_t)p->token.end);
+                Parser* p = value_126;
+                String value_129 = p->source;
+                value_127 = StringRangeAt(value_129, (int64_t)p->token.begin, (int64_t)p->token.end);
             }
-            bool value_134 = StringEqual(value_131, StringLiteral("let"));
-            if (!value_134) {
+            bool value_130 = StringEqual(value_127, StringLiteral("let"));
+            if (!value_130) {
+                Parser* value_131 = p;
+                String value_132 = StringView(NULL, 0);
+                {
+                    Parser* p = value_131;
+                    String value_134 = p->source;
+                    value_132 = StringRangeAt(value_134, (int64_t)p->token.begin, (int64_t)p->token.end);
+                }
+                value_130 = (StringEqual(value_132, StringLiteral("const")));
+            }
+            if (value_130) {
                 Parser* value_135 = p;
                 String value_136 = StringView(NULL, 0);
                 {
@@ -9312,414 +9309,404 @@ compiler_tsx_ParseStatement(Parser* p)
                     String value_138 = p->source;
                     value_136 = StringRangeAt(value_138, (int64_t)p->token.begin, (int64_t)p->token.end);
                 }
-                value_134 = (StringEqual(value_136, StringLiteral("const")));
-            }
-            if (value_134) {
+                bool immutable = StringEqual(value_136, StringLiteral("const"));
+                compiler_tsx_Advance(p);
                 Parser* value_139 = p;
                 String value_140 = StringView(NULL, 0);
                 {
                     Parser* p = value_139;
-                    String value_142 = p->source;
-                    value_140 = StringRangeAt(value_142, (int64_t)p->token.begin, (int64_t)p->token.end);
-                }
-                bool immutable = StringEqual(value_140, StringLiteral("const"));
-                compiler_tsx_Advance(p);
-                Parser* value_143 = p;
-                String value_144 = StringView(NULL, 0);
-                {
-                    Parser* p = value_143;
-                    Parser* value_146 = p;
-                    String value_147 = StringView(NULL, 0);
+                    Parser* value_142 = p;
+                    String value_143 = StringView(NULL, 0);
                     {
-                        Parser* p = value_146;
+                        Parser* p = value_142;
                         String result = compiler_tsx_Token(p);
                         if (((TokenKind)(p->token.kind)) != ((TokenKind)(1)) || (int64_t)(result).length >= 128LL) {
                             compiler_tsx_Fail(p, StringLiteral("expected a native identifier"));
-                            value_147 = StringLiteral("");
-                            goto value_148;
+                            value_143 = StringLiteral("");
+                            goto value_144;
                         }
                         if ((int64_t)(result).length >= 6LL && StringEqual(StringRangeAt(result, (int64_t)0, (int64_t)6LL), StringLiteral("__tsx_"))) {
                             compiler_tsx_Fail(p, StringLiteral("the __tsx_ prefix is reserved for frontend declarations"));
-                            value_147 = StringLiteral("");
-                            goto value_148;
+                            value_143 = StringLiteral("");
+                            goto value_144;
                         }
                         compiler_tsx_Advance(p);
-                        value_147 = result;
-                    value_148: ;
+                        value_143 = result;
+                    value_144: ;
                     }
-                    String name = value_147;
-                    bool value_149 = StringEqual(name, StringLiteral("NativeRef")) || StringEqual(name, StringLiteral("NativeSlice")) || StringEqual(name, StringLiteral("nativeInit"));
-                    bool value_150 = value_149 || StringEqual(name, StringLiteral("nativeRef")) || StringEqual(name, StringLiteral("nativeDeref"));
-                    bool value_151 = value_150 || StringEqual(name, StringLiteral("nativeSlice")) || StringEqual(name, StringLiteral("nativeAt"));
-                    if (value_151 || StringEqual(name, StringLiteral("nativeSet")) || StringEqual(name, StringLiteral("nativeCallerLocation"))) {
-                        Parser* value_152 = p;
-                        String value_153 = StringLiteral("this identifier is reserved for a native TypeScript intrinsic");
+                    String name = value_143;
+                    bool value_145 = StringEqual(name, StringLiteral("NativeRef")) || StringEqual(name, StringLiteral("NativeSlice")) || StringEqual(name, StringLiteral("nativeInit"));
+                    bool value_146 = value_145 || StringEqual(name, StringLiteral("nativeRef")) || StringEqual(name, StringLiteral("nativeDeref"));
+                    bool value_147 = value_146 || StringEqual(name, StringLiteral("nativeSlice")) || StringEqual(name, StringLiteral("nativeAt"));
+                    if (value_147 || StringEqual(name, StringLiteral("nativeSet")) || StringEqual(name, StringLiteral("nativeCallerLocation"))) {
+                        Parser* value_148 = p;
+                        String value_149 = StringLiteral("this identifier is reserved for a native TypeScript intrinsic");
                         {
-                            Parser* p = value_152;
-                            String message = value_153;
+                            Parser* p = value_148;
+                            String message = value_149;
                             if (!p->failed) {
                                 compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
                             }
-                            bool* value_155 = &(p->failed);
-                            (*value_155) = true;
+                            bool* value_151 = &(p->failed);
+                            (*value_151) = true;
                         }
                     }
-                    value_144 = name;
+                    value_140 = name;
                 }
-                String name = value_144;
+                String name = value_140;
                 String type = StringLiteral("");
-                Parser* value_156 = p;
-                String value_157 = StringLiteral(":");
-                bool value_158 = false;
+                Parser* value_152 = p;
+                String value_153 = StringLiteral(":");
+                bool value_154 = false;
                 {
-                    Parser* p = value_156;
-                    String text = value_157;
+                    Parser* p = value_152;
+                    String text = value_153;
+                    Parser* value_156 = p;
+                    String value_157 = StringView(NULL, 0);
+                    {
+                        Parser* p = value_156;
+                        String value_159 = p->source;
+                        value_157 = StringRangeAt(value_159, (int64_t)p->token.begin, (int64_t)p->token.end);
+                    }
+                    if (!StringEqual(value_157, text)) {
+                        value_154 = false;
+                        goto value_155;
+                    }
+                    compiler_tsx_Advance(p);
+                    value_154 = true;
+                value_155: ;
+                }
+                if (value_154) {
                     Parser* value_160 = p;
                     String value_161 = StringView(NULL, 0);
                     {
                         Parser* p = value_160;
-                        String value_163 = p->source;
-                        value_161 = StringRangeAt(value_163, (int64_t)p->token.begin, (int64_t)p->token.end);
-                    }
-                    if (!StringEqual(value_161, text)) {
-                        value_158 = false;
-                        goto value_159;
-                    }
-                    compiler_tsx_Advance(p);
-                    value_158 = true;
-                value_159: ;
-                }
-                if (value_158) {
-                    Parser* value_164 = p;
-                    String value_165 = StringView(NULL, 0);
-                    {
-                        Parser* p = value_164;
-                        int32_t* value_167 = &(p->depth);
-                        (*value_167) = (int32_t)((uint32_t)((*value_167)) + 1u);
+                        int32_t* value_163 = &(p->depth);
+                        (*value_163) = (int32_t)((uint32_t)((*value_163)) + 1u);
                         if (p->depth > 128) {
-                            Parser* value_168 = p;
-                            String value_169 = StringLiteral("type nesting exceeds 128");
+                            Parser* value_164 = p;
+                            String value_165 = StringLiteral("type nesting exceeds 128");
                             {
-                                Parser* p = value_168;
-                                String message = value_169;
+                                Parser* p = value_164;
+                                String message = value_165;
                                 if (!p->failed) {
                                     compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
                                 }
-                                bool* value_171 = &(p->failed);
-                                (*value_171) = true;
+                                bool* value_167 = &(p->failed);
+                                (*value_167) = true;
                             }
-                            int32_t* value_172 = &(p->depth);
-                            (*value_172) = (int32_t)((uint32_t)((*value_172)) - 1u);
-                            value_165 = StringLiteral("");
-                            goto value_166;
+                            int32_t* value_168 = &(p->depth);
+                            (*value_168) = (int32_t)((uint32_t)((*value_168)) - 1u);
+                            value_161 = StringLiteral("");
+                            goto value_162;
                         }
                         String result = compiler_tsx_TypePrimary(p);
-                        int32_t* value_173 = &(p->depth);
-                        (*value_173) = (int32_t)((uint32_t)((*value_173)) - 1u);
+                        int32_t* value_169 = &(p->depth);
+                        (*value_169) = (int32_t)((uint32_t)((*value_169)) - 1u);
                         if ((int64_t)(result).length >= 128LL) {
-                            Parser* value_174 = p;
-                            String value_175 = StringLiteral("type exceeds the native IR name limit");
+                            Parser* value_170 = p;
+                            String value_171 = StringLiteral("type exceeds the native IR name limit");
                             {
-                                Parser* p = value_174;
-                                String message = value_175;
+                                Parser* p = value_170;
+                                String message = value_171;
                                 if (!p->failed) {
                                     compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
                                 }
-                                bool* value_177 = &(p->failed);
-                                (*value_177) = true;
+                                bool* value_173 = &(p->failed);
+                                (*value_173) = true;
                             }
                         }
-                        value_165 = result;
-                    value_166: ;
+                        value_161 = result;
+                    value_162: ;
                     }
-                    type = value_165;
+                    type = value_161;
                 }
                 int32_t expr = -1;
-                Parser* value_178 = p;
-                String value_179 = StringLiteral("=");
-                bool value_180 = false;
+                Parser* value_174 = p;
+                String value_175 = StringLiteral("=");
+                bool value_176 = false;
                 {
-                    Parser* p = value_178;
-                    String text = value_179;
-                    Parser* value_182 = p;
-                    String value_183 = StringView(NULL, 0);
+                    Parser* p = value_174;
+                    String text = value_175;
+                    Parser* value_178 = p;
+                    String value_179 = StringView(NULL, 0);
                     {
-                        Parser* p = value_182;
-                        String value_185 = p->source;
-                        value_183 = StringRangeAt(value_185, (int64_t)p->token.begin, (int64_t)p->token.end);
+                        Parser* p = value_178;
+                        String value_181 = p->source;
+                        value_179 = StringRangeAt(value_181, (int64_t)p->token.begin, (int64_t)p->token.end);
                     }
-                    if (!StringEqual(value_183, text)) {
-                        value_180 = false;
-                        goto value_181;
+                    if (!StringEqual(value_179, text)) {
+                        value_176 = false;
+                        goto value_177;
                     }
                     compiler_tsx_Advance(p);
-                    value_180 = true;
-                value_181: ;
+                    value_176 = true;
+                value_177: ;
                 }
-                if (value_180) {
+                if (value_176) {
                     expr = compiler_tsx_Expression(p, 1);
                 } else {
-                    Parser* value_186 = p;
-                    String value_187 = StringLiteral("native bindings require an initializer");
+                    Parser* value_182 = p;
+                    String value_183 = StringLiteral("native bindings require an initializer");
                     {
-                        Parser* p = value_186;
-                        String message = value_187;
+                        Parser* p = value_182;
+                        String message = value_183;
                         if (!p->failed) {
                             compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
                         }
-                        bool* value_189 = &(p->failed);
-                        (*value_189) = true;
+                        bool* value_185 = &(p->failed);
+                        (*value_185) = true;
                     }
                     return;
                 }
                 String text = compiler_tsx_Join(name, StringLiteral(": "), type);
                 if ((int64_t)(type).length == 0LL) {
-                    String value_190 = name;
-                    Parser* value_191 = p;
-                    int32_t value_192 = expr;
-                    String value_193 = StringView(NULL, 0);
+                    String value_186 = name;
+                    Parser* value_187 = p;
+                    int32_t value_188 = expr;
+                    String value_189 = StringView(NULL, 0);
                     {
-                        Parser* p = value_191;
-                        int32_t expr = value_192;
+                        Parser* p = value_187;
+                        int32_t expr = value_188;
                         if (expr < 0) {
-                            value_193 = StringLiteral("");
-                            goto value_194;
+                            value_189 = StringLiteral("");
+                            goto value_190;
                         }
-                        value_193 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
-                    value_194: ;
+                        value_189 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
+                    value_190: ;
                     }
-                    text = compiler_tsx_Join(value_190, StringLiteral(" := "), value_193);
+                    text = compiler_tsx_Join(value_186, StringLiteral(" := "), value_189);
                 } else if (expr >= 0) {
-                    String value_195 = text;
-                    Parser* value_196 = p;
-                    int32_t value_197 = expr;
-                    String value_198 = StringView(NULL, 0);
+                    String value_191 = text;
+                    Parser* value_192 = p;
+                    int32_t value_193 = expr;
+                    String value_194 = StringView(NULL, 0);
                     {
-                        Parser* p = value_196;
-                        int32_t expr = value_197;
+                        Parser* p = value_192;
+                        int32_t expr = value_193;
                         if (expr < 0) {
-                            value_198 = StringLiteral("");
-                            goto value_199;
+                            value_194 = StringLiteral("");
+                            goto value_195;
                         }
-                        value_198 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
-                    value_199: ;
+                        value_194 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
+                    value_195: ;
                     }
-                    text = compiler_tsx_Join(value_195, StringLiteral(" = "), value_198);
+                    text = compiler_tsx_Join(value_191, StringLiteral(" = "), value_194);
                 }
-                LocalBinding value_200 = (LocalBinding){.name = name, .immutable = immutable};
-                bool value_201 = false;
-                void *value_202 = ZirVecGrow((void *)(p->locals).data, &(p->locals).capacity, (p->locals).count, sizeof(*(p->locals).data));
-                if (value_202 != NULL) {
-                    (p->locals).data = (LocalBinding *)value_202;
-                    (p->locals).data[(p->locals).count++] = value_200;
-                    value_201 = true;
+                LocalBinding value_196 = (LocalBinding){.name = name, .immutable = immutable};
+                bool value_197 = false;
+                void *value_198 = ZirVecGrow((void *)(p->locals).data, &(p->locals).capacity, (p->locals).count, sizeof(*(p->locals).data));
+                if (value_198 != NULL) {
+                    (p->locals).data = value_198;
+                    (p->locals).data[(p->locals).count++] = value_196;
+                    value_197 = true;
                 }
-                if (!value_201) {
-                    Parser* value_203 = p;
-                    String value_204 = StringLiteral("cannot allocate local binding");
+                if (!value_197) {
+                    Parser* value_199 = p;
+                    String value_200 = StringLiteral("cannot allocate local binding");
                     {
-                        Parser* p = value_203;
-                        String message = value_204;
+                        Parser* p = value_199;
+                        String message = value_200;
                         if (!p->failed) {
                             compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
                         }
-                        bool* value_206 = &(p->failed);
-                        (*value_206) = true;
+                        bool* value_202 = &(p->failed);
+                        (*value_202) = true;
                     }
                     return;
                 }
                 ZirStmt* st = compiler_tsx_Statement(p, (ZirStmtKind)(3), text, span);
                 if (st != ((void *)0)) {
-                    ZirStmtNames* value_207 = &(st->names);
-                    ZirStmtNames value_208 = {0};
-                    uint8_t* value_209 = compiler_services_KeepName(name);
-                    value_208.name = (const char *)(value_209);
-                    (*value_207) = value_208;
-                    const char ** value_210 = &(st->type);
-                    uint8_t* value_211 = compiler_services_KeepName(type);
-                    (*value_210) = (const char *)(value_211);
-                    int32_t* value_212 = &(st->expr_root);
-                    (*value_212) = expr;
+                    ZirStmtNames* value_203 = &(st->names);
+                    ZirStmtNames value_204 = {0};
+                    uint8_t* value_205 = compiler_services_KeepName(name);
+                    value_204.name = (const char *)(value_205);
+                    (*value_203) = value_204;
+                    const char ** value_206 = &(st->type);
+                    uint8_t* value_207 = compiler_services_KeepName(type);
+                    (*value_206) = (const char *)(value_207);
+                    int32_t* value_208 = &(st->expr_root);
+                    (*value_208) = expr;
                 }
             } else {
-                Parser* value_213 = p;
-                String value_214 = StringLiteral("for");
-                bool value_215 = false;
+                Parser* value_209 = p;
+                String value_210 = StringLiteral("for");
+                bool value_211 = false;
                 {
-                    Parser* p = value_213;
-                    String text = value_214;
-                    Parser* value_217 = p;
-                    String value_218 = StringView(NULL, 0);
+                    Parser* p = value_209;
+                    String text = value_210;
+                    Parser* value_213 = p;
+                    String value_214 = StringView(NULL, 0);
                     {
-                        Parser* p = value_217;
-                        String value_220 = p->source;
-                        value_218 = StringRangeAt(value_220, (int64_t)p->token.begin, (int64_t)p->token.end);
+                        Parser* p = value_213;
+                        String value_216 = p->source;
+                        value_214 = StringRangeAt(value_216, (int64_t)p->token.begin, (int64_t)p->token.end);
                     }
-                    if (!StringEqual(value_218, text)) {
-                        value_215 = false;
-                        goto value_216;
+                    if (!StringEqual(value_214, text)) {
+                        value_211 = false;
+                        goto value_212;
                     }
                     compiler_tsx_Advance(p);
-                    value_215 = true;
-                value_216: ;
+                    value_211 = true;
+                value_212: ;
                 }
-                if (value_215) {
-                    Parser* value_221 = p;
-                    String value_222 = StringLiteral("(");
+                if (value_211) {
+                    Parser* value_217 = p;
+                    String value_218 = StringLiteral("(");
                     {
-                        Parser* p = value_221;
-                        String text = value_222;
-                        Parser* value_224 = p;
-                        String value_225 = text;
-                        bool value_226 = false;
+                        Parser* p = value_217;
+                        String text = value_218;
+                        Parser* value_220 = p;
+                        String value_221 = text;
+                        bool value_222 = false;
                         {
-                            Parser* p = value_224;
-                            String text = value_225;
+                            Parser* p = value_220;
+                            String text = value_221;
                             if (!StringEqual(compiler_tsx_Token(p), text)) {
-                                value_226 = false;
-                                goto value_227;
+                                value_222 = false;
+                                goto value_223;
                             }
                             compiler_tsx_Advance(p);
-                            value_226 = true;
-                        value_227: ;
+                            value_222 = true;
+                        value_223: ;
                         }
-                        if (!value_226) {
-                            Parser* value_228 = p;
-                            String value_229 = compiler_tsx_Join(StringLiteral("expected "), text, StringLiteral(""));
+                        if (!value_222) {
+                            Parser* value_224 = p;
+                            String value_225 = compiler_tsx_Join(StringLiteral("expected "), text, StringLiteral(""));
                             {
-                                Parser* p = value_228;
-                                String message = value_229;
+                                Parser* p = value_224;
+                                String message = value_225;
                                 if (!p->failed) {
                                     compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
                                 }
-                                bool* value_231 = &(p->failed);
-                                (*value_231) = true;
+                                bool* value_227 = &(p->failed);
+                                (*value_227) = true;
                             }
                         }
                     }
-                    Parser* value_232 = p;
-                    bool value_233 = false;
+                    Parser* value_228 = p;
+                    bool value_229 = false;
                     {
-                        Parser* p = value_232;
-                        Parser* value_235 = p;
-                        String value_236 = StringView(NULL, 0);
+                        Parser* p = value_228;
+                        Parser* value_231 = p;
+                        String value_232 = StringView(NULL, 0);
                         {
-                            Parser* p = value_235;
-                            String value_238 = p->source;
-                            value_236 = StringRangeAt(value_238, (int64_t)p->token.begin, (int64_t)p->token.end);
+                            Parser* p = value_231;
+                            String value_234 = p->source;
+                            value_232 = StringRangeAt(value_234, (int64_t)p->token.begin, (int64_t)p->token.end);
                         }
-                        bool value_239 = !StringEqual(value_236, StringLiteral("const"));
-                        if (value_239) {
-                            Parser* value_240 = p;
-                            String value_241 = StringView(NULL, 0);
+                        bool value_235 = !StringEqual(value_232, StringLiteral("const"));
+                        if (value_235) {
+                            Parser* value_236 = p;
+                            String value_237 = StringView(NULL, 0);
                             {
-                                Parser* p = value_240;
-                                String value_243 = p->source;
-                                value_241 = StringRangeAt(value_243, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                Parser* p = value_236;
+                                String value_239 = p->source;
+                                value_237 = StringRangeAt(value_239, (int64_t)p->token.begin, (int64_t)p->token.end);
                             }
-                            value_239 = (!StringEqual(value_241, StringLiteral("let")));
+                            value_235 = (!StringEqual(value_237, StringLiteral("let")));
                         }
-                        if (value_239) {
-                            value_233 = false;
-                            goto value_234;
+                        if (value_235) {
+                            value_229 = false;
+                            goto value_230;
                         }
                         Scan name = compiler_scan_NextCodeToken(p->source, p->token.end, p->token.after_line, p->token.after_column);
                         if (((TokenKind)(name.kind)) != ((TokenKind)(1))) {
-                            value_233 = false;
-                            goto value_234;
+                            value_229 = false;
+                            goto value_230;
                         }
                         Scan keyword = compiler_scan_NextCodeToken(p->source, name.end, name.after_line, name.after_column);
-                        String value_244 = p->source;
-                        value_233 = StringEqual(StringRangeAt(value_244, (int64_t)keyword.begin, (int64_t)keyword.end), StringLiteral("of"));
-                    value_234: ;
+                        String value_240 = p->source;
+                        value_229 = StringEqual(StringRangeAt(value_240, (int64_t)keyword.begin, (int64_t)keyword.end), StringLiteral("of"));
+                    value_230: ;
                     }
-                    if (value_233) {
+                    if (value_229) {
                         compiler_tsx_ForOf(p, span);
                         return;
                     }
                     int64_t locals = p->locals.count;
                     int32_t previous_loop = p->loop;
                     compiler_tsx_Statement(p, (ZirStmtKind)(1), StringLiteral("{"), span);
-                    Parser* value_245 = p;
-                    String value_246 = StringLiteral(";");
-                    bool value_247 = false;
+                    Parser* value_241 = p;
+                    String value_242 = StringLiteral(";");
+                    bool value_243 = false;
                     {
-                        Parser* p = value_245;
-                        String text = value_246;
-                        Parser* value_249 = p;
-                        String value_250 = StringView(NULL, 0);
+                        Parser* p = value_241;
+                        String text = value_242;
+                        Parser* value_245 = p;
+                        String value_246 = StringView(NULL, 0);
                         {
-                            Parser* p = value_249;
-                            String value_252 = p->source;
-                            value_250 = StringRangeAt(value_252, (int64_t)p->token.begin, (int64_t)p->token.end);
+                            Parser* p = value_245;
+                            String value_248 = p->source;
+                            value_246 = StringRangeAt(value_248, (int64_t)p->token.begin, (int64_t)p->token.end);
                         }
-                        if (!StringEqual(value_250, text)) {
-                            value_247 = false;
-                            goto value_248;
+                        if (!StringEqual(value_246, text)) {
+                            value_243 = false;
+                            goto value_244;
                         }
                         compiler_tsx_Advance(p);
-                        value_247 = true;
-                    value_248: ;
+                        value_243 = true;
+                    value_244: ;
                     }
-                    if (!value_247) {
+                    if (!value_243) {
                         compiler_tsx_ParseStatement(p);
                     }
                     int32_t condition = 0;
-                    Parser* value_253 = p;
-                    String value_254 = StringView(NULL, 0);
+                    Parser* value_249 = p;
+                    String value_250 = StringView(NULL, 0);
                     {
-                        Parser* p = value_253;
-                        String value_256 = p->source;
-                        value_254 = StringRangeAt(value_256, (int64_t)p->token.begin, (int64_t)p->token.end);
+                        Parser* p = value_249;
+                        String value_252 = p->source;
+                        value_250 = StringRangeAt(value_252, (int64_t)p->token.begin, (int64_t)p->token.end);
                     }
-                    if (StringEqual(value_254, StringLiteral(";"))) {
-                        Parser* value_257 = p;
-                        condition = compiler_tsx_NameNode(value_257, StringLiteral("true"), compiler_tsx_Location(p));
+                    if (StringEqual(value_250, StringLiteral(";"))) {
+                        Parser* value_253 = p;
+                        condition = compiler_tsx_NameNode(value_253, StringLiteral("true"), compiler_tsx_Location(p));
                     } else {
                         condition = compiler_tsx_Expression(p, 1);
                     }
-                    Parser* value_258 = p;
-                    String value_259 = StringLiteral(";");
+                    Parser* value_254 = p;
+                    String value_255 = StringLiteral(";");
                     {
-                        Parser* p = value_258;
-                        String text = value_259;
-                        Parser* value_261 = p;
-                        String value_262 = text;
-                        bool value_263 = false;
+                        Parser* p = value_254;
+                        String text = value_255;
+                        Parser* value_257 = p;
+                        String value_258 = text;
+                        bool value_259 = false;
                         {
-                            Parser* p = value_261;
-                            String text = value_262;
+                            Parser* p = value_257;
+                            String text = value_258;
                             if (!StringEqual(compiler_tsx_Token(p), text)) {
-                                value_263 = false;
-                                goto value_264;
+                                value_259 = false;
+                                goto value_260;
                             }
                             compiler_tsx_Advance(p);
-                            value_263 = true;
-                        value_264: ;
+                            value_259 = true;
+                        value_260: ;
                         }
-                        if (!value_263) {
-                            Parser* value_265 = p;
-                            String value_266 = compiler_tsx_Join(StringLiteral("expected "), text, StringLiteral(""));
+                        if (!value_259) {
+                            Parser* value_261 = p;
+                            String value_262 = compiler_tsx_Join(StringLiteral("expected "), text, StringLiteral(""));
                             {
-                                Parser* p = value_265;
-                                String message = value_266;
+                                Parser* p = value_261;
+                                String message = value_262;
                                 if (!p->failed) {
                                     compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
                                 }
-                                bool* value_268 = &(p->failed);
-                                (*value_268) = true;
+                                bool* value_264 = &(p->failed);
+                                (*value_264) = true;
                             }
                         }
                     }
                     int32_t step_at = p->fn->stmt_count;
-                    Parser* value_269 = p;
-                    String value_270 = StringView(NULL, 0);
+                    Parser* value_265 = p;
+                    String value_266 = StringView(NULL, 0);
                     {
-                        Parser* p = value_269;
-                        String value_272 = p->source;
-                        value_270 = StringRangeAt(value_272, (int64_t)p->token.begin, (int64_t)p->token.end);
+                        Parser* p = value_265;
+                        String value_268 = p->source;
+                        value_266 = StringRangeAt(value_268, (int64_t)p->token.begin, (int64_t)p->token.end);
                     }
-                    bool has_step = (!StringEqual(value_270, StringLiteral(")")));
+                    bool has_step = (!StringEqual(value_266, StringLiteral(")")));
                     ZirStmt step = {0};
                     if (has_step) {
                         compiler_tsx_ParseStatement(p);
@@ -9727,165 +9714,175 @@ compiler_tsx_ParseStatement(Parser* p)
                             return;
                         }
                         if (p->fn->stmt_count != (int32_t)((uint32_t)step_at + 1u) || (((ZirStmtKind)((p->fn->stmts[step_at]).kind)) != ((ZirStmtKind)(4)) && ((ZirStmtKind)((p->fn->stmts[step_at]).kind)) != ((ZirStmtKind)(5)))) {
-                            Parser* value_273 = p;
-                            String value_274 = StringLiteral("for step requires an assignment or call");
+                            Parser* value_269 = p;
+                            String value_270 = StringLiteral("for step requires an assignment or call");
                             {
-                                Parser* p = value_273;
-                                String message = value_274;
+                                Parser* p = value_269;
+                                String message = value_270;
                                 if (!p->failed) {
                                     compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
                                 }
-                                bool* value_276 = &(p->failed);
-                                (*value_276) = true;
+                                bool* value_272 = &(p->failed);
+                                (*value_272) = true;
                             }
                             return;
                         }
                         step = p->fn->stmts[step_at];
-                        int32_t* value_277 = &(p->fn->stmt_count);
-                        (*value_277) = step_at;
+                        int32_t* value_273 = &(p->fn->stmt_count);
+                        (*value_273) = step_at;
                     }
-                    Parser* value_278 = p;
-                    String value_279 = StringLiteral(")");
+                    Parser* value_274 = p;
+                    String value_275 = StringLiteral(")");
                     {
-                        Parser* p = value_278;
-                        String text = value_279;
-                        Parser* value_281 = p;
-                        String value_282 = text;
-                        bool value_283 = false;
+                        Parser* p = value_274;
+                        String text = value_275;
+                        Parser* value_277 = p;
+                        String value_278 = text;
+                        bool value_279 = false;
                         {
-                            Parser* p = value_281;
-                            String text = value_282;
+                            Parser* p = value_277;
+                            String text = value_278;
                             if (!StringEqual(compiler_tsx_Token(p), text)) {
-                                value_283 = false;
-                                goto value_284;
+                                value_279 = false;
+                                goto value_280;
                             }
                             compiler_tsx_Advance(p);
-                            value_283 = true;
-                        value_284: ;
+                            value_279 = true;
+                        value_280: ;
                         }
-                        if (!value_283) {
-                            Parser* value_285 = p;
-                            String value_286 = compiler_tsx_Join(StringLiteral("expected "), text, StringLiteral(""));
+                        if (!value_279) {
+                            Parser* value_281 = p;
+                            String value_282 = compiler_tsx_Join(StringLiteral("expected "), text, StringLiteral(""));
                             {
-                                Parser* p = value_285;
-                                String message = value_286;
+                                Parser* p = value_281;
+                                String message = value_282;
                                 if (!p->failed) {
                                     compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
                                 }
-                                bool* value_288 = &(p->failed);
-                                (*value_288) = true;
+                                bool* value_284 = &(p->failed);
+                                (*value_284) = true;
                             }
                         }
                     }
-                    int32_t* value_289 = &(p->loop_serial);
-                    (*value_289) = (int32_t)((uint32_t)((*value_289)) + 1u);
-                    int32_t* value_290 = &(p->loop);
-                    (*value_290) = p->loop_serial;
-                    Parser* value_291 = p;
-                    Parser* value_292 = p;
-                    String value_293 = StringView(NULL, 0);
+                    int32_t* value_285 = &(p->loop_serial);
+                    (*value_285) = (int32_t)((uint32_t)((*value_285)) + 1u);
+                    int32_t* value_286 = &(p->loop);
+                    (*value_286) = p->loop_serial;
+                    Parser* value_287 = p;
+                    Parser* value_288 = p;
+                    String value_289 = StringView(NULL, 0);
                     {
-                        Parser* p = value_292;
+                        Parser* p = value_288;
                         int32_t expr = condition;
                         if (expr < 0) {
-                            value_293 = StringLiteral("");
-                            goto value_294;
+                            value_289 = StringLiteral("");
+                            goto value_290;
                         }
-                        value_293 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
-                    value_294: ;
+                        value_289 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
+                    value_290: ;
                     }
-                    String value_295 = compiler_tsx_Join(StringLiteral("while "), value_293, StringLiteral(" {"));
-                    ZirStmt* loop = compiler_tsx_Statement(value_291, (ZirStmtKind)(7), value_295, span);
+                    String value_291 = compiler_tsx_Join(StringLiteral("while "), value_289, StringLiteral(" {"));
+                    ZirStmt* loop = compiler_tsx_Statement(value_287, (ZirStmtKind)(7), value_291, span);
                     if (loop != ((void *)0)) {
-                        int32_t* value_296 = &(loop->expr_root);
-                        (*value_296) = condition;
-                        int32_t* value_297 = &(loop->loop_id);
-                        (*value_297) = p->loop;
+                        int32_t* value_292 = &(loop->expr_root);
+                        (*value_292) = condition;
+                        int32_t* value_293 = &(loop->loop_id);
+                        (*value_293) = p->loop;
                     }
                     int64_t previous_steps = p->steps.count;
-                    bool value_298 = has_step;
-                    bool value_299 = value_298;
-                    if (value_299) {
-                        LoopStep value_300 = (LoopStep){.loop = p->loop, .statement = step};
-                        bool value_301 = false;
-                        void *value_302 = ZirVecGrow((void *)(p->steps).data, &(p->steps).capacity, (p->steps).count, sizeof(*(p->steps).data));
-                        if (value_302 != NULL) {
-                            (p->steps).data = (LoopStep *)value_302;
-                            (p->steps).data[(p->steps).count++] = value_300;
-                            value_301 = true;
+                    bool value_294 = has_step;
+                    bool value_295 = value_294;
+                    if (value_295) {
+                        LoopStep value_296 = (LoopStep){.loop = p->loop, .statement = step};
+                        bool value_297 = false;
+                        void *value_298 = ZirVecGrow((void *)(p->steps).data, &(p->steps).capacity, (p->steps).count, sizeof(*(p->steps).data));
+                        if (value_298 != NULL) {
+                            (p->steps).data = value_298;
+                            (p->steps).data[(p->steps).count++] = value_296;
+                            value_297 = true;
                         }
-                        value_299 = !value_301;
+                        value_295 = !value_297;
                     }
-                    if (value_299) {
-                        Parser* value_303 = p;
-                        String value_304 = StringLiteral("cannot allocate loop step");
+                    if (value_295) {
+                        Parser* value_299 = p;
+                        String value_300 = StringLiteral("cannot allocate loop step");
                         {
-                            Parser* p = value_303;
-                            String message = value_304;
+                            Parser* p = value_299;
+                            String message = value_300;
                             if (!p->failed) {
                                 compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
                             }
-                            bool* value_306 = &(p->failed);
-                            (*value_306) = true;
+                            bool* value_302 = &(p->failed);
+                            (*value_302) = true;
                         }
                         return;
                     }
                     compiler_tsx_Block(p);
                     if (has_step) {
-                        Parser* value_307 = p;
-                        ZirStmtKind value_308 = (ZirStmtKind)((ZirStmtKind)(step.kind));
-                        String value_309 = compiler_ir_CText((uint8_t*)step.text);
-                        ZirStmt* appended = compiler_tsx_Statement(value_307, value_308, value_309, step.span);
+                        Parser* value_303 = p;
+                        ZirStmtKind value_304 = (ZirStmtKind)((ZirStmtKind)(step.kind));
+                        String value_305 = compiler_ir_CText((uint8_t*)step.text);
+                        ZirStmt* appended = compiler_tsx_Statement(value_303, value_304, value_305, step.span);
                         if (appended != ((void *)0)) {
-                            ZirStmt* value_310 = &(appended[0]);
-                            (*value_310) = step;
+                            ZirStmt* value_306 = &(appended[0]);
+                            (*value_306) = step;
                         }
-                        int64_t value_312 = previous_steps;
-                        bool value_313 = false;
-                        if (value_312 >= 0) {
-                            value_313 = value_312 <= (p->steps).capacity;
-                            if (!value_313) {
-                                void *value_314 = ZirVecReserve((void *)(p->steps).data, &(p->steps).capacity, (p->steps).count, value_312 - (p->steps).count, sizeof(*(p->steps).data));
-                                if (value_314 != NULL) { (p->steps).data = (LoopStep *)value_314; value_313 = true; }
+                        int64_t value_308 = previous_steps;
+                        bool value_309 = false;
+                        if (value_308 >= 0) {
+                            value_309 = value_308 <= (p->steps).capacity;
+                            if (!value_309) {
+                                void *value_310 = ZirVecReserve((void *)(p->steps).data, &(p->steps).capacity, (p->steps).count, value_308 - (p->steps).count, sizeof(*(p->steps).data));
+                                if (value_310 != NULL) { (p->steps).data = value_310; value_309 = true; }
                             }
-                            if (value_313) {
-                                if (value_312 > (p->steps).count) memset((p->steps).data + (p->steps).count, 0, (size_t)(value_312 - (p->steps).count) * sizeof(*(p->steps).data));
-                                (p->steps).count = value_312;
+                            if (value_309) {
+                                if (value_308 > (p->steps).count) memset((p->steps).data + (p->steps).count, 0, (size_t)(value_308 - (p->steps).count) * sizeof(*(p->steps).data));
+                                (p->steps).count = value_308;
                             }
                         }
-                        (void)value_313;
+                        (void)value_309;
                     }
-                    Parser* value_316 = p;
-                    compiler_tsx_Statement(value_316, (ZirStmtKind)(2), StringLiteral("}"), compiler_tsx_Location(p));
-                    Parser* value_317 = p;
-                    compiler_tsx_Statement(value_317, (ZirStmtKind)(2), StringLiteral("}"), compiler_tsx_Location(p));
-                    int32_t* value_318 = &(p->loop);
-                    (*value_318) = previous_loop;
-                    int64_t value_320 = locals;
-                    bool value_321 = false;
-                    if (value_320 >= 0) {
-                        value_321 = value_320 <= (p->locals).capacity;
-                        if (!value_321) {
-                            void *value_322 = ZirVecReserve((void *)(p->locals).data, &(p->locals).capacity, (p->locals).count, value_320 - (p->locals).count, sizeof(*(p->locals).data));
-                            if (value_322 != NULL) { (p->locals).data = (LocalBinding *)value_322; value_321 = true; }
+                    Parser* value_312 = p;
+                    compiler_tsx_Statement(value_312, (ZirStmtKind)(2), StringLiteral("}"), compiler_tsx_Location(p));
+                    Parser* value_313 = p;
+                    compiler_tsx_Statement(value_313, (ZirStmtKind)(2), StringLiteral("}"), compiler_tsx_Location(p));
+                    int32_t* value_314 = &(p->loop);
+                    (*value_314) = previous_loop;
+                    int64_t value_316 = locals;
+                    bool value_317 = false;
+                    if (value_316 >= 0) {
+                        value_317 = value_316 <= (p->locals).capacity;
+                        if (!value_317) {
+                            void *value_318 = ZirVecReserve((void *)(p->locals).data, &(p->locals).capacity, (p->locals).count, value_316 - (p->locals).count, sizeof(*(p->locals).data));
+                            if (value_318 != NULL) { (p->locals).data = value_318; value_317 = true; }
                         }
-                        if (value_321) {
-                            if (value_320 > (p->locals).count) memset((p->locals).data + (p->locals).count, 0, (size_t)(value_320 - (p->locals).count) * sizeof(*(p->locals).data));
-                            (p->locals).count = value_320;
+                        if (value_317) {
+                            if (value_316 > (p->locals).count) memset((p->locals).data + (p->locals).count, 0, (size_t)(value_316 - (p->locals).count) * sizeof(*(p->locals).data));
+                            (p->locals).count = value_316;
                         }
                     }
-                    (void)value_321;
+                    (void)value_317;
                     return;
                 } else {
-                    Parser* value_324 = p;
-                    String value_325 = StringView(NULL, 0);
+                    Parser* value_320 = p;
+                    String value_321 = StringView(NULL, 0);
                     {
-                        Parser* p = value_324;
-                        String value_327 = p->source;
-                        value_325 = StringRangeAt(value_327, (int64_t)p->token.begin, (int64_t)p->token.end);
+                        Parser* p = value_320;
+                        String value_323 = p->source;
+                        value_321 = StringRangeAt(value_323, (int64_t)p->token.begin, (int64_t)p->token.end);
                     }
-                    bool value_328 = StringEqual(value_325, StringLiteral("if"));
-                    if (!value_328) {
+                    bool value_324 = StringEqual(value_321, StringLiteral("if"));
+                    if (!value_324) {
+                        Parser* value_325 = p;
+                        String value_326 = StringView(NULL, 0);
+                        {
+                            Parser* p = value_325;
+                            String value_328 = p->source;
+                            value_326 = StringRangeAt(value_328, (int64_t)p->token.begin, (int64_t)p->token.end);
+                        }
+                        value_324 = (StringEqual(value_326, StringLiteral("while")));
+                    }
+                    if (value_324) {
                         Parser* value_329 = p;
                         String value_330 = StringView(NULL, 0);
                         {
@@ -9893,188 +9890,188 @@ compiler_tsx_ParseStatement(Parser* p)
                             String value_332 = p->source;
                             value_330 = StringRangeAt(value_332, (int64_t)p->token.begin, (int64_t)p->token.end);
                         }
-                        value_328 = (StringEqual(value_330, StringLiteral("while")));
-                    }
-                    if (value_328) {
+                        String keyword = value_330;
+                        compiler_tsx_Advance(p);
                         Parser* value_333 = p;
-                        String value_334 = StringView(NULL, 0);
+                        String value_334 = StringLiteral("(");
                         {
                             Parser* p = value_333;
-                            String value_336 = p->source;
-                            value_334 = StringRangeAt(value_336, (int64_t)p->token.begin, (int64_t)p->token.end);
-                        }
-                        String keyword = value_334;
-                        compiler_tsx_Advance(p);
-                        Parser* value_337 = p;
-                        String value_338 = StringLiteral("(");
-                        {
-                            Parser* p = value_337;
-                            String text = value_338;
-                            Parser* value_340 = p;
-                            String value_341 = text;
-                            bool value_342 = false;
+                            String text = value_334;
+                            Parser* value_336 = p;
+                            String value_337 = text;
+                            bool value_338 = false;
                             {
-                                Parser* p = value_340;
-                                String text = value_341;
+                                Parser* p = value_336;
+                                String text = value_337;
                                 if (!StringEqual(compiler_tsx_Token(p), text)) {
-                                    value_342 = false;
-                                    goto value_343;
+                                    value_338 = false;
+                                    goto value_339;
                                 }
                                 compiler_tsx_Advance(p);
-                                value_342 = true;
-                            value_343: ;
+                                value_338 = true;
+                            value_339: ;
                             }
-                            if (!value_342) {
-                                Parser* value_344 = p;
-                                String value_345 = compiler_tsx_Join(StringLiteral("expected "), text, StringLiteral(""));
+                            if (!value_338) {
+                                Parser* value_340 = p;
+                                String value_341 = compiler_tsx_Join(StringLiteral("expected "), text, StringLiteral(""));
                                 {
-                                    Parser* p = value_344;
-                                    String message = value_345;
+                                    Parser* p = value_340;
+                                    String message = value_341;
                                     if (!p->failed) {
                                         compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
                                     }
-                                    bool* value_347 = &(p->failed);
-                                    (*value_347) = true;
+                                    bool* value_343 = &(p->failed);
+                                    (*value_343) = true;
                                 }
                             }
                         }
                         int32_t condition = compiler_tsx_Expression(p, 1);
-                        Parser* value_348 = p;
-                        String value_349 = StringLiteral(")");
+                        Parser* value_344 = p;
+                        String value_345 = StringLiteral(")");
                         {
-                            Parser* p = value_348;
-                            String text = value_349;
-                            Parser* value_351 = p;
-                            String value_352 = text;
-                            bool value_353 = false;
+                            Parser* p = value_344;
+                            String text = value_345;
+                            Parser* value_347 = p;
+                            String value_348 = text;
+                            bool value_349 = false;
                             {
-                                Parser* p = value_351;
-                                String text = value_352;
+                                Parser* p = value_347;
+                                String text = value_348;
                                 if (!StringEqual(compiler_tsx_Token(p), text)) {
-                                    value_353 = false;
-                                    goto value_354;
+                                    value_349 = false;
+                                    goto value_350;
                                 }
                                 compiler_tsx_Advance(p);
-                                value_353 = true;
-                            value_354: ;
+                                value_349 = true;
+                            value_350: ;
                             }
-                            if (!value_353) {
-                                Parser* value_355 = p;
-                                String value_356 = compiler_tsx_Join(StringLiteral("expected "), text, StringLiteral(""));
+                            if (!value_349) {
+                                Parser* value_351 = p;
+                                String value_352 = compiler_tsx_Join(StringLiteral("expected "), text, StringLiteral(""));
                                 {
-                                    Parser* p = value_355;
-                                    String message = value_356;
+                                    Parser* p = value_351;
+                                    String message = value_352;
                                     if (!p->failed) {
                                         compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
                                     }
-                                    bool* value_358 = &(p->failed);
-                                    (*value_358) = true;
+                                    bool* value_354 = &(p->failed);
+                                    (*value_354) = true;
                                 }
                             }
                         }
                         int32_t previous_loop = p->loop;
-                        ZirStmtKind value_359 = (ZirStmtKind)(0);
+                        ZirStmtKind value_355 = (ZirStmtKind)(0);
                         if (StringEqual(keyword, StringLiteral("if"))) {
-                            value_359 = (ZirStmtKind)(6);
+                            value_355 = (ZirStmtKind)(6);
                         } else {
-                            value_359 = (ZirStmtKind)(7);
+                            value_355 = (ZirStmtKind)(7);
                         }
-                        ZirStmtKind kind = value_359;
-                        Parser* value_360 = p;
-                        ZirStmtKind value_361 = (ZirStmtKind)(kind);
-                        String value_362 = keyword;
-                        Parser* value_363 = p;
-                        String value_364 = StringView(NULL, 0);
+                        ZirStmtKind kind = value_355;
+                        Parser* value_356 = p;
+                        ZirStmtKind value_357 = (ZirStmtKind)(kind);
+                        String value_358 = keyword;
+                        Parser* value_359 = p;
+                        String value_360 = StringView(NULL, 0);
                         {
-                            Parser* p = value_363;
+                            Parser* p = value_359;
                             int32_t expr = condition;
                             if (expr < 0) {
-                                value_364 = StringLiteral("");
-                                goto value_365;
+                                value_360 = StringLiteral("");
+                                goto value_361;
                             }
-                            value_364 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
-                        value_365: ;
+                            value_360 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
+                        value_361: ;
                         }
-                        String value_366 = compiler_tsx_Join(value_362, StringLiteral(" "), compiler_tsx_Join(value_364, StringLiteral(" {"), StringLiteral("")));
-                        ZirStmt* st = compiler_tsx_Statement(value_360, value_361, value_366, span);
+                        String value_362 = compiler_tsx_Join(value_358, StringLiteral(" "), compiler_tsx_Join(value_360, StringLiteral(" {"), StringLiteral("")));
+                        ZirStmt* st = compiler_tsx_Statement(value_356, value_357, value_362, span);
                         if (st != ((void *)0)) {
-                            int32_t* value_367 = &(st->expr_root);
-                            (*value_367) = condition;
+                            int32_t* value_363 = &(st->expr_root);
+                            (*value_363) = condition;
                         }
                         if (StringEqual(keyword, StringLiteral("while"))) {
-                            int32_t* value_368 = &(p->loop_serial);
-                            (*value_368) = (int32_t)((uint32_t)((*value_368)) + 1u);
-                            int32_t* value_369 = &(p->loop);
-                            (*value_369) = p->loop_serial;
+                            int32_t* value_364 = &(p->loop_serial);
+                            (*value_364) = (int32_t)((uint32_t)((*value_364)) + 1u);
+                            int32_t* value_365 = &(p->loop);
+                            (*value_365) = p->loop_serial;
                             if (st != ((void *)0)) {
-                                int32_t* value_370 = &(st->loop_id);
-                                (*value_370) = p->loop;
+                                int32_t* value_366 = &(st->loop_id);
+                                (*value_366) = p->loop;
                             }
                         }
                         compiler_tsx_Block(p);
-                        Parser* value_371 = p;
-                        compiler_tsx_Statement(value_371, (ZirStmtKind)(2), StringLiteral("}"), compiler_tsx_Location(p));
-                        int32_t* value_372 = &(p->loop);
-                        (*value_372) = previous_loop;
-                        bool value_373 = StringEqual(keyword, StringLiteral("if"));
-                        bool value_374 = value_373;
-                        if (value_374) {
-                            Parser* value_375 = p;
-                            String value_376 = StringLiteral("else");
-                            bool value_377 = false;
+                        Parser* value_367 = p;
+                        compiler_tsx_Statement(value_367, (ZirStmtKind)(2), StringLiteral("}"), compiler_tsx_Location(p));
+                        int32_t* value_368 = &(p->loop);
+                        (*value_368) = previous_loop;
+                        bool value_369 = StringEqual(keyword, StringLiteral("if"));
+                        bool value_370 = value_369;
+                        if (value_370) {
+                            Parser* value_371 = p;
+                            String value_372 = StringLiteral("else");
+                            bool value_373 = false;
                             {
-                                Parser* p = value_375;
-                                String text = value_376;
-                                Parser* value_379 = p;
-                                String value_380 = StringView(NULL, 0);
+                                Parser* p = value_371;
+                                String text = value_372;
+                                Parser* value_375 = p;
+                                String value_376 = StringView(NULL, 0);
                                 {
-                                    Parser* p = value_379;
-                                    String value_382 = p->source;
-                                    value_380 = StringRangeAt(value_382, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                    Parser* p = value_375;
+                                    String value_378 = p->source;
+                                    value_376 = StringRangeAt(value_378, (int64_t)p->token.begin, (int64_t)p->token.end);
                                 }
-                                if (!StringEqual(value_380, text)) {
-                                    value_377 = false;
-                                    goto value_378;
+                                if (!StringEqual(value_376, text)) {
+                                    value_373 = false;
+                                    goto value_374;
                                 }
                                 compiler_tsx_Advance(p);
-                                value_377 = true;
-                            value_378: ;
+                                value_373 = true;
+                            value_374: ;
                             }
-                            value_374 = value_377;
+                            value_370 = value_373;
                         }
-                        if (value_374) {
-                            Parser* value_383 = p;
-                            ZirStmt* otherwise = compiler_tsx_Statement(value_383, (ZirStmtKind)(6), StringLiteral("else {"), compiler_tsx_Location(p));
+                        if (value_370) {
+                            Parser* value_379 = p;
+                            ZirStmt* otherwise = compiler_tsx_Statement(value_379, (ZirStmtKind)(6), StringLiteral("else {"), compiler_tsx_Location(p));
                             if (otherwise != ((void *)0)) {
-                                int32_t* value_384 = &(otherwise->is_else);
-                                (*value_384) = 1;
+                                int32_t* value_380 = &(otherwise->is_else);
+                                (*value_380) = 1;
                             }
-                            Parser* value_385 = p;
-                            String value_386 = StringView(NULL, 0);
+                            Parser* value_381 = p;
+                            String value_382 = StringView(NULL, 0);
                             {
-                                Parser* p = value_385;
-                                String value_388 = p->source;
-                                value_386 = StringRangeAt(value_388, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                Parser* p = value_381;
+                                String value_384 = p->source;
+                                value_382 = StringRangeAt(value_384, (int64_t)p->token.begin, (int64_t)p->token.end);
                             }
-                            if (StringEqual(value_386, StringLiteral("if"))) {
+                            if (StringEqual(value_382, StringLiteral("if"))) {
                                 compiler_tsx_ParseStatement(p);
                             } else {
                                 compiler_tsx_Block(p);
                             }
-                            Parser* value_389 = p;
-                            compiler_tsx_Statement(value_389, (ZirStmtKind)(2), StringLiteral("}"), compiler_tsx_Location(p));
+                            Parser* value_385 = p;
+                            compiler_tsx_Statement(value_385, (ZirStmtKind)(2), StringLiteral("}"), compiler_tsx_Location(p));
                         }
                         return;
                     } else {
-                        Parser* value_390 = p;
-                        String value_391 = StringView(NULL, 0);
+                        Parser* value_386 = p;
+                        String value_387 = StringView(NULL, 0);
                         {
-                            Parser* p = value_390;
-                            String value_393 = p->source;
-                            value_391 = StringRangeAt(value_393, (int64_t)p->token.begin, (int64_t)p->token.end);
+                            Parser* p = value_386;
+                            String value_389 = p->source;
+                            value_387 = StringRangeAt(value_389, (int64_t)p->token.begin, (int64_t)p->token.end);
                         }
-                        bool value_394 = StringEqual(value_391, StringLiteral("break"));
-                        if (!value_394) {
+                        bool value_390 = StringEqual(value_387, StringLiteral("break"));
+                        if (!value_390) {
+                            Parser* value_391 = p;
+                            String value_392 = StringView(NULL, 0);
+                            {
+                                Parser* p = value_391;
+                                String value_394 = p->source;
+                                value_392 = StringRangeAt(value_394, (int64_t)p->token.begin, (int64_t)p->token.end);
+                            }
+                            value_390 = (StringEqual(value_392, StringLiteral("continue")));
+                        }
+                        if (value_390) {
                             Parser* value_395 = p;
                             String value_396 = StringView(NULL, 0);
                             {
@@ -10082,155 +10079,131 @@ compiler_tsx_ParseStatement(Parser* p)
                                 String value_398 = p->source;
                                 value_396 = StringRangeAt(value_398, (int64_t)p->token.begin, (int64_t)p->token.end);
                             }
-                            value_394 = (StringEqual(value_396, StringLiteral("continue")));
-                        }
-                        if (value_394) {
-                            Parser* value_399 = p;
-                            String value_400 = StringView(NULL, 0);
-                            {
-                                Parser* p = value_399;
-                                String value_402 = p->source;
-                                value_400 = StringRangeAt(value_402, (int64_t)p->token.begin, (int64_t)p->token.end);
-                            }
-                            String keyword = value_400;
+                            String keyword = value_396;
                             compiler_tsx_Advance(p);
                             if (p->loop == 0) {
-                                Parser* value_403 = p;
-                                String value_404 = StringLiteral("loop control requires an enclosing loop");
+                                Parser* value_399 = p;
+                                String value_400 = StringLiteral("loop control requires an enclosing loop");
                                 {
-                                    Parser* p = value_403;
-                                    String message = value_404;
+                                    Parser* p = value_399;
+                                    String message = value_400;
                                     if (!p->failed) {
                                         compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
                                     }
-                                    bool* value_406 = &(p->failed);
-                                    (*value_406) = true;
+                                    bool* value_402 = &(p->failed);
+                                    (*value_402) = true;
                                 }
                                 return;
                             }
                             if (StringEqual(keyword, StringLiteral("continue"))) {
                                 {
-                                    int64_t range_first_186 = p->step_base;
-                                    int64_t range_last_186 = (int64_t)((uint64_t)(p->steps.count) - UINT64_C(1));
-                                    int64_t index = range_first_186;
-                                    if (index <= range_last_186) for (;;) {
+                                    int64_t range_first_182 = p->step_base;
+                                    int64_t range_last_182 = (int64_t)((uint64_t)(p->steps.count) - UINT64_C(1));
+                                    int64_t index = range_first_182;
+                                    if (index <= range_last_182) for (;;) {
                                         LoopStep step = (p->steps).data[index];
                                         if (step.loop == p->loop) {
-                                            Parser* value_407 = p;
-                                            ZirStmtKind value_408 = (ZirStmtKind)((ZirStmtKind)(step.statement.kind));
-                                            String value_409 = compiler_ir_CText((uint8_t*)step.statement.text);
-                                            ZirStmt* appended = compiler_tsx_Statement(value_407, value_408, value_409, span);
+                                            Parser* value_403 = p;
+                                            ZirStmtKind value_404 = (ZirStmtKind)((ZirStmtKind)(step.statement.kind));
+                                            String value_405 = compiler_ir_CText((uint8_t*)step.statement.text);
+                                            ZirStmt* appended = compiler_tsx_Statement(value_403, value_404, value_405, span);
                                             if (appended != ((void *)0)) {
-                                                ZirStmt* value_410 = &(appended[0]);
-                                                (*value_410) = step.statement;
-                                                ZirSourceSpan* value_411 = &(appended->span);
-                                                (*value_411) = span;
+                                                ZirStmt* value_406 = &(appended[0]);
+                                                (*value_406) = step.statement;
+                                                ZirSourceSpan* value_407 = &(appended->span);
+                                                (*value_407) = span;
                                             }
                                         }
-                                        if (index == range_last_186) {
+                                        if (index == range_last_182) {
                                             break;
                                         }
                                         index = (int64_t)((uint64_t)index + UINT64_C(1));
                                     }
                                 }
                             }
-                            ZirStmtKind value_412 = (ZirStmtKind)(0);
+                            ZirStmtKind value_408 = (ZirStmtKind)(0);
                             if (StringEqual(keyword, StringLiteral("break"))) {
-                                value_412 = (ZirStmtKind)(11);
+                                value_408 = (ZirStmtKind)(11);
                             } else {
-                                value_412 = (ZirStmtKind)(12);
+                                value_408 = (ZirStmtKind)(12);
                             }
-                            ZirStmt* st = compiler_tsx_Statement(p, value_412, keyword, span);
+                            ZirStmt* st = compiler_tsx_Statement(p, value_408, keyword, span);
                             if (st != ((void *)0)) {
-                                int32_t* value_413 = &(st->target_id);
-                                (*value_413) = p->loop;
+                                int32_t* value_409 = &(st->target_id);
+                                (*value_409) = p->loop;
                             }
                         } else {
-                            Parser* value_414 = p;
-                            String value_415 = StringView(NULL, 0);
+                            Parser* value_410 = p;
+                            String value_411 = StringView(NULL, 0);
                             {
-                                Parser* p = value_414;
-                                String value_417 = p->source;
-                                value_415 = StringRangeAt(value_417, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                Parser* p = value_410;
+                                String value_413 = p->source;
+                                value_411 = StringRangeAt(value_413, (int64_t)p->token.begin, (int64_t)p->token.end);
                             }
-                            if (StringEqual(value_415, StringLiteral("{"))) {
+                            if (StringEqual(value_411, StringLiteral("{"))) {
                                 compiler_tsx_Statement(p, (ZirStmtKind)(1), StringLiteral("{"), span);
                                 compiler_tsx_Block(p);
-                                Parser* value_418 = p;
-                                compiler_tsx_Statement(value_418, (ZirStmtKind)(2), StringLiteral("}"), compiler_tsx_Location(p));
+                                Parser* value_414 = p;
+                                compiler_tsx_Statement(value_414, (ZirStmtKind)(2), StringLiteral("}"), compiler_tsx_Location(p));
                                 return;
                             } else {
-                                Parser* value_419 = p;
-                                String value_420 = StringView(NULL, 0);
+                                Parser* value_415 = p;
+                                String value_416 = StringView(NULL, 0);
                                 {
-                                    Parser* p = value_419;
-                                    String value_422 = p->source;
-                                    value_420 = StringRangeAt(value_422, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                    Parser* p = value_415;
+                                    String value_418 = p->source;
+                                    value_416 = StringRangeAt(value_418, (int64_t)p->token.begin, (int64_t)p->token.end);
                                 }
-                                bool value_423 = StringEqual(value_420, StringLiteral("BuilderPrint"));
-                                if (value_423) {
-                                    Parser* value_424 = p;
-                                    bool value_425 = false;
+                                bool value_419 = StringEqual(value_416, StringLiteral("BuilderPrint"));
+                                if (value_419) {
+                                    Parser* value_420 = p;
+                                    bool value_421 = false;
                                     {
-                                        Parser* p = value_424;
+                                        Parser* p = value_420;
                                         Scan next = compiler_scan_NextCodeToken(p->source, p->token.end, p->token.after_line, p->token.after_column);
                                         if (((TokenKind)(next.kind)) == ((TokenKind)(0))) {
-                                            value_425 = false;
-                                            goto value_426;
+                                            value_421 = false;
+                                            goto value_422;
                                         }
-                                        String value_427 = p->source;
-                                        value_425 = (StringEqual(StringRangeAt(value_427, (int64_t)next.begin, (int64_t)next.end), StringLiteral("(")));
-                                    value_426: ;
+                                        String value_423 = p->source;
+                                        value_421 = (StringEqual(StringRangeAt(value_423, (int64_t)next.begin, (int64_t)next.end), StringLiteral("(")));
+                                    value_422: ;
                                     }
-                                    value_423 = value_425;
+                                    value_419 = value_421;
                                 }
-                                if (value_423) {
+                                if (value_419) {
                                     compiler_tsx_BuilderPrintStatement(p, span);
                                     return;
                                 }
                                 int32_t left = compiler_tsx_Expression(p, 1);
-                                Parser* value_428 = p;
-                                String value_429 = StringView(NULL, 0);
+                                Parser* value_424 = p;
+                                String value_425 = StringView(NULL, 0);
                                 {
-                                    Parser* p = value_428;
-                                    String value_431 = p->source;
-                                    value_429 = StringRangeAt(value_431, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                    Parser* p = value_424;
+                                    String value_427 = p->source;
+                                    value_425 = StringRangeAt(value_427, (int64_t)p->token.begin, (int64_t)p->token.end);
                                 }
-                                String op = value_429;
-                                bool value_432 = StringEqual(op, StringLiteral("=")) || StringEqual(op, StringLiteral("+=")) || StringEqual(op, StringLiteral("-="));
-                                if (value_432 || StringEqual(op, StringLiteral("*=")) || StringEqual(op, StringLiteral("/="))) {
-                                    if (compiler_tsx_CapturePlace(p, left)) {
-                                        Parser* value_433 = p;
-                                        String value_434 = StringLiteral("callback captures are immutable snapshots");
-                                        {
-                                            Parser* p = value_433;
-                                            String message = value_434;
-                                            if (!p->failed) {
-                                                compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
-                                            }
-                                            bool* value_436 = &(p->failed);
-                                            (*value_436) = true;
-                                        }
-                                        return;
-                                    }
-                                    if (left >= 0 && ((ZirExprKind)((p->fn->exprs[left]).kind)) == ((ZirExprKind)(1))) {
+                                String op = value_425;
+                                bool value_428 = StringEqual(op, StringLiteral("=")) || StringEqual(op, StringLiteral("+=")) || StringEqual(op, StringLiteral("-="));
+                                if (value_428 || StringEqual(op, StringLiteral("*=")) || StringEqual(op, StringLiteral("/="))) {
+                                    String binding_name = compiler_tsx_AssignedBinding(p, left);
+                                    if ((int64_t)(binding_name).length > 0LL) {
                                         int64_t local = p->locals.count;
                                         while (local > 0LL) {
                                             local = (int64_t)((uint64_t)local - UINT64_C(1));
                                             LocalBinding binding = (p->locals).data[local];
-                                            String value_437 = binding.name;
-                                            if (StringEqual(value_437, compiler_ir_CText((uint8_t*)(p->fn->exprs[left]).name))) {
+                                            if (StringEqual(binding.name, binding_name)) {
                                                 if (binding.immutable) {
-                                                    Parser* value_438 = p;
-                                                    String value_439 = StringLiteral("cannot assign to a const binding");
+                                                    Parser* value_429 = p;
+                                                    String value_430 = StringLiteral("cannot assign to a const binding");
                                                     {
-                                                        Parser* p = value_438;
-                                                        String message = value_439;
+                                                        Parser* p = value_429;
+                                                        String message = value_430;
                                                         if (!p->failed) {
                                                             compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
                                                         }
-                                                        bool* value_441 = &(p->failed);
-                                                        (*value_441) = true;
+                                                        bool* value_432 = &(p->failed);
+                                                        (*value_432) = true;
                                                     }
                                                     return;
                                                 }
@@ -10242,143 +10215,143 @@ compiler_tsx_ParseStatement(Parser* p)
                                     int32_t right = compiler_tsx_Expression(p, 1);
                                     if (!StringEqual(op, StringLiteral("="))) {
                                         if (((ZirExprKind)((p->fn->exprs[left]).kind)) != ((ZirExprKind)(1))) {
-                                            Parser* value_442 = p;
-                                            String value_443 = StringLiteral("compound assignment currently requires a local binding");
+                                            Parser* value_433 = p;
+                                            String value_434 = StringLiteral("compound assignment currently requires a local binding");
                                             {
-                                                Parser* p = value_442;
-                                                String message = value_443;
+                                                Parser* p = value_433;
+                                                String message = value_434;
                                                 if (!p->failed) {
                                                     compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
                                                 }
-                                                bool* value_445 = &(p->failed);
-                                                (*value_445) = true;
+                                                bool* value_436 = &(p->failed);
+                                                (*value_436) = true;
                                             }
                                             return;
                                         }
-                                        Parser* value_446 = p;
-                                        ZirExprKind value_447 = (ZirExprKind)((ZirExprKind)(6));
-                                        Parser* value_448 = p;
-                                        String value_449 = StringView(NULL, 0);
+                                        Parser* value_437 = p;
+                                        ZirExprKind value_438 = (ZirExprKind)((ZirExprKind)(6));
+                                        Parser* value_439 = p;
+                                        String value_440 = StringView(NULL, 0);
                                         {
-                                            Parser* p = value_448;
+                                            Parser* p = value_439;
                                             int32_t expr = left;
                                             if (expr < 0) {
-                                                value_449 = StringLiteral("");
-                                                goto value_450;
+                                                value_440 = StringLiteral("");
+                                                goto value_441;
                                             }
-                                            value_449 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
-                                        value_450: ;
+                                            value_440 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
+                                        value_441: ;
                                         }
-                                        String value_451 = StringRangeAt(op, (int64_t)0, (int64_t)1LL);
-                                        Parser* value_452 = p;
-                                        String value_453 = StringView(NULL, 0);
+                                        String value_442 = StringRangeAt(op, (int64_t)0, (int64_t)1LL);
+                                        Parser* value_443 = p;
+                                        String value_444 = StringView(NULL, 0);
                                         {
-                                            Parser* p = value_452;
+                                            Parser* p = value_443;
                                             int32_t expr = right;
                                             if (expr < 0) {
-                                                value_453 = StringLiteral("");
-                                                goto value_454;
+                                                value_444 = StringLiteral("");
+                                                goto value_445;
                                             }
-                                            value_453 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
-                                        value_454: ;
+                                            value_444 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
+                                        value_445: ;
                                         }
-                                        String value_455 = compiler_tsx_Join(value_449, value_451, value_453);
-                                        ZirSourceSpan value_456 = span;
-                                        int32_t value_457 = left;
-                                        int32_t value_458 = right;
-                                        int32_t value_459 = 0;
+                                        String value_446 = compiler_tsx_Join(value_440, value_442, value_444);
+                                        ZirSourceSpan value_447 = span;
+                                        int32_t value_448 = left;
+                                        int32_t value_449 = right;
+                                        int32_t value_450 = 0;
                                         {
-                                            Parser* p = value_446;
-                                            ZirExprKind kind = (ZirExprKind)(value_447);
-                                            String text = value_455;
-                                            ZirSourceSpan span = value_456;
-                                            int32_t left = value_457;
-                                            int32_t right = value_458;
+                                            Parser* p = value_437;
+                                            ZirExprKind kind = (ZirExprKind)(value_438);
+                                            String text = value_446;
+                                            ZirSourceSpan span = value_447;
+                                            int32_t left = value_448;
+                                            int32_t right = value_449;
                                             ZirExpr* node = compiler_services_AddExpr(p->fn, kind, text, span);
                                             if (node == ((void *)0)) {
-                                                Parser* value_461 = p;
-                                                String value_462 = StringLiteral("cannot allocate expression");
+                                                Parser* value_452 = p;
+                                                String value_453 = StringLiteral("cannot allocate expression");
                                                 {
-                                                    Parser* p = value_461;
-                                                    String message = value_462;
+                                                    Parser* p = value_452;
+                                                    String message = value_453;
                                                     if (!p->failed) {
                                                         compiler_services_Diagnose__overload_1(compiler_tsx_Location(p), StringLiteral("parse.tsx"), message);
                                                     }
-                                                    bool* value_464 = &(p->failed);
-                                                    (*value_464) = true;
+                                                    bool* value_455 = &(p->failed);
+                                                    (*value_455) = true;
                                                 }
-                                                value_459 = -1;
-                                                goto value_460;
+                                                value_450 = -1;
+                                                goto value_451;
                                             }
-                                            int32_t* value_465 = &(node->left);
-                                            (*value_465) = left;
-                                            int32_t* value_466 = &(node->right);
-                                            (*value_466) = right;
-                                            value_459 = (int32_t)((uint32_t)(p->fn->expr_count) - 1u);
-                                        value_460: ;
+                                            int32_t* value_456 = &(node->left);
+                                            (*value_456) = left;
+                                            int32_t* value_457 = &(node->right);
+                                            (*value_457) = right;
+                                            value_450 = (int32_t)((uint32_t)(p->fn->expr_count) - 1u);
+                                        value_451: ;
                                         }
-                                        int32_t binary = value_459;
+                                        int32_t binary = value_450;
                                         if (binary >= 0) {
-                                            Slice value_467 = {(p->fn->exprs[binary]).op, 8};
-                                            compiler_ir_CopyText(value_467, StringRangeAt(op, (int64_t)0, (int64_t)1LL));
+                                            Slice value_458 = {(p->fn->exprs[binary]).op, 8};
+                                            compiler_ir_CopyText(value_458, StringRangeAt(op, (int64_t)0, (int64_t)1LL));
                                         }
                                         right = binary;
                                         op = StringLiteral("=");
                                     }
-                                    Parser* value_468 = p;
-                                    Parser* value_469 = p;
-                                    String value_470 = StringView(NULL, 0);
+                                    Parser* value_459 = p;
+                                    Parser* value_460 = p;
+                                    String value_461 = StringView(NULL, 0);
                                     {
-                                        Parser* p = value_469;
+                                        Parser* p = value_460;
                                         int32_t expr = left;
                                         if (expr < 0) {
-                                            value_470 = StringLiteral("");
-                                            goto value_471;
+                                            value_461 = StringLiteral("");
+                                            goto value_462;
                                         }
-                                        value_470 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
-                                    value_471: ;
+                                        value_461 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
+                                    value_462: ;
                                     }
-                                    String value_472 = op;
-                                    Parser* value_473 = p;
-                                    String value_474 = StringView(NULL, 0);
+                                    String value_463 = op;
+                                    Parser* value_464 = p;
+                                    String value_465 = StringView(NULL, 0);
                                     {
-                                        Parser* p = value_473;
+                                        Parser* p = value_464;
                                         int32_t expr = right;
                                         if (expr < 0) {
-                                            value_474 = StringLiteral("");
-                                            goto value_475;
+                                            value_465 = StringLiteral("");
+                                            goto value_466;
                                         }
-                                        value_474 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
-                                    value_475: ;
+                                        value_465 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
+                                    value_466: ;
                                     }
-                                    String value_476 = compiler_tsx_Join(value_470, value_472, value_474);
-                                    ZirStmt* st = compiler_tsx_Statement(value_468, (ZirStmtKind)(4), value_476, span);
+                                    String value_467 = compiler_tsx_Join(value_461, value_463, value_465);
+                                    ZirStmt* st = compiler_tsx_Statement(value_459, (ZirStmtKind)(4), value_467, span);
                                     if (st != ((void *)0)) {
-                                        int32_t* value_477 = &(st->lhs_root);
-                                        (*value_477) = left;
-                                        int32_t* value_478 = &(st->expr_root);
-                                        (*value_478) = right;
-                                        Slice value_479 = {st->assignment_op, 4};
-                                        compiler_ir_CopyText(value_479, op);
+                                        int32_t* value_468 = &(st->lhs_root);
+                                        (*value_468) = left;
+                                        int32_t* value_469 = &(st->expr_root);
+                                        (*value_469) = right;
+                                        Slice value_470 = {st->assignment_op, 4};
+                                        compiler_ir_CopyText(value_470, op);
                                     }
                                 } else {
-                                    Parser* value_480 = p;
-                                    Parser* value_481 = p;
-                                    String value_482 = StringView(NULL, 0);
+                                    Parser* value_471 = p;
+                                    Parser* value_472 = p;
+                                    String value_473 = StringView(NULL, 0);
                                     {
-                                        Parser* p = value_481;
+                                        Parser* p = value_472;
                                         int32_t expr = left;
                                         if (expr < 0) {
-                                            value_482 = StringLiteral("");
-                                            goto value_483;
+                                            value_473 = StringLiteral("");
+                                            goto value_474;
                                         }
-                                        value_482 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
-                                    value_483: ;
+                                        value_473 = compiler_ir_CText((uint8_t*)(p->fn->exprs[expr]).text);
+                                    value_474: ;
                                     }
-                                    ZirStmt* st = compiler_tsx_Statement(value_480, (ZirStmtKind)(5), value_482, span);
+                                    ZirStmt* st = compiler_tsx_Statement(value_471, (ZirStmtKind)(5), value_473, span);
                                     if (st != ((void *)0)) {
-                                        int32_t* value_484 = &(st->expr_root);
-                                        (*value_484) = left;
+                                        int32_t* value_475 = &(st->expr_root);
+                                        (*value_475) = left;
                                     }
                                 }
                             }
@@ -10388,28 +10361,28 @@ compiler_tsx_ParseStatement(Parser* p)
             }
         }
     }
-    Parser* value_485 = p;
-    String value_486 = StringLiteral(";");
-    bool value_487 = false;
+    Parser* value_476 = p;
+    String value_477 = StringLiteral(";");
+    bool value_478 = false;
     {
-        Parser* p = value_485;
-        String text = value_486;
-        Parser* value_489 = p;
-        String value_490 = StringView(NULL, 0);
+        Parser* p = value_476;
+        String text = value_477;
+        Parser* value_480 = p;
+        String value_481 = StringView(NULL, 0);
         {
-            Parser* p = value_489;
-            String value_492 = p->source;
-            value_490 = StringRangeAt(value_492, (int64_t)p->token.begin, (int64_t)p->token.end);
+            Parser* p = value_480;
+            String value_483 = p->source;
+            value_481 = StringRangeAt(value_483, (int64_t)p->token.begin, (int64_t)p->token.end);
         }
-        if (!StringEqual(value_490, text)) {
-            value_487 = false;
-            goto value_488;
+        if (!StringEqual(value_481, text)) {
+            value_478 = false;
+            goto value_479;
         }
         compiler_tsx_Advance(p);
-        value_487 = true;
-    value_488: ;
+        value_478 = true;
+    value_479: ;
     }
-    (void)value_487;
+    (void)value_478;
 }
 
 static void
@@ -10592,7 +10565,7 @@ compiler_tsx_Function(Parser* p, bool public)
         value_59 = value_58 <= (p->locals).capacity;
         if (!value_59) {
             void *value_60 = ZirVecReserve((void *)(p->locals).data, &(p->locals).capacity, (p->locals).count, value_58 - (p->locals).count, sizeof(*(p->locals).data));
-            if (value_60 != NULL) { (p->locals).data = (LocalBinding *)value_60; value_59 = true; }
+            if (value_60 != NULL) { (p->locals).data = value_60; value_59 = true; }
         }
         if (value_59) {
             if (value_58 > (p->locals).count) memset((p->locals).data + (p->locals).count, 0, (size_t)(value_58 - (p->locals).count) * sizeof(*(p->locals).data));
@@ -11196,7 +11169,7 @@ compiler_tsx_Interface(Parser* p, bool public)
             bool value_39 = false;
             void *value_40 = ZirVecGrow((void *)(p->type_parameters).data, &(p->type_parameters).capacity, (p->type_parameters).count, sizeof(*(p->type_parameters).data));
             if (value_40 != NULL) {
-                (p->type_parameters).data = (String *)value_40;
+                (p->type_parameters).data = value_40;
                 (p->type_parameters).data[(p->type_parameters).count++] = value_38;
                 value_39 = true;
             }
@@ -11599,7 +11572,7 @@ compiler_tsx_Interface(Parser* p, bool public)
         value_174 = value_173 <= (p->type_parameters).capacity;
         if (!value_174) {
             void *value_175 = ZirVecReserve((void *)(p->type_parameters).data, &(p->type_parameters).capacity, (p->type_parameters).count, value_173 - (p->type_parameters).count, sizeof(*(p->type_parameters).data));
-            if (value_175 != NULL) { (p->type_parameters).data = (String *)value_175; value_174 = true; }
+            if (value_175 != NULL) { (p->type_parameters).data = value_175; value_174 = true; }
         }
         if (value_174) {
             if (value_173 > (p->type_parameters).count) memset((p->type_parameters).data + (p->type_parameters).count, 0, (size_t)(value_173 - (p->type_parameters).count) * sizeof(*(p->type_parameters).data));
@@ -11883,7 +11856,7 @@ compiler_tsx_Import(Parser* p, bool collect)
             bool value_87 = false;
             void *value_88 = ZirVecGrow((void *)(mappings).data, &(mappings).capacity, (mappings).count, sizeof(*(mappings).data));
             if (value_88 != NULL) {
-                (mappings).data = (ImportedName *)value_88;
+                (mappings).data = value_88;
                 (mappings).data[(mappings).count++] = value_86;
                 value_87 = true;
             }
@@ -12098,7 +12071,7 @@ compiler_tsx_Import(Parser* p, bool collect)
             bool value_145 = false;
             void *value_146 = ZirVecGrow((void *)(p->imports).data, &(p->imports).capacity, (p->imports).count, sizeof(*(p->imports).data));
             if (value_146 != NULL) {
-                (p->imports).data = (ImportedName *)value_146;
+                (p->imports).data = value_146;
                 (p->imports).data[(p->imports).count++] = value_144;
                 value_145 = true;
             }

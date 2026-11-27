@@ -69,9 +69,9 @@ OpenProgram :: (loader: *void, bundle: *void, bindings: *Host.HostBinding,
 ProgramBackend :: (program: *void) -> s32 #foreign hosting "ZxModuleProgramBackend";
 RunProgram :: (program: *void, result: *s64, present: *s32) -> s32 #foreign hosting "ZxModuleProgramRun";
 BorrowProgramString :: (program: *void, module: *u8, function: *u8,
-    parameter: usize) -> s32 #foreign hosting "ZxModuleProgramBorrowHostString";
+    parameter: usize) -> s32 #reads #foreign hosting "ZxModuleProgramBorrowHostString";
 BorrowProgramSlice :: (program: *void, module: *u8, function: *u8,
-    parameter: usize) -> s32 #foreign hosting "ZxModuleProgramBorrowHostSlice";
+    parameter: usize) -> s32 #reads #foreign hosting "ZxModuleProgramBorrowHostSlice";
 CloseProgram :: (program: *void) #foreign hosting "ZxModuleProgramClose";
 RenewSteps :: () -> s32 #foreign hosting "BundleHostRenewSteps";
 RunStatus :: enum s32 { Error; Ok; Cancelled }

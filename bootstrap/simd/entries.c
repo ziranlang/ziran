@@ -47,7 +47,7 @@ entries_Entries(void)
                             bool value_7 = false;
                             void *value_8 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
                             if (value_8 != NULL) {
-                                (output).data = (Helper *)value_8;
+                                (output).data = value_8;
                                 (output).data[(output).count++] = value_6;
                                 value_7 = true;
                             }
@@ -63,7 +63,7 @@ entries_Entries(void)
                                     bool value_11 = false;
                                     void *value_12 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
                                     if (value_12 != NULL) {
-                                        (output).data = (Helper *)value_12;
+                                        (output).data = value_12;
                                         (output).data[(output).count++] = value_10;
                                         value_11 = true;
                                     }
@@ -75,7 +75,7 @@ entries_Entries(void)
                                 bool value_15 = false;
                                 void *value_16 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
                                 if (value_16 != NULL) {
-                                    (output).data = (Helper *)value_16;
+                                    (output).data = value_16;
                                     (output).data[(output).count++] = value_14;
                                     value_15 = true;
                                 }
@@ -92,7 +92,7 @@ entries_Entries(void)
                                 bool value_19 = false;
                                 void *value_20 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
                                 if (value_20 != NULL) {
-                                    (output).data = (Helper *)value_20;
+                                    (output).data = value_20;
                                     (output).data[(output).count++] = value_18;
                                     value_19 = true;
                                 }
@@ -105,7 +105,7 @@ entries_Entries(void)
                         bool value_23 = false;
                         void *value_24 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
                         if (value_24 != NULL) {
-                            (output).data = (Helper *)value_24;
+                            (output).data = value_24;
                             (output).data[(output).count++] = value_22;
                             value_23 = true;
                         }

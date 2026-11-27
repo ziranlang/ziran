@@ -167,6 +167,7 @@ EmitGlobalInitializerText :: (module: *IR.ZirModule, global: *IR.ZirGlobal, targ
 EmitGoNumberHelpers :: (out: *void, text: *u8, written: *u32) #foreign compiler "EmitGoNumberHelpers";
 EmitGoPrintSupport :: (out: *void) #foreign compiler "EmitGoPrintSupport";
 EmitSlotType :: (out: *void, slot: *IR.ZirType, target: s32, resolve_type: GoResolveTarget, context: *void) #foreign compiler "EmitSlotType";
+EvaluateCompileLiteral :: (module: *IR.ZirModule, source: *u8, span: IR.ZirSourceSpan, executing: s32, literal: **u8, type_owner: **IR.ZirModule) -> s32 #foreign compiler "EvaluateCompileLiteral";
 EnumMemberValue :: (type: *IR.ZirType, name: *u8, value: *s64) -> s32 #foreign compiler "EnumMemberValue";
 CFindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
 GeneratedOutputRecord :: (path: *u8) #foreign compiler "GeneratedOutputRecord";
@@ -2968,6 +2969,21 @@ go_lower_with_buffers :: (ctx: *GoLowerState, progs: **IR.ZirProgram, prog_count
                                 while true {
                                     if !((ei < (fn).expr_count)) { break }
                                     expr: *IR.ZirExpr = *(((fn).exprs)[ei])
+                                    if expr.kind == .SLICE && expr.left >= 0 && fn.exprs[expr.left].type[0] == #char "*" {
+                                        pointer_index = 1
+                                        break
+                                    }
+                                    if expr.kind == .CALL && IR.CText(expr.name) == "TextView" {
+                                        pointer_index = 1
+                                        break
+                                    }
+                                    if expr.kind == .UNARY && IR.CText(*expr.op[0]) == "&" && expr.right >= 0 {
+                                        place := *fn.exprs[expr.right]
+                                        if place.kind == .INDEX && place.left >= 0 && IR.CText(fn.exprs[place.left].type) == "string" {
+                                            pointer_index = 1
+                                            break
+                                        }
+                                    }
                                     if ((((((expr).kind == IR.ZirExprKind.CALL) && (!((strcmp((expr).name, CStr("VecReserve")) != 0)) || (!((strcmp((expr).name, CStr("VecResize")) != 0)) || !((strcmp((expr).name, CStr("VecResizeBounded")) != 0))))) || ((expr).kind == IR.ZirExprKind.SIZE_OF)) || (((expr).kind == IR.ZirExprKind.CAST) && (((expr).type)[0] == #char "*"))) || ((((expr).kind == IR.ZirExprKind.INDEX) && ((expr).left >= 0)) && (((((fn).exprs)[(expr).left]).type)[0] == #char "*"))) {
                                         pointer_index = 1
                                         break
@@ -3493,6 +3509,14 @@ go_lower_with_buffers :: (ctx: *GoLowerState, progs: **IR.ZirProgram, prog_count
                                 i += 1
                                 continue
                             }
+                            // A string constant still has its checked Zi value, but
+                            // Go needs a counted view over zero-terminated storage.
+                            // Evaluate aliases in their source scope as well.
+                            checked_literal: *u8 = null
+                            if EvaluateCompileLiteral(m, value, m.defines[i].span, 0, *checked_literal, null) != 0 &&
+                               checked_literal != null {
+                                value = checked_literal
+                            }
                             if (strlen(value) >= cast(usize)((8192 / 4))) {
                                 capacity: usize = ((strlen(value) * cast(usize)(4)) + cast(usize)(64))
                                 literal: *u8 = cast(*u8)(malloc(capacity))
@@ -3503,12 +3527,19 @@ go_lower_with_buffers :: (ctx: *GoLowerState, progs: **IR.ZirProgram, prog_count
                                     Diagnostic((((m).defines)[i]).span, CStr("zir_go.global"), CStr("cannot lower long constant %s"), *((((m).defines)[i]).name)[0])
                                     exit(1)
                                 }
-                                fprintf(f, CStr("const %s = %s\n"), *(cname)[0], literal)
+                                fprintf(f, CStr("var %s = %s\n"), *(cname)[0], literal)
                                 free(cast(*void)(literal))
                                 i += 1
                                 continue
                             }
-                            tx_expr(ctx, m, (((m).defines)[i]).value, *((buffers).cval)[0], size_of([8192]u8))
+                            if value[0] == #char "\"" &&
+                               ScalarLiteral(CStr("string"), value, cast(s32)Native.ZirTarget.ZIR_GO,
+                                             m.defines[i].span, *buffers.cval[0], 8192) != 0 {
+                                fprintf(f, CStr("var %s = %s\n"), *cname[0], *buffers.cval[0])
+                                i += 1
+                                continue
+                            }
+                            tx_expr(ctx, m, value, *((buffers).cval)[0], size_of([8192]u8))
                             fprintf(f, CStr("const %s = %s\n"), *(cname)[0], *((buffers).cval)[0])
                             i += 1
                         }

@@ -1131,107 +1131,117 @@ compiler_c_emit_call_EmitGlobalSlotWrappersNode(void* out, ZirModule* module, Zi
             zir_foreign_compiler_c_emit_call__CSlotNativeType(source, target, &(native_type[0]), 128);
             ZirResolveTarget value_31 = resolver;
             value_31(context, &(native_type[0]), &(resolved_type[0]), 128);
-            void* value_32 = out;
-            String value_33 = StringLiteral(", %s slot_arg_%d");
-            uint8_t* value_34 = (void *)0;
+            uint8_t argument_name[128] = {0};
+            uint8_t declaration[512] = {0};
+            String value_32 = StringLiteral("slot_arg_%d");
+            uint8_t* value_33 = (void *)0;
             {
-                String s = value_33;
-                value_34 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
+                String s = value_32;
+                value_33 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            zir_foreign_compiler_c_emit_call__fprintf(value_32, value_34, &(resolved_type[0]), argument);
-            uint8_t* value_36 = (void *)0;
+            compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(&(argument_name[0]), 128, value_33, argument), 128);
+            compiler_c_emit_NamedCType(&(resolved_type[0]), &(argument_name[0]), &(declaration[0]), 128 * 4);
+            void* value_35 = out;
+            String value_36 = StringLiteral(", %s");
+            uint8_t* value_37 = (void *)0;
+            {
+                String s = value_36;
+                value_37 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
+            }
+            zir_foreign_compiler_c_emit_call__fprintf(value_35, value_37, &(declaration[0]));
+            uint8_t* value_39 = (void *)0;
             if (argument != 0) {
-                String value_37 = StringLiteral(", ");
-                uint8_t* value_38 = (void *)0;
-                {
-                    String s = value_37;
-                    value_38 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
-                }
-                value_36 = value_38;
-            } else {
-                String value_40 = StringLiteral("");
+                String value_40 = StringLiteral(", ");
                 uint8_t* value_41 = (void *)0;
                 {
                     String s = value_40;
                     value_41 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
-                value_36 = value_41;
+                value_39 = value_41;
+            } else {
+                String value_43 = StringLiteral("");
+                uint8_t* value_44 = (void *)0;
+                {
+                    String s = value_43;
+                    value_44 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
+                }
+                value_39 = value_44;
             }
-            uint8_t* sep = value_36;
-            size_t value_43 = length;
-            uint8_t* value_44 = (void *)0;
+            uint8_t* sep = value_39;
+            size_t value_46 = length;
+            uint8_t* value_47 = (void *)0;
             {
                 uint8_t* p = call_buf;
                 size_t n = length;
-                value_44 = (uint8_t*)(((size_t)(p) + n));
+                value_47 = (uint8_t*)(((size_t)(p) + n));
             }
-            size_t value_46 = 4096 - length;
-            String value_47 = StringLiteral("%sslot_arg_%d");
-            uint8_t* value_48 = (void *)0;
+            size_t value_49 = 4096 - length;
+            String value_50 = StringLiteral("%sslot_arg_%d");
+            uint8_t* value_51 = (void *)0;
             {
-                String s = value_47;
-                value_48 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
+                String s = value_50;
+                value_51 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            int32_t value_50 = zir_foreign_compiler_c_emit_call__snprintf(value_44, value_46, value_48, sep, argument);
-            int32_t value_51 = compiler_c_emit_call_CheckFormat(value_50, 4096 - length);
-            length = value_43 + (size_t)(value_51);
+            int32_t value_53 = zir_foreign_compiler_c_emit_call__snprintf(value_47, value_49, value_51, sep, argument);
+            int32_t value_54 = compiler_c_emit_call_CheckFormat(value_53, 4096 - length);
+            length = value_46 + (size_t)(value_54);
             if (argument == range_last_40) {
                 break;
             }
             argument = (int32_t)((uint32_t)argument + 1u);
         }
     }
-    uint8_t* value_52 = (void *)0;
+    uint8_t* value_55 = (void *)0;
     {
         uint8_t* p = call_buf;
         size_t n = length;
-        value_52 = (uint8_t*)(((size_t)(p) + n));
+        value_55 = (uint8_t*)(((size_t)(p) + n));
     }
-    size_t value_54 = 4096 - length;
-    String value_55 = StringLiteral(")");
-    uint8_t* value_56 = (void *)0;
+    size_t value_57 = 4096 - length;
+    String value_58 = StringLiteral(")");
+    uint8_t* value_59 = (void *)0;
     {
-        String s = value_55;
-        value_56 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
+        String s = value_58;
+        value_59 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
     }
-    int32_t value_58 = zir_foreign_compiler_c_emit_call__snprintf(value_52, value_54, value_56);
-    compiler_c_emit_call_CheckFormat(value_58, 4096 - length);
-    ZirResolveTarget value_59 = resolver;
-    value_59(context, call_buf, res_buf, 4096);
-    String value_60 = StringLiteral("void");
-    uint8_t* value_61 = (void *)0;
-    {
-        String s = value_60;
-        value_61 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
-    }
-    bool value_63 = zir_foreign_compiler_c_emit_call__strcmp(&(slot->procedure_return_type[0]), value_61) != 0;
+    int32_t value_61 = zir_foreign_compiler_c_emit_call__snprintf(value_55, value_57, value_59);
+    compiler_c_emit_call_CheckFormat(value_61, 4096 - length);
+    ZirResolveTarget value_62 = resolver;
+    value_62(context, call_buf, res_buf, 4096);
+    String value_63 = StringLiteral("void");
     uint8_t* value_64 = (void *)0;
-    if (value_63) {
-        String value_65 = StringLiteral("return ");
-        uint8_t* value_66 = (void *)0;
-        {
-            String s = value_65;
-            value_66 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
-        }
-        value_64 = value_66;
-    } else {
-        String value_68 = StringLiteral("");
+    {
+        String s = value_63;
+        value_64 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
+    }
+    bool value_66 = zir_foreign_compiler_c_emit_call__strcmp(&(slot->procedure_return_type[0]), value_64) != 0;
+    uint8_t* value_67 = (void *)0;
+    if (value_66) {
+        String value_68 = StringLiteral("return ");
         uint8_t* value_69 = (void *)0;
         {
             String s = value_68;
             value_69 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
         }
-        value_64 = value_69;
+        value_67 = value_69;
+    } else {
+        String value_71 = StringLiteral("");
+        uint8_t* value_72 = (void *)0;
+        {
+            String s = value_71;
+            value_72 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
+        }
+        value_67 = value_72;
     }
-    uint8_t* ret_kw = value_64;
-    void* value_71 = out;
-    String value_72 = StringLiteral(")\n{\n    (void)context;\n    %s%s;\n}\n");
-    uint8_t* value_73 = (void *)0;
+    uint8_t* ret_kw = value_67;
+    void* value_74 = out;
+    String value_75 = StringLiteral(")\n{\n    (void)context;\n    %s%s;\n}\n");
+    uint8_t* value_76 = (void *)0;
     {
-        String s = value_72;
-        value_73 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
+        String s = value_75;
+        value_76 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
     }
-    zir_foreign_compiler_c_emit_call__fprintf(value_71, value_73, ret_kw, res_buf);
+    zir_foreign_compiler_c_emit_call__fprintf(value_74, value_76, ret_kw, res_buf);
     {
         zir_foreign_compiler_c_emit_call__free((void*)(parameters));
         zir_foreign_compiler_c_emit_call__free((void*)(call_buf));
@@ -2276,107 +2286,117 @@ EmitSlotWrappers(void* out, ZirModule* module, ZirFunction* fn, ZirTarget target
                     uint8_t* source = zir_foreign_compiler_c_emit_call__skip_ws(value_20);
                     uint8_t resolved_type[128] = {0};
                     zir_foreign_compiler_c_emit_call__CSlotTypeAtUse(source, target, zir_emit_resolve_type_at_use, (void*)(slot_owner), &(resolved_type[0]), 128);
-                    void* value_22 = out;
-                    String value_23 = StringLiteral(", %s slot_arg_%d");
-                    uint8_t* value_24 = (void *)0;
+                    uint8_t argument_name[128] = {0};
+                    uint8_t declaration[512] = {0};
+                    String value_22 = StringLiteral("slot_arg_%d");
+                    uint8_t* value_23 = (void *)0;
                     {
-                        String s = value_23;
-                        value_24 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
+                        String s = value_22;
+                        value_23 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
-                    zir_foreign_compiler_c_emit_call__fprintf(value_22, value_24, &(resolved_type[0]), argument);
-                    uint8_t* value_26 = (void *)0;
+                    compiler_c_emit_call_CheckFormat(zir_foreign_compiler_c_emit_call__snprintf(&(argument_name[0]), 128, value_23, argument), 128);
+                    compiler_c_emit_NamedCType(&(resolved_type[0]), &(argument_name[0]), &(declaration[0]), 128 * 4);
+                    void* value_25 = out;
+                    String value_26 = StringLiteral(", %s");
+                    uint8_t* value_27 = (void *)0;
+                    {
+                        String s = value_26;
+                        value_27 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
+                    }
+                    zir_foreign_compiler_c_emit_call__fprintf(value_25, value_27, &(declaration[0]));
+                    uint8_t* value_29 = (void *)0;
                     if (argument != 0) {
-                        String value_27 = StringLiteral(", ");
-                        uint8_t* value_28 = (void *)0;
-                        {
-                            String s = value_27;
-                            value_28 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
-                        }
-                        value_26 = value_28;
-                    } else {
-                        String value_30 = StringLiteral("");
+                        String value_30 = StringLiteral(", ");
                         uint8_t* value_31 = (void *)0;
                         {
                             String s = value_30;
                             value_31 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                         }
-                        value_26 = value_31;
+                        value_29 = value_31;
+                    } else {
+                        String value_33 = StringLiteral("");
+                        uint8_t* value_34 = (void *)0;
+                        {
+                            String s = value_33;
+                            value_34 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
+                        }
+                        value_29 = value_34;
                     }
-                    uint8_t* sep = value_26;
-                    size_t value_33 = length;
-                    uint8_t* value_34 = (void *)0;
+                    uint8_t* sep = value_29;
+                    size_t value_36 = length;
+                    uint8_t* value_37 = (void *)0;
                     {
                         uint8_t* p = call_buf;
                         size_t n = length;
-                        value_34 = (uint8_t*)(((size_t)(p) + n));
+                        value_37 = (uint8_t*)(((size_t)(p) + n));
                     }
-                    size_t value_36 = 4096 - length;
-                    String value_37 = StringLiteral("%sslot_arg_%d");
-                    uint8_t* value_38 = (void *)0;
+                    size_t value_39 = 4096 - length;
+                    String value_40 = StringLiteral("%sslot_arg_%d");
+                    uint8_t* value_41 = (void *)0;
                     {
-                        String s = value_37;
-                        value_38 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
+                        String s = value_40;
+                        value_41 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                     }
-                    int32_t value_40 = zir_foreign_compiler_c_emit_call__snprintf(value_34, value_36, value_38, sep, argument);
-                    int32_t value_41 = compiler_c_emit_call_CheckFormat(value_40, 4096 - length);
-                    length = value_33 + (size_t)(value_41);
+                    int32_t value_43 = zir_foreign_compiler_c_emit_call__snprintf(value_37, value_39, value_41, sep, argument);
+                    int32_t value_44 = compiler_c_emit_call_CheckFormat(value_43, 4096 - length);
+                    length = value_36 + (size_t)(value_44);
                     if (argument == range_last_23) {
                         break;
                     }
                     argument = (int32_t)((uint32_t)argument + 1u);
                 }
             }
-            uint8_t* value_42 = (void *)0;
+            uint8_t* value_45 = (void *)0;
             {
                 uint8_t* p = call_buf;
                 size_t n = length;
-                value_42 = (uint8_t*)(((size_t)(p) + n));
+                value_45 = (uint8_t*)(((size_t)(p) + n));
             }
-            size_t value_44 = 4096 - length;
-            String value_45 = StringLiteral(")");
-            uint8_t* value_46 = (void *)0;
+            size_t value_47 = 4096 - length;
+            String value_48 = StringLiteral(")");
+            uint8_t* value_49 = (void *)0;
             {
-                String s = value_45;
-                value_46 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
+                String s = value_48;
+                value_49 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            int32_t value_48 = zir_foreign_compiler_c_emit_call__snprintf(value_42, value_44, value_46);
-            compiler_c_emit_call_CheckFormat(value_48, 4096 - length);
-            ZirResolveTarget value_49 = resolver;
-            value_49(context, call_buf, res_buf, 4096);
-            String value_50 = StringLiteral("void");
-            uint8_t* value_51 = (void *)0;
-            {
-                String s = value_50;
-                value_51 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
-            }
-            bool value_53 = zir_foreign_compiler_c_emit_call__strcmp(&(slot->procedure_return_type[0]), value_51) != 0;
+            int32_t value_51 = zir_foreign_compiler_c_emit_call__snprintf(value_45, value_47, value_49);
+            compiler_c_emit_call_CheckFormat(value_51, 4096 - length);
+            ZirResolveTarget value_52 = resolver;
+            value_52(context, call_buf, res_buf, 4096);
+            String value_53 = StringLiteral("void");
             uint8_t* value_54 = (void *)0;
-            if (value_53) {
-                String value_55 = StringLiteral("return ");
-                uint8_t* value_56 = (void *)0;
-                {
-                    String s = value_55;
-                    value_56 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
-                }
-                value_54 = value_56;
-            } else {
-                String value_58 = StringLiteral("");
+            {
+                String s = value_53;
+                value_54 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
+            }
+            bool value_56 = zir_foreign_compiler_c_emit_call__strcmp(&(slot->procedure_return_type[0]), value_54) != 0;
+            uint8_t* value_57 = (void *)0;
+            if (value_56) {
+                String value_58 = StringLiteral("return ");
                 uint8_t* value_59 = (void *)0;
                 {
                     String s = value_58;
                     value_59 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
                 }
-                value_54 = value_59;
+                value_57 = value_59;
+            } else {
+                String value_61 = StringLiteral("");
+                uint8_t* value_62 = (void *)0;
+                {
+                    String s = value_61;
+                    value_62 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
+                }
+                value_57 = value_62;
             }
-            uint8_t* ret_kw = value_54;
-            void* value_61 = out;
-            String value_62 = StringLiteral(")\n{\n    (void)context;\n    %s%s;\n}\n");
-            uint8_t* value_63 = (void *)0;
+            uint8_t* ret_kw = value_57;
+            void* value_64 = out;
+            String value_65 = StringLiteral(")\n{\n    (void)context;\n    %s%s;\n}\n");
+            uint8_t* value_66 = (void *)0;
             {
-                String s = value_62;
-                value_63 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
+                String s = value_65;
+                value_66 = ((compiler_c_emit_call_StaticText*)(&(s)))->data;
             }
-            zir_foreign_compiler_c_emit_call__fprintf(value_61, value_63, ret_kw, res_buf);
+            zir_foreign_compiler_c_emit_call__fprintf(value_64, value_66, ret_kw, res_buf);
             if (index == range_last_6) {
                 break;
             }

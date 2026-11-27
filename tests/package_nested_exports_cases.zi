@@ -42,12 +42,12 @@ main :: (argc: s32, argv: **u8) -> s32 {
         source := CheckConcat("Value :: () -> s32 { return ", CheckConcat(CheckNumber(values[index]), " }\n"))
         if !NativeWrite(*test, CheckPath(library, CheckConcat("src/", CheckConcat(names[index], ".zi"))), source) { return 1 }
     }
-    desktop_source := "Value :: () -> s32 { return 1 }\nAccent :: 42\n#scope_package\nDraw :: () -> s32 { return 41 }\nSecret :: 7\n#scope_export\nRender :: () -> s32 { return Draw() }\n"
-    widget_source := "using Desktop :: #import \"desktop\"\n"
+    desktop_source := "Value :: () -> s32 { return 1 }\nAccent :: 42\n#scope_package\nDraw :: (value: s32 = Secret + 34) -> s32 { return value }\nSecret :: 7\nPayload :: struct { value: s32 }\nRead :: (value: Payload) -> s32 { return value.value }\n#scope_export\nRender :: () -> s32 { return Draw() }\n"
+    widget_source := "using Desktop :: #import \"desktop\"\nLocalValue :: () -> s32 { return Desktop.Draw() + Desktop.Secret + Desktop.Read(.{value=9}) }\n"
     if !NativeWrite(*test, CheckPath(library, "src/desktop.zi"), desktop_source) { return 1 }
     if !NativeWrite(*test, CheckPath(library, "src/widget.zi"), widget_source) { return 1 }
     app_manifest := string.["[package]\nname = \"NestedConsumer\"\nentry = \"src/app.zi\"\nmodule_roots = [\"src\"]\n[toolchain]\ngit = \"https://github.com/ziranlang/ziran.git\"\n[dependencies.kryon]\ngit = ", FixtureQuote(FixtureUri(library)), "\n"]
-    source := "#import \"kryon/host/desktop\";\nDesktop :: #import \"kryon/host/desktop\";\nWidget :: #import \"kryon/host/widget\";\nWeb :: #import \"kryon/host/web\";\nAndroid :: #import \"kryon/host/android\";\nTerminal :: #import \"kryon/host/terminal\";\n#program_export\nmain :: () -> s32 {\n    return Value() + Accent + Desktop.Accent + Desktop.Render() + Widget.Value() + Widget.Accent + Web.Value() + Android.Value() + Terminal.Value() - 178\n}\n"
+    source := "#import \"kryon/host/desktop\";\nDesktop :: #import \"kryon/host/desktop\";\nWidget :: #import \"kryon/host/widget\";\nWeb :: #import \"kryon/host/web\";\nAndroid :: #import \"kryon/host/android\";\nTerminal :: #import \"kryon/host/terminal\";\n#program_export\nmain :: () -> s32 {\n    return Value() + Accent + Desktop.Accent + Desktop.Render() + Widget.LocalValue() + Widget.Value() + Widget.Accent + Web.Value() + Android.Value() + Terminal.Value() - 235\n}\n"
     if !NativeWrite(*test, CheckPath(app, "ziran.toml"), TextJoin(app_manifest[:], "")) ||
        !NativeWrite(*test, CheckPath(app, "src/app.zi"), source) { return 1 }
     aliases := string.["ziran", "kryon"]

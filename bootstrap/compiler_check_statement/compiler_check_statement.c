@@ -511,57 +511,50 @@ private_check_storage_type_error(ZirModule* module, uint8_t* source, RecordPath*
             zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
             return cleanup_return_4;
         }
-        if (path != (RecordPath*)(((void *)0)) && (int32_t)((int8_t)(pointee[0])) == 91 && (int32_t)((int8_t)(pointee[1])) != 93) {
-            uint8_t* cleanup_return_5 = compiler_check_types_CheckCString(StringLiteral("pointers to fixed arrays, and Vecs of them, are not supported; wrap the array in a record"));
-            zir_foreign_compiler_check_statement__CompilerFree((void*)(slice_element_storage_2));
-            zir_foreign_compiler_check_statement__CompilerFree((void*)(element_storage_1));
-            zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
-            return cleanup_return_5;
-        }
-        uint8_t* cleanup_return_6 = private_check_storage_type_error(module, pointee, path, 1, checked, detail, detail_capacity);
+        uint8_t* cleanup_return_5 = private_check_storage_type_error(module, pointee, path, 1, checked, detail, detail_capacity);
         zir_foreign_compiler_check_statement__CompilerFree((void*)(slice_element_storage_2));
         zir_foreign_compiler_check_statement__CompilerFree((void*)(element_storage_1));
         zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
-        return cleanup_return_6;
+        return cleanup_return_5;
     }
     if ((int32_t)((int8_t)(((type_storage_0[0]).items)[0])) == 91) {
         if ((int32_t)((int8_t)(((type_storage_0[0]).items)[1])) == 93) {
-            uint8_t* cleanup_return_7 = compiler_check_types_CheckCString(StringLiteral("slices do not yet have portable storage semantics"));
+            uint8_t* cleanup_return_6 = compiler_check_types_CheckCString(StringLiteral("slices do not yet have portable storage semantics"));
+            zir_foreign_compiler_check_statement__CompilerFree((void*)(slice_element_storage_2));
+            zir_foreign_compiler_check_statement__CompilerFree((void*)(element_storage_1));
+            zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
+            return cleanup_return_6;
+        }
+        bool value_15 = zir_foreign_compiler_check_statement__ArrayElementType((uint8_t*)(&((type_storage_0[0]).items)), (uint8_t*)(&((element_storage_1[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))), &(capacity)) != 0;
+        if (!value_15) {
+            uint8_t* cleanup_return_7 = compiler_check_types_CheckCString(StringLiteral("malformed fixed array type"));
             zir_foreign_compiler_check_statement__CompilerFree((void*)(slice_element_storage_2));
             zir_foreign_compiler_check_statement__CompilerFree((void*)(element_storage_1));
             zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
             return cleanup_return_7;
         }
-        bool value_15 = zir_foreign_compiler_check_statement__ArrayElementType((uint8_t*)(&((type_storage_0[0]).items)), (uint8_t*)(&((element_storage_1[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))), &(capacity)) != 0;
-        if (!value_15) {
-            uint8_t* cleanup_return_8 = compiler_check_types_CheckCString(StringLiteral("malformed fixed array type"));
-            zir_foreign_compiler_check_statement__CompilerFree((void*)(slice_element_storage_2));
-            zir_foreign_compiler_check_statement__CompilerFree((void*)(element_storage_1));
-            zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
-            return cleanup_return_8;
-        }
         if (capacity < 0) {
             int32_t status = zir_foreign_compiler_check_statement__array_capacity(module, (uint8_t*)(&((type_storage_0[0]).items)), &(capacity));
             if (status < 0) {
-                uint8_t* cleanup_return_9 = compiler_check_types_CheckCString(StringLiteral("array capacity is not a valid bounded integer constant"));
+                uint8_t* cleanup_return_8 = compiler_check_types_CheckCString(StringLiteral("array capacity is not a valid bounded integer constant"));
+                zir_foreign_compiler_check_statement__CompilerFree((void*)(slice_element_storage_2));
+                zir_foreign_compiler_check_statement__CompilerFree((void*)(element_storage_1));
+                zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
+                return cleanup_return_8;
+            }
+            if (status == 0) {
+                uint8_t* cleanup_return_9 = compiler_check_types_CheckCString(StringLiteral("array capacity requires a known integer constant"));
                 zir_foreign_compiler_check_statement__CompilerFree((void*)(slice_element_storage_2));
                 zir_foreign_compiler_check_statement__CompilerFree((void*)(element_storage_1));
                 zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
                 return cleanup_return_9;
             }
-            if (status == 0) {
-                uint8_t* cleanup_return_10 = compiler_check_types_CheckCString(StringLiteral("array capacity requires a known integer constant"));
-                zir_foreign_compiler_check_statement__CompilerFree((void*)(slice_element_storage_2));
-                zir_foreign_compiler_check_statement__CompilerFree((void*)(element_storage_1));
-                zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
-                return cleanup_return_10;
-            }
         }
-        uint8_t* cleanup_return_11 = private_check_storage_type_error(module, (uint8_t*)(&((element_storage_1[0]).items)), path, indirect, checked, detail, detail_capacity);
+        uint8_t* cleanup_return_10 = private_check_storage_type_error(module, (uint8_t*)(&((element_storage_1[0]).items)), path, indirect, checked, detail, detail_capacity);
         zir_foreign_compiler_check_statement__CompilerFree((void*)(slice_element_storage_2));
         zir_foreign_compiler_check_statement__CompilerFree((void*)(element_storage_1));
         zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
-        return cleanup_return_11;
+        return cleanup_return_10;
     }
     uint64_t value_16 = compiler_check_types_CheckCStringLength((uint8_t*)(&((type_storage_0[0]).items)));
     size_t length = (size_t)(value_16);
@@ -581,40 +574,48 @@ private_check_storage_type_error(ZirModule* module, uint8_t* source, RecordPath*
             uint64_t value_22 = (uint64_t)((uint64_t)(compiler_check_types_CheckCStringLength((uint8_t*)(((size_t)((uint8_t*)(&((type_storage_0[0]).items))) + ((size_t)(6LL) * sizeof(uint8_t)))))) + UINT64_C(1));
             zir_foreign_compiler_check_statement__memmove((void*)((uint8_t*)(&((type_storage_0[0]).items))), (void*)(value_21), (size_t)(value_22));
         }
-        uint8_t* cleanup_return_12 = private_check_storage_type_error(module, (uint8_t*)(&((type_storage_0[0]).items)), path, 1, checked, detail, detail_capacity);
+        uint8_t* cleanup_return_11 = private_check_storage_type_error(module, (uint8_t*)(&((type_storage_0[0]).items)), path, 1, checked, detail, detail_capacity);
         zir_foreign_compiler_check_statement__CompilerFree((void*)(slice_element_storage_2));
         zir_foreign_compiler_check_statement__CompilerFree((void*)(element_storage_1));
         zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
-        return cleanup_return_12;
+        return cleanup_return_11;
     }
     record = zir_foreign_compiler_check_statement__FindType(module, (uint8_t*)(&((type_storage_0[0]).items)), &(owner));
     if (record == (ZirType*)(((void *)0))) {
         bool value_23 = indirect != 0;
         if (value_23 && compiler_check_statement_declared_application_valid(module, (uint8_t*)(&((type_storage_0[0]).items)), 0) != 0) {
-            uint8_t* cleanup_return_13 = (void *)0;
+            uint8_t* cleanup_return_12 = (void *)0;
             zir_foreign_compiler_check_statement__CompilerFree((void*)(slice_element_storage_2));
             zir_foreign_compiler_check_statement__CompilerFree((void*)(element_storage_1));
             zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
-            return cleanup_return_13;
+            return cleanup_return_12;
         }
         if (detail != (uint8_t*)(((void *)0)) && detail_capacity > (size_t)(0LL)) {
             zir_foreign_compiler_check_statement__copy_text(detail, detail_capacity, (uint8_t*)(&((type_storage_0[0]).items)));
         }
-        uint8_t* cleanup_return_14 = compiler_check_types_CheckCString(StringLiteral("unknown stored type"));
+        uint8_t* cleanup_return_13 = compiler_check_types_CheckCString(StringLiteral("unknown stored type"));
+        zir_foreign_compiler_check_statement__CompilerFree((void*)(slice_element_storage_2));
+        zir_foreign_compiler_check_statement__CompilerFree((void*)(element_storage_1));
+        zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
+        return cleanup_return_13;
+    }
+    if (record->is_record_template != 0) {
+        uint8_t* cleanup_return_14 = compiler_check_types_CheckCString(StringLiteral("generic types require a concrete specialization"));
         zir_foreign_compiler_check_statement__CompilerFree((void*)(slice_element_storage_2));
         zir_foreign_compiler_check_statement__CompilerFree((void*)(element_storage_1));
         zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
         return cleanup_return_14;
     }
-    if (record->is_record_template != 0) {
-        uint8_t* cleanup_return_15 = compiler_check_types_CheckCString(StringLiteral("generic types require a concrete specialization"));
+    if (record->is_procedure_type != 0) {
+        uint8_t* cleanup_return_15 = (void *)0;
         zir_foreign_compiler_check_statement__CompilerFree((void*)(slice_element_storage_2));
         zir_foreign_compiler_check_statement__CompilerFree((void*)(element_storage_1));
         zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
         return cleanup_return_15;
     }
-    if (record->is_procedure_type != 0) {
-        uint8_t* cleanup_return_16 = (void *)0;
+    bool value_24 = zir_foreign_compiler_check_statement__VecElementType(module, (uint8_t*)(&((type_storage_0[0]).items)), (uint8_t*)(&((element_storage_1[0]).items)), sizeof(CheckArray128_u8)) != 0;
+    if (value_24 && ((element_storage_1[0]).items)[0] == 91 && ((element_storage_1[0]).items)[1] != 93) {
+        uint8_t* cleanup_return_16 = compiler_check_types_CheckCString(StringLiteral("fixed arrays are not supported as Vec elements; wrap the array in a record"));
         zir_foreign_compiler_check_statement__CompilerFree((void*)(slice_element_storage_2));
         zir_foreign_compiler_check_statement__CompilerFree((void*)(element_storage_1));
         zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
@@ -668,13 +669,13 @@ private_check_storage_type_error(ZirModule* module, uint8_t* source, RecordPath*
         zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
         return cleanup_return_20;
     }
-    int32_t value_24 = 0;
+    int32_t value_25 = 0;
     if (path == (RecordPath*)(((void *)0))) {
-        value_24 = 1;
+        value_25 = 1;
     } else {
-        value_24 = (int32_t)((uint32_t)(path->depth) + 1u);
+        value_25 = (int32_t)((uint32_t)(path->depth) + 1u);
     }
-    RecordPath current = {.record = record, .parent = path, .depth = value_24};
+    RecordPath current = {.record = record, .parent = path, .depth = value_25};
     ZirTypeField field = {0};
     size_t offset = (size_t)(0LL);
     int32_t status = 0;
@@ -699,8 +700,8 @@ private_check_storage_type_error(ZirModule* module, uint8_t* source, RecordPath*
         zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
         return cleanup_return_22;
     }
-    void* value_25 = zir_foreign_compiler_check_statement__CompilerRealloc((void*)(checked->items), (size_t)(((uint64_t)((uint64_t)((checked->count + (size_t)(1LL))) * (uint64_t)(sizeof(void *))))));
-    ZirType** items = (ZirType**)(value_25);
+    void* value_26 = zir_foreign_compiler_check_statement__CompilerRealloc((void*)(checked->items), (size_t)(((uint64_t)((uint64_t)((checked->count + (size_t)(1LL))) * (uint64_t)(sizeof(void *))))));
+    ZirType** items = (ZirType**)(value_26);
     if (items == (ZirType**)(((void *)0))) {
         uint8_t* cleanup_return_23 = compiler_check_types_CheckCString(StringLiteral("cannot allocate record type validation state"));
         zir_foreign_compiler_check_statement__CompilerFree((void*)(slice_element_storage_2));
@@ -708,11 +709,11 @@ private_check_storage_type_error(ZirModule* module, uint8_t* source, RecordPath*
         zir_foreign_compiler_check_statement__CompilerFree((void*)(type_storage_0));
         return cleanup_return_23;
     }
-    ZirType*** value_26 = &(checked->items);
-    (*value_26) = items;
-    size_t value_27 = compiler_check_types_CheckPost5(&(checked->count));
-    ZirType** value_28 = &(checked->items[value_27]);
-    (*value_28) = record;
+    ZirType*** value_27 = &(checked->items);
+    (*value_27) = items;
+    size_t value_28 = compiler_check_types_CheckPost5(&(checked->count));
+    ZirType** value_29 = &(checked->items[value_28]);
+    (*value_29) = record;
     uint8_t* cleanup_return_24 = (void *)0;
     zir_foreign_compiler_check_statement__CompilerFree((void*)(slice_element_storage_2));
     zir_foreign_compiler_check_statement__CompilerFree((void*)(element_storage_1));
@@ -2529,43 +2530,52 @@ compiler_check_statement_check_type_declarations_with_buffers(ZirModule* module,
                                 value_66 = value_67;
                             }
                             ZirType* base_type = value_66;
-                            bool value_68 = !(((uint8_t*)(&((buffers->parameters_2.items[parameter]).items)))[0] != 0);
+                            bool c_callback_parameter = record->is_c_call != 0 && colon == base && type != ((void *)0) && type->is_c_call != 0;
+                            bool procedure_parameter_invalid = base_type != ((void *)0) && base_type->is_procedure_type != 0 && !c_callback_parameter;
+                            bool value_68 = colon != base && base[0] == 91 && base[1] != 93;
                             bool value_69 = value_68;
-                            if (!value_69) {
-                                uint8_t* value_70 = colon;
-                                bool value_71 = zir_foreign_compiler_check_statement__strcmp(value_70, compiler_check_types_CheckCString(StringLiteral("void"))) != 0;
-                                value_69 = !value_71;
+                            if (value_69) {
+                                uint8_t* value_70 = private_check_local_storage_error(module, colon);
+                                value_69 = (value_70 == ((void *)0));
                             }
-                            bool value_72 = value_69;
-                            bool value_73 = value_72;
-                            if (!value_73) {
-                                int32_t value_74 = 0;
+                            bool pointer_array_parameter = value_69;
+                            bool value_71 = !(((uint8_t*)(&((buffers->parameters_2.items[parameter]).items)))[0] != 0);
+                            bool value_72 = value_71;
+                            if (!value_72) {
+                                uint8_t* value_73 = colon;
+                                bool value_74 = zir_foreign_compiler_check_statement__strcmp(value_73, compiler_check_types_CheckCString(StringLiteral("void"))) != 0;
+                                value_72 = !value_74;
+                            }
+                            bool value_75 = value_72;
+                            bool value_76 = value_75;
+                            if (!value_76) {
+                                int32_t value_77 = 0;
                                 if (record->is_c_call != 0) {
-                                    uint8_t* value_75 = private_check_local_storage_error(module, colon);
-                                    int32_t value_76 = 0;
-                                    if (value_75 != (uint8_t*)(((void *)0))) {
-                                        value_76 = 1;
+                                    uint8_t* value_78 = private_check_local_storage_error(module, colon);
+                                    int32_t value_79 = 0;
+                                    if (value_78 != (uint8_t*)(((void *)0))) {
+                                        value_79 = 1;
                                     }
-                                    value_74 = value_76;
+                                    value_77 = value_79;
                                 } else {
-                                    void* value_77 = zir_foreign_compiler_check_statement__TargetTypeZiran((void*)(colon), 0);
-                                    bool value_78 = (uint8_t*)(value_77) == (uint8_t*)(((void *)0));
-                                    bool value_79 = value_78;
-                                    if (value_79) {
-                                        void* value_80 = zir_foreign_compiler_check_statement__TargetTypeZiran((void*)(base), 0);
-                                        value_79 = ((uint8_t*)(value_80) == (uint8_t*)(((void *)0)));
+                                    void* value_80 = zir_foreign_compiler_check_statement__TargetTypeZiran((void*)(colon), 0);
+                                    bool value_81 = (uint8_t*)(value_80) == (uint8_t*)(((void *)0));
+                                    bool value_82 = value_81;
+                                    if (value_82) {
+                                        void* value_83 = zir_foreign_compiler_check_statement__TargetTypeZiran((void*)(base), 0);
+                                        value_82 = ((uint8_t*)(value_83) == (uint8_t*)(((void *)0)));
                                     }
-                                    int32_t value_81 = 0;
-                                    if (value_79 && base_type == (ZirType*)(((void *)0))) {
-                                        value_81 = 1;
+                                    int32_t value_84 = 0;
+                                    if (value_82 && base_type == (ZirType*)(((void *)0)) && !pointer_array_parameter) {
+                                        value_84 = 1;
                                     }
-                                    value_74 = value_81;
+                                    value_77 = value_84;
                                 }
-                                value_73 = (value_74 != 0);
+                                value_76 = (value_77 != 0);
                             }
-                            if (value_73 || (base_type != ((void *)0) && base_type->is_procedure_type != 0)) {
-                                ZirType* value_82 = record;
-                                return compiler_check_statement_record_declaration_error(value_82, compiler_check_types_CheckCString(StringLiteral("invalid slot parameter")), (uint8_t*)(&((buffers->parameters_2.items[parameter]).items)));
+                            if (value_76 || procedure_parameter_invalid) {
+                                ZirType* value_85 = record;
+                                return compiler_check_statement_record_declaration_error(value_85, compiler_check_types_CheckCString(StringLiteral("invalid slot parameter")), (uint8_t*)(&((buffers->parameters_2.items[parameter]).items)));
                             }
                             {
                                 int32_t previous = 0;
@@ -2574,10 +2584,10 @@ compiler_check_statement_check_type_declarations_with_buffers(ZirModule* module,
                                     if (!check_loop_138) {
                                         break;
                                     }
-                                    bool value_83 = zir_foreign_compiler_check_statement__strcmp((uint8_t*)(&((buffers->parameters_2.items[previous]).items)), (uint8_t*)(&((buffers->parameters_2.items[parameter]).items))) != 0;
-                                    if (!value_83) {
-                                        ZirType* value_84 = record;
-                                        return compiler_check_statement_record_declaration_error(value_84, compiler_check_types_CheckCString(StringLiteral("duplicate slot parameter")), (uint8_t*)(&((buffers->parameters_2.items[parameter]).items)));
+                                    bool value_86 = zir_foreign_compiler_check_statement__strcmp((uint8_t*)(&((buffers->parameters_2.items[previous]).items)), (uint8_t*)(&((buffers->parameters_2.items[parameter]).items))) != 0;
+                                    if (!value_86) {
+                                        ZirType* value_87 = record;
+                                        return compiler_check_statement_record_declaration_error(value_87, compiler_check_types_CheckCString(StringLiteral("duplicate slot parameter")), (uint8_t*)(&((buffers->parameters_2.items[parameter]).items)));
                                     }
                                     compiler_check_types_CheckPost0(&(previous));
                                 }
@@ -2596,8 +2606,8 @@ compiler_check_statement_check_type_declarations_with_buffers(ZirModule* module,
                     size_t previous_offset = (size_t)(0LL);
                     ZirTypeField previous = {0};
                     if (zir_foreign_compiler_check_statement__strcmp((uint8_t*)(&(field.type)), compiler_check_types_CheckCString(StringLiteral("void"))) == 0) {
-                        ZirType* value_85 = record;
-                        return compiler_check_statement_record_declaration_error(value_85, compiler_check_types_CheckCString(StringLiteral("record field cannot have void type")), (uint8_t*)(&(field.name)));
+                        ZirType* value_88 = record;
+                        return compiler_check_statement_record_declaration_error(value_88, compiler_check_types_CheckCString(StringLiteral("record field cannot have void type")), (uint8_t*)(&(field.name)));
                     }
                     if (field.is_using != 0) {
                         uint8_t* nested_name = zir_foreign_compiler_check_statement__skip_ws((uint8_t*)(&(field.type)));
@@ -2605,45 +2615,45 @@ compiler_check_statement_check_type_declarations_with_buffers(ZirModule* module,
                             nested_name = zir_foreign_compiler_check_statement__skip_ws((uint8_t*)(((size_t)(nested_name) + ((size_t)(1LL) * sizeof(uint8_t)))));
                         }
                         ZirType* nested = zir_foreign_compiler_check_statement__FindType(module, nested_name, (void *)0);
-                        bool value_86 = nested == (ZirType*)(((void *)0)) || nested->is_enum != 0 || nested->is_procedure_type != 0 || nested->is_record_template != 0;
-                        if (value_86 || nested->is_map != 0) {
-                            ZirType* value_87 = record;
-                            return compiler_check_statement_record_declaration_error(value_87, compiler_check_types_CheckCString(StringLiteral("using field requires a concrete record type")), (uint8_t*)(&(field.name)));
+                        bool value_89 = nested == (ZirType*)(((void *)0)) || nested->is_enum != 0 || nested->is_procedure_type != 0 || nested->is_record_template != 0;
+                        if (value_89 || nested->is_map != 0) {
+                            ZirType* value_90 = record;
+                            return compiler_check_statement_record_declaration_error(value_90, compiler_check_types_CheckCString(StringLiteral("using field requires a concrete record type")), (uint8_t*)(&(field.name)));
                         }
                     }
                     while (true) {
-                        bool value_88 = zir_foreign_compiler_check_statement__TypeNextField(record, &(previous_offset), &(previous)) == 1;
-                        bool check_loop_140 = value_88 && previous_offset < offset;
+                        bool value_91 = zir_foreign_compiler_check_statement__TypeNextField(record, &(previous_offset), &(previous)) == 1;
+                        bool check_loop_140 = value_91 && previous_offset < offset;
                         if (!check_loop_140) {
                             break;
                         }
                         if (zir_foreign_compiler_check_statement__strcmp((uint8_t*)(&(previous.name)), (uint8_t*)(&(field.name))) == 0) {
-                            ZirType* value_89 = record;
-                            return compiler_check_statement_record_declaration_error(value_89, compiler_check_types_CheckCString(StringLiteral("duplicate record field")), (uint8_t*)(&(field.name)));
+                            ZirType* value_92 = record;
+                            return compiler_check_statement_record_declaration_error(value_92, compiler_check_types_CheckCString(StringLiteral("duplicate record field")), (uint8_t*)(&(field.name)));
                         }
                     }
                 }
                 if (status < 0) {
-                    ZirType* value_90 = record;
-                    uint8_t* value_91 = compiler_check_types_CheckCString(StringLiteral("malformed record field"));
-                    return compiler_check_statement_record_declaration_error(value_90, value_91, (void *)0);
+                    ZirType* value_93 = record;
+                    uint8_t* value_94 = compiler_check_types_CheckCString(StringLiteral("malformed record field"));
+                    return compiler_check_statement_record_declaration_error(value_93, value_94, (void *)0);
                 }
                 ValidatedRecords checked = {0};
-                void* value_92 = zir_foreign_compiler_check_statement__AllocateOrExit(sizeof(CheckArray128_u8));
-                CheckArray128_u8* detail_storage_3 = (CheckArray128_u8*)(value_92);
+                void* value_95 = zir_foreign_compiler_check_statement__AllocateOrExit(sizeof(CheckArray128_u8));
+                CheckArray128_u8* detail_storage_3 = (CheckArray128_u8*)(value_95);
                 zir_foreign_compiler_check_statement__memset((void*)(detail_storage_3), 0, sizeof(CheckArray128_u8));
-                uint8_t* value_93 = (uint8_t*)(detail_storage_3);
-                zir_foreign_compiler_check_statement__copy_text(value_93, sizeof(CheckArray128_u8), compiler_check_types_CheckCString(StringLiteral("")));
+                uint8_t* value_96 = (uint8_t*)(detail_storage_3);
+                zir_foreign_compiler_check_statement__copy_text(value_96, sizeof(CheckArray128_u8), compiler_check_types_CheckCString(StringLiteral("")));
                 uint8_t* error = private_check_storage_type_error(module, (uint8_t*)(&(record->name)), (void *)0, 0, &(checked), (uint8_t*)(&((detail_storage_3[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))));
                 zir_foreign_compiler_check_statement__CompilerFree((void*)(checked.items));
                 if (error != (uint8_t*)(((void *)0))) {
-                    uint8_t* value_94 = (void *)0;
+                    uint8_t* value_97 = (void *)0;
                     if (((detail_storage_3[0]).items)[0] != 0) {
-                        value_94 = (uint8_t*)(&((detail_storage_3[0]).items));
+                        value_97 = (uint8_t*)(&((detail_storage_3[0]).items));
                     } else {
-                        value_94 = (void *)0;
+                        value_97 = (void *)0;
                     }
-                    int32_t cleanup_return_5 = compiler_check_statement_record_declaration_error(record, error, value_94);
+                    int32_t cleanup_return_5 = compiler_check_statement_record_declaration_error(record, error, value_97);
                     zir_foreign_compiler_check_statement__CompilerFree((void*)(detail_storage_3));
                     return cleanup_return_5;
                 }
@@ -2662,8 +2672,8 @@ compiler_check_statement_check_type_declarations_with_buffers(ZirModule* module,
                 break;
             }
             zir_foreign_compiler_check_statement__select_lookup_file(module, (module->imports[i]).span);
-            bool value_95 = compiler_check_statement_check_go_binding(module, (ZirImport*)(((size_t)(module->imports) + ((size_t)(i) * sizeof(ZirImport)))), (CheckArray4096_u8*)(&(buffers->parameters_2.items))) != 0;
-            if (!value_95) {
+            bool value_98 = compiler_check_statement_check_go_binding(module, (ZirImport*)(((size_t)(module->imports) + ((size_t)(i) * sizeof(ZirImport)))), (CheckArray4096_u8*)(&(buffers->parameters_2.items))) != 0;
+            if (!value_98) {
                 return 0;
             }
             compiler_check_types_CheckPost0(&(i));
@@ -2676,22 +2686,22 @@ compiler_check_statement_check_type_declarations_with_buffers(ZirModule* module,
             if (!check_loop_142) {
                 break;
             }
-            void* value_96 = zir_foreign_compiler_check_statement__AllocateOrExit(sizeof(CheckArray1024_u8));
-            CheckArray1024_u8* package_storage_4 = (CheckArray1024_u8*)(value_96);
+            void* value_99 = zir_foreign_compiler_check_statement__AllocateOrExit(sizeof(CheckArray1024_u8));
+            CheckArray1024_u8* package_storage_4 = (CheckArray1024_u8*)(value_99);
             zir_foreign_compiler_check_statement__memset((void*)(package_storage_4), 0, sizeof(CheckArray1024_u8));
             ZirType* type = (ZirType*)(((size_t)(module->types) + ((size_t)(i) * sizeof(ZirType))));
-            bool value_97 = zir_foreign_compiler_check_statement__GoForeignCallParts((uint8_t*)(&(type->foreign_target)), (uint8_t*)(&((package_storage_4[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray1024_u8))), (void *)0, (size_t)(0LL), (void *)0, (size_t)(0LL)) != 0;
-            bool value_98 = value_97;
-            if (value_98) {
-                bool value_99 = zir_foreign_compiler_check_statement__strncmp((uint8_t*)(&((package_storage_4[0]).items)), compiler_check_types_CheckCString(StringLiteral("C/")), (size_t)(2ULL)) != 0;
-                value_98 = !value_99;
+            bool value_100 = zir_foreign_compiler_check_statement__GoForeignCallParts((uint8_t*)(&(type->foreign_target)), (uint8_t*)(&((package_storage_4[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray1024_u8))), (void *)0, (size_t)(0LL), (void *)0, (size_t)(0LL)) != 0;
+            bool value_101 = value_100;
+            if (value_101) {
+                bool value_102 = zir_foreign_compiler_check_statement__strncmp((uint8_t*)(&((package_storage_4[0]).items)), compiler_check_types_CheckCString(StringLiteral("C/")), (size_t)(2ULL)) != 0;
+                value_101 = !value_102;
             }
-            if (value_98) {
-                bool value_100 = zir_foreign_compiler_check_statement__GoCHeader((uint8_t*)(&((package_storage_4[0]).items)), (void *)0, (size_t)(0LL)) != 0;
-                if (!value_100) {
-                    ZirType* value_101 = type;
-                    uint8_t* value_102 = compiler_check_types_CheckCString(StringLiteral("invalid relative cgo header path"));
-                    int32_t cleanup_return_6 = compiler_check_statement_record_declaration_error(value_101, value_102, (void *)0);
+            if (value_101) {
+                bool value_103 = zir_foreign_compiler_check_statement__GoCHeader((uint8_t*)(&((package_storage_4[0]).items)), (void *)0, (size_t)(0LL)) != 0;
+                if (!value_103) {
+                    ZirType* value_104 = type;
+                    uint8_t* value_105 = compiler_check_types_CheckCString(StringLiteral("invalid relative cgo header path"));
+                    int32_t cleanup_return_6 = compiler_check_statement_record_declaration_error(value_104, value_105, (void *)0);
                     zir_foreign_compiler_check_statement__CompilerFree((void*)(package_storage_4));
                     return cleanup_return_6;
                 }

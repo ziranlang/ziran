@@ -333,7 +333,7 @@ NamesWord :: (text: *u8, name: *u8) -> bool {
 Reachable :: (module: *ZirModule, callee: *ZirFunction) -> bool {
     own := false
     for i: 0..module.function_count - 1 { if *module.functions[i] == callee { own = true } }
-    return !own || callee.is_public != 0 || callee.exported != 0 || callee.export_symbol[0] != 0 ||
+    return !own || callee.is_public != 0 || callee.is_package_private != 0 || callee.exported != 0 || callee.export_symbol[0] != 0 ||
            callee.is_template != 0 || callee.is_specialization != 0 || callee.is_conversion != 0 ||
            callee.retained_root != 0 || (callee.assembly_text != null && callee.assembly_text[0] != 0) ||
            callee.is_extern != 0 || callee.is_global_initializer != 0 || callee.go_method[0] != 0 ||

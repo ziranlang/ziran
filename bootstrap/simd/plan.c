@@ -86,7 +86,7 @@ plan_ReferenceBody(String op, VectorType t)
         bool value_5 = false;
         void *value_6 = ZirVecGrow((void *)(name).data, &(name).capacity, (name).count, sizeof(*(name).data));
         if (value_6 != NULL) {
-            (name).data = (uint8_t *)value_6;
+            (name).data = value_6;
             (name).data[(name).count++] = value_4;
             value_5 = true;
         }
@@ -229,7 +229,7 @@ plan_SplitCondition(String op, VectorType t, String generic, String portable)
                 bool value_4 = false;
                 void *value_5 = ZirVecGrow((void *)(conditions).data, &(conditions).capacity, (conditions).count, sizeof(*(conditions).data));
                 if (value_5 != NULL) {
-                    (conditions).data = (String *)value_5;
+                    (conditions).data = value_5;
                     (conditions).data[(conditions).count++] = value_3;
                     value_4 = true;
                 }

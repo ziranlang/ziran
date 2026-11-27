@@ -220,6 +220,8 @@ merge :: (check: *BorrowCheck, a: Origin, b: Origin) -> Origin {
     (result_storage_0[0]).lent |= (b).lent
     (result_storage_0[0]).lent_vec |= (b).lent_vec
     (result_storage_0[0]).global_vec |= (b).global_vec
+    result_storage_0.borrowed_pointers |= b.borrowed_pointers
+    result_storage_0.readonly_bytes |= b.readonly_bytes
     if ((b).depth > (result_storage_0[0]).depth) {
         (result_storage_0[0]).depth = (b).depth
     }
@@ -265,6 +267,7 @@ merge :: (check: *BorrowCheck, a: Origin, b: Origin) -> Origin {
 
 #scope_file
 same_origin :: (left: Origin, right: Origin) -> s32 {
+    if left.borrowed_pointers != right.borrowed_pointers || left.readonly_bytes != right.readonly_bytes { return 0 }
     return cast(s32)((((((((((left).parameters == (right).parameters) && ((left).pointees == (right).pointees)) && ((left).lent == (right).lent)) && ((left).lent_vec == (right).lent_vec)) && ((left).global_vec == (right).global_vec)) && ((left).depth == (right).depth)) && ((left).invalid == (right).invalid)) && ((left).unknown == (right).unknown)) && ((left).globals == (right).globals))
 }
 
@@ -455,11 +458,27 @@ only_global :: (check: *BorrowCheck, origin: Origin, index: s32) -> s32 {
 }
 
 #scope_file
+exclusive_borrow_branch :: (check: *BorrowCheck, branch: s32) -> bool {
+    current := check.branch
+    while branch > 0 && current > 0 {
+        first := check.branches[branch]
+        second := check.branches[current]
+        if first.group == 0 { branch = first.parent; continue }
+        if second.group == 0 { current = second.parent; continue }
+        if first.group == second.group { return branch != current }
+        if first.group > second.group { branch = first.parent }
+        else { current = second.parent }
+    }
+    return false
+}
+
+#scope_file
 text_backing_conflict :: (check: *BorrowCheck, destination: BorrowPlace) -> s32 {
     {
         i: s32 = 0
         while check_loop_210 := (i < (check).active_count) {
-            if (!((((check).active)[i]).vec != 0) && (places_overlap((((check).active)[i]).backing, destination) != 0)) {
+            if (!((((check).active)[i]).vec != 0) && (places_overlap((((check).active)[i]).backing, destination) != 0) &&
+                !exclusive_borrow_branch(check, check.active[i].branch)) {
                 return 1
             }
             S12Post2(*(i))
@@ -473,7 +492,8 @@ vec_view_conflict :: (check: *BorrowCheck, destination: BorrowPlace) -> s32 {
     {
         i: s32 = 0
         while check_loop_211 := (i < (check).active_count) {
-            if (((((check).active)[i]).vec != 0) && (place_within(destination, (((check).active)[i]).backing) != 0)) {
+            if (((((check).active)[i]).vec != 0) && (place_within(destination, (((check).active)[i]).backing) != 0) &&
+                !exclusive_borrow_branch(check, check.active[i].branch)) {
                 return 1
             }
             S12Post2(*(i))
@@ -531,6 +551,7 @@ add_active_text_borrows :: (check: *BorrowCheck, sources: *BorrowSource, depth: 
             (((check).active)[(check).active_count]).backing = (source).place
             (((check).active)[(check).active_count]).depth = depth
             (((check).active)[(check).active_count]).vec = 0
+            check.active[check.active_count].branch = check.branch
             S12Post2(*((check).active_count))
             source = (source).next
         }
@@ -928,9 +949,11 @@ record_mutation :: (check: *BorrowCheck, place: BorrowPlace, owned_transfer: s32
 }
 
 #scope_file
-check_mutation :: (check: *BorrowCheck, destination: BorrowPlace, span: IR.ZirSourceSpan) {
+check_mutation :: (check: *BorrowCheck, destination: BorrowPlace, span: IR.ZirSourceSpan,
+                   expression: s32) {
     if destination.root != null && destination.root.local == 0 &&
-       IR.CaptureEnvironmentBinding(check.current.fn) {
+       IR.CaptureEnvironmentBinding(check.current.fn) &&
+       !borrowed_capture_place(check.current.fn, expression) {
         reject(check, span, CheckCString("callback captures are immutable snapshots"))
         return
     }
@@ -1072,6 +1095,20 @@ foreign_call :: (check: *BorrowCheck, module: *IR.ZirModule, name: *u8) -> s32 {
 }
 
 #scope_file
+reads_byte_argument :: (check: *BorrowCheck, call: *IR.ZirExpr, argument: s32) -> bool {
+    if call.slot_type == null || call.slot_type[0] == 0 { return false }
+    slot := FindType(check.current.module, call.slot_type, null)
+    if slot == null || slot.is_procedure_type == 0 || slot.reads_arguments == 0 { return false }
+    parameters := ParametersOf(*slot.body[0])
+    index := check.current.fn.exprs[argument].argument_index
+    if index < 0 || index >= parameters.count { return false }
+    parameter := (cast(*State.ZirParameter)(*parameters.items.items[0]))[index]
+    type := ifx parameter.value_type != null then parameter.value_type else parameter.type
+    return IR.CText(type) == "*u8" || IR.CText(type) == "*s8" ||
+           IR.CText(type) == "[]u8" || IR.CText(type) == "[]s8"
+}
+
+#scope_file
 check_call_mutations :: (check: *BorrowCheck, expression: *IR.ZirExpr) {
     fn: *IR.ZirFunction = ((check).current).fn
     name: *u8 = (expression).name
@@ -1081,15 +1118,16 @@ check_call_mutations :: (check: *BorrowCheck, expression: *IR.ZirExpr) {
     if (SimdOpChecked(cast(*u8)((name))) != cast(*SimdOp)((null))) {
         op: *SimdOp = SimdOpChecked(cast(*u8)((name)))
         if ((op).shape == 14) {
-            check_mutation(check, storage_place(check, (expression).first_child, 1), (expression).span)
+            check_mutation(check, storage_place(check, (expression).first_child, 1), (expression).span, expression.first_child)
         }
         return
     }
     if (((((((((!(strcmp(name, CheckCString("VecPush")) != 0) || !(strcmp(name, CheckCString("VecReserve")) != 0)) || (!(strcmp(name, CheckCString("VecResize")) != 0) || !(strcmp(name, CheckCString("VecResizeBounded")) != 0))) || !(strcmp(name, CheckCString("VecPop")) != 0)) || !(strcmp(name, CheckCString("VecClear")) != 0)) || !(strcmp(name, CheckCString("VecFree")) != 0)) || !(strcmp(name, CheckCString("VecSwap")) != 0)) || !(strcmp(name, CheckCString("VecClone")) != 0)) || !(strcmp(name, CheckCString("BuilderAppend")) != 0)) || !(strcmp(name, CheckCString("BuilderFinish")) != 0)) {
         argument: s32 = (expression).first_child
-        check_mutation(check, storage_place(check, argument, 1), (expression).span)
+        check_mutation(check, storage_place(check, argument, 1), (expression).span, argument)
         if (!(strcmp(name, CheckCString("VecSwap")) != 0) && (argument >= 0)) {
-            check_mutation(check, storage_place(check, (((fn).exprs)[argument]).next_sibling, 1), (expression).span)
+            other := fn.exprs[argument].next_sibling
+            check_mutation(check, storage_place(check, other, 1), (expression).span, other)
         }
         return
     }
@@ -1116,6 +1154,7 @@ check_call_mutations :: (check: *BorrowCheck, expression: *IR.ZirExpr) {
                 defer CompilerFree(cast(*void)destination_storage_0)
                 memset(cast(*void)destination_storage_0, 0, size_of(BorrowPlace))
                 destination_storage_0[0] = .{}
+                destination_expression: s32 = -1
                 if ((item).global >= 0) {
                     (destination_storage_0[0]).root = cast(*BorrowBinding)(cast(usize)((check).globals) + cast(usize)((item).global) * size_of(BorrowBinding))
                 } else {
@@ -1123,7 +1162,11 @@ check_call_mutations :: (check: *BorrowCheck, expression: *IR.ZirExpr) {
                         child: s32 = (expression).first_child
                         while check_loop_235 := (child >= 0) {
                             if ((((fn).exprs)[child]).argument_index == (item).parameter) {
+                                if pointer_view_origin(check, child).readonly_bytes != 0 {
+                                    reject(check, expression.span, CheckCString("cannot mutate borrowed string bytes through a pointer argument"))
+                                }
                                 destination_storage_0[0] = storage_place(check, child, 1)
+                                destination_expression = child
                                 break check_loop_235
                             }
                             child = (((fn).exprs)[child]).next_sibling
@@ -1140,7 +1183,7 @@ check_call_mutations :: (check: *BorrowCheck, expression: *IR.ZirExpr) {
                     }
                 }
                 record_mutation(check, destination_storage_0[0], item.owned_transfer)
-                check_mutation(check, destination_storage_0[0], (expression).span)
+                check_mutation(check, destination_storage_0[0], (expression).span, destination_expression)
                 item = (item).next
             }
         }
@@ -1149,8 +1192,9 @@ check_call_mutations :: (check: *BorrowCheck, expression: *IR.ZirExpr) {
     {
         child: s32 = (expression).first_child
         while check_loop_236 := (child >= 0) {
-            if ((cast(s32)(cast(s8)(((((fn).exprs)[child]).type)[0])) == 42) || (SliceElementType((((fn).exprs)[child]).type, null, cast(usize)(0)) != 0)) {
-                check_mutation(check, storage_place(check, child, 1), (expression).span)
+            if !reads_byte_argument(check, expression, child) &&
+               (fn.exprs[child].type[0] == #char "*" || SliceElementType(fn.exprs[child].type, null, 0) != 0) {
+                check_mutation(check, storage_place(check, child, 1), (expression).span, child)
             }
             child = (((fn).exprs)[child]).next_sibling
         }
@@ -1417,6 +1461,7 @@ call_origin :: (check: *BorrowCheck, expression: *IR.ZirExpr) -> Origin {
     (result_storage_0[0]).invalid = ((summary).returned).invalid
     (result_storage_0[0]).unknown = ((summary).returned).unknown
     (result_storage_0[0]).globals = ((summary).returned).globals
+    result_storage_0.readonly_bytes = summary.returned.readonly_bytes
     {
         child: s32 = (expression).first_child
         while check_loop_240 := (child >= 0) {
@@ -1427,6 +1472,9 @@ call_origin :: (check: *BorrowCheck, expression: *IR.ZirExpr) -> Origin {
             }
             if ((((summary).returned).parameters & ((1 << cast(u64)(parameter)))) != 0) {
                 result_storage_0[0] = merge(check, result_storage_0[0], expression_origin(check, child))
+            }
+            if (summary.returned.borrowed_pointers & (cast(u64)1 << cast(u64)parameter)) != 0 {
+                result_storage_0[0] = merge(check, result_storage_0[0], pointer_view_origin(check, child))
             }
             if ((((summary).returned).pointees & ((1 << cast(u64)(parameter)))) != 0) {
                 result_storage_0[0] = merge(check, result_storage_0[0], pointee_view_origin(check, child))
@@ -1485,6 +1533,81 @@ call_origin :: (check: *BorrowCheck, expression: *IR.ZirExpr) -> Origin {
     return result_storage_0[0]
 }
 
+// An explicit pointer range borrows the pointee, not the pointer variable.
+// Native pointers retain their manual storage contract; known local/parameter
+// origins still flow through aliases and procedure summaries into the view.
+#scope_file
+pointer_address_origin :: (check: *BorrowCheck, index: s32) -> Origin {
+    if index < 0 { return Origin.{} }
+    expression := check.current.fn.exprs[index]
+    if expression.kind == .INDEX || expression.kind == .MEMBER || expression.kind == .POINTER_MEMBER {
+        base := check.current.fn.exprs[expression.left]
+        if base.type[0] == #char "*" { return pointer_view_origin(check, expression.left) }
+        if expression.kind == .INDEX && (SliceElementType(base.type, null, 0) != 0 || IR.CText(base.type) == "string") {
+            origin := expression_origin(check, expression.left)
+            if IR.CText(base.type) == "string" { origin.readonly_bytes = 1 }
+            return origin
+        }
+        return pointer_address_origin(check, expression.left)
+    }
+    if expression.kind == .UNARY && IR.CText(*expression.op[0]) == "*" {
+        return pointer_view_origin(check, expression.right)
+    }
+    return storage_origin(check, index)
+}
+
+#scope_file
+pointer_view_origin :: (check: *BorrowCheck, index: s32) -> Origin {
+    if index < 0 { return Origin.{} }
+    fn := check.current.fn
+    expression := fn.exprs[index]
+    if expression.kind == .IDENT {
+        source := binding(check, expression.name)
+        if source == null { return Origin.{} }
+        if direct_pointer_parameter(source) != 0 {
+            return Origin.{.borrowed_pointers = cast(u64)1 << cast(u64)source.parameter}
+        }
+        return source.origin
+    }
+    if expression.kind == .CAST {
+        return pointer_view_origin(check, expression.right)
+    }
+    if expression.kind == .CONDITIONAL {
+        return merge(check, pointer_view_origin(check, expression.right), pointer_view_origin(check, expression.third))
+    }
+    if expression.kind == .UNARY && IR.CText(*expression.op[0]) == "&" {
+        return pointer_address_origin(check, expression.right)
+    }
+    if expression.kind == .CALL {
+        owner: *IR.ZirModule
+        callee: *IR.ZirFunction
+        if ResolveFunction(check.current.module, expression.name, *owner, *callee) > 0 && callee.is_extern == 0 {
+            return call_origin(check, *expression)
+        }
+    }
+    if borrowed_capture_place(fn, index) { return Origin.{.depth = check.depth} }
+    // Reading a pointer field or a native allocation does not borrow the
+    // containing record. Its pointee follows the native caller's contract.
+    return Origin.{}
+}
+
+#scope_file
+readonly_pointer_destination :: (check: *BorrowCheck, index: s32) -> bool {
+    if index < 0 { return false }
+    expression := check.current.fn.exprs[index]
+    if expression.kind == .INDEX || expression.kind == .POINTER_MEMBER {
+        if pointer_view_origin(check, expression.left).readonly_bytes != 0 { return true }
+        if expression.kind == .INDEX &&
+           expression_origin(check, expression.left).readonly_bytes != 0 { return true }
+        return readonly_pointer_destination(check, expression.left)
+    }
+    if expression.kind == .UNARY && IR.CText(*expression.op[0]) == "*" {
+        return pointer_view_origin(check, expression.right).readonly_bytes != 0
+    }
+    if expression.kind == .MEMBER { return readonly_pointer_destination(check, expression.left) }
+    return false
+}
+
 #scope_file
 storage_origin :: (check: *BorrowCheck, index: s32) -> Origin {
     backing_storage_0 := cast(*Origin)AllocateOrExit(size_of(Origin))
@@ -1500,6 +1623,13 @@ storage_origin :: (check: *BorrowCheck, index: s32) -> Origin {
     place_storage_1[0] = storage_place(check, index, 1)
     if ((place_storage_1[0]).root == cast(*BorrowBinding)((null))) {
         return backing_storage_0[0]
+    }
+    source := place_storage_1[0].root
+    // Indexing a slice reaches its borrowed elements, including through an
+    // address alias. It does not borrow the local slice descriptor itself.
+    if place_storage_1[0].path != null &&
+       SliceElementType(*source.type.items[0], null, 0) != 0 {
+        return ifx source.local >= 0 then check.current.locals[source.local] else source.origin
     }
     origin_storage_2 := cast(*Origin)AllocateOrExit(size_of(Origin))
     defer CompilerFree(cast(*void)origin_storage_2)
@@ -1523,6 +1653,11 @@ expression_origin :: (check: *BorrowCheck, index: s32) -> Origin {
     fn: *IR.ZirFunction = ((check).current).fn
     expression: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
     if expression.kind == .SCOPED_CLOSURE { return Origin.{depth = check.depth} }
+    // Borrowed captures remain live for this invocation, including their views.
+    // Keep them local to the invocation so returning a captured view still fails.
+    if borrowed_capture_place(fn, index) && view_type(check, expression.type) != 0 {
+        return Origin.{.depth = 1}
+    }
     check_choice_241 := (expression).kind
     while check_switch_241 := true {
         if check_choice_241 == cast(IR.ZirExprKind)((1)) {
@@ -1581,6 +1716,7 @@ expression_origin :: (check: *BorrowCheck, index: s32) -> Origin {
         }
         else if check_choice_241 == cast(IR.ZirExprKind)((16)) {
             base: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)((expression).left) * size_of(IR.ZirExpr))
+            if base.type[0] == #char "*" { return pointer_view_origin(check, expression.left) }
             backing_storage_4 := cast(*Origin)AllocateOrExit(size_of(Origin))
             defer CompilerFree(cast(*void)backing_storage_4)
             memset(cast(*void)backing_storage_4, 0, size_of(Origin))
@@ -1680,12 +1816,17 @@ expression_origin :: (check: *BorrowCheck, index: s32) -> Origin {
 borrowed_capture_place :: (fn: *IR.ZirFunction, index: s32, depth: s32 = 0) -> bool {
     if index < 0 || depth > 64 || fn.capture_environment[0] == 0 { return false }
     expression := fn.exprs[index]
-    if expression.kind == .UNARY && IR.CText(*expression.op[0]) == "*" && expression.right >= 0 {
+    if expression.kind == .UNARY && expression.right >= 0 &&
+       (IR.CText(*expression.op[0]) == "*" || IR.CText(*expression.op[0]) == "&") {
         field := fn.exprs[expression.right]
-        if field.kind == .MEMBER && field.left >= 0 && fn.exprs[field.left].kind == .IDENT &&
+        if IR.CText(*expression.op[0]) == "*" &&
+           (field.kind == .MEMBER || field.kind == .POINTER_MEMBER) &&
+           field.left >= 0 && fn.exprs[field.left].kind == .IDENT &&
            IR.CText(fn.exprs[field.left].name) == "__tsx_environment" { return true }
+        return borrowed_capture_place(fn, expression.right, depth + 1)
     }
-    if expression.kind == .MEMBER || expression.kind == .POINTER_MEMBER || expression.kind == .INDEX {
+    if expression.kind == .MEMBER || expression.kind == .POINTER_MEMBER ||
+       expression.kind == .INDEX || expression.kind == .SLICE {
         return borrowed_capture_place(fn, expression.left, depth + 1)
     }
     return false
@@ -1912,6 +2053,35 @@ has_reference_owned_fields :: (check: *BorrowCheck) -> bool {
 }
 
 #scope_file
+borrow_branches :: (fn: *IR.ZirFunction) -> *BorrowBranch {
+    branches := cast(*BorrowBranch)CompilerCalloc(cast(usize)(fn.stmt_count + 1), size_of(BorrowBranch))
+    if branches == null { return null }
+    parent: s32 = 0
+    previous: s32 = 0
+    for at: cast(s32)0..fn.stmt_count - 1 {
+        statement := *fn.stmts[at]
+        if statement.kind == .BLOCK_CLOSE {
+            previous = parent
+            parent = branches[parent].parent
+            branches[at + 1].parent = parent
+            continue
+        }
+        branches[at + 1].parent = parent
+        if statement.kind == .IF {
+            branches[at + 1].group = at + 1
+            if statement.is_else != 0 && previous > 0 && fn.stmts[previous - 1].kind == .IF {
+                branches[at + 1].group = branches[previous].group
+            }
+        }
+        if statement.kind == .IF || statement.kind == .WHILE || statement.kind == .BLOCK_OPEN {
+            parent = at + 1
+        }
+        previous = 0
+    }
+    return branches
+}
+
+#scope_file
 check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
     fn: *IR.ZirFunction = (function).fn
     (check).current = function
@@ -1924,6 +2094,14 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
     (check).binding_count = 0
     (check).active_count = 0
     (check).depth = 1
+    check.branch = 0
+    // Retain loans at joins, but do not apply one arm's loans to another arm.
+    check.branches = borrow_branches(fn)
+    if check.branches == null {
+        reject(check, fn.span, CheckCString("out of memory checking borrow branches"))
+        return
+    }
+    defer CompilerFree(cast(*void)check.branches)
     (check).bindings = cast(*BorrowBinding)(CompilerCalloc((cast(usize)((fn).stmt_count) + cast(usize)(65)), cast(usize)(cast(u64)size_of(BorrowBinding))))
     if ((check).bindings == cast(*BorrowBinding)((null))) {
         reject(check, (fn).span, CheckCString("out of memory checking slice lifetimes"))
@@ -1969,6 +2147,7 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
     {
         i: s32 = 0
         while check_loop_248 := ((i < (fn).stmt_count) && !((check).failed != 0)) {
+            check.branch = i + 1
             statement: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))
             if (cast(s32)((statement).kind) == 2) {
                 release_active_text_borrows(check, (check).depth)
@@ -1984,7 +2163,15 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
             }
             check_ranges(check, (statement).lhs_root)
             check_ranges(check, (statement).expr_root)
+            if statement.kind == .RETURN && fn.return_type[0] == #char "*" {
+                if accumulate(check, *function.returned, pointer_view_origin(check, statement.expr_root)) != 0 {
+                    summary_changed(check)
+                }
+            }
             if ((cast(s32)((statement).kind) == 4) && ((statement).lhs_root >= 0)) {
+                if readonly_pointer_destination(check, statement.lhs_root) {
+                    reject(check, statement.span, CheckCString("cannot mutate borrowed string bytes through a pointer alias"))
+                }
                 if reference_owned_field(function.module, fn, statement.lhs_root) != 0 {
                     check_reference_owned_field(check, statement.lhs_root)
                     record_mutation(check, storage_place(check, statement.lhs_root, 1), 1)
@@ -1995,7 +2182,7 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                 destination_storage_1[0] = storage_place(check, (statement).lhs_root, 0)
                 left: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)((statement).lhs_root) * size_of(IR.ZirExpr))
                 if !(((((destination_storage_1[0]).root != cast(*BorrowBinding)((null))) && (((destination_storage_1[0]).root).parameter >= 0)) && (cast(s32)((left).kind) == 1)) && ((cast(s32)(cast(s8)(((left).type)[0])) == 42) || (SliceElementType((left).type, null, cast(usize)(0)) != 0))) {
-                    check_mutation(check, destination_storage_1[0], (statement).span)
+                    check_mutation(check, destination_storage_1[0], (statement).span, statement.lhs_root)
                 }
             }
             if (cast(s32)((statement).kind) == 3) {
@@ -2011,9 +2198,14 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                     }
                 }
                 declared: *BorrowBinding = add_binding(check, ((statement).names).name, (statement).type, Origin.{}, i, (check).depth, 0)
-                (declared).text_backings = text_view_backings(check, (statement).expr_root)
+                // Value copies own their inline storage. Only views and pointers
+                // inherit the source's backing, not copied byte arrays/records.
+                if view_type(check, statement.type) != 0 || statement.type[0] == #char "*" {
+                    declared.text_backings = text_view_backings(check, statement.expr_root)
+                }
                 (declared).text_backing = first_source((declared).text_backings)
                 (declared).address_backing = (ifx (cast(s32)(cast(s8)(((statement).type)[0])) == 42) then address_backing(check, (statement).expr_root, *((declared).address_known)) else BorrowPlace.{})
+                if statement.type[0] == #char "*" { declared.origin = pointer_view_origin(check, statement.expr_root) }
                 if i == 0 && IR.CaptureEnvironmentBinding(fn) {
                     // The owning callable keeps this allocation alive throughout
                     // invocation. Its views remain local and cannot be returned.
@@ -2042,6 +2234,8 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                         defer CompilerFree(cast(*void)before_storage_3)
                         memset(cast(*void)before_storage_3, 0, size_of(BorrowBinding))
                         before_storage_3[0] = (assignment_target)[0]
+                        assignment_target.origin = merge(check, assignment_target.origin,
+                            pointer_view_origin(check, statement.expr_root))
                         (assignment_target).address_backing = address_backing(check, (statement).expr_root, *((assignment_target).address_known))
                         if reference_fields { protect_owned_reference(check, assignment_target, statement.span) }
                         if ((((assignment_target).global_index >= 0) && (((assignment_target).address_backing).root != cast(*BorrowBinding)((null)))) && ((((assignment_target).address_backing).root).global_index < 0)) {

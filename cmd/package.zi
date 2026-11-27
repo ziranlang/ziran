@@ -18,6 +18,9 @@
 #import "file_linux"
 #import "file_tree_linux"
 #import "byte_text_linux"
+#import "std/c_string"
+Process :: #import "std/process_run_linux"
+Sorting :: #import "std/sort"
 VersionText :: #import "version"
 
 #if CPU == .ARM64 {
@@ -1544,31 +1547,67 @@ PkgArtifactTarget :: (target: string) -> bool {
     return parts >= 2
 }
 
-// The checked-out content at PATH as a git tree id, committed or not: a
-// commit that records files already in place, such as another lane
-// committing to a local override during the build, leaves it unchanged,
-// while any change to the files does not. A private copy of the index
-// keeps the checkout's own index untouched and its stat cache fast.
+// Fingerprint working bytes independently of HEAD and the shared index.
+// Committing unchanged files cannot invalidate an in-flight provider; edits,
+// executable modes, symlink targets and submodule revisions do. Git only lists
+// the tracked and nonignored paths. No index or git object is written.
+PkgArtifactLibc :: #system_library "libc";
+PkgArtifactReadLink :: (path: *u8, output: *u8, capacity: u64) -> s64 #foreign PkgArtifactLibc "readlink";
 PkgArtifactContent :: (path: string) -> string {
-    locate: [6]string = .["git", "-C", path, "rev-parse", "--path-format=absolute", "--git-path"]
-    where: [7]string = .[locate[0], locate[1], locate[2], locate[3], locate[4], locate[5], "index"]
-    index := PkgCapture(where[:], "")
-    if index.code != 0 || index.text.count == 0 { return PkgGitHead(path) }
-    copy := PkgTemporarySibling(index.text, ".snapshot")
-    if copy.count == 0 { return PkgGitHead(path) }
-    defer { unused RemoveFile(copy) }
-    if PathExists(index.text) && !CopyFileNew(index.text, copy) { return PkgGitHead(path) }
-    names: [1]string = .["GIT_INDEX_FILE"]
-    values: [1]string = .[copy]
-    add: [6]string = .["git", "-C", path, "add", "-A", "--ignore-errors"]
-    tree: [4]string = .["git", "-C", path, "write-tree"]
-    if PkgCaptureEnv(add[:], "", names[:], values[:]).code != 0 { return PkgGitHead(path) }
-    written := PkgCaptureEnv(tree[:], "", names[:], values[:])
-    if written.code != 0 || written.text.count == 0 { return PkgGitHead(path) }
-    return written.text
+    args := string.["git", "-C", path, "ls-files", "--cached", "--others", "--exclude-standard", "-z"]
+    run: Process.ProcessRun
+    if !Process.RunProcess(.{arguments = args[:], capture_output = true}, *run) || run.code != 0 { return "" }
+    names: Vec(string)
+    start: s64 = 0
+    for byte, index: run.output {
+        if byte == cast(u8)0 {
+            VecPush(names, TextFromBytes(run.output[start:index]))
+            start = index + 1
+        }
+    }
+    if start != run.output.count { return "" }
+    Sorting.SortText(names[:])
+    state := PkgDigest("ziran-working-content-v1")
+    previous := ""
+    for name: names {
+        if name == previous { continue }
+        previous = name
+        full := PkgJoin3(path, "/", name)
+        info := PathStatus(full, false)
+        if info.kind == .Missing { continue }
+        digest := ""
+        kind := "file"
+        if info.kind == .Directory {
+            // ls-files enumerates directories only for gitlinks.
+            kind = "gitlink"
+            digest = PkgGitHead(full)
+        } else if info.kind == .Link {
+            kind = "symlink"
+            native_path: [4096]u8
+            target: [4096]u8
+            if !CopyCString(full, native_path[:]) { return "" }
+            count := PkgArtifactReadLink(*native_path[0], *target[0], 4096)
+            if count < 0 || count >= 4096 { return "" }
+            digest = PkgDigest(TextFromBytes(target[:count]))
+        } else if info.kind == .File {
+            if (info.mode & 73) != 0 { kind = "executable" }
+            if info.size == 0 { digest = PkgDigest("") }
+            else if info.size <= 16777216 {
+                content := PkgRead(full)
+                if !content.valid || content.text.count == 0 { return "" }
+                digest = PkgDigest(content.text)
+                PkgFreeRaw(*content.text[0])
+            } else { digest = PkgArtifactHashFile(full) }
+        } else { return "" }
+        if digest == "" { return "" }
+        PkgArtifactMix(*state, name)
+        PkgArtifactMix(*state, kind)
+        PkgArtifactMix(*state, digest)
+    }
+    return state
 }
 
-PkgArtifactGraphKey :: (locked: *PkgLock, state: *string, reusable: *bool) {
+PkgArtifactGraphKey :: (locked: *PkgLock, state: *string, reusable: *bool) -> bool {
     PkgArtifactMix(state, locked.tool_commit)
     for i: -1..locked.count - 1 {
         path := locked.tool_path
@@ -1577,11 +1616,15 @@ PkgArtifactGraphKey :: (locked: *PkgLock, state: *string, reusable: *bool) {
             PkgArtifactMix(state, locked.packages[i].id)
             PkgArtifactMix(state, locked.packages[i].commit)
         }
-        PkgArtifactMix(state, PkgArtifactContent(path))
+        content := PkgArtifactContent(path)
+        if content == "" { PkgFail("cannot fingerprint artifact dependency working content"); return false }
+        PkgArtifactMix(state, content)
         args: [6]string = .["git", "-C", path, "status", "--porcelain", "--untracked-files=all"]
         status := PkgCapture(args[:], "")
-        if status.code != 0 || status.text.count > 0 { <<reusable = false }
+        if status.code != 0 { PkgFail("cannot inspect artifact dependency status"); return false }
+        if status.text.count > 0 { <<reusable = false }
     }
+    return true
 }
 
 // Resolve invocation selectors against package identities, including root aliases.
@@ -1652,7 +1695,7 @@ PkgArtifactVisit :: (root: string, locked: *PkgLock, current: *PkgManifest,
     PkgArtifactMix(*state, target)
     PkgArtifactMix(*state, PkgRead(options).text)
     reusable := true
-    PkgArtifactGraphKey(locked, *state, *reusable)
+    if !PkgArtifactGraphKey(locked, *state, *reusable) { return "" }
     graph_before := state
     PkgArtifactMix(*state, PkgArtifactHashFile(launcher))
     compiler := PkgJoin(locked.tool_path, "/build/bin/zi2c")
@@ -1735,7 +1778,10 @@ PkgArtifactVisit :: (root: string, locked: *PkgLock, current: *PkgManifest,
     PkgArtifactMix(*graph_after, target)
     PkgArtifactMix(*graph_after, PkgRead(options).text)
     after_reusable := true
-    PkgArtifactGraphKey(locked, *graph_after, *after_reusable)
+    if !PkgArtifactGraphKey(locked, *graph_after, *after_reusable) {
+        unused PkgArtifactFinish(*transaction, *recipe, 2)
+        return ""
+    }
     if recipe_hash != PkgArtifactHashFile(PkgJoin(item.path, "/ziran.toml")) {
         code = 2
         if changed == "" { changed = "the package's ziran.toml" }

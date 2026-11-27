@@ -104,6 +104,20 @@ export function Read(props: WidgetProps<DomainTypes.Model>): number { return pro
 TS
 
 TSX_FACADE :: "using Export :: #import \"generic_widget\";\n"
+TSX_CAPTURE_WRITE :: #string TSX
+import { Owned } from "std/callable";
+type Action = () => number;
+
+export function main(): s32 {
+    let value = 1;
+    const action: Owned<Action> = (): number => {
+        value = 2;
+        return value;
+    };
+    return s32(0);
+}
+TSX
+
 TSX_SCOPE :: #string TSX
 import { Scoped } from "std/callable";
 import * as Domain from "domain";
@@ -214,6 +228,13 @@ export function main(): s32 {
     if (nativeDeref(modelPointer).value !== snapshot.value + 1 || borrowedModel.value !== snapshot.value + 1) { return s32(32); }
     const handler: Domain.HandlerHolder = Domain.Handlers();
     if (handler.action(modelPointer) !== borrowedModel.value) { return s32(42); }
+    Scope({
+        children: (): void => {
+            modelPointer.value = modelPointer.value + 1;
+            Domain.BorrowModel(modelPointer);
+        }
+    });
+    if (borrowedModel.value !== snapshot.value + 3) { return s32(43); }
     if (Domain.WithDefaults(s32(2)) !== s32(9) || Domain.WithDefaults(s32(2), s32(3)) !== s32(5)) { return s32(26); }
     if (GenericProps.Read({model: snapshot, props: snapshot}) !== snapshot.value * 2) { return s32(27); }
     let genericBox: Domain.Box<number> = Domain.Wrapped();
@@ -557,7 +578,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         !TsxReject(*test, root, "scoped_escape", "import { Scoped } from \"std/callable\"; type Action = () => number; export function Leak(): Scoped<Action> { const value = 1; const action: Scoped<Action> = (): number => value; return action; }", "Scoped callable cannot be returned or retained") ||
         !TsxReject(*test, root, "capture_record_view", "import { Owned } from \"std/callable\"; interface Borrowed { text: string; } type Action = () => number; export function main(): s32 { const record: Borrowed = {text: \"borrowed\"}; const action: Owned<Action> = (): number => number(record.text.count); return s32(0); }", "callback capture must be a scalar, enum, or owned value without borrowed fields") ||
         !TsxReject(*test, root, "capture_escape", "import { Owned } from \"std/callable\"; import { Text, TextCopy } from \"std/vec\"; type Action = () => string; export function main(): s32 { const text: Text = TextCopy(\"owned\"); const action: Owned<Action> = (): string => TextView(text); return s32(0); }", "returned text view borrows local or temporary storage") ||
-        !TsxReject(*test, root, "capture_write", "import { Owned } from \"std/callable\"; type Action = () => number; export function main(): s32 { const value = 1; const action: Owned<Action> = (): number => { value = 2; return value; }; return s32(0); }", "callback captures are immutable snapshots") ||
+        !TsxReject(*test, root, "capture_write", TSX_CAPTURE_WRITE, "callback captures are immutable snapshots") ||
         !TsxReject(*test, root, "capture_move", "import { Owned } from \"std/callable\"; import { Text, TextCopy } from \"std/vec\"; type Action = () => number; export function main(): s32 { const text: Text = TextCopy(\"owned\"); const action: Owned<Action> = (): number => number(TextView(text).count); return s32(TextView(text).count); }", "after moving") ||
         !TsxReject(*test, root, "callback", "type Action = (value: number) => number; export function main(): s32 { const action: Action = (value: boolean): number => 1; return s32(0); }", "type") ||
         !TsxReject(*test, root, "property", "interface Props { value: number; } function Item(props: Props): number { return props.value; } export function main(): s32 { return s32(<Item value={true}/>); }", "type") ||

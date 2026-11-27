@@ -121,7 +121,7 @@ compiler_runtime_emit_RecordPath(String path)
         bool value_7 = false;
         void *value_8 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
         if (value_8 != NULL) {
-            (bytes).data = (uint8_t *)value_8;
+            (bytes).data = value_8;
             (bytes).data[(bytes).count++] = value_6;
             value_7 = true;
         }
@@ -152,7 +152,7 @@ compiler_runtime_emit_RecordPath(String path)
     bool value_12 = false;
     void *value_13 = ZirVecGrow((void *)(GeneratedPaths.paths).data, &(GeneratedPaths.paths).capacity, (GeneratedPaths.paths).count, sizeof(*(GeneratedPaths.paths).data));
     if (value_13 != NULL) {
-        (GeneratedPaths.paths).data = (String *)value_13;
+        (GeneratedPaths.paths).data = value_13;
         (GeneratedPaths.paths).data[(GeneratedPaths.paths).count++] = value_11;
         value_12 = true;
     }
@@ -258,7 +258,7 @@ compiler_runtime_emit_EmitRuntimeHeaders(String out_dir, String generated_path, 
         value_9 = value_8 <= (needed).capacity;
         if (!value_9) {
             void *value_10 = ZirVecReserve((void *)(needed).data, &(needed).capacity, (needed).count, value_8 - (needed).count, sizeof(*(needed).data));
-            if (value_10 != NULL) { (needed).data = (bool *)value_10; value_9 = true; }
+            if (value_10 != NULL) { (needed).data = value_10; value_9 = true; }
         }
         if (value_9) {
             if (value_8 > (needed).count) memset((needed).data + (needed).count, 0, (size_t)(value_8 - (needed).count) * sizeof(*(needed).data));
@@ -563,7 +563,7 @@ compiler_runtime_emit_EmitSimdOps(String out_dir, ZirSimdUses* uses)
             bool value_15 = false;
             void *value_16 = ZirVecGrow((void *)(segments).data, &(segments).capacity, (segments).count, sizeof(*(segments).data));
             if (value_16 != NULL) {
-                (segments).data = (Segment *)value_16;
+                (segments).data = value_16;
                 (segments).data[(segments).count++] = value_14;
                 value_15 = true;
             }
@@ -606,7 +606,7 @@ compiler_runtime_emit_EmitSimdOps(String out_dir, ZirSimdUses* uses)
                         value_22 = value_21 <= (last).capacity;
                         if (!value_22) {
                             void *value_23 = ZirVecReserve((void *)(last).data, &(last).capacity, (last).count, value_21 - (last).count, sizeof(*(last).data));
-                            if (value_23 != NULL) { (last).data = (int64_t *)value_23; value_22 = true; }
+                            if (value_23 != NULL) { (last).data = value_23; value_22 = true; }
                         }
                         if (value_22) {
                             if (value_21 > (last).count) memset((last).data + (last).count, 0, (size_t)(value_21 - (last).count) * sizeof(*(last).data));
@@ -666,7 +666,7 @@ compiler_runtime_emit_EmitSimdOps(String out_dir, ZirSimdUses* uses)
         value_31 = value_30 <= (first).capacity;
         if (!value_31) {
             void *value_32 = ZirVecReserve((void *)(first).data, &(first).capacity, (first).count, value_30 - (first).count, sizeof(*(first).data));
-            if (value_32 != NULL) { (first).data = (int64_t *)value_32; value_31 = true; }
+            if (value_32 != NULL) { (first).data = value_32; value_31 = true; }
         }
         if (value_31) {
             if (value_30 > (first).count) memset((first).data + (first).count, 0, (size_t)(value_30 - (first).count) * sizeof(*(first).data));
@@ -681,7 +681,7 @@ compiler_runtime_emit_EmitSimdOps(String out_dir, ZirSimdUses* uses)
             value_37 = value_36 <= (needed).capacity;
             if (!value_37) {
                 void *value_38 = ZirVecReserve((void *)(needed).data, &(needed).capacity, (needed).count, value_36 - (needed).count, sizeof(*(needed).data));
-                if (value_38 != NULL) { (needed).data = (int64_t *)value_38; value_37 = true; }
+                if (value_38 != NULL) { (needed).data = value_38; value_37 = true; }
             }
             if (value_37) {
                 if (value_36 > (needed).count) memset((needed).data + (needed).count, 0, (size_t)(value_36 - (needed).count) * sizeof(*(needed).data));
@@ -698,7 +698,7 @@ compiler_runtime_emit_EmitSimdOps(String out_dir, ZirSimdUses* uses)
             value_43 = value_42 <= (work).capacity;
             if (!value_43) {
                 void *value_44 = ZirVecReserve((void *)(work).data, &(work).capacity, (work).count, value_42 - (work).count, sizeof(*(work).data));
-                if (value_44 != NULL) { (work).data = (int64_t *)value_44; value_43 = true; }
+                if (value_44 != NULL) { (work).data = value_44; value_43 = true; }
             }
             if (value_43) {
                 if (value_42 > (work).count) memset((work).data + (work).count, 0, (size_t)(value_42 - (work).count) * sizeof(*(work).data));
@@ -970,7 +970,7 @@ compiler_runtime_emit_JoinPath(String directory, String name)
     bool value_7 = false;
     void *value_8 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
     if (value_8 != NULL) {
-        (bytes).data = (uint8_t *)value_8;
+        (bytes).data = value_8;
         (bytes).data[(bytes).count++] = value_6;
         value_7 = true;
     }
@@ -1061,7 +1061,7 @@ compiler_runtime_emit_JoinTemporary(String path, int32_t process_id)
         bool value_7 = false;
         void *value_8 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
         if (value_8 != NULL) {
-            (bytes).data = (uint8_t *)value_8;
+            (bytes).data = value_8;
             (bytes).data[(bytes).count++] = value_6;
             value_7 = true;
         }
@@ -1086,7 +1086,7 @@ compiler_runtime_emit_JoinTemporary(String path, int32_t process_id)
         value_12 = value_11 <= (bytes).capacity;
         if (!value_12) {
             void *value_13 = ZirVecReserve((void *)(bytes).data, &(bytes).capacity, (bytes).count, value_11 - (bytes).count, sizeof(*(bytes).data));
-            if (value_13 != NULL) { (bytes).data = (uint8_t *)value_13; value_12 = true; }
+            if (value_13 != NULL) { (bytes).data = value_13; value_12 = true; }
         }
         if (value_12) {
             if (value_11 > (bytes).count) memset((bytes).data + (bytes).count, 0, (size_t)(value_11 - (bytes).count) * sizeof(*(bytes).data));
@@ -1378,7 +1378,7 @@ compiler_runtime_emit_NeedHelper(int64_t helper, __type_03c9bb6e22816916* needed
     bool value_4 = false;
     void *value_5 = ZirVecGrow((void *)((*(work))).data, &((*(work))).capacity, ((*(work))).count, sizeof(*((*(work))).data));
     if (value_5 != NULL) {
-        ((*(work))).data = (int64_t *)value_5;
+        ((*(work))).data = value_5;
         ((*(work))).data[((*(work))).count++] = value_3;
         value_4 = true;
     }

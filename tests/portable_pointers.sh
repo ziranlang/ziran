@@ -79,6 +79,36 @@ ReadNegativeIndex :: () -> s8 {
     bytes: [2]s8 = s8.[11, 22];
     return ReadByte(*bytes[1], -1);
 }
+
+#program_export
+RangePastEnd :: () -> s64 {
+    bytes: [2]s8
+    pointer := *bytes[1]
+    view := pointer[0:2]
+    return view.count
+}
+
+#program_export
+RangeNegative :: () -> s64 {
+    bytes: [2]s8
+    pointer := *bytes[0]
+    view := pointer[-1:1]
+    return view.count
+}
+
+#program_export
+RangeNull :: () -> s64 {
+    pointer: *s8
+    view := pointer[0:1]
+    return view.count
+}
+
+#program_export
+LiteralTerminator :: () -> s8 {
+    text := "literal"
+    pointer := *text[0]
+    return cast(s8)pointer[7]
+}
 ZI
 
 cat > "$work/dangling.zi" <<'ZI'
@@ -125,7 +155,12 @@ GO
 done
 cmp "$work/source.zx" "$work/saved.zx"
 
-for entry in ReadPastEnd ReadNegativeIndex; do
+# Literal globals physically include their C-string terminator; their string
+# count still excludes it. Pointer checks must use that real allocation.
+"$ziran" bundle --root "$work" --entry app:LiteralTerminator -o "$work/literal.zx" "$work/app.zi"
+test "$("$ziran" run --backend engine "$work/literal.zx")" = 0
+
+for entry in ReadPastEnd ReadNegativeIndex RangePastEnd RangeNegative RangeNull; do
     "$ziran" bundle --root "$work" --entry "app:$entry" -o "$work/$entry.zx" "$work/app.zi"
     if "$ziran" run --backend engine "$work/$entry.zx" > "$work/$entry.out" 2>&1; then
         echo "invalid pointer index executed: $entry" >&2

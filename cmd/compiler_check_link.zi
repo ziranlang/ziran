@@ -1048,7 +1048,11 @@ retain_template_dependency :: (module: *IR.ZirModule, function: *IR.ZirFunction,
     }
     S12Set11(retained, (copy)[0])
     copy_text(cast(*u8)(*((retained).name)), cast(usize)(cast(u64)size_of(S12Array128_u8)), name)
+    // Generated dependency symbols cross module boundaries; the original
+    // declaration retains its source visibility. Do not inherit a conflicting
+    // package scope when giving this generated symbol external linkage.
     (retained).is_public = 1
+    (retained).is_package_private = 0
     (retained).is_file_private = 0
     (retained).exported = 0
     (retained).from_ir = 1
@@ -1087,6 +1091,7 @@ instantiate_specializations_with_buffers :: (checker: *State.Checker, buffers: *
             (instance).is_template = 0
             (instance).is_specialization = 1
             (instance).is_public = 1
+            (instance).is_package_private = 0
             (instance).is_file_private = 0
             (instance).exported = 0
             if (owner != template_owner) {

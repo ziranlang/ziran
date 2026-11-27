@@ -484,6 +484,12 @@ builder's bytes as a <code>Text</code>.</p>
 with <code>#reads</code> after its result:</p>
 <pre><code>SelectionPainter :: #type (x: s32, props: TextProps, label: string) -&gt; s32 #reads;
 </code></pre>
+<p>The same contract can annotate a C-call procedure type, as in
+<code>-&gt; s32 #reads #c_call;</code>. It also protects byte inputs declared as <code>*u8</code>,
+<code>*s8</code>, <code>[]u8</code> or <code>[]s8</code>: a callback may read them during the call, but cannot
+write through them, return their views or retain their addresses. Context
+and result pointers of other types remain writable. The contract is checked
+when storing a callback and is preserved in saved IR.</p>
 <p>Each procedure stored in the type, as a slot's value, a record field, an
 argument or a global's initializer, must only read its string parameters
 and the string fields of its record parameters, including fields of records

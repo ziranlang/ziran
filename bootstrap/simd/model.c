@@ -57,7 +57,7 @@ model_Render(String text, String a, String b, String c, String d, String e, Stri
             bool value_6 = false;
             void *value_7 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
             if (value_7 != NULL) {
-                (output).data = (uint8_t *)value_7;
+                (output).data = value_7;
                 (output).data[(output).count++] = value_5;
                 value_6 = true;
             }
@@ -129,7 +129,7 @@ model_Types(void)
             bool value_3 = false;
             void *value_4 = ZirVecGrow((void *)(result).data, &(result).capacity, (result).count, sizeof(*(result).data));
             if (value_4 != NULL) {
-                (result).data = (VectorType *)value_4;
+                (result).data = value_4;
                 (result).data[(result).count++] = value_2;
                 value_3 = true;
             }
@@ -506,7 +506,7 @@ model_AppendLine(__type_131eebaaeb761e42* output, String text)
     bool value_3 = false;
     void *value_4 = ZirVecGrow((void *)((*(output))).data, &((*(output))).capacity, ((*(output))).count, sizeof(*((*(output))).data));
     if (value_4 != NULL) {
-        ((*(output))).data = (uint8_t *)value_4;
+        ((*(output))).data = value_4;
         ((*(output))).data[((*(output))).count++] = value_2;
         value_3 = true;
     }

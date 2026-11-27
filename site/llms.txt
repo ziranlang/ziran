@@ -107,6 +107,15 @@ main :: () -> s32 {
 Records have no methods: write `Area(rect)`, not `rect.Area()`. Field
 defaults are not supported; every field starts at zero.
 
+A non-void pointer supports an explicit bounded view, `data[lo:hi]` or
+`data[:hi]`. The upper bound is required; the result borrows the original
+storage without copying it. Native callers must supply a valid allocation
+covering that range. Portable pointer checks retain the allocation's actual
+extent, so an upper bound cannot enlarge it. Known backing lifetimes flow
+through pointer aliases and returned views; a view of expired local storage
+is rejected. A pointer obtained with `*text[index]` borrows read-only string
+bytes and cannot be used to mutate them through an alias or a slice.
+
 ## 3. Control flow and ranges
 
 ```zi

@@ -27,7 +27,7 @@ arithmetic_AddBranch(__type_e265f79c93ee1c4a* output, String condition, String b
     bool value_4 = false;
     void *value_5 = ZirVecGrow((void *)((*(output))).data, &((*(output))).capacity, ((*(output))).count, sizeof(*((*(output))).data));
     if (value_5 != NULL) {
-        ((*(output))).data = (Branch *)value_5;
+        ((*(output))).data = value_5;
         ((*(output))).data[((*(output))).count++] = value_3;
         value_4 = true;
     }

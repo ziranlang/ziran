@@ -1967,30 +1967,32 @@ compiler_check_link_retain_template_dependency(ZirModule* module, ZirFunction* f
     zir_foreign_compiler_check_link__copy_text((uint8_t*)(&(retained->name)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), name);
     int32_t* value_24 = &(retained->is_public);
     (*value_24) = 1;
-    int32_t* value_25 = &(retained->is_file_private);
+    int32_t* value_25 = &(retained->is_package_private);
     (*value_25) = 0;
-    int32_t* value_26 = &(retained->exported);
+    int32_t* value_26 = &(retained->is_file_private);
     (*value_26) = 0;
-    int32_t* value_27 = &(retained->from_ir);
-    (*value_27) = 1;
-    ZirStmt** value_28 = &(retained->stmts);
-    (*value_28) = (void *)0;
-    ZirExpr** value_29 = &(retained->exprs);
+    int32_t* value_27 = &(retained->exported);
+    (*value_27) = 0;
+    int32_t* value_28 = &(retained->from_ir);
+    (*value_28) = 1;
+    ZirStmt** value_29 = &(retained->stmts);
     (*value_29) = (void *)0;
-    int32_t* value_30 = &(retained->stmt_cap);
-    (*value_30) = retained->stmt_count;
-    int32_t* value_31 = &(retained->expr_cap);
-    (*value_31) = retained->expr_count;
+    ZirExpr** value_30 = &(retained->exprs);
+    (*value_30) = (void *)0;
+    int32_t* value_31 = &(retained->stmt_cap);
+    (*value_31) = retained->stmt_count;
+    int32_t* value_32 = &(retained->expr_cap);
+    (*value_32) = retained->expr_count;
     if (copy->stmt_count > 0) {
-        ZirStmt** value_32 = &(retained->stmts);
-        void* value_33 = zir_foreign_compiler_check_link__AllocateOrExit((size_t)(((uint64_t)((uint64_t)((size_t)(copy->stmt_count)) * (uint64_t)(sizeof(ZirStmt))))));
-        (*value_32) = (ZirStmt*)(value_33);
+        ZirStmt** value_33 = &(retained->stmts);
+        void* value_34 = zir_foreign_compiler_check_link__AllocateOrExit((size_t)(((uint64_t)((uint64_t)((size_t)(copy->stmt_count)) * (uint64_t)(sizeof(ZirStmt))))));
+        (*value_33) = (ZirStmt*)(value_34);
         zir_foreign_compiler_check_link__memcpy((void*)(retained->stmts), (void*)(copy->stmts), (size_t)(((uint64_t)((uint64_t)((size_t)(copy->stmt_count)) * (uint64_t)(sizeof(ZirStmt))))));
     }
     if (copy->expr_count > 0) {
-        ZirExpr** value_34 = &(retained->exprs);
-        void* value_35 = zir_foreign_compiler_check_link__AllocateOrExit((size_t)(((uint64_t)((uint64_t)((size_t)(copy->expr_count)) * (uint64_t)(sizeof(ZirExpr))))));
-        (*value_34) = (ZirExpr*)(value_35);
+        ZirExpr** value_35 = &(retained->exprs);
+        void* value_36 = zir_foreign_compiler_check_link__AllocateOrExit((size_t)(((uint64_t)((uint64_t)((size_t)(copy->expr_count)) * (uint64_t)(sizeof(ZirExpr))))));
+        (*value_35) = (ZirExpr*)(value_36);
         zir_foreign_compiler_check_link__memcpy((void*)(retained->exprs), (void*)(copy->exprs), (size_t)(((uint64_t)((uint64_t)((size_t)(copy->expr_count)) * (uint64_t)(sizeof(ZirExpr))))));
     }
     zir_foreign_compiler_check_link__CompilerFree((void*)(copy));
@@ -2027,41 +2029,43 @@ compiler_check_link_instantiate_specializations_with_buffers(Checker* checker, I
             (*value_4) = 1;
             int32_t* value_5 = &(instance->is_public);
             (*value_5) = 1;
-            int32_t* value_6 = &(instance->is_file_private);
+            int32_t* value_6 = &(instance->is_package_private);
             (*value_6) = 0;
-            int32_t* value_7 = &(instance->exported);
+            int32_t* value_7 = &(instance->is_file_private);
             (*value_7) = 0;
+            int32_t* value_8 = &(instance->exported);
+            (*value_8) = 0;
             if (owner != template_owner) {
-                ZirSourceSpan* value_8 = &(instance->span);
-                (*value_8) = request->call_span;
+                ZirSourceSpan* value_9 = &(instance->span);
+                (*value_9) = request->call_span;
             }
-            int32_t* value_9 = &(instance->checked);
-            (*value_9) = 0;
-            int32_t* value_10 = &(instance->from_ir);
-            (*value_10) = 1;
-            int32_t* value_11 = &(instance->uses_host);
-            (*value_11) = 0;
-            ZirStmt** value_12 = &(instance->stmts);
-            (*value_12) = (void *)0;
-            ZirExpr** value_13 = &(instance->exprs);
+            int32_t* value_10 = &(instance->checked);
+            (*value_10) = 0;
+            int32_t* value_11 = &(instance->from_ir);
+            (*value_11) = 1;
+            int32_t* value_12 = &(instance->uses_host);
+            (*value_12) = 0;
+            ZirStmt** value_13 = &(instance->stmts);
             (*value_13) = (void *)0;
-            int32_t* value_14 = &(instance->stmt_cap);
-            (*value_14) = instance->stmt_count;
-            int32_t* value_15 = &(instance->expr_cap);
-            (*value_15) = instance->expr_count;
+            ZirExpr** value_14 = &(instance->exprs);
+            (*value_14) = (void *)0;
+            int32_t* value_15 = &(instance->stmt_cap);
+            (*value_15) = instance->stmt_count;
+            int32_t* value_16 = &(instance->expr_cap);
+            (*value_16) = instance->expr_count;
             if (instance->stmt_count > 0) {
-                ZirStmt** value_16 = &(instance->stmts);
-                void* value_17 = zir_foreign_compiler_check_link__CompilerMalloc((size_t)(((uint64_t)((uint64_t)((size_t)(instance->stmt_count)) * (uint64_t)(sizeof(ZirStmt))))));
-                (*value_16) = (ZirStmt*)(value_17);
+                ZirStmt** value_17 = &(instance->stmts);
+                void* value_18 = zir_foreign_compiler_check_link__CompilerMalloc((size_t)(((uint64_t)((uint64_t)((size_t)(instance->stmt_count)) * (uint64_t)(sizeof(ZirStmt))))));
+                (*value_17) = (ZirStmt*)(value_18);
                 if (instance->stmts == (ZirStmt*)(((void *)0))) {
                     return 0;
                 }
                 zir_foreign_compiler_check_link__memcpy((void*)(instance->stmts), (void*)(buffers->original.stmts), (size_t)(((uint64_t)((uint64_t)((size_t)(instance->stmt_count)) * (uint64_t)(sizeof(ZirStmt))))));
             }
             if (instance->expr_count > 0) {
-                ZirExpr** value_18 = &(instance->exprs);
-                void* value_19 = zir_foreign_compiler_check_link__CompilerMalloc((size_t)(((uint64_t)((uint64_t)((size_t)(instance->expr_count)) * (uint64_t)(sizeof(ZirExpr))))));
-                (*value_18) = (ZirExpr*)(value_19);
+                ZirExpr** value_19 = &(instance->exprs);
+                void* value_20 = zir_foreign_compiler_check_link__CompilerMalloc((size_t)(((uint64_t)((uint64_t)((size_t)(instance->expr_count)) * (uint64_t)(sizeof(ZirExpr))))));
+                (*value_19) = (ZirExpr*)(value_20);
                 if (instance->exprs == (ZirExpr*)(((void *)0))) {
                     return 0;
                 }
@@ -2069,46 +2073,46 @@ compiler_check_link_instantiate_specializations_with_buffers(Checker* checker, I
             }
             uint8_t* parameter = (uint8_t*)(&(buffers->original.template_param));
             uint8_t* concrete = (uint8_t*)(&(request->type.items));
-            ZirModule* value_20 = owner;
-            ZirModule* value_21 = template_owner;
-            bool value_22 = zir_foreign_compiler_check_link__template_parameters_at_use(value_20, value_21, &(buffers->original), compiler_check_types_CheckCString(StringLiteral("")), (uint8_t**)((void*)(&(instance->args_text)))) != 0;
-            bool value_23 = !value_22;
-            if (!value_23) {
-                ZirModule* value_24 = owner;
-                ZirModule* value_25 = template_owner;
-                bool value_26 = zir_foreign_compiler_check_link__template_type_at_use(value_24, value_25, &(buffers->original), compiler_check_types_CheckCString(StringLiteral("")), (uint8_t*)(&(instance->return_type)), (size_t)((uint64_t)(sizeof(S12Array128_u8)))) != 0;
-                value_23 = !value_26;
+            ZirModule* value_21 = owner;
+            ZirModule* value_22 = template_owner;
+            bool value_23 = zir_foreign_compiler_check_link__template_parameters_at_use(value_21, value_22, &(buffers->original), compiler_check_types_CheckCString(StringLiteral("")), (uint8_t**)((void*)(&(instance->args_text)))) != 0;
+            bool value_24 = !value_23;
+            if (!value_24) {
+                ZirModule* value_25 = owner;
+                ZirModule* value_26 = template_owner;
+                bool value_27 = zir_foreign_compiler_check_link__template_type_at_use(value_25, value_26, &(buffers->original), compiler_check_types_CheckCString(StringLiteral("")), (uint8_t*)(&(instance->return_type)), (size_t)((uint64_t)(sizeof(S12Array128_u8)))) != 0;
+                value_24 = !value_27;
             }
-            bool value_27 = value_23;
-            if (!value_27) {
-                bool value_28 = compiler_check_link_substitute_parameters((uint8_t**)((void*)(&(instance->args_text))), parameter, concrete) != 0;
-                value_27 = !value_28;
+            bool value_28 = value_24;
+            if (!value_28) {
+                bool value_29 = compiler_check_link_substitute_parameters((uint8_t**)((void*)(&(instance->args_text))), parameter, concrete) != 0;
+                value_28 = !value_29;
             }
-            bool value_29 = value_27;
-            if (!value_29) {
-                bool value_30 = compiler_check_link_substitute_parameters((uint8_t**)((void*)(&(instance->default_args_text))), parameter, concrete) != 0;
-                value_29 = !value_30;
+            bool value_30 = value_28;
+            if (!value_30) {
+                bool value_31 = compiler_check_link_substitute_parameters((uint8_t**)((void*)(&(instance->default_args_text))), parameter, concrete) != 0;
+                value_30 = !value_31;
             }
-            bool value_31 = value_29;
-            if (!value_31) {
-                bool value_32 = compiler_check_link_substitute_field((uint8_t*)(&(instance->return_type)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), parameter, concrete) != 0;
-                value_31 = !value_32;
+            bool value_32 = value_30;
+            if (!value_32) {
+                bool value_33 = compiler_check_link_substitute_field((uint8_t*)(&(instance->return_type)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), parameter, concrete) != 0;
+                value_32 = !value_33;
             }
-            bool value_33 = value_31;
-            if (!value_33) {
-                bool value_34 = zir_foreign_compiler_check_link__normalize_function_arrays(owner, instance) != 0;
-                value_33 = !value_34;
+            bool value_34 = value_32;
+            if (!value_34) {
+                bool value_35 = zir_foreign_compiler_check_link__normalize_function_arrays(owner, instance) != 0;
+                value_34 = !value_35;
             }
-            if (value_33) {
+            if (value_34) {
                 return 0;
             }
-            bool value_35 = compiler_check_link_canonical_parameters(owner, (uint8_t**)((void*)(&(instance->args_text))), instance->span) != 0;
-            bool value_36 = !value_35;
-            if (!value_36) {
-                bool value_37 = compiler_check_link_canonical_field(owner, (uint8_t*)(&(instance->return_type)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), instance->span) != 0;
-                value_36 = !value_37;
+            bool value_36 = compiler_check_link_canonical_parameters(owner, (uint8_t**)((void*)(&(instance->args_text))), instance->span) != 0;
+            bool value_37 = !value_36;
+            if (!value_37) {
+                bool value_38 = compiler_check_link_canonical_field(owner, (uint8_t*)(&(instance->return_type)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), instance->span) != 0;
+                value_37 = !value_38;
             }
-            if (value_36) {
+            if (value_37) {
                 return 0;
             }
             {
@@ -2118,31 +2122,31 @@ compiler_check_link_instantiate_specializations_with_buffers(Checker* checker, I
                     if (!check_loop_180) {
                         break;
                     }
-                    void* value_38 = zir_foreign_compiler_check_link__AllocateOrExit(sizeof(S12Array128_u8));
-                    S12Array128_u8* type_storage_0 = (S12Array128_u8*)(value_38);
+                    void* value_39 = zir_foreign_compiler_check_link__AllocateOrExit(sizeof(S12Array128_u8));
+                    S12Array128_u8* type_storage_0 = (S12Array128_u8*)(value_39);
                     zir_foreign_compiler_check_link__memset((void*)(type_storage_0), 0, sizeof(S12Array128_u8));
                     zir_foreign_compiler_check_link__copy_text((uint8_t*)(&((type_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), (uint8_t*)(instance->stmts[s]).type);
-                    ZirModule* value_39 = owner;
-                    ZirModule* value_40 = template_owner;
-                    bool value_41 = zir_foreign_compiler_check_link__template_type_at_use(value_39, value_40, &(buffers->original), compiler_check_types_CheckCString(StringLiteral("")), (uint8_t*)(&((type_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8)))) != 0;
-                    bool value_42 = !value_41;
-                    if (!value_42) {
-                        bool value_43 = compiler_check_link_substitute_field((uint8_t*)(&((type_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), parameter, concrete) != 0;
-                        value_42 = !value_43;
+                    ZirModule* value_40 = owner;
+                    ZirModule* value_41 = template_owner;
+                    bool value_42 = zir_foreign_compiler_check_link__template_type_at_use(value_40, value_41, &(buffers->original), compiler_check_types_CheckCString(StringLiteral("")), (uint8_t*)(&((type_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8)))) != 0;
+                    bool value_43 = !value_42;
+                    if (!value_43) {
+                        bool value_44 = compiler_check_link_substitute_field((uint8_t*)(&((type_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), parameter, concrete) != 0;
+                        value_43 = !value_44;
                     }
-                    bool value_44 = value_42;
-                    if (!value_44) {
-                        bool value_45 = compiler_check_link_canonical_field(owner, (uint8_t*)(&((type_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), (instance->stmts[s]).span) != 0;
-                        value_44 = !value_45;
+                    bool value_45 = value_43;
+                    if (!value_45) {
+                        bool value_46 = compiler_check_link_canonical_field(owner, (uint8_t*)(&((type_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), (instance->stmts[s]).span) != 0;
+                        value_45 = !value_46;
                     }
-                    if (value_44) {
+                    if (value_45) {
                         int32_t cleanup_return_0 = 0;
                         zir_foreign_compiler_check_link__CompilerFree((void*)(type_storage_0));
                         return cleanup_return_0;
                     }
-                    const char ** value_46 = &((instance->stmts[s]).type);
-                    uint8_t* value_47 = zir_foreign_compiler_check_link__KeepName((uint8_t*)(&((type_storage_0[0]).items)));
-                    (*value_46) = (const char *)(value_47);
+                    const char ** value_47 = &((instance->stmts[s]).type);
+                    uint8_t* value_48 = zir_foreign_compiler_check_link__KeepName((uint8_t*)(&((type_storage_0[0]).items)));
+                    (*value_47) = (const char *)(value_48);
                     compiler_check_s12_types_S12Post2(&(s));
                     zir_foreign_compiler_check_link__CompilerFree((void*)(type_storage_0));
                 }
@@ -2161,84 +2165,84 @@ compiler_check_link_instantiate_specializations_with_buffers(Checker* checker, I
                         break;
                     }
                     ZirExpr* expression = (ZirExpr*)(((size_t)(instance->exprs) + ((size_t)(x) * sizeof(ZirExpr))));
-                    void* value_48 = zir_foreign_compiler_check_link__AllocateOrExit(sizeof(S12Array128_u8));
-                    S12Array128_u8* type_storage_1 = (S12Array128_u8*)(value_48);
-                    zir_foreign_compiler_check_link__memset((void*)(type_storage_1), 0, sizeof(S12Array128_u8));
                     void* value_49 = zir_foreign_compiler_check_link__AllocateOrExit(sizeof(S12Array128_u8));
-                    S12Array128_u8* slot_type_storage_2 = (S12Array128_u8*)(value_49);
+                    S12Array128_u8* type_storage_1 = (S12Array128_u8*)(value_49);
+                    zir_foreign_compiler_check_link__memset((void*)(type_storage_1), 0, sizeof(S12Array128_u8));
+                    void* value_50 = zir_foreign_compiler_check_link__AllocateOrExit(sizeof(S12Array128_u8));
+                    S12Array128_u8* slot_type_storage_2 = (S12Array128_u8*)(value_50);
                     zir_foreign_compiler_check_link__memset((void*)(slot_type_storage_2), 0, sizeof(S12Array128_u8));
                     zir_foreign_compiler_check_link__copy_text((uint8_t*)(&((type_storage_1[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), (uint8_t*)expression->type);
                     zir_foreign_compiler_check_link__copy_text((uint8_t*)(&((slot_type_storage_2[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), (uint8_t*)expression->slot_type);
-                    ZirModule* value_50 = owner;
-                    ZirModule* value_51 = template_owner;
-                    bool value_52 = zir_foreign_compiler_check_link__template_type_at_use(value_50, value_51, &(buffers->original), compiler_check_types_CheckCString(StringLiteral("")), (uint8_t*)(&((type_storage_1[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8)))) != 0;
-                    bool value_53 = !value_52;
-                    if (!value_53) {
-                        ZirModule* value_54 = owner;
-                        ZirModule* value_55 = template_owner;
-                        bool value_56 = zir_foreign_compiler_check_link__template_type_at_use(value_54, value_55, &(buffers->original), compiler_check_types_CheckCString(StringLiteral("")), (uint8_t*)(&((slot_type_storage_2[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8)))) != 0;
-                        value_53 = !value_56;
+                    ZirModule* value_51 = owner;
+                    ZirModule* value_52 = template_owner;
+                    bool value_53 = zir_foreign_compiler_check_link__template_type_at_use(value_51, value_52, &(buffers->original), compiler_check_types_CheckCString(StringLiteral("")), (uint8_t*)(&((type_storage_1[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8)))) != 0;
+                    bool value_54 = !value_53;
+                    if (!value_54) {
+                        ZirModule* value_55 = owner;
+                        ZirModule* value_56 = template_owner;
+                        bool value_57 = zir_foreign_compiler_check_link__template_type_at_use(value_55, value_56, &(buffers->original), compiler_check_types_CheckCString(StringLiteral("")), (uint8_t*)(&((slot_type_storage_2[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8)))) != 0;
+                        value_54 = !value_57;
                     }
-                    bool value_57 = value_53;
-                    if (!value_57) {
-                        bool value_58 = compiler_check_link_substitute_field((uint8_t*)(&((type_storage_1[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), parameter, concrete) != 0;
-                        value_57 = !value_58;
+                    bool value_58 = value_54;
+                    if (!value_58) {
+                        bool value_59 = compiler_check_link_substitute_field((uint8_t*)(&((type_storage_1[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), parameter, concrete) != 0;
+                        value_58 = !value_59;
                     }
-                    bool value_59 = value_57;
-                    if (!value_59) {
-                        bool value_60 = compiler_check_link_substitute_field((uint8_t*)(&((slot_type_storage_2[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), parameter, concrete) != 0;
-                        value_59 = !value_60;
+                    bool value_60 = value_58;
+                    if (!value_60) {
+                        bool value_61 = compiler_check_link_substitute_field((uint8_t*)(&((slot_type_storage_2[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), parameter, concrete) != 0;
+                        value_60 = !value_61;
                     }
-                    bool value_61 = value_59;
-                    if (!value_61) {
-                        bool value_62 = compiler_check_link_canonical_field(owner, (uint8_t*)(&((type_storage_1[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), expression->span) != 0;
-                        value_61 = !value_62;
+                    bool value_62 = value_60;
+                    if (!value_62) {
+                        bool value_63 = compiler_check_link_canonical_field(owner, (uint8_t*)(&((type_storage_1[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), expression->span) != 0;
+                        value_62 = !value_63;
                     }
-                    if (value_61) {
+                    if (value_62) {
                         int32_t cleanup_return_2 = 0;
                         zir_foreign_compiler_check_link__CompilerFree((void*)(slot_type_storage_2));
                         zir_foreign_compiler_check_link__CompilerFree((void*)(type_storage_1));
                         zir_foreign_compiler_check_link__CompilerFree((void*)(expression_owners));
                         return cleanup_return_2;
                     }
-                    const char ** value_63 = &(expression->type);
-                    uint8_t* value_64 = zir_foreign_compiler_check_link__KeepName((uint8_t*)(&((type_storage_1[0]).items)));
-                    (*value_63) = (const char *)(value_64);
-                    const char ** value_65 = &(expression->slot_type);
-                    uint8_t* value_66 = zir_foreign_compiler_check_link__KeepName((uint8_t*)(&((slot_type_storage_2[0]).items)));
-                    (*value_65) = (const char *)(value_66);
-                    bool value_67 = (int32_t)(((ZirExprKind)(expression->kind))) == 11 || (int32_t)(((ZirExprKind)(expression->kind))) == 12;
-                    if (value_67 || (int32_t)(((ZirExprKind)(expression->kind))) == 13 || (int32_t)(((ZirExprKind)(expression->kind))) == 5) {
-                        void* value_68 = zir_foreign_compiler_check_link__AllocateOrExit(sizeof(S12Array128_u8));
-                        S12Array128_u8* name_storage_3 = (S12Array128_u8*)(value_68);
+                    const char ** value_64 = &(expression->type);
+                    uint8_t* value_65 = zir_foreign_compiler_check_link__KeepName((uint8_t*)(&((type_storage_1[0]).items)));
+                    (*value_64) = (const char *)(value_65);
+                    const char ** value_66 = &(expression->slot_type);
+                    uint8_t* value_67 = zir_foreign_compiler_check_link__KeepName((uint8_t*)(&((slot_type_storage_2[0]).items)));
+                    (*value_66) = (const char *)(value_67);
+                    bool value_68 = (int32_t)(((ZirExprKind)(expression->kind))) == 11 || (int32_t)(((ZirExprKind)(expression->kind))) == 12;
+                    if (value_68 || (int32_t)(((ZirExprKind)(expression->kind))) == 13 || (int32_t)(((ZirExprKind)(expression->kind))) == 5) {
+                        void* value_69 = zir_foreign_compiler_check_link__AllocateOrExit(sizeof(S12Array128_u8));
+                        S12Array128_u8* name_storage_3 = (S12Array128_u8*)(value_69);
                         zir_foreign_compiler_check_link__memset((void*)(name_storage_3), 0, sizeof(S12Array128_u8));
                         zir_foreign_compiler_check_link__copy_text((uint8_t*)(&((name_storage_3[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), (uint8_t*)expression->name);
-                        bool value_69 = (int32_t)(((ZirExprKind)(expression->kind))) != 5;
-                        bool value_70 = value_69;
-                        if (value_70) {
-                            ZirModule* value_71 = owner;
-                            ZirModule* value_72 = template_owner;
-                            bool value_73 = zir_foreign_compiler_check_link__template_type_at_use(value_71, value_72, &(buffers->original), compiler_check_types_CheckCString(StringLiteral("")), (uint8_t*)(&((name_storage_3[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8)))) != 0;
-                            value_70 = !value_73;
+                        bool value_70 = (int32_t)(((ZirExprKind)(expression->kind))) != 5;
+                        bool value_71 = value_70;
+                        if (value_71) {
+                            ZirModule* value_72 = owner;
+                            ZirModule* value_73 = template_owner;
+                            bool value_74 = zir_foreign_compiler_check_link__template_type_at_use(value_72, value_73, &(buffers->original), compiler_check_types_CheckCString(StringLiteral("")), (uint8_t*)(&((name_storage_3[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8)))) != 0;
+                            value_71 = !value_74;
                         }
-                        bool value_74 = value_70;
-                        bool value_75 = value_74;
-                        if (!value_75) {
-                            bool value_76 = compiler_check_link_substitute_field((uint8_t*)(&((name_storage_3[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), parameter, concrete) != 0;
-                            value_75 = !value_76;
+                        bool value_75 = value_71;
+                        bool value_76 = value_75;
+                        if (!value_76) {
+                            bool value_77 = compiler_check_link_substitute_field((uint8_t*)(&((name_storage_3[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), parameter, concrete) != 0;
+                            value_76 = !value_77;
                         }
-                        bool value_77 = value_75;
-                        bool value_78 = value_77;
-                        if (!value_78) {
-                            bool value_79 = (int32_t)(((ZirExprKind)(expression->kind))) != 5;
-                            bool value_80 = value_79;
-                            if (value_80) {
-                                bool value_81 = compiler_check_link_canonical_field(owner, (uint8_t*)(&((name_storage_3[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), expression->span) != 0;
-                                value_80 = !value_81;
+                        bool value_78 = value_76;
+                        bool value_79 = value_78;
+                        if (!value_79) {
+                            bool value_80 = (int32_t)(((ZirExprKind)(expression->kind))) != 5;
+                            bool value_81 = value_80;
+                            if (value_81) {
+                                bool value_82 = compiler_check_link_canonical_field(owner, (uint8_t*)(&((name_storage_3[0]).items)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), expression->span) != 0;
+                                value_81 = !value_82;
                             }
-                            value_78 = value_80;
+                            value_79 = value_81;
                         }
-                        if (value_78) {
+                        if (value_79) {
                             int32_t cleanup_return_3 = 0;
                             zir_foreign_compiler_check_link__CompilerFree((void*)(name_storage_3));
                             zir_foreign_compiler_check_link__CompilerFree((void*)(slot_type_storage_2));
@@ -2246,48 +2250,48 @@ compiler_check_link_instantiate_specializations_with_buffers(Checker* checker, I
                             zir_foreign_compiler_check_link__CompilerFree((void*)(expression_owners));
                             return cleanup_return_3;
                         }
-                        const char ** value_82 = &(expression->name);
-                        uint8_t* value_83 = zir_foreign_compiler_check_link__KeepName((uint8_t*)(&((name_storage_3[0]).items)));
-                        (*value_82) = (const char *)(value_83);
+                        const char ** value_83 = &(expression->name);
+                        uint8_t* value_84 = zir_foreign_compiler_check_link__KeepName((uint8_t*)(&((name_storage_3[0]).items)));
+                        (*value_83) = (const char *)(value_84);
                         zir_foreign_compiler_check_link__CompilerFree((void*)(name_storage_3));
                     }
                     if (owner != template_owner && ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(5))) {
                         uint8_t lexical_target[128] = {0};
                         ZirModule* callee_owner = (void *)0;
                         ZirFunction* callee = (void *)0;
-                        bool value_84 = zir_foreign_compiler_check_link__ExpressionLexicalCallTarget(instance, x, expression_owners[x], &(lexical_target[0]), (128) * (sizeof(uint8_t))) != 0;
-                        bool value_85 = value_84;
-                        if (value_85) {
-                            ZirModule* value_86 = template_owner;
-                            bool value_87 = zir_foreign_compiler_check_link__ResolveFunctionAt(value_86, &(lexical_target[0]), zir_foreign_compiler_check_link__SpanPath(buffers->original.span), &(callee_owner), &(callee)) == 1;
-                            value_85 = value_87;
+                        bool value_85 = zir_foreign_compiler_check_link__ExpressionLexicalCallTarget(instance, x, expression_owners[x], &(lexical_target[0]), (128) * (sizeof(uint8_t))) != 0;
+                        bool value_86 = value_85;
+                        if (value_86) {
+                            ZirModule* value_87 = template_owner;
+                            bool value_88 = zir_foreign_compiler_check_link__ResolveFunctionAt(value_87, &(lexical_target[0]), zir_foreign_compiler_check_link__SpanPath(buffers->original.span), &(callee_owner), &(callee)) == 1;
+                            value_86 = value_88;
                         }
-                        if (value_85 && callee != ((void *)0) && callee_owner != ((void *)0)) {
+                        if (value_86 && callee != ((void *)0) && callee_owner != ((void *)0)) {
                             uint8_t* qualifier = (void *)0;
                             {
-                                int32_t range_first_125 = 0;
-                                int32_t range_last_125 = (int32_t)((uint32_t)(owner->import_count) - 1u);
-                                int32_t import_index = range_first_125;
-                                if (import_index <= range_last_125) for (;;) {
+                                int32_t range_first_126 = 0;
+                                int32_t range_last_126 = (int32_t)((uint32_t)(owner->import_count) - 1u);
+                                int32_t import_index = range_first_126;
+                                if (import_index <= range_last_126) for (;;) {
                                     ZirImport* imported = &(owner->imports[import_index]);
-                                    bool value_88 = (int32_t)(((ZirImportKind)(imported->kind))) == 2 && ((ZirModule*)imported->resolved_module) == callee_owner;
-                                    bool value_89 = value_88;
+                                    bool value_89 = (int32_t)(((ZirImportKind)(imported->kind))) == 2 && ((ZirModule*)imported->resolved_module) == callee_owner;
                                     bool value_90 = value_89;
-                                    if (value_90) {
-                                        bool value_91 = imported->is_file_private == 0;
-                                        bool value_92 = value_91;
-                                        if (!value_92) {
-                                            uint8_t* value_93 = zir_foreign_compiler_check_link__SpanPath(imported->span);
-                                            bool value_94 = zir_foreign_compiler_check_link__strcmp(value_93, zir_foreign_compiler_check_link__SpanPath(instance->span)) == 0;
-                                            value_92 = value_94;
+                                    bool value_91 = value_90;
+                                    if (value_91) {
+                                        bool value_92 = imported->is_file_private == 0;
+                                        bool value_93 = value_92;
+                                        if (!value_93) {
+                                            uint8_t* value_94 = zir_foreign_compiler_check_link__SpanPath(imported->span);
+                                            bool value_95 = zir_foreign_compiler_check_link__strcmp(value_94, zir_foreign_compiler_check_link__SpanPath(instance->span)) == 0;
+                                            value_93 = value_95;
                                         }
-                                        value_90 = value_92;
+                                        value_91 = value_93;
                                     }
-                                    if (value_90) {
+                                    if (value_91) {
                                         qualifier = (uint8_t*)(&(imported->name));
                                         break;
                                     }
-                                    if (import_index == range_last_125) {
+                                    if (import_index == range_last_126) {
                                         break;
                                     }
                                     import_index = (int32_t)((uint32_t)import_index + 1u);
@@ -2295,12 +2299,12 @@ compiler_check_link_instantiate_specializations_with_buffers(Checker* checker, I
                             }
                             if (qualifier == ((void *)0)) {
                                 uint8_t alias[128] = {0};
-                                uint8_t* value_95 = compiler_check_types_CheckCString(StringLiteral("__zi_lexical_%016llx"));
-                                ZirModule* value_96 = callee_owner;
+                                uint8_t* value_96 = compiler_check_types_CheckCString(StringLiteral("__zi_lexical_%016llx"));
                                 ZirModule* value_97 = callee_owner;
-                                ZirFunction* value_98 = callee;
-                                uint64_t value_99 = zir_foreign_compiler_check_link__specialization_hash(value_96, value_97, value_98, compiler_check_types_CheckCString(StringLiteral("")));
-                                int32_t written = zir_foreign_compiler_check_link__snprintf(&(alias[0]), (128) * (sizeof(uint8_t)), value_95, value_99);
+                                ZirModule* value_98 = callee_owner;
+                                ZirFunction* value_99 = callee;
+                                uint64_t value_100 = zir_foreign_compiler_check_link__specialization_hash(value_97, value_98, value_99, compiler_check_types_CheckCString(StringLiteral("")));
+                                int32_t written = zir_foreign_compiler_check_link__snprintf(&(alias[0]), (128) * (sizeof(uint8_t)), value_96, value_100);
                                 if (written < 0 || (size_t)(written) >= ((128) * (sizeof(uint8_t)))) {
                                     int32_t cleanup_return_4 = 0;
                                     zir_foreign_compiler_check_link__CompilerFree((void*)(slot_type_storage_2));
@@ -2309,10 +2313,10 @@ compiler_check_link_instantiate_specializations_with_buffers(Checker* checker, I
                                     return cleanup_return_4;
                                 }
                                 {
-                                    int32_t range_first_142 = 0;
-                                    int32_t range_last_142 = (int32_t)((uint32_t)(owner->import_count) - 1u);
-                                    int32_t import_index = range_first_142;
-                                    if (import_index <= range_last_142) for (;;) {
+                                    int32_t range_first_143 = 0;
+                                    int32_t range_last_143 = (int32_t)((uint32_t)(owner->import_count) - 1u);
+                                    int32_t import_index = range_first_143;
+                                    if (import_index <= range_last_143) for (;;) {
                                         if (zir_foreign_compiler_check_link__strcmp(&(((owner->imports[import_index]).name)[0]), &(alias[0])) == 0) {
                                             int32_t cleanup_return_5 = 0;
                                             zir_foreign_compiler_check_link__CompilerFree((void*)(slot_type_storage_2));
@@ -2320,15 +2324,15 @@ compiler_check_link_instantiate_specializations_with_buffers(Checker* checker, I
                                             zir_foreign_compiler_check_link__CompilerFree((void*)(expression_owners));
                                             return cleanup_return_5;
                                         }
-                                        if (import_index == range_last_142) {
+                                        if (import_index == range_last_143) {
                                             break;
                                         }
                                         import_index = (int32_t)((uint32_t)import_index + 1u);
                                     }
                                 }
-                                ZirModule* value_100 = owner;
-                                uint8_t* value_101 = compiler_check_types_CheckCString(StringLiteral(""));
-                                ZirImport* imported = zir_foreign_compiler_check_link__ModuleAddImport(value_100, (ZirImportKind)(2), &(alias[0]), &(callee_owner->name[0]), value_101, 0, instance->span);
+                                ZirModule* value_101 = owner;
+                                uint8_t* value_102 = compiler_check_types_CheckCString(StringLiteral(""));
+                                ZirImport* imported = zir_foreign_compiler_check_link__ModuleAddImport(value_101, (ZirImportKind)(2), &(alias[0]), &(callee_owner->name[0]), value_102, 0, instance->span);
                                 if (imported == ((void *)0)) {
                                     int32_t cleanup_return_6 = 0;
                                     zir_foreign_compiler_check_link__CompilerFree((void*)(slot_type_storage_2));
@@ -2336,12 +2340,12 @@ compiler_check_link_instantiate_specializations_with_buffers(Checker* checker, I
                                     zir_foreign_compiler_check_link__CompilerFree((void*)(expression_owners));
                                     return cleanup_return_6;
                                 }
-                                const struct ZirModule ** value_102 = &(imported->resolved_module);
-                                (*value_102) = (const struct ZirModule *)(callee_owner);
+                                const struct ZirModule ** value_103 = &(imported->resolved_module);
+                                (*value_103) = (const struct ZirModule *)(callee_owner);
                                 qualifier = (uint8_t*)(&(imported->name[0]));
                             }
-                            void* value_103 = zir_foreign_compiler_check_link__AllocateOrExit(sizeof(S12Array128_u8));
-                            S12Array128_u8* dependency = (S12Array128_u8*)(value_103);
+                            void* value_104 = zir_foreign_compiler_check_link__AllocateOrExit(sizeof(S12Array128_u8));
+                            S12Array128_u8* dependency = (S12Array128_u8*)(value_104);
                             uint8_t* callee_name = (uint8_t*)(&(callee->name));
                             if (callee->is_public == 0 || callee->is_file_private != 0) {
                                 if (compiler_check_link_retain_template_dependency(callee_owner, callee, &(dependency->items[0]), sizeof(S12Array128_u8)) == 0) {
@@ -2354,10 +2358,10 @@ compiler_check_link_instantiate_specializations_with_buffers(Checker* checker, I
                                 }
                                 callee_name = &(dependency->items[0]);
                             }
-                            void* value_104 = zir_foreign_compiler_check_link__AllocateOrExit(sizeof(S12Array128_u8));
-                            S12Array128_u8* qualified = (S12Array128_u8*)(value_104);
-                            uint8_t* value_105 = compiler_check_types_CheckCString(StringLiteral("%s.%s"));
-                            int32_t written = zir_foreign_compiler_check_link__snprintf(&(qualified->items[0]), sizeof(S12Array128_u8), value_105, qualifier, callee_name);
+                            void* value_105 = zir_foreign_compiler_check_link__AllocateOrExit(sizeof(S12Array128_u8));
+                            S12Array128_u8* qualified = (S12Array128_u8*)(value_105);
+                            uint8_t* value_106 = compiler_check_types_CheckCString(StringLiteral("%s.%s"));
+                            int32_t written = zir_foreign_compiler_check_link__snprintf(&(qualified->items[0]), sizeof(S12Array128_u8), value_106, qualifier, callee_name);
                             if (written < 0 || (size_t)(written) >= sizeof(S12Array128_u8)) {
                                 int32_t cleanup_return_8 = 0;
                                 zir_foreign_compiler_check_link__CompilerFree((void*)(qualified));
@@ -2367,11 +2371,11 @@ compiler_check_link_instantiate_specializations_with_buffers(Checker* checker, I
                                 zir_foreign_compiler_check_link__CompilerFree((void*)(expression_owners));
                                 return cleanup_return_8;
                             }
-                            const char ** value_106 = &(expression->name);
-                            uint8_t* value_107 = zir_foreign_compiler_check_link__KeepName(&(qualified->items[0]));
-                            (*value_106) = (const char *)(value_107);
-                            int32_t* value_108 = &(expression->left);
-                            (*value_108) = -1;
+                            const char ** value_107 = &(expression->name);
+                            uint8_t* value_108 = zir_foreign_compiler_check_link__KeepName(&(qualified->items[0]));
+                            (*value_107) = (const char *)(value_108);
+                            int32_t* value_109 = &(expression->left);
+                            (*value_109) = -1;
                             zir_foreign_compiler_check_link__CompilerFree((void*)(qualified));
                             zir_foreign_compiler_check_link__CompilerFree((void*)(dependency));
                         }
@@ -2385,8 +2389,8 @@ compiler_check_link_instantiate_specializations_with_buffers(Checker* checker, I
             compiler_check_s12_types_S12Post2(&(request_index));
         }
     }
-    int32_t* value_109 = &(checker->specialization_count);
-    (*value_109) = 0;
+    int32_t* value_110 = &(checker->specialization_count);
+    (*value_110) = 0;
     return 1;
 }
 

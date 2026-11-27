@@ -2520,7 +2520,7 @@ compiler_proof_GraphValid(ZirFunction* fn)
             value_5 = value_4 <= (seen).capacity;
             if (!value_5) {
                 void *value_6 = ZirVecReserve((void *)(seen).data, &(seen).capacity, (seen).count, value_4 - (seen).count, sizeof(*(seen).data));
-                if (value_6 != NULL) { (seen).data = (uint8_t *)value_6; value_5 = true; }
+                if (value_6 != NULL) { (seen).data = value_6; value_5 = true; }
             }
             if (value_5) {
                 if (value_4 > (seen).count) memset((seen).data + (seen).count, 0, (size_t)(value_4 - (seen).count) * sizeof(*(seen).data));
@@ -3370,7 +3370,7 @@ ParseProofDeclaration(ZirModule* m, uint8_t* source, ZirSourceSpan span)
         value_3 = value_2 <= (clean).capacity;
         if (!value_3) {
             void *value_4 = ZirVecReserve((void *)(clean).data, &(clean).capacity, (clean).count, value_2 - (clean).count, sizeof(*(clean).data));
-            if (value_4 != NULL) { (clean).data = (uint8_t *)value_4; value_3 = true; }
+            if (value_4 != NULL) { (clean).data = value_4; value_3 = true; }
         }
         if (value_3) {
             if (value_2 > (clean).count) memset((clean).data + (clean).count, 0, (size_t)(value_2 - (clean).count) * sizeof(*(clean).data));

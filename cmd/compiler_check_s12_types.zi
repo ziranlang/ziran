@@ -12,6 +12,12 @@ ActiveTextBorrow :: struct {
     backing: BorrowPlace
     depth: s32
     vec: s32
+    branch: s32
+}
+
+BorrowBranch :: struct {
+    parent: s32
+    group: s32
 }
 
 S12Array128_u8 :: struct {
@@ -28,6 +34,8 @@ Origin :: struct {
     lent: u64
     lent_vec: u64
     global_vec: s32
+    borrowed_pointers: u64
+    readonly_bytes: s32
 }
 
 BorrowBinding :: struct {
@@ -82,6 +90,8 @@ BorrowCheck :: struct {
     active: *ActiveTextBorrow
     active_count: s32
     active_capacity: s32
+    branches: *BorrowBranch
+    branch: s32
     paths: *BorrowPath
     sources: *BorrowSource
     depth: s32

@@ -82,7 +82,7 @@ go_helpers_Define(LaneFunctions* functions, String name, String parameters, Stri
     bool value_2 = false;
     void *value_3 = ZirVecGrow((void *)(functions->names).data, &(functions->names).capacity, (functions->names).count, sizeof(*(functions->names).data));
     if (value_3 != NULL) {
-        (functions->names).data = (String *)value_3;
+        (functions->names).data = value_3;
         (functions->names).data[(functions->names).count++] = value_1;
         value_2 = true;
     }
@@ -92,7 +92,7 @@ go_helpers_Define(LaneFunctions* functions, String name, String parameters, Stri
     bool value_6 = false;
     void *value_7 = ZirVecGrow((void *)(functions->texts).data, &(functions->texts).capacity, (functions->texts).count, sizeof(*(functions->texts).data));
     if (value_7 != NULL) {
-        (functions->texts).data = (String *)value_7;
+        (functions->texts).data = value_7;
         (functions->texts).data[(functions->texts).count++] = value_5;
         value_6 = true;
     }
@@ -384,7 +384,7 @@ go_helpers_List(String prefix, Slice items, String suffix)
             bool value_12 = false;
             void *value_13 = ZirVecGrow((void *)(row).data, &(row).capacity, (row).count, sizeof(*(row).data));
             if (value_13 != NULL) {
-                (row).data = (uint8_t *)value_13;
+                (row).data = value_13;
                 (row).data[(row).count++] = value_11;
                 value_12 = true;
             }
@@ -407,7 +407,7 @@ go_helpers_List(String prefix, Slice items, String suffix)
         bool value_17 = false;
         void *value_18 = ZirVecGrow((void *)(row).data, &(row).capacity, (row).count, sizeof(*(row).data));
         if (value_18 != NULL) {
-            (row).data = (uint8_t *)value_18;
+            (row).data = value_18;
             (row).data[(row).count++] = value_16;
             value_17 = true;
         }
@@ -669,7 +669,7 @@ go_helpers_Map(LaneFunctions* functions, String op, VectorType t, VectorType r, 
             bool value_5 = false;
             void *value_6 = ZirVecGrow((void *)(items).data, &(items).capacity, (items).count, sizeof(*(items).data));
             if (value_6 != NULL) {
-                (items).data = (String *)value_6;
+                (items).data = value_6;
                 (items).data[(items).count++] = value_4;
                 value_5 = true;
             }
@@ -718,7 +718,7 @@ go_helpers_Word(VectorType t, String v, int64_t w)
             bool value_7 = false;
             void *value_8 = ZirVecGrow((void *)(terms).data, &(terms).capacity, (terms).count, sizeof(*(terms).data));
             if (value_8 != NULL) {
-                (terms).data = (String *)value_8;
+                (terms).data = value_8;
                 (terms).data[(terms).count++] = value_6;
                 value_7 = true;
             }
@@ -868,7 +868,7 @@ go_helpers_ByteShift(VectorType t, String op)
             bool value_29 = false;
             void *value_30 = ZirVecGrow((void *)(words).data, &(words).capacity, (words).count, sizeof(*(words).data));
             if (value_30 != NULL) {
-                (words).data = (String *)value_30;
+                (words).data = value_30;
                 (words).data[(words).count++] = value_28;
                 value_29 = true;
             }
@@ -878,7 +878,7 @@ go_helpers_ByteShift(VectorType t, String op)
             bool value_33 = false;
             void *value_34 = ZirVecGrow((void *)(words).data, &(words).capacity, (words).count, sizeof(*(words).data));
             if (value_34 != NULL) {
-                (words).data = (String *)value_34;
+                (words).data = value_34;
                 (words).data[(words).count++] = value_32;
                 value_33 = true;
             }
@@ -912,7 +912,7 @@ go_helpers_ByteShift(VectorType t, String op)
             bool value_41 = false;
             void *value_42 = ZirVecGrow((void *)(items).data, &(items).capacity, (items).count, sizeof(*(items).data));
             if (value_42 != NULL) {
-                (items).data = (String *)value_42;
+                (items).data = value_42;
                 (items).data[(items).count++] = value_40;
                 value_41 = true;
             }
@@ -980,7 +980,7 @@ go_helpers_Reduce(LaneFunctions* functions, String op, VectorType t)
                 bool value_5 = false;
                 void *value_6 = ZirVecGrow((void *)(terms).data, &(terms).capacity, (terms).count, sizeof(*(terms).data));
                 if (value_6 != NULL) {
-                    (terms).data = (String *)value_6;
+                    (terms).data = value_6;
                     (terms).data[(terms).count++] = value_4;
                     value_5 = true;
                 }
@@ -1086,7 +1086,7 @@ go_helpers_Reduce(LaneFunctions* functions, String op, VectorType t)
             bool value_25 = false;
             void *value_26 = ZirVecGrow((void *)(values).data, &(values).capacity, (values).count, sizeof(*(values).data));
             if (value_26 != NULL) {
-                (values).data = (String *)value_26;
+                (values).data = value_26;
                 (values).data[(values).count++] = value_24;
                 value_25 = true;
             }
@@ -1181,7 +1181,7 @@ go_helpers_PickLane(LaneFunctions* functions, String op, VectorType t, VectorTyp
                 bool value_19 = false;
                 void *value_20 = ZirVecGrow((void *)(terms).data, &(terms).capacity, (terms).count, sizeof(*(terms).data));
                 if (value_20 != NULL) {
-                    (terms).data = (String *)value_20;
+                    (terms).data = value_20;
                     (terms).data[(terms).count++] = value_18;
                     value_19 = true;
                 }
@@ -1311,7 +1311,7 @@ go_helpers_PickLane(LaneFunctions* functions, String op, VectorType t, VectorTyp
                 bool value_57 = false;
                 void *value_58 = ZirVecGrow((void *)(terms).data, &(terms).capacity, (terms).count, sizeof(*(terms).data));
                 if (value_58 != NULL) {
-                    (terms).data = (String *)value_58;
+                    (terms).data = value_58;
                     (terms).data[(terms).count++] = value_56;
                     value_57 = true;
                 }
@@ -1362,7 +1362,7 @@ go_helpers_Picked(LaneFunctions* functions, String op, VectorType t, VectorType 
             bool value_3 = false;
             void *value_4 = ZirVecGrow((void *)(items).data, &(items).capacity, (items).count, sizeof(*(items).data));
             if (value_4 != NULL) {
-                (items).data = (String *)value_4;
+                (items).data = value_4;
                 (items).data[(items).count++] = value_2;
                 value_3 = true;
             }
@@ -1423,7 +1423,7 @@ go_helpers_Body(LaneFunctions* functions, String op, VectorType t, VectorType r)
                 bool value_6 = false;
                 void *value_7 = ZirVecGrow((void *)(lanes).data, &(lanes).capacity, (lanes).count, sizeof(*(lanes).data));
                 if (value_7 != NULL) {
-                    (lanes).data = (String *)value_7;
+                    (lanes).data = value_7;
                     (lanes).data[(lanes).count++] = value_5;
                     value_6 = true;
                 }
@@ -1475,7 +1475,7 @@ go_helpers_AddEntry(__type_7fa229285bfd385d* entries, LaneFunctions* functions, 
     bool value_4 = false;
     void *value_5 = ZirVecGrow((void *)((*(entries))).data, &((*(entries))).capacity, ((*(entries))).count, sizeof(*((*(entries))).data));
     if (value_5 != NULL) {
-        ((*(entries))).data = (Entry *)value_5;
+        ((*(entries))).data = value_5;
         ((*(entries))).data[((*(entries))).count++] = value_3;
         value_4 = true;
     }
@@ -1496,7 +1496,7 @@ go_helpers_GoEntries(LaneFunctions* functions)
         bool value_3 = false;
         void *value_4 = ZirVecGrow((void *)(operations).data, &(operations).capacity, (operations).count, sizeof(*(operations).data));
         if (value_4 != NULL) {
-            (operations).data = (String *)value_4;
+            (operations).data = value_4;
             (operations).data[(operations).count++] = value_2;
             value_3 = true;
         }
@@ -1595,7 +1595,7 @@ go_helpers_CString(String text)
     bool value_2 = false;
     void *value_3 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
     if (value_3 != NULL) {
-        (output).data = (uint8_t *)value_3;
+        (output).data = value_3;
         (output).data[(output).count++] = value_1;
         value_2 = true;
     }
@@ -1663,7 +1663,7 @@ go_helpers_CString(String text)
             bool value_13 = false;
             void *value_14 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
             if (value_14 != NULL) {
-                (output).data = (uint8_t *)value_14;
+                (output).data = value_14;
                 (output).data[(output).count++] = value_12;
                 value_13 = true;
             }
@@ -1674,7 +1674,7 @@ go_helpers_CString(String text)
     bool value_16 = false;
     void *value_17 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
     if (value_17 != NULL) {
-        (output).data = (uint8_t *)value_17;
+        (output).data = value_17;
         (output).data[(output).count++] = value_15;
         value_16 = true;
     }
@@ -1704,7 +1704,7 @@ go_helpers_Table(__type_131eebaaeb761e42* output, String table, Slice names, Sli
         bool value_3 = false;
         void *value_4 = ZirVecGrow((void *)(sorted).data, &(sorted).capacity, (sorted).count, sizeof(*(sorted).data));
         if (value_4 != NULL) {
-            (sorted).data = (String *)value_4;
+            (sorted).data = value_4;
             (sorted).data[(sorted).count++] = value_2;
             value_3 = true;
         }
@@ -1780,7 +1780,7 @@ go_helpers_GoHeader(__type_131eebaaeb761e42* output)
         bool value_5 = false;
         void *value_6 = ZirVecGrow((void *)(names).data, &(names).capacity, (names).count, sizeof(*(names).data));
         if (value_6 != NULL) {
-            (names).data = (String *)value_6;
+            (names).data = value_6;
             (names).data[(names).count++] = value_4;
             value_5 = true;
         }
@@ -1789,7 +1789,7 @@ go_helpers_GoHeader(__type_131eebaaeb761e42* output)
         bool value_8 = false;
         void *value_9 = ZirVecGrow((void *)(bodies).data, &(bodies).capacity, (bodies).count, sizeof(*(bodies).data));
         if (value_9 != NULL) {
-            (bodies).data = (String *)value_9;
+            (bodies).data = value_9;
             (bodies).data[(bodies).count++] = value_7;
             value_8 = true;
         }

@@ -4358,86 +4358,228 @@ NativeHeaderGuard(uint8_t* stem, uint8_t* out, size_t size)
 void
 zir_emit_slot_native_type(uint8_t* source, ZirTarget target, uint8_t* out, size_t size)
 {
+    bool value_0 = target == ((ZirTarget)(0));
+    if (value_0) {
+        String value_1 = StringLiteral("");
+        uint8_t* value_2 = (void *)0;
+        {
+            String s = value_1;
+            value_2 = ((compiler_c_emit_StaticText*)(&(s)))->data;
+        }
+        bool value_4 = compiler_c_emit_PointerArrayDeclaration(source, value_2, compiler_c_emit_UnresolvedSlotType, (void *)0, out, size);
+        value_0 = value_4;
+    }
+    if (value_0) {
+        return;
+    }
     if (source[0] == 42) {
-        uint8_t* array = source;
-        int32_t pointers = 0;
-        while (array[0] == 42) {
-            pointers = (int32_t)((uint32_t)pointers + 1u);
-            uint8_t* value_0 = (void *)0;
-            {
-                uint8_t* p = array;
-                size_t n = 1;
-                value_0 = (uint8_t*)(((size_t)(p) + n));
-            }
-            array = zir_foreign_compiler_c_emit__skip_ws(value_0);
-        }
-        if (target == ((ZirTarget)(0)) && array[0] == 91) {
-            uint8_t dimensions[128] = {0};
-            uint8_t element[128] = {0};
-            uint8_t* end = array;
-            while (end[0] == 91) {
-                uint8_t* close = zir_foreign_compiler_c_emit__strchr(end, 93);
-                if (close == ((void *)0)) {
-                    break;
-                }
-                uint8_t* value_2 = (void *)0;
-                {
-                    uint8_t* p = close;
-                    size_t n = 1;
-                    value_2 = (uint8_t*)(((size_t)(p) + n));
-                }
-                end = zir_foreign_compiler_c_emit__skip_ws(value_2);
-            }
-            size_t length = (size_t)(end) - (size_t)(array);
-            if (length >= 128) {
-                length = 128 - 1;
-            }
-            zir_foreign_compiler_c_emit__memcpy((void*)(&(dimensions[0])), (void*)(array), length);
-            uint8_t* value_4 = &(dimensions[length]);
-            (*value_4) = 0;
-            zir_emit_slot_native_type(end, target, &(element[0]), 128);
-            String value_5 = StringLiteral("****************************************************************");
-            uint8_t* value_6 = (void *)0;
-            {
-                String s = value_5;
-                value_6 = ((compiler_c_emit_StaticText*)(&(s)))->data;
-            }
-            uint8_t* stars = value_6;
-            String value_8 = StringLiteral("%s (%.*s)%s");
-            uint8_t* value_9 = (void *)0;
-            {
-                String s = value_8;
-                value_9 = ((compiler_c_emit_StaticText*)(&(s)))->data;
-            }
-            compiler_c_emit_CheckFormat(zir_foreign_compiler_c_emit__snprintf(out, size, value_9, &(element[0]), pointers, stars, &(dimensions[0])), size);
-            return;
-        }
         uint8_t pointee[128] = {0};
-        uint8_t* value_11 = (void *)0;
+        uint8_t* value_5 = (void *)0;
         {
             uint8_t* p = source;
             size_t n = 1;
-            value_11 = (uint8_t*)(((size_t)(p) + n));
+            value_5 = (uint8_t*)(((size_t)(p) + n));
         }
-        zir_emit_slot_native_type(zir_foreign_compiler_c_emit__skip_ws(value_11), target, &(pointee[0]), 128);
-        String value_13 = StringLiteral("%s*");
-        uint8_t* value_14 = (void *)0;
+        zir_emit_slot_native_type(zir_foreign_compiler_c_emit__skip_ws(value_5), target, &(pointee[0]), 128);
+        String value_7 = StringLiteral("%s*");
+        uint8_t* value_8 = (void *)0;
         {
-            String s = value_13;
-            value_14 = ((compiler_c_emit_StaticText*)(&(s)))->data;
+            String s = value_7;
+            value_8 = ((compiler_c_emit_StaticText*)(&(s)))->data;
         }
-        compiler_c_emit_CheckFormat(zir_foreign_compiler_c_emit__snprintf(out, size, value_14, &(pointee[0])), size);
+        compiler_c_emit_CheckFormat(zir_foreign_compiler_c_emit__snprintf(out, size, value_8, &(pointee[0])), size);
         return;
     }
-    void* value_16 = TargetTypeZiran((void*)(source), target);
-    uint8_t* scalar = (uint8_t*)(value_16);
-    uint8_t* value_17 = (void *)0;
+    void* value_10 = TargetTypeZiran((void*)(source), target);
+    uint8_t* scalar = (uint8_t*)(value_10);
+    uint8_t* value_11 = (void *)0;
     if (scalar != ((void *)0)) {
-        value_17 = scalar;
+        value_11 = scalar;
     } else {
-        value_17 = source;
+        value_11 = source;
     }
-    zir_foreign_compiler_c_emit__copy_text(out, size, value_17);
+    zir_foreign_compiler_c_emit__copy_text(out, size, value_11);
+}
+
+void
+compiler_c_emit_UnresolvedSlotType(void* context, uint8_t* source, uint8_t* out, size_t size)
+{
+    (void)context;
+    zir_foreign_compiler_c_emit__copy_text(out, size, source);
+}
+
+bool
+compiler_c_emit_PointerArrayDeclaration(uint8_t* source, uint8_t* name, ZirResolveTarget resolve_type, void* context, uint8_t* out, size_t size)
+{
+    uint8_t declarator[512] = {0};
+    uint8_t work[512] = {0};
+    zir_foreign_compiler_c_emit__copy_text(&(declarator[0]), 128 * 4, name);
+    uint8_t* p = zir_foreign_compiler_c_emit__skip_ws(source);
+    bool pointer = false;
+    bool indirect_array = false;
+    while (true) {
+        if (p[0] == 42) {
+            String value_0 = StringLiteral("*%s");
+            uint8_t* value_1 = (void *)0;
+            {
+                String s = value_0;
+                value_1 = ((compiler_c_emit_StaticText*)(&(s)))->data;
+            }
+            compiler_c_emit_CheckFormat(zir_foreign_compiler_c_emit__snprintf(&(work[0]), 128 * 4, value_1, &(declarator[0])), 128 * 4);
+            uint8_t* value_3 = p;
+            uint8_t* value_4 = (void *)0;
+            {
+                uint8_t* p = value_3;
+                size_t n = 1;
+                value_4 = (uint8_t*)(((size_t)(p) + n));
+            }
+            p = zir_foreign_compiler_c_emit__skip_ws(value_4);
+            pointer = true;
+        } else if (p[0] == 91 && p[1] != 93) {
+            uint8_t* close = zir_foreign_compiler_c_emit__strchr(p, 93);
+            if (close == ((void *)0)) {
+                return false;
+            }
+            int32_t length = (int32_t)((((size_t)(close) - (size_t)(p)) + 1));
+            uint8_t* value_6 = (void *)0;
+            if (pointer) {
+                String value_7 = StringLiteral("(%s)%.*s");
+                uint8_t* value_8 = (void *)0;
+                {
+                    String s = value_7;
+                    value_8 = ((compiler_c_emit_StaticText*)(&(s)))->data;
+                }
+                value_6 = value_8;
+            } else {
+                String value_10 = StringLiteral("%s%.*s");
+                uint8_t* value_11 = (void *)0;
+                {
+                    String s = value_10;
+                    value_11 = ((compiler_c_emit_StaticText*)(&(s)))->data;
+                }
+                value_6 = value_11;
+            }
+            uint8_t* fmt = value_6;
+            compiler_c_emit_CheckFormat(zir_foreign_compiler_c_emit__snprintf(&(work[0]), 128 * 4, fmt, &(declarator[0]), length, p), 128 * 4);
+            indirect_array = indirect_array || pointer;
+            uint8_t* value_13 = (void *)0;
+            {
+                uint8_t* p = close;
+                size_t n = 1;
+                value_13 = (uint8_t*)(((size_t)(p) + n));
+            }
+            p = zir_foreign_compiler_c_emit__skip_ws(value_13);
+            pointer = false;
+        } else {
+            break;
+        }
+        zir_foreign_compiler_c_emit__copy_text(&(declarator[0]), 128 * 4, &(work[0]));
+    }
+    if (!indirect_array) {
+        return false;
+    }
+    uint8_t element[256] = {0};
+    void* value_15 = TargetTypeZiran((void*)(p), (ZirTarget)(0));
+    uint8_t* scalar = (uint8_t*)(value_15);
+    if (zir_foreign_compiler_c_emit__SliceElementType(p, (void *)0, 0) != 0) {
+        String value_16 = StringLiteral("Slice");
+        uint8_t* value_17 = (void *)0;
+        {
+            String s = value_16;
+            value_17 = ((compiler_c_emit_StaticText*)(&(s)))->data;
+        }
+        scalar = value_17;
+    }
+    if (scalar != ((void *)0)) {
+        zir_foreign_compiler_c_emit__copy_text(&(element[0]), 128 * 2, scalar);
+    } else if (resolve_type != NULL) {
+        ZirResolveTarget value_19 = resolve_type;
+        value_19(context, p, &(element[0]), 128 * 2);
+    } else {
+        zir_foreign_compiler_c_emit__copy_text(&(element[0]), 128 * 2, p);
+    }
+    String value_20 = StringLiteral("%s %s");
+    uint8_t* value_21 = (void *)0;
+    {
+        String s = value_20;
+        value_21 = ((compiler_c_emit_StaticText*)(&(s)))->data;
+    }
+    compiler_c_emit_CheckFormat(zir_foreign_compiler_c_emit__snprintf(out, size, value_21, &(element[0]), &(declarator[0])), size);
+    return true;
+}
+
+void
+compiler_c_emit_NamedCType(uint8_t* type, uint8_t* name, uint8_t* out, size_t size)
+{
+    String value_0 = StringLiteral("(*");
+    uint8_t* value_1 = (void *)0;
+    {
+        String s = value_0;
+        value_1 = ((compiler_c_emit_StaticText*)(&(s)))->data;
+    }
+    uint8_t* group = zir_foreign_compiler_c_emit__strstr(type, value_1);
+    uint8_t* value_3 = (void *)0;
+    if (group != ((void *)0)) {
+        uint8_t* value_4 = zir_foreign_compiler_c_emit__strchr(group, 41);
+        value_3 = value_4;
+    } else {
+        value_3 = (void *)0;
+    }
+    uint8_t* close = value_3;
+    if (close != ((void *)0)) {
+        int32_t length = (int32_t)(((size_t)(close) - (size_t)(type)));
+        String value_5 = StringLiteral("%.*s%s%s");
+        uint8_t* value_6 = (void *)0;
+        {
+            String s = value_5;
+            value_6 = ((compiler_c_emit_StaticText*)(&(s)))->data;
+        }
+        compiler_c_emit_CheckFormat(zir_foreign_compiler_c_emit__snprintf(out, size, value_6, length, type, name, close), size);
+    } else {
+        String value_8 = StringLiteral("%s%s%s");
+        uint8_t* value_9 = (void *)0;
+        {
+            String s = value_8;
+            value_9 = ((compiler_c_emit_StaticText*)(&(s)))->data;
+        }
+        uint8_t* value_11 = (void *)0;
+        if (name[0] == 10) {
+            String value_12 = StringLiteral("");
+            uint8_t* value_13 = (void *)0;
+            {
+                String s = value_12;
+                value_13 = ((compiler_c_emit_StaticText*)(&(s)))->data;
+            }
+            value_11 = value_13;
+        } else {
+            String value_15 = StringLiteral(" ");
+            uint8_t* value_16 = (void *)0;
+            {
+                String s = value_15;
+                value_16 = ((compiler_c_emit_StaticText*)(&(s)))->data;
+            }
+            value_11 = value_16;
+        }
+        compiler_c_emit_CheckFormat(zir_foreign_compiler_c_emit__snprintf(out, size, value_9, type, value_11, name), size);
+    }
+}
+
+void
+compiler_c_emit_NamedCFunction(uint8_t* result, uint8_t* name, uint8_t* parameters, uint8_t* out, size_t size)
+{
+    void* value_0 = zir_foreign_compiler_c_emit__AllocateOrExit(4096);
+    uint8_t* signature = (uint8_t*)(value_0);
+    String value_1 = StringLiteral("%s(%s)");
+    uint8_t* value_2 = (void *)0;
+    {
+        String s = value_1;
+        value_2 = ((compiler_c_emit_StaticText*)(&(s)))->data;
+    }
+    compiler_c_emit_CheckFormat(zir_foreign_compiler_c_emit__snprintf(signature, 4096, value_2, name, parameters), 4096);
+    compiler_c_emit_NamedCType(result, signature, out, size);
+    {
+        zir_foreign_compiler_c_emit__free((void*)(signature));
+    }
 }
 
 void
@@ -5801,20 +5943,26 @@ EmitNativeMainDeclaration(void* out)
 void
 EmitSymbolDeclaration(void* out, uint8_t* result, uint8_t* name, uint8_t* parameters, uint8_t* symbol)
 {
-    String value_0 = StringLiteral("#ifdef __APPLE__\n%s %s(%s) __asm__(\"_%s\");\n#else\n");
-    uint8_t* value_1 = (void *)0;
+    void* value_0 = zir_foreign_compiler_c_emit__AllocateOrExit(4096);
+    uint8_t* declaration = (uint8_t*)(value_0);
+    compiler_c_emit_NamedCFunction(result, name, parameters, declaration, 4096);
+    String value_1 = StringLiteral("#ifdef __APPLE__\n%s __asm__(\"_%s\");\n#else\n");
+    uint8_t* value_2 = (void *)0;
     {
-        String s = value_0;
-        value_1 = ((compiler_c_emit_StaticText*)(&(s)))->data;
+        String s = value_1;
+        value_2 = ((compiler_c_emit_StaticText*)(&(s)))->data;
     }
-    zir_foreign_compiler_c_emit__fprintf(out, value_1, result, name, parameters, symbol);
-    String value_3 = StringLiteral("%s %s(%s) __asm__(\"%s\");\n#endif\n");
-    uint8_t* value_4 = (void *)0;
+    zir_foreign_compiler_c_emit__fprintf(out, value_2, declaration, symbol);
+    String value_4 = StringLiteral("%s __asm__(\"%s\");\n#endif\n");
+    uint8_t* value_5 = (void *)0;
     {
-        String s = value_3;
-        value_4 = ((compiler_c_emit_StaticText*)(&(s)))->data;
+        String s = value_4;
+        value_5 = ((compiler_c_emit_StaticText*)(&(s)))->data;
     }
-    zir_foreign_compiler_c_emit__fprintf(out, value_4, result, name, parameters, symbol);
+    zir_foreign_compiler_c_emit__fprintf(out, value_5, declaration, symbol);
+    {
+        zir_foreign_compiler_c_emit__free((void*)(declaration));
+    }
 }
 
 void

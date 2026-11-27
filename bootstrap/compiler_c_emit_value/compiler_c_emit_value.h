@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 #ifndef ZIRAN_TYPE_FORWARD_Local
 #define ZIRAN_TYPE_FORWARD_Local
 typedef struct Local Local;
@@ -125,6 +126,8 @@ void zir_emit_emit_destination(Emitter* e, int32_t index, uint8_t* out, size_t s
 void zir_emit_capture_destination(Emitter* e, int32_t index, uint8_t* out, size_t size);
 void zir_emit_literal(Emitter* e, ZirExpr* expr, uint8_t* type, int32_t neg_in, uint8_t* out, size_t size);
 void EmitStringLiteral(ZirExpr* expr, ZirTarget target, uint8_t* out, size_t size);
+void EmitGoStringViewLiteral(ZirExpr* expr, uint8_t* out, size_t size);
+void compiler_c_emit_value_EmitStringLiteralStorage(ZirExpr* expr, ZirTarget target, bool terminated, uint8_t* out, size_t size);
 int32_t ScalarLiteral(uint8_t* type_in, uint8_t* text, ZirTarget target, ZirSourceSpan span, uint8_t* out, size_t size);
 
 #ifdef __cplusplus

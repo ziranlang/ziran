@@ -37,8 +37,10 @@ HostField :: struct {
     value: HostValue
 }
 
+// Module and function names are borrowed read-only bytes during the call.
+// The host context, argument records and result remain writable.
 HostCall :: #type (context: *void, module: *u8, function: *u8,
-    arguments: *HostValue, count: s32, result: *HostValue) -> s32 #c_call;
+    arguments: *HostValue, count: s32, result: *HostValue) -> s32 #reads #c_call;
 
 HostBinding :: struct {
     module: *u8

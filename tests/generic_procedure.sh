@@ -107,6 +107,7 @@ ZI
 cat > "$work/scoped/paint.zi" <<'ZI'
 using Text :: #import "paint_props";
 painted: s32;
+#scope_package
 #if #defined(PAINT_HOSTED) {
     Paint :: (frame: $T, props: Text.Props) { painted = -1 }
 } else {
@@ -139,14 +140,23 @@ Answer :: () -> s32 {
     return Painter.painted
 }
 ZI
-"$ziran" build --target=c --no-main --root "$work/scoped" -o "$work/scoped/c" "$work/scoped/caller.zi"
-cat > "$work/scoped/c/main.c" <<'C'
+# Package-private templates and retained helpers must keep valid visibility
+# when the checked graph is saved, then consumed without source declarations.
+"$ziran" ir --root "$work/scoped" -o "$work/scoped/ir" "$work/scoped/caller.zi"
+for source in source saved; do
+    root="$work/scoped"
+    input="$root/caller.zi"
+    if [ "$source" = saved ]; then root="$root/ir"; input="$root/caller.zir"; fi
+    out="$work/scoped/c-$source"
+    "$ziran" build --target=c --no-main --root "$root" -o "$out" "$input"
+    cat > "$out/main.c" <<'C'
 #include "caller.h"
 int main(void) { return Answer() == 42 ? 0 : 1; }
 C
-"${CC:-cc}" -std=c11 -Werror=implicit-function-declaration -I"$repo/include" -I"$work/scoped/c" \
-    "$work/scoped/c"/*.c -o "$work/scoped/app"
-"$work/scoped/app"
+    "${CC:-cc}" -std=c11 -Werror=implicit-function-declaration -I"$repo/include" -I"$out" \
+        "$out"/*.c -o "$out/app"
+    "$out/app"
+done
 
 cat > "$work/ambiguous.zi" <<'ZI'
 Identity :: (value: $T) -> T { return value }

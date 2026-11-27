@@ -197,6 +197,7 @@ static BorrowSource* compiler_borrow_add_source(BorrowCheck* check, BorrowSource
 static BorrowSource* compiler_borrow_merge_sources(BorrowCheck* check, BorrowSource* destination, BorrowSource* sources) ZIRAN_MAYBE_UNUSED;
 static BorrowPlace compiler_borrow_first_source(BorrowSource* sources) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_borrow_only_global(BorrowCheck* check, Origin origin, int32_t index) ZIRAN_MAYBE_UNUSED;
+static bool compiler_borrow_exclusive_borrow_branch(BorrowCheck* check, int32_t branch) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_borrow_text_backing_conflict(BorrowCheck* check, BorrowPlace destination) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_borrow_vec_view_conflict(BorrowCheck* check, BorrowPlace destination) ZIRAN_MAYBE_UNUSED;
 static void compiler_borrow_add_active_vec_borrow(BorrowCheck* check, int32_t index, int32_t depth) ZIRAN_MAYBE_UNUSED;
@@ -219,10 +220,11 @@ static int32_t compiler_borrow_reference_parameter(BorrowCheck* check, BorrowPla
 static MutationRoot* compiler_borrow_mutation_root(BorrowFunction* function, int32_t parameter, int32_t global) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_borrow_reserve_mutation_root(BorrowFunction* function) ZIRAN_MAYBE_UNUSED;
 static void compiler_borrow_record_mutation(BorrowCheck* check, BorrowPlace place, int32_t owned_transfer) ZIRAN_MAYBE_UNUSED;
-static void compiler_borrow_check_mutation(BorrowCheck* check, BorrowPlace destination, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
+static void compiler_borrow_check_mutation(BorrowCheck* check, BorrowPlace destination, ZirSourceSpan span, int32_t expression) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_borrow_foreign_call_visit(ZirModule* module, uint8_t* name, PointerIndex* visited) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_borrow_foreign_call_uncached(ZirModule* module, uint8_t* name) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_borrow_foreign_call(BorrowCheck* check, ZirModule* module, uint8_t* name) ZIRAN_MAYBE_UNUSED;
+static bool compiler_borrow_reads_byte_argument(BorrowCheck* check, ZirExpr* call, int32_t argument) ZIRAN_MAYBE_UNUSED;
 static void compiler_borrow_check_call_mutations(BorrowCheck* check, ZirExpr* expression) ZIRAN_MAYBE_UNUSED;
 static BorrowPlace compiler_borrow_address_backing(BorrowCheck* check, int32_t index, int32_t* known) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_borrow_direct_pointer_parameter(BorrowBinding* source) ZIRAN_MAYBE_UNUSED;
@@ -231,6 +233,9 @@ static int32_t compiler_borrow_pointee_parameter(BorrowCheck* check, int32_t ind
 static Origin compiler_borrow_pointee_view_origin(BorrowCheck* check, int32_t index) ZIRAN_MAYBE_UNUSED;
 static BorrowSource* compiler_borrow_text_view_backings(BorrowCheck* check, int32_t index) ZIRAN_MAYBE_UNUSED;
 static Origin compiler_borrow_call_origin(BorrowCheck* check, ZirExpr* expression) ZIRAN_MAYBE_UNUSED;
+static Origin compiler_borrow_pointer_address_origin(BorrowCheck* check, int32_t index) ZIRAN_MAYBE_UNUSED;
+static Origin compiler_borrow_pointer_view_origin(BorrowCheck* check, int32_t index) ZIRAN_MAYBE_UNUSED;
+static bool compiler_borrow_readonly_pointer_destination(BorrowCheck* check, int32_t index) ZIRAN_MAYBE_UNUSED;
 static Origin compiler_borrow_storage_origin(BorrowCheck* check, int32_t index) ZIRAN_MAYBE_UNUSED;
 static Origin compiler_borrow_expression_origin(BorrowCheck* check, int32_t index) ZIRAN_MAYBE_UNUSED;
 static bool compiler_borrow_borrowed_capture_place(ZirFunction* fn, int32_t index, int32_t depth) ZIRAN_MAYBE_UNUSED;
@@ -241,6 +246,7 @@ static int32_t compiler_borrow_inputs_changed(BorrowCheck* check, BorrowFunction
 static void compiler_borrow_check_reference_owned_field(BorrowCheck* check, int32_t index) ZIRAN_MAYBE_UNUSED;
 static void compiler_borrow_protect_owned_reference(BorrowCheck* check, BorrowBinding* reference, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
 static bool compiler_borrow_has_reference_owned_fields(BorrowCheck* check) ZIRAN_MAYBE_UNUSED;
+static BorrowBranch* compiler_borrow_borrow_branches(ZirFunction* fn) ZIRAN_MAYBE_UNUSED;
 static void compiler_borrow_check_function(BorrowCheck* check, BorrowFunction* function) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_borrow_check_slice_lifetimes(ZirProgram** programs, int32_t count) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_borrow_FunctionArgs(ZirFunction* fn) ZIRAN_MAYBE_UNUSED;
@@ -569,17 +575,21 @@ compiler_borrow_merge(BorrowCheck* check, Origin a, Origin b)
     (*value_5) = (uint64_t)((uint64_t)((*value_5)) | (uint64_t)(b.lent_vec));
     int32_t* value_6 = &((result_storage_0[0]).global_vec);
     (*value_6) = (int32_t)((uint32_t)((*value_6)) | (uint32_t)(b.global_vec));
+    uint64_t* value_7 = &(result_storage_0->borrowed_pointers);
+    (*value_7) = (uint64_t)((uint64_t)((*value_7)) | (uint64_t)(b.borrowed_pointers));
+    int32_t* value_8 = &(result_storage_0->readonly_bytes);
+    (*value_8) = (int32_t)((uint32_t)((*value_8)) | (uint32_t)(b.readonly_bytes));
     if (b.depth > (result_storage_0[0]).depth) {
-        int32_t* value_7 = &((result_storage_0[0]).depth);
-        (*value_7) = b.depth;
+        int32_t* value_9 = &((result_storage_0[0]).depth);
+        (*value_9) = b.depth;
     }
-    int32_t* value_8 = &((result_storage_0[0]).invalid);
-    (*value_8) = (int32_t)((uint32_t)((*value_8)) | (uint32_t)(b.invalid));
-    int32_t* value_9 = &((result_storage_0[0]).unknown);
-    (*value_9) = (int32_t)((uint32_t)((*value_9)) | (uint32_t)(b.unknown));
+    int32_t* value_10 = &((result_storage_0[0]).invalid);
+    (*value_10) = (int32_t)((uint32_t)((*value_10)) | (uint32_t)(b.invalid));
+    int32_t* value_11 = &((result_storage_0[0]).unknown);
+    (*value_11) = (int32_t)((uint32_t)((*value_11)) | (uint32_t)(b.unknown));
     if (a.globals == (uint64_t*)(((void *)0))) {
-        uint64_t** value_10 = &((result_storage_0[0]).globals);
-        (*value_10) = b.globals;
+        uint64_t** value_12 = &((result_storage_0[0]).globals);
+        (*value_12) = b.globals;
     } else {
         if (b.globals != (uint64_t*)(((void *)0)) && a.globals != b.globals) {
             int32_t a_extra = 0;
@@ -591,28 +601,28 @@ compiler_borrow_merge(BorrowCheck* check, Origin a, Origin b)
                     if (!check_loop_202) {
                         break;
                     }
-                    uint64_t value_11 = (uint64_t)((uint64_t)(a.globals[i]) & (uint64_t)(((uint64_t)~(uint64_t)(b.globals[i]))));
-                    int32_t value_12 = 0;
-                    if (value_11 != 0ULL) {
-                        value_12 = 1;
-                    }
-                    a_extra = (int32_t)((uint32_t)a_extra | (uint32_t)value_12);
-                    uint64_t value_13 = (uint64_t)((uint64_t)(b.globals[i]) & (uint64_t)(((uint64_t)~(uint64_t)(a.globals[i]))));
+                    uint64_t value_13 = (uint64_t)((uint64_t)(a.globals[i]) & (uint64_t)(((uint64_t)~(uint64_t)(b.globals[i]))));
                     int32_t value_14 = 0;
                     if (value_13 != 0ULL) {
                         value_14 = 1;
                     }
-                    b_extra = (int32_t)((uint32_t)b_extra | (uint32_t)value_14);
+                    a_extra = (int32_t)((uint32_t)a_extra | (uint32_t)value_14);
+                    uint64_t value_15 = (uint64_t)((uint64_t)(b.globals[i]) & (uint64_t)(((uint64_t)~(uint64_t)(a.globals[i]))));
+                    int32_t value_16 = 0;
+                    if (value_15 != 0ULL) {
+                        value_16 = 1;
+                    }
+                    b_extra = (int32_t)((uint32_t)b_extra | (uint32_t)value_16);
                     compiler_check_s12_types_S12Post5(&(i));
                 }
             }
             if (!(b_extra != 0)) {
-                uint64_t** value_15 = &((result_storage_0[0]).globals);
-                (*value_15) = a.globals;
+                uint64_t** value_17 = &((result_storage_0[0]).globals);
+                (*value_17) = a.globals;
             } else {
                 if (!(a_extra != 0)) {
-                    uint64_t** value_16 = &((result_storage_0[0]).globals);
-                    (*value_16) = b.globals;
+                    uint64_t** value_18 = &((result_storage_0[0]).globals);
+                    (*value_18) = b.globals;
                 } else {
                     uint64_t* bits = compiler_borrow_new_global_bits(check);
                     if (bits != (uint64_t*)(((void *)0))) {
@@ -623,14 +633,14 @@ compiler_borrow_merge(BorrowCheck* check, Origin a, Origin b)
                                 if (!check_loop_203) {
                                     break;
                                 }
-                                uint64_t* value_17 = &(bits[i]);
-                                (*value_17) = (uint64_t)((uint64_t)(a.globals[i]) | (uint64_t)(b.globals[i]));
+                                uint64_t* value_19 = &(bits[i]);
+                                (*value_19) = (uint64_t)((uint64_t)(a.globals[i]) | (uint64_t)(b.globals[i]));
                                 compiler_check_s12_types_S12Post5(&(i));
                             }
                         }
                     }
-                    uint64_t** value_18 = &((result_storage_0[0]).globals);
-                    (*value_18) = bits;
+                    uint64_t** value_20 = &((result_storage_0[0]).globals);
+                    (*value_20) = bits;
                 }
             }
         }
@@ -643,6 +653,9 @@ compiler_borrow_merge(BorrowCheck* check, Origin a, Origin b)
 static int32_t
 compiler_borrow_same_origin(Origin left, Origin right)
 {
+    if (left.borrowed_pointers != right.borrowed_pointers || left.readonly_bytes != right.readonly_bytes) {
+        return 0;
+    }
     bool value_0 = left.parameters == right.parameters && left.pointees == right.pointees && left.lent == right.lent;
     bool value_1 = value_0 && left.lent_vec == right.lent_vec && left.global_vec == right.global_vec && left.depth == right.depth;
     bool value_2 = value_1 && left.invalid == right.invalid && left.unknown == right.unknown && left.globals == right.globals;
@@ -668,6 +681,10 @@ compiler_borrow_accumulate(BorrowCheck* check, Origin* destination, Origin sourc
     {
         Origin left = value_3;
         Origin right = value_4;
+        if (left.borrowed_pointers != right.borrowed_pointers || left.readonly_bytes != right.readonly_bytes) {
+            value_5 = 0;
+            goto value_6;
+        }
         bool value_7 = left.parameters == right.parameters && left.pointees == right.pointees && left.lent == right.lent;
         bool value_8 = value_7 && left.lent_vec == right.lent_vec && left.global_vec == right.global_vec && left.depth == right.depth;
         bool value_9 = value_8 && left.invalid == right.invalid && left.unknown == right.unknown && left.globals == right.globals;
@@ -676,6 +693,7 @@ compiler_borrow_accumulate(BorrowCheck* check, Origin* destination, Origin sourc
             value_10 = 1;
         }
         value_5 = value_10;
+    value_6: ;
     }
     if (value_5 != 0) {
         int32_t cleanup_return_0 = 0;
@@ -893,6 +911,10 @@ compiler_borrow_global_state_differs(BorrowBinding* before, BorrowBinding* after
     {
         Origin left = value_0;
         Origin right = value_1;
+        if (left.borrowed_pointers != right.borrowed_pointers || left.readonly_bytes != right.readonly_bytes) {
+            value_2 = 0;
+            goto value_3;
+        }
         bool value_4 = left.parameters == right.parameters && left.pointees == right.pointees && left.lent == right.lent;
         bool value_5 = value_4 && left.lent_vec == right.lent_vec && left.global_vec == right.global_vec && left.depth == right.depth;
         bool value_6 = value_5 && left.invalid == right.invalid && left.unknown == right.unknown && left.globals == right.globals;
@@ -901,6 +923,7 @@ compiler_borrow_global_state_differs(BorrowBinding* before, BorrowBinding* after
             value_7 = 1;
         }
         value_2 = value_7;
+    value_3: ;
     }
     bool value_8 = !(value_2 != 0) || before->global_backing_state != after->global_backing_state;
     bool value_9 = value_8;
@@ -1075,6 +1098,33 @@ compiler_borrow_only_global(BorrowCheck* check, Origin origin, int32_t index)
     return 1;
 }
 
+static bool
+compiler_borrow_exclusive_borrow_branch(BorrowCheck* check, int32_t branch)
+{
+    int32_t current = check->branch;
+    while (branch > 0 && current > 0) {
+        BorrowBranch first = check->branches[branch];
+        BorrowBranch second = check->branches[current];
+        if (first.group == 0) {
+            branch = first.parent;
+            continue;
+        }
+        if (second.group == 0) {
+            current = second.parent;
+            continue;
+        }
+        if (first.group == second.group) {
+            return branch != current;
+        }
+        if (first.group > second.group) {
+            branch = first.parent;
+        } else {
+            current = second.parent;
+        }
+    }
+    return false;
+}
+
 static int32_t
 compiler_borrow_text_backing_conflict(BorrowCheck* check, BorrowPlace destination)
 {
@@ -1086,7 +1136,14 @@ compiler_borrow_text_backing_conflict(BorrowCheck* check, BorrowPlace destinatio
                 break;
             }
             bool value_0 = !((check->active[i]).vec != 0);
-            if (value_0 && compiler_borrow_places_overlap((check->active[i]).backing, destination) != 0) {
+            bool value_1 = value_0 && compiler_borrow_places_overlap((check->active[i]).backing, destination) != 0;
+            bool value_2 = value_1;
+            bool value_3 = value_2;
+            if (value_3) {
+                bool value_4 = compiler_borrow_exclusive_borrow_branch(check, (check->active[i]).branch);
+                value_3 = !value_4;
+            }
+            if (value_3) {
                 return 1;
             }
             compiler_check_s12_types_S12Post2(&(i));
@@ -1106,7 +1163,14 @@ compiler_borrow_vec_view_conflict(BorrowCheck* check, BorrowPlace destination)
                 break;
             }
             bool value_0 = (check->active[i]).vec != 0;
-            if (value_0 && compiler_borrow_place_within(destination, (check->active[i]).backing) != 0) {
+            bool value_1 = value_0 && compiler_borrow_place_within(destination, (check->active[i]).backing) != 0;
+            bool value_2 = value_1;
+            bool value_3 = value_2;
+            if (value_3) {
+                bool value_4 = compiler_borrow_exclusive_borrow_branch(check, (check->active[i]).branch);
+                value_3 = !value_4;
+            }
+            if (value_3) {
                 return 1;
             }
             compiler_check_s12_types_S12Post2(&(i));
@@ -1199,6 +1263,8 @@ compiler_borrow_add_active_text_borrows(BorrowCheck* check, BorrowSource* source
             (*value_6) = depth;
             int32_t* value_7 = &((check->active[check->active_count]).vec);
             (*value_7) = 0;
+            int32_t* value_8 = &((check->active[check->active_count]).branch);
+            (*value_8) = check->branch;
             compiler_check_s12_types_S12Post2(&(check->active_count));
             source = source->next;
         }
@@ -1906,13 +1972,20 @@ compiler_borrow_record_mutation(BorrowCheck* check, BorrowPlace place, int32_t o
 }
 
 static void
-compiler_borrow_check_mutation(BorrowCheck* check, BorrowPlace destination, ZirSourceSpan span)
+compiler_borrow_check_mutation(BorrowCheck* check, BorrowPlace destination, ZirSourceSpan span, int32_t expression)
 {
     bool value_0 = destination.root != ((void *)0) && destination.root->local == 0;
-    if (value_0 && compiler_ir_CaptureEnvironmentBinding(check->current->fn)) {
-        BorrowCheck* value_1 = check;
-        ZirSourceSpan value_2 = span;
-        compiler_borrow_reject(value_1, value_2, compiler_check_types_CheckCString(StringLiteral("callback captures are immutable snapshots")));
+    bool value_1 = value_0 && compiler_ir_CaptureEnvironmentBinding(check->current->fn);
+    bool value_2 = value_1;
+    bool value_3 = value_2;
+    if (value_3) {
+        bool value_4 = compiler_borrow_borrowed_capture_place(check->current->fn, expression, 0);
+        value_3 = !value_4;
+    }
+    if (value_3) {
+        BorrowCheck* value_5 = check;
+        ZirSourceSpan value_6 = span;
+        compiler_borrow_reject(value_5, value_6, compiler_check_types_CheckCString(StringLiteral("callback captures are immutable snapshots")));
         return;
     }
     compiler_borrow_record_mutation(check, destination, 0);
@@ -1920,23 +1993,23 @@ compiler_borrow_check_mutation(BorrowCheck* check, BorrowPlace destination, ZirS
         return;
     }
     if (compiler_borrow_vec_view_conflict(check, destination) != 0) {
-        BorrowCheck* value_3 = check;
-        ZirSourceSpan value_4 = span;
-        compiler_borrow_reject(value_3, value_4, compiler_check_types_CheckCString(StringLiteral("cannot mutate a Vec with a live borrowed view")));
+        BorrowCheck* value_7 = check;
+        ZirSourceSpan value_8 = span;
+        compiler_borrow_reject(value_7, value_8, compiler_check_types_CheckCString(StringLiteral("cannot mutate a Vec with a live borrowed view")));
         return;
     }
     if (compiler_borrow_text_backing_conflict(check, destination) != 0) {
-        BorrowCheck* value_5 = check;
-        ZirSourceSpan value_6 = span;
-        compiler_borrow_reject(value_5, value_6, compiler_check_types_CheckCString(StringLiteral("mutating text backing storage while its view is live")));
+        BorrowCheck* value_9 = check;
+        ZirSourceSpan value_10 = span;
+        compiler_borrow_reject(value_9, value_10, compiler_check_types_CheckCString(StringLiteral("mutating text backing storage while its view is live")));
         return;
     }
     int32_t backing_global = destination.root->global_index;
     if (backing_global < 0) {
         return;
     }
-    int32_t* value_7 = &(check->current->scanned_views);
-    (*value_7) = 1;
+    int32_t* value_11 = &(check->current->scanned_views);
+    (*value_11) = 1;
     {
         int32_t v = 0;
         while (true) {
@@ -1946,71 +2019,71 @@ compiler_borrow_check_mutation(BorrowCheck* check, BorrowPlace destination, ZirS
                     break;
                 }
                 int32_t g = check->view_globals[v];
-                BorrowCheck* value_8 = check;
+                BorrowCheck* value_12 = check;
                 {
-                    BorrowCheck* check = value_8;
+                    BorrowCheck* check = value_12;
                     int32_t index = g;
                     BorrowBinding* global = (BorrowBinding*)(((size_t)(check->globals) + ((size_t)(index) * sizeof(BorrowBinding))));
-                    uint64_t value_10 = global->listed_by;
-                    uint64_t value_11 = check->checks;
-                    if (value_10 == value_11) {
-                        goto value_9;
+                    uint64_t value_14 = global->listed_by;
+                    uint64_t value_15 = check->checks;
+                    if (value_14 == value_15) {
+                        goto value_13;
                     }
-                    uint64_t* value_12 = &(global->listed_by);
-                    (*value_12) = check->checks;
+                    uint64_t* value_16 = &(global->listed_by);
+                    (*value_16) = check->checks;
                     compiler_borrow_list_index(check, &(check->current->globals_read), index);
-                value_9: ;
+                value_13: ;
                 }
                 BorrowBinding* view = (BorrowBinding*)(((size_t)(check->globals) + ((size_t)(g) * sizeof(BorrowBinding))));
-                Origin value_13 = check->global_origins[g];
-                int32_t value_14 = 0;
+                Origin value_17 = check->global_origins[g];
+                int32_t value_18 = 0;
                 {
-                    Origin origin = value_13;
+                    Origin origin = value_17;
                     int32_t index = backing_global;
-                    bool value_16 = origin.globals != (uint64_t*)(((void *)0));
-                    if (value_16) {
-                        uint64_t value_17 = (uint64_t)((uint64_t)(origin.globals[((size_t)(index) / (size_t)(64LL))]) & (uint64_t)((ZiShl64(1ULL, (uint64_t)((uint64_t)((index % 64))), 64))));
-                        value_16 = (value_17 != 0ULL);
+                    bool value_20 = origin.globals != (uint64_t*)(((void *)0));
+                    if (value_20) {
+                        uint64_t value_21 = (uint64_t)((uint64_t)(origin.globals[((size_t)(index) / (size_t)(64LL))]) & (uint64_t)((ZiShl64(1ULL, (uint64_t)((uint64_t)((index % 64))), 64))));
+                        value_20 = (value_21 != 0ULL);
                     }
-                    int32_t value_18 = 0;
-                    if (value_16) {
-                        value_18 = 1;
+                    int32_t value_22 = 0;
+                    if (value_20) {
+                        value_22 = 1;
                     }
-                    value_14 = value_18;
+                    value_18 = value_22;
                 }
-                if (!(value_14 != 0)) {
+                if (!(value_18 != 0)) {
                     compiler_check_s12_types_S12Post2(&(v));
                     goto zir_loop_continue_1;
                 }
-                bool value_19 = compiler_borrow_cached_contains_text(check, view->module, (uint8_t*)(&(view->type.items))) != 0;
-                if (!value_19) {
+                bool value_23 = compiler_borrow_cached_contains_text(check, view->module, (uint8_t*)(&(view->type.items))) != 0;
+                if (!value_23) {
                     compiler_check_s12_types_S12Post2(&(v));
                     goto zir_loop_continue_1;
                 }
-                bool value_20 = view->global_backing_state == 1 && view->text_backing.root == destination.root;
-                bool value_21 = value_20;
-                if (value_21) {
-                    bool value_22 = compiler_borrow_places_overlap(view->text_backing, destination) != 0;
-                    value_21 = !value_22;
+                bool value_24 = view->global_backing_state == 1 && view->text_backing.root == destination.root;
+                bool value_25 = value_24;
+                if (value_25) {
+                    bool value_26 = compiler_borrow_places_overlap(view->text_backing, destination) != 0;
+                    value_25 = !value_26;
                 }
-                if (value_21) {
+                if (value_25) {
                     compiler_check_s12_types_S12Post2(&(v));
                     goto zir_loop_continue_1;
                 }
                 if (!(check->failed != 0)) {
                     DiagnosticDetails details = {0};
-                    ZirSourceSpan* value_23 = &(details.related_span);
-                    (*value_23) = view->global->span;
-                    uint8_t** value_24 = &(details.related_message);
-                    uint8_t* value_25 = compiler_check_types_CheckCString(StringLiteral("global value retains a text view of this backing storage"));
-                    (*value_24) = value_25;
-                    ZirSourceSpan value_26 = span;
-                    uint8_t* value_27 = compiler_check_types_CheckCString(StringLiteral("check.slice_lifetime"));
-                    uint8_t* value_28 = compiler_check_types_CheckCString(StringLiteral("mutating text backing storage while its view is live (backing %s.%s, view %s.%s)"));
-                    zir_foreign_compiler_borrow__DiagnosticDetailed(value_26, value_27, &(details), value_28, (uint8_t*)(&(destination.root->module->name)), (uint8_t*)(&(destination.root->name.items)), (uint8_t*)(&(view->module->name)), (uint8_t*)(&(view->name.items)));
+                    ZirSourceSpan* value_27 = &(details.related_span);
+                    (*value_27) = view->global->span;
+                    uint8_t** value_28 = &(details.related_message);
+                    uint8_t* value_29 = compiler_check_types_CheckCString(StringLiteral("global value retains a text view of this backing storage"));
+                    (*value_28) = value_29;
+                    ZirSourceSpan value_30 = span;
+                    uint8_t* value_31 = compiler_check_types_CheckCString(StringLiteral("check.slice_lifetime"));
+                    uint8_t* value_32 = compiler_check_types_CheckCString(StringLiteral("mutating text backing storage while its view is live (backing %s.%s, view %s.%s)"));
+                    zir_foreign_compiler_borrow__DiagnosticDetailed(value_30, value_31, &(details), value_32, (uint8_t*)(&(destination.root->module->name)), (uint8_t*)(&(destination.root->name.items)), (uint8_t*)(&(view->module->name)), (uint8_t*)(&(view->name.items)));
                 }
-                int32_t* value_29 = &(check->failed);
-                (*value_29) = 1;
+                int32_t* value_33 = &(check->failed);
+                (*value_33) = 1;
                 compiler_check_s12_types_S12Post2(&(v));
             }
             zir_loop_continue_1: ;
@@ -2187,6 +2260,35 @@ compiler_borrow_foreign_call(BorrowCheck* check, ZirModule* module, uint8_t* nam
     return answer->found;
 }
 
+static bool
+compiler_borrow_reads_byte_argument(BorrowCheck* check, ZirExpr* call, int32_t argument)
+{
+    if (((uint8_t*)call->slot_type) == ((void *)0) || call->slot_type[0] == 0) {
+        return false;
+    }
+    ZirType* slot = zir_foreign_compiler_borrow__FindType(check->current->module, (uint8_t*)call->slot_type, (void *)0);
+    if (slot == ((void *)0) || slot->is_procedure_type == 0 || slot->reads_arguments == 0) {
+        return false;
+    }
+    ZirParameters* parameters = zir_foreign_compiler_borrow__ParametersOf(&(slot->body[0]));
+    int32_t index = (check->current->fn->exprs[argument]).argument_index;
+    if (index < 0 || index >= parameters->count) {
+        return false;
+    }
+    ZirParameter parameter = ((ZirParameter*)(&(parameters->items.items[0])))[index];
+    uint8_t* value_0 = (void *)0;
+    if (parameter.value_type != ((void *)0)) {
+        value_0 = parameter.value_type;
+    } else {
+        value_0 = parameter.type;
+    }
+    uint8_t* type = value_0;
+    bool value_1 = StringEqual(compiler_ir_CText(type), StringLiteral("*u8"));
+    bool value_2 = value_1 || StringEqual(compiler_ir_CText(type), StringLiteral("*s8"));
+    bool value_3 = value_2 || StringEqual(compiler_ir_CText(type), StringLiteral("[]u8"));
+    return value_3 || StringEqual(compiler_ir_CText(type), StringLiteral("[]s8"));
+}
+
 static void
 compiler_borrow_check_call_mutations(BorrowCheck* check, ZirExpr* expression)
 {
@@ -2226,7 +2328,7 @@ compiler_borrow_check_call_mutations(BorrowCheck* check, ZirExpr* expression)
         SimdOp* op = zir_foreign_compiler_borrow__SimdOpChecked((uint8_t*)(name));
         if (op->shape == 14) {
             BorrowPlace value_12 = compiler_borrow_storage_place(check, expression->first_child, 1);
-            compiler_borrow_check_mutation(check, value_12, expression->span);
+            compiler_borrow_check_mutation(check, value_12, expression->span, expression->first_child);
         }
         return;
     }
@@ -2284,11 +2386,12 @@ compiler_borrow_check_call_mutations(BorrowCheck* check, ZirExpr* expression)
     if (value_32) {
         int32_t argument = expression->first_child;
         BorrowPlace value_34 = compiler_borrow_storage_place(check, argument, 1);
-        compiler_borrow_check_mutation(check, value_34, expression->span);
+        compiler_borrow_check_mutation(check, value_34, expression->span, argument);
         bool value_35 = zir_foreign_compiler_borrow__strcmp(name, compiler_check_types_CheckCString(StringLiteral("VecSwap"))) != 0;
         if (!value_35 && argument >= 0) {
-            BorrowPlace value_36 = compiler_borrow_storage_place(check, (fn->exprs[argument]).next_sibling, 1);
-            compiler_borrow_check_mutation(check, value_36, expression->span);
+            int32_t other = (fn->exprs[argument]).next_sibling;
+            BorrowPlace value_36 = compiler_borrow_storage_place(check, other, 1);
+            compiler_borrow_check_mutation(check, value_36, expression->span, other);
         }
         return;
     }
@@ -2369,6 +2472,7 @@ compiler_borrow_check_call_mutations(BorrowCheck* check, ZirExpr* expression)
                 zir_foreign_compiler_borrow__memset((void*)(destination_storage_0), 0, sizeof(BorrowPlace));
                 BorrowPlace* value_58 = &(destination_storage_0[0]);
                 (*value_58) = (BorrowPlace){0};
+                int32_t destination_expression = -1;
                 if (item->global >= 0) {
                     BorrowBinding** value_59 = &((destination_storage_0[0]).root);
                     (*value_59) = (BorrowBinding*)(((size_t)(check->globals) + ((size_t)(item->global) * sizeof(BorrowBinding))));
@@ -2382,9 +2486,15 @@ compiler_borrow_check_call_mutations(BorrowCheck* check, ZirExpr* expression)
                                     break;
                                 }
                                 if ((fn->exprs[child]).argument_index == item->parameter) {
-                                    BorrowPlace* value_60 = &(destination_storage_0[0]);
-                                    BorrowPlace value_61 = compiler_borrow_storage_place(check, child, 1);
-                                    (*value_60) = value_61;
+                                    Origin value_60 = compiler_borrow_pointer_view_origin(check, child);
+                                    if (value_60.readonly_bytes != 0) {
+                                        ZirSourceSpan value_61 = expression->span;
+                                        compiler_borrow_reject(check, value_61, compiler_check_types_CheckCString(StringLiteral("cannot mutate borrowed string bytes through a pointer argument")));
+                                    }
+                                    BorrowPlace* value_62 = &(destination_storage_0[0]);
+                                    BorrowPlace value_63 = compiler_borrow_storage_place(check, child, 1);
+                                    (*value_62) = value_63;
+                                    destination_expression = child;
                                     goto zir_loop_break_2;
                                 }
                                 child = (fn->exprs[child]).next_sibling;
@@ -2394,40 +2504,40 @@ compiler_borrow_check_call_mutations(BorrowCheck* check, ZirExpr* expression)
                         zir_loop_break_2: ;
                     }
                 }
-                BorrowPath** value_62 = &((destination_storage_0[0]).path);
-                BorrowPath* value_63 = compiler_borrow_join_path(check, (destination_storage_0[0]).path, item->path);
-                (*value_62) = value_63;
+                BorrowPath** value_64 = &((destination_storage_0[0]).path);
+                BorrowPath* value_65 = compiler_borrow_join_path(check, (destination_storage_0[0]).path, item->path);
+                (*value_64) = value_65;
                 if (item->owned_transfer != 0 && item->parameter >= 0) {
                     BorrowBinding* root = (destination_storage_0[0]).root;
-                    bool value_64 = root == ((void *)0);
-                    bool value_65 = value_64;
-                    if (!value_65) {
-                        bool value_66 = (root->type.items)[0] == 42 && root->address_known == 0;
-                        bool value_67 = value_66;
-                        if (value_67) {
-                            int32_t value_68 = 0;
+                    bool value_66 = root == ((void *)0);
+                    bool value_67 = value_66;
+                    if (!value_67) {
+                        bool value_68 = (root->type.items)[0] == 42 && root->address_known == 0;
+                        bool value_69 = value_68;
+                        if (value_69) {
+                            int32_t value_70 = 0;
                             {
                                 BorrowBinding* source = root;
-                                bool value_70 = source != (BorrowBinding*)(((void *)0)) && (int32_t)((int8_t)((source->type.items)[0])) == 42 && source->parameter >= 0;
-                                bool value_71 = value_70 && source->parameter < 64 && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0);
-                                int32_t value_72 = 0;
-                                if (value_71) {
-                                    value_72 = 1;
+                                bool value_72 = source != (BorrowBinding*)(((void *)0)) && (int32_t)((int8_t)((source->type.items)[0])) == 42 && source->parameter >= 0;
+                                bool value_73 = value_72 && source->parameter < 64 && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0);
+                                int32_t value_74 = 0;
+                                if (value_73) {
+                                    value_74 = 1;
                                 }
-                                value_68 = value_72;
+                                value_70 = value_74;
                             }
-                            value_67 = (value_68 == 0);
+                            value_69 = (value_70 == 0);
                         }
-                        value_65 = value_67;
+                        value_67 = value_69;
                     }
-                    if (value_65) {
-                        ZirSourceSpan value_73 = expression->span;
-                        uint8_t* value_74 = compiler_check_types_CheckCString(StringLiteral("owned field transfer requires a record reference with a proved backing lifetime"));
-                        compiler_borrow_reject(check, value_73, value_74);
+                    if (value_67) {
+                        ZirSourceSpan value_75 = expression->span;
+                        uint8_t* value_76 = compiler_check_types_CheckCString(StringLiteral("owned field transfer requires a record reference with a proved backing lifetime"));
+                        compiler_borrow_reject(check, value_75, value_76);
                     }
                 }
                 compiler_borrow_record_mutation(check, destination_storage_0[0], item->owned_transfer);
-                compiler_borrow_check_mutation(check, destination_storage_0[0], expression->span);
+                compiler_borrow_check_mutation(check, destination_storage_0[0], expression->span, destination_expression);
                 item = item->next;
                 zir_foreign_compiler_borrow__CompilerFree((void*)(destination_storage_0));
             }
@@ -2441,10 +2551,16 @@ compiler_borrow_check_call_mutations(BorrowCheck* check, ZirExpr* expression)
             if (!check_loop_236) {
                 break;
             }
-            bool value_75 = (int32_t)((int8_t)(((uint8_t*)(fn->exprs[child]).type)[0])) == 42;
-            if (value_75 || zir_foreign_compiler_borrow__SliceElementType((uint8_t*)(fn->exprs[child]).type, (void *)0, (size_t)(0LL)) != 0) {
-                BorrowPlace value_76 = compiler_borrow_storage_place(check, child, 1);
-                compiler_borrow_check_mutation(check, value_76, expression->span);
+            bool value_77 = compiler_borrow_reads_byte_argument(check, expression, child);
+            bool value_78 = !value_77;
+            if (value_78) {
+                bool value_79 = ((uint8_t*)(fn->exprs[child]).type)[0] == 42;
+                bool value_80 = value_79 || zir_foreign_compiler_borrow__SliceElementType((uint8_t*)(fn->exprs[child]).type, (void *)0, 0) != 0;
+                value_78 = value_80;
+            }
+            if (value_78) {
+                BorrowPlace value_81 = compiler_borrow_storage_place(check, child, 1);
+                compiler_borrow_check_mutation(check, value_81, expression->span, child);
             }
             child = (fn->exprs[child]).next_sibling;
         }
@@ -3144,6 +3260,8 @@ compiler_borrow_call_origin(BorrowCheck* check, ZirExpr* expression)
     (*value_12) = summary->returned.unknown;
     uint64_t** value_13 = &((result_storage_0[0]).globals);
     (*value_13) = summary->returned.globals;
+    int32_t* value_14 = &(result_storage_0->readonly_bytes);
+    (*value_14) = summary->returned.readonly_bytes;
     {
         int32_t child = expression->first_child;
         while (true) {
@@ -3157,139 +3275,146 @@ compiler_borrow_call_origin(BorrowCheck* check, ZirExpr* expression)
                     child = (check->current->fn->exprs[child]).next_sibling;
                     goto zir_loop_continue_1;
                 }
-                uint64_t value_14 = (uint64_t)((uint64_t)(summary->returned.parameters) & (uint64_t)((ZiShl64(1ULL, (uint64_t)((uint64_t)(parameter)), 64))));
-                if (value_14 != 0ULL) {
-                    Origin* value_15 = &(result_storage_0[0]);
-                    Origin value_16 = result_storage_0[0];
-                    Origin value_17 = compiler_borrow_merge(check, value_16, compiler_borrow_expression_origin(check, child));
-                    (*value_15) = value_17;
+                uint64_t value_15 = (uint64_t)((uint64_t)(summary->returned.parameters) & (uint64_t)((ZiShl64(1ULL, (uint64_t)((uint64_t)(parameter)), 64))));
+                if (value_15 != 0ULL) {
+                    Origin* value_16 = &(result_storage_0[0]);
+                    Origin value_17 = result_storage_0[0];
+                    Origin value_18 = compiler_borrow_merge(check, value_17, compiler_borrow_expression_origin(check, child));
+                    (*value_16) = value_18;
                 }
-                uint64_t value_18 = (uint64_t)((uint64_t)(summary->returned.pointees) & (uint64_t)((ZiShl64(1ULL, (uint64_t)((uint64_t)(parameter)), 64))));
-                if (value_18 != 0ULL) {
-                    Origin* value_19 = &(result_storage_0[0]);
-                    Origin value_20 = result_storage_0[0];
-                    Origin value_21 = compiler_borrow_merge(check, value_20, compiler_borrow_pointee_view_origin(check, child));
-                    (*value_19) = value_21;
+                uint64_t value_19 = (uint64_t)((uint64_t)(summary->returned.borrowed_pointers) & (uint64_t)((ZiShl64(1ULL, (uint64_t)((uint64_t)(parameter)), 64))));
+                if (value_19 != 0ULL) {
+                    Origin* value_20 = &(result_storage_0[0]);
+                    Origin value_21 = result_storage_0[0];
+                    Origin value_22 = compiler_borrow_merge(check, value_21, compiler_borrow_pointer_view_origin(check, child));
+                    (*value_20) = value_22;
                 }
-                uint64_t value_22 = (uint64_t)((uint64_t)(summary->returned.lent) & (uint64_t)((ZiShl64(1ULL, (uint64_t)((uint64_t)(parameter)), 64))));
-                if (value_22 != 0ULL) {
+                uint64_t value_23 = (uint64_t)((uint64_t)(summary->returned.pointees) & (uint64_t)((ZiShl64(1ULL, (uint64_t)((uint64_t)(parameter)), 64))));
+                if (value_23 != 0ULL) {
+                    Origin* value_24 = &(result_storage_0[0]);
+                    Origin value_25 = result_storage_0[0];
+                    Origin value_26 = compiler_borrow_merge(check, value_25, compiler_borrow_pointee_view_origin(check, child));
+                    (*value_24) = value_26;
+                }
+                uint64_t value_27 = (uint64_t)((uint64_t)(summary->returned.lent) & (uint64_t)((ZiShl64(1ULL, (uint64_t)((uint64_t)(parameter)), 64))));
+                if (value_27 != 0ULL) {
                     BorrowBinding* pointee = compiler_borrow_pointee_binding(check, child);
                     if (pointee == (BorrowBinding*)(((void *)0))) {
-                        void* value_23 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
-                        Origin* unknown_storage_1 = (Origin*)(value_23);
+                        void* value_28 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
+                        Origin* unknown_storage_1 = (Origin*)(value_28);
                         zir_foreign_compiler_borrow__memset((void*)(unknown_storage_1), 0, sizeof(Origin));
-                        Origin* value_24 = &(unknown_storage_1[0]);
-                        (*value_24) = (Origin){0};
-                        int32_t* value_25 = &((unknown_storage_1[0]).unknown);
-                        (*value_25) = 1;
-                        Origin* value_26 = &(result_storage_0[0]);
-                        Origin value_27 = compiler_borrow_merge(check, result_storage_0[0], unknown_storage_1[0]);
-                        (*value_26) = value_27;
+                        Origin* value_29 = &(unknown_storage_1[0]);
+                        (*value_29) = (Origin){0};
+                        int32_t* value_30 = &((unknown_storage_1[0]).unknown);
+                        (*value_30) = 1;
+                        Origin* value_31 = &(result_storage_0[0]);
+                        Origin value_32 = compiler_borrow_merge(check, result_storage_0[0], unknown_storage_1[0]);
+                        (*value_31) = value_32;
                         zir_foreign_compiler_borrow__CompilerFree((void*)(unknown_storage_1));
                     } else {
-                        void* value_28 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
-                        Origin* origin_storage_2 = (Origin*)(value_28);
+                        void* value_33 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
+                        Origin* origin_storage_2 = (Origin*)(value_33);
                         zir_foreign_compiler_borrow__memset((void*)(origin_storage_2), 0, sizeof(Origin));
-                        Origin* value_29 = &(origin_storage_2[0]);
-                        (*value_29) = (Origin){0};
-                        int32_t* value_30 = &((origin_storage_2[0]).depth);
-                        (*value_30) = pointee->depth;
+                        Origin* value_34 = &(origin_storage_2[0]);
+                        (*value_34) = (Origin){0};
+                        int32_t* value_35 = &((origin_storage_2[0]).depth);
+                        (*value_35) = pointee->depth;
                         if (pointee->global_index >= 0) {
-                            uint64_t** value_31 = &((origin_storage_2[0]).globals);
-                            BorrowCheck* value_32 = check;
-                            int32_t value_33 = pointee->global_index;
-                            uint64_t* value_34 = (void *)0;
+                            uint64_t** value_36 = &((origin_storage_2[0]).globals);
+                            BorrowCheck* value_37 = check;
+                            int32_t value_38 = pointee->global_index;
+                            uint64_t* value_39 = (void *)0;
                             {
-                                BorrowCheck* check = value_32;
-                                int32_t index = value_33;
+                                BorrowCheck* check = value_37;
+                                int32_t index = value_38;
                                 uint64_t* bits = compiler_borrow_new_global_bits(check);
                                 if (bits != (uint64_t*)(((void *)0))) {
-                                    uint64_t* value_36 = &(bits[((size_t)(index) / (size_t)(64LL))]);
-                                    (*value_36) = ZiShl64(1ULL, (uint64_t)((uint64_t)((index % 64))), 64);
+                                    uint64_t* value_41 = &(bits[((size_t)(index) / (size_t)(64LL))]);
+                                    (*value_41) = ZiShl64(1ULL, (uint64_t)((uint64_t)((index % 64))), 64);
                                 }
-                                value_34 = bits;
+                                value_39 = bits;
                             }
-                            (*value_31) = value_34;
+                            (*value_36) = value_39;
                         }
-                        int32_t value_37 = 0;
+                        int32_t value_42 = 0;
                         {
                             BorrowBinding* source = pointee;
-                            bool value_39 = source != (BorrowBinding*)(((void *)0)) && (int32_t)((int8_t)((source->type.items)[0])) == 42 && source->parameter >= 0;
-                            bool value_40 = value_39 && source->parameter < 64 && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0);
-                            int32_t value_41 = 0;
-                            if (value_40) {
-                                value_41 = 1;
+                            bool value_44 = source != (BorrowBinding*)(((void *)0)) && (int32_t)((int8_t)((source->type.items)[0])) == 42 && source->parameter >= 0;
+                            bool value_45 = value_44 && source->parameter < 64 && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0);
+                            int32_t value_46 = 0;
+                            if (value_45) {
+                                value_46 = 1;
                             }
-                            value_37 = value_41;
+                            value_42 = value_46;
                         }
-                        if (value_37 != 0) {
-                            uint64_t* value_42 = &((origin_storage_2[0]).lent);
-                            (*value_42) = ZiShl64(1ULL, (uint64_t)((uint64_t)(pointee->parameter)), 64);
+                        if (value_42 != 0) {
+                            uint64_t* value_47 = &((origin_storage_2[0]).lent);
+                            (*value_47) = ZiShl64(1ULL, (uint64_t)((uint64_t)(pointee->parameter)), 64);
                         }
-                        Origin* value_43 = &(result_storage_0[0]);
-                        Origin value_44 = compiler_borrow_merge(check, result_storage_0[0], origin_storage_2[0]);
-                        (*value_43) = value_44;
+                        Origin* value_48 = &(result_storage_0[0]);
+                        Origin value_49 = compiler_borrow_merge(check, result_storage_0[0], origin_storage_2[0]);
+                        (*value_48) = value_49;
                         zir_foreign_compiler_borrow__CompilerFree((void*)(origin_storage_2));
                     }
                 }
-                uint64_t value_45 = (uint64_t)((uint64_t)(summary->returned.lent_vec) & (uint64_t)((ZiShl64(1ULL, (uint64_t)((uint64_t)(parameter)), 64))));
-                if (value_45 != 0ULL) {
+                uint64_t value_50 = (uint64_t)((uint64_t)(summary->returned.lent_vec) & (uint64_t)((ZiShl64(1ULL, (uint64_t)((uint64_t)(parameter)), 64))));
+                if (value_50 != 0ULL) {
                     BorrowBinding* pointee = compiler_borrow_pointee_binding(check, child);
                     if (pointee == (BorrowBinding*)(((void *)0))) {
-                        void* value_46 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
-                        Origin* unknown_storage_3 = (Origin*)(value_46);
+                        void* value_51 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
+                        Origin* unknown_storage_3 = (Origin*)(value_51);
                         zir_foreign_compiler_borrow__memset((void*)(unknown_storage_3), 0, sizeof(Origin));
-                        Origin* value_47 = &(unknown_storage_3[0]);
-                        (*value_47) = (Origin){0};
-                        int32_t* value_48 = &((unknown_storage_3[0]).unknown);
-                        (*value_48) = 1;
-                        Origin* value_49 = &(result_storage_0[0]);
-                        Origin value_50 = compiler_borrow_merge(check, result_storage_0[0], unknown_storage_3[0]);
-                        (*value_49) = value_50;
+                        Origin* value_52 = &(unknown_storage_3[0]);
+                        (*value_52) = (Origin){0};
+                        int32_t* value_53 = &((unknown_storage_3[0]).unknown);
+                        (*value_53) = 1;
+                        Origin* value_54 = &(result_storage_0[0]);
+                        Origin value_55 = compiler_borrow_merge(check, result_storage_0[0], unknown_storage_3[0]);
+                        (*value_54) = value_55;
                         zir_foreign_compiler_borrow__CompilerFree((void*)(unknown_storage_3));
                     } else {
-                        void* value_51 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
-                        Origin* origin_storage_4 = (Origin*)(value_51);
+                        void* value_56 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
+                        Origin* origin_storage_4 = (Origin*)(value_56);
                         zir_foreign_compiler_borrow__memset((void*)(origin_storage_4), 0, sizeof(Origin));
-                        Origin* value_52 = &(origin_storage_4[0]);
-                        (*value_52) = (Origin){0};
-                        int32_t* value_53 = &((origin_storage_4[0]).depth);
-                        (*value_53) = pointee->depth;
+                        Origin* value_57 = &(origin_storage_4[0]);
+                        (*value_57) = (Origin){0};
+                        int32_t* value_58 = &((origin_storage_4[0]).depth);
+                        (*value_58) = pointee->depth;
                         if (pointee->global_index >= 0) {
-                            uint64_t** value_54 = &((origin_storage_4[0]).globals);
-                            BorrowCheck* value_55 = check;
-                            int32_t value_56 = pointee->global_index;
-                            uint64_t* value_57 = (void *)0;
+                            uint64_t** value_59 = &((origin_storage_4[0]).globals);
+                            BorrowCheck* value_60 = check;
+                            int32_t value_61 = pointee->global_index;
+                            uint64_t* value_62 = (void *)0;
                             {
-                                BorrowCheck* check = value_55;
-                                int32_t index = value_56;
+                                BorrowCheck* check = value_60;
+                                int32_t index = value_61;
                                 uint64_t* bits = compiler_borrow_new_global_bits(check);
                                 if (bits != (uint64_t*)(((void *)0))) {
-                                    uint64_t* value_59 = &(bits[((size_t)(index) / (size_t)(64LL))]);
-                                    (*value_59) = ZiShl64(1ULL, (uint64_t)((uint64_t)((index % 64))), 64);
+                                    uint64_t* value_64 = &(bits[((size_t)(index) / (size_t)(64LL))]);
+                                    (*value_64) = ZiShl64(1ULL, (uint64_t)((uint64_t)((index % 64))), 64);
                                 }
-                                value_57 = bits;
+                                value_62 = bits;
                             }
-                            (*value_54) = value_57;
+                            (*value_59) = value_62;
                         }
-                        int32_t value_60 = 0;
+                        int32_t value_65 = 0;
                         {
                             BorrowBinding* source = pointee;
-                            bool value_62 = source != (BorrowBinding*)(((void *)0)) && (int32_t)((int8_t)((source->type.items)[0])) == 42 && source->parameter >= 0;
-                            bool value_63 = value_62 && source->parameter < 64 && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0);
-                            int32_t value_64 = 0;
-                            if (value_63) {
-                                value_64 = 1;
+                            bool value_67 = source != (BorrowBinding*)(((void *)0)) && (int32_t)((int8_t)((source->type.items)[0])) == 42 && source->parameter >= 0;
+                            bool value_68 = value_67 && source->parameter < 64 && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0);
+                            int32_t value_69 = 0;
+                            if (value_68) {
+                                value_69 = 1;
                             }
-                            value_60 = value_64;
+                            value_65 = value_69;
                         }
-                        if (value_60 != 0) {
-                            uint64_t* value_65 = &((origin_storage_4[0]).lent_vec);
-                            (*value_65) = ZiShl64(1ULL, (uint64_t)((uint64_t)(pointee->parameter)), 64);
+                        if (value_65 != 0) {
+                            uint64_t* value_70 = &((origin_storage_4[0]).lent_vec);
+                            (*value_70) = ZiShl64(1ULL, (uint64_t)((uint64_t)(pointee->parameter)), 64);
                         }
-                        Origin* value_66 = &(result_storage_0[0]);
-                        Origin value_67 = compiler_borrow_merge(check, result_storage_0[0], origin_storage_4[0]);
-                        (*value_66) = value_67;
+                        Origin* value_71 = &(result_storage_0[0]);
+                        Origin value_72 = compiler_borrow_merge(check, result_storage_0[0], origin_storage_4[0]);
+                        (*value_71) = value_72;
                         zir_foreign_compiler_borrow__CompilerFree((void*)(origin_storage_4));
                     }
                 }
@@ -3302,6 +3427,132 @@ compiler_borrow_call_origin(BorrowCheck* check, ZirExpr* expression)
     Origin cleanup_return_0 = result_storage_0[0];
     zir_foreign_compiler_borrow__CompilerFree((void*)(result_storage_0));
     return cleanup_return_0;
+}
+
+static Origin
+compiler_borrow_pointer_address_origin(BorrowCheck* check, int32_t index)
+{
+    if (index < 0) {
+        return (Origin){0};
+    }
+    ZirExpr expression = check->current->fn->exprs[index];
+    bool value_0 = ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(10)) || ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(8));
+    if (value_0 || ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(9))) {
+        ZirExpr base = check->current->fn->exprs[expression.left];
+        if (base.type[0] == 42) {
+            return compiler_borrow_pointer_view_origin(check, expression.left);
+        }
+        bool value_1 = ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(10));
+        bool value_2 = value_1;
+        if (value_2) {
+            bool value_3 = zir_foreign_compiler_borrow__SliceElementType((uint8_t*)base.type, (void *)0, 0) != 0;
+            bool value_4 = value_3 || StringEqual(compiler_ir_CText((uint8_t*)base.type), StringLiteral("string"));
+            value_2 = value_4;
+        }
+        if (value_2) {
+            Origin origin = compiler_borrow_expression_origin(check, expression.left);
+            if (StringEqual(compiler_ir_CText((uint8_t*)base.type), StringLiteral("string"))) {
+                int32_t* value_5 = &(origin.readonly_bytes);
+                (*value_5) = 1;
+            }
+            return origin;
+        }
+        return compiler_borrow_pointer_address_origin(check, expression.left);
+    }
+    bool value_6 = ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(7));
+    if (value_6 && StringEqual(compiler_ir_CText(&(expression.op[0])), StringLiteral("*"))) {
+        return compiler_borrow_pointer_view_origin(check, expression.right);
+    }
+    return compiler_borrow_storage_origin(check, index);
+}
+
+static Origin
+compiler_borrow_pointer_view_origin(BorrowCheck* check, int32_t index)
+{
+    if (index < 0) {
+        return (Origin){0};
+    }
+    ZirFunction* fn = check->current->fn;
+    ZirExpr expression = fn->exprs[index];
+    if (((ZirExprKind)(expression.kind)) == ((ZirExprKind)(1))) {
+        BorrowBinding* source = compiler_borrow_binding(check, (uint8_t*)expression.name);
+        if (source == ((void *)0)) {
+            return (Origin){0};
+        }
+        BorrowBinding* value_0 = source;
+        int32_t value_1 = 0;
+        {
+            BorrowBinding* source = value_0;
+            bool value_3 = source != (BorrowBinding*)(((void *)0)) && (int32_t)((int8_t)((source->type.items)[0])) == 42 && source->parameter >= 0;
+            bool value_4 = value_3 && source->parameter < 64 && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0);
+            int32_t value_5 = 0;
+            if (value_4) {
+                value_5 = 1;
+            }
+            value_1 = value_5;
+        }
+        if (value_1 != 0) {
+            return (Origin){.borrowed_pointers = ZiShl64(1ULL, (uint64_t)((uint64_t)(source->parameter)), 64)};
+        }
+        return source->origin;
+    }
+    if (((ZirExprKind)(expression.kind)) == ((ZirExprKind)(11))) {
+        return compiler_borrow_pointer_view_origin(check, expression.right);
+    }
+    if (((ZirExprKind)(expression.kind)) == ((ZirExprKind)(14))) {
+        Origin value_6 = compiler_borrow_pointer_view_origin(check, expression.right);
+        return compiler_borrow_merge(check, value_6, compiler_borrow_pointer_view_origin(check, expression.third));
+    }
+    bool value_7 = ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(7));
+    if (value_7 && StringEqual(compiler_ir_CText(&(expression.op[0])), StringLiteral("&"))) {
+        return compiler_borrow_pointer_address_origin(check, expression.right);
+    }
+    if (((ZirExprKind)(expression.kind)) == ((ZirExprKind)(5))) {
+        ZirModule* owner = (void *)0;
+        ZirFunction* callee = (void *)0;
+        bool value_8 = zir_foreign_compiler_borrow__ResolveFunction(check->current->module, (uint8_t*)expression.name, &(owner), &(callee)) > 0;
+        if (value_8 && callee->is_extern == 0) {
+            return compiler_borrow_call_origin(check, &(expression));
+        }
+    }
+    if (compiler_borrow_borrowed_capture_place(fn, index, 0)) {
+        return (Origin){.depth = check->depth};
+    }
+    return (Origin){0};
+}
+
+static bool
+compiler_borrow_readonly_pointer_destination(BorrowCheck* check, int32_t index)
+{
+    if (index < 0) {
+        return false;
+    }
+    ZirExpr expression = check->current->fn->exprs[index];
+    if (((ZirExprKind)(expression.kind)) == ((ZirExprKind)(10)) || ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(9))) {
+        Origin value_0 = compiler_borrow_pointer_view_origin(check, expression.left);
+        if (value_0.readonly_bytes != 0) {
+            return true;
+        }
+        bool value_1 = ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(10));
+        bool value_2 = value_1;
+        if (value_2) {
+            Origin value_3 = compiler_borrow_expression_origin(check, expression.left);
+            value_2 = (value_3.readonly_bytes != 0);
+        }
+        if (value_2) {
+            return true;
+        }
+        return compiler_borrow_readonly_pointer_destination(check, expression.left);
+    }
+    bool value_4 = ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(7));
+    if (value_4 && StringEqual(compiler_ir_CText(&(expression.op[0])), StringLiteral("*"))) {
+        Origin value_5 = compiler_borrow_pointer_view_origin(check, expression.right);
+        return value_5.readonly_bytes != 0;
+    }
+    if (((ZirExprKind)(expression.kind)) == ((ZirExprKind)(8))) {
+        return compiler_borrow_readonly_pointer_destination(check, expression.left);
+    }
+    return false;
 }
 
 static Origin
@@ -3330,51 +3581,65 @@ compiler_borrow_storage_origin(BorrowCheck* check, int32_t index)
         zir_foreign_compiler_borrow__CompilerFree((void*)(backing_storage_0));
         return cleanup_return_1;
     }
-    void* value_6 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
-    Origin* origin_storage_2 = (Origin*)(value_6);
+    BorrowBinding* source = (place_storage_1[0]).root;
+    bool value_6 = (place_storage_1[0]).path != ((void *)0);
+    if (value_6 && zir_foreign_compiler_borrow__SliceElementType(&(source->type.items[0]), (void *)0, 0) != 0) {
+        Origin value_7 = {0};
+        if (source->local >= 0) {
+            value_7 = check->current->locals[source->local];
+        } else {
+            value_7 = source->origin;
+        }
+        Origin cleanup_return_2 = value_7;
+        zir_foreign_compiler_borrow__CompilerFree((void*)(place_storage_1));
+        zir_foreign_compiler_borrow__CompilerFree((void*)(backing_storage_0));
+        return cleanup_return_2;
+    }
+    void* value_8 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
+    Origin* origin_storage_2 = (Origin*)(value_8);
     zir_foreign_compiler_borrow__memset((void*)(origin_storage_2), 0, sizeof(Origin));
-    Origin* value_7 = &(origin_storage_2[0]);
-    (*value_7) = (Origin){0};
-    int32_t* value_8 = &((origin_storage_2[0]).depth);
-    (*value_8) = ((place_storage_1[0]).root)->depth;
+    Origin* value_9 = &(origin_storage_2[0]);
+    (*value_9) = (Origin){0};
+    int32_t* value_10 = &((origin_storage_2[0]).depth);
+    (*value_10) = ((place_storage_1[0]).root)->depth;
     if (((place_storage_1[0]).root)->global_index >= 0) {
-        uint64_t** value_9 = &((origin_storage_2[0]).globals);
-        BorrowCheck* value_10 = check;
-        int32_t value_11 = ((place_storage_1[0]).root)->global_index;
-        uint64_t* value_12 = (void *)0;
+        uint64_t** value_11 = &((origin_storage_2[0]).globals);
+        BorrowCheck* value_12 = check;
+        int32_t value_13 = ((place_storage_1[0]).root)->global_index;
+        uint64_t* value_14 = (void *)0;
         {
-            BorrowCheck* check = value_10;
-            int32_t index = value_11;
+            BorrowCheck* check = value_12;
+            int32_t index = value_13;
             uint64_t* bits = compiler_borrow_new_global_bits(check);
             if (bits != (uint64_t*)(((void *)0))) {
-                uint64_t* value_14 = &(bits[((size_t)(index) / (size_t)(64LL))]);
-                (*value_14) = ZiShl64(1ULL, (uint64_t)((uint64_t)((index % 64))), 64);
+                uint64_t* value_16 = &(bits[((size_t)(index) / (size_t)(64LL))]);
+                (*value_16) = ZiShl64(1ULL, (uint64_t)((uint64_t)((index % 64))), 64);
             }
-            value_12 = bits;
+            value_14 = bits;
         }
-        (*value_9) = value_12;
+        (*value_11) = value_14;
     }
-    BorrowBinding* value_15 = (place_storage_1[0]).root;
-    int32_t value_16 = 0;
+    BorrowBinding* value_17 = (place_storage_1[0]).root;
+    int32_t value_18 = 0;
     {
-        BorrowBinding* source = value_15;
-        bool value_18 = source != (BorrowBinding*)(((void *)0)) && (int32_t)((int8_t)((source->type.items)[0])) == 42 && source->parameter >= 0;
-        bool value_19 = value_18 && source->parameter < 64 && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0);
-        int32_t value_20 = 0;
-        if (value_19) {
-            value_20 = 1;
+        BorrowBinding* source = value_17;
+        bool value_20 = source != (BorrowBinding*)(((void *)0)) && (int32_t)((int8_t)((source->type.items)[0])) == 42 && source->parameter >= 0;
+        bool value_21 = value_20 && source->parameter < 64 && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0);
+        int32_t value_22 = 0;
+        if (value_21) {
+            value_22 = 1;
         }
-        value_16 = value_20;
+        value_18 = value_22;
     }
-    if (value_16 != 0) {
-        uint64_t* value_21 = &((origin_storage_2[0]).lent);
-        (*value_21) = ZiShl64(1ULL, (uint64_t)((uint64_t)(((place_storage_1[0]).root)->parameter)), 64);
+    if (value_18 != 0) {
+        uint64_t* value_23 = &((origin_storage_2[0]).lent);
+        (*value_23) = ZiShl64(1ULL, (uint64_t)((uint64_t)(((place_storage_1[0]).root)->parameter)), 64);
     }
-    Origin cleanup_return_2 = origin_storage_2[0];
+    Origin cleanup_return_3 = origin_storage_2[0];
     zir_foreign_compiler_borrow__CompilerFree((void*)(origin_storage_2));
     zir_foreign_compiler_borrow__CompilerFree((void*)(place_storage_1));
     zir_foreign_compiler_borrow__CompilerFree((void*)(backing_storage_0));
-    return cleanup_return_2;
+    return cleanup_return_3;
 }
 
 static Origin
@@ -3388,6 +3653,37 @@ compiler_borrow_expression_origin(BorrowCheck* check, int32_t index)
     if (((ZirExprKind)(expression->kind)) == ((ZirExprKind)(22))) {
         return (Origin){.depth = check->depth};
     }
+    bool value_0 = compiler_borrow_borrowed_capture_place(fn, index, 0);
+    bool value_1 = value_0;
+    if (value_1) {
+        BorrowCheck* value_2 = check;
+        uint8_t* value_3 = (uint8_t*)expression->type;
+        int32_t value_4 = 0;
+        {
+            BorrowCheck* check = value_2;
+            uint8_t* type = value_3;
+            ZirModule* value_6 = check->current->module;
+            uint8_t* value_7 = type;
+            int32_t value_8 = 0;
+            {
+                ZirModule* module = value_6;
+                uint8_t* type = value_7;
+                bool value_10 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_VIEW, (void *)0);
+                int32_t value_11 = 0;
+                if (value_10) {
+                    value_11 = 1;
+                } else {
+                    value_11 = 0;
+                }
+                value_8 = value_11;
+            }
+            value_4 = value_8;
+        }
+        value_1 = (value_4 != 0);
+    }
+    if (value_1) {
+        return (Origin){.depth = 1};
+    }
     ZirExprKind check_choice_241 = (ZirExprKind)(expression->kind);
     while (true) {
         bool check_switch_241 = true;
@@ -3396,91 +3692,91 @@ compiler_borrow_expression_origin(BorrowCheck* check, int32_t index)
         }
         if (check_choice_241 == ((ZirExprKind)(1))) {
             BorrowBinding* source = compiler_borrow_binding(check, (uint8_t*)expression->name);
-            bool value_0 = (int32_t)((int8_t)(expression->type[0])) != 91;
-            bool value_1 = value_0;
-            if (value_1) {
-                uint8_t* value_2 = zir_foreign_compiler_borrow__strchr((uint8_t*)expression->type, 42);
-                value_1 = (value_2 != (uint8_t*)(((void *)0)));
+            bool value_12 = (int32_t)((int8_t)(expression->type[0])) != 91;
+            bool value_13 = value_12;
+            if (value_13) {
+                uint8_t* value_14 = zir_foreign_compiler_borrow__strchr((uint8_t*)expression->type, 42);
+                value_13 = (value_14 != (uint8_t*)(((void *)0)));
             }
-            if (value_1) {
+            if (value_13) {
                 if (source != (BorrowBinding*)(((void *)0)) && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0)) {
-                    void* value_3 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
-                    Origin* pointee_storage_0 = (Origin*)(value_3);
+                    void* value_15 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
+                    Origin* pointee_storage_0 = (Origin*)(value_15);
                     zir_foreign_compiler_borrow__memset((void*)(pointee_storage_0), 0, sizeof(Origin));
-                    Origin* value_4 = &(pointee_storage_0[0]);
-                    (*value_4) = source->origin;
-                    BorrowBinding* value_5 = source;
-                    int32_t value_6 = 0;
+                    Origin* value_16 = &(pointee_storage_0[0]);
+                    (*value_16) = source->origin;
+                    BorrowBinding* value_17 = source;
+                    int32_t value_18 = 0;
                     {
-                        BorrowBinding* source = value_5;
-                        bool value_8 = source != (BorrowBinding*)(((void *)0)) && (int32_t)((int8_t)((source->type.items)[0])) == 42 && source->parameter >= 0;
-                        bool value_9 = value_8 && source->parameter < 64 && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0);
-                        int32_t value_10 = 0;
-                        if (value_9) {
-                            value_10 = 1;
+                        BorrowBinding* source = value_17;
+                        bool value_20 = source != (BorrowBinding*)(((void *)0)) && (int32_t)((int8_t)((source->type.items)[0])) == 42 && source->parameter >= 0;
+                        bool value_21 = value_20 && source->parameter < 64 && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0);
+                        int32_t value_22 = 0;
+                        if (value_21) {
+                            value_22 = 1;
                         }
-                        value_6 = value_10;
+                        value_18 = value_22;
                     }
-                    if (value_6 != 0) {
-                        uint64_t* value_11 = &((pointee_storage_0[0]).lent);
-                        (*value_11) = ZiShl64(1ULL, (uint64_t)((uint64_t)(source->parameter)), 64);
+                    if (value_18 != 0) {
+                        uint64_t* value_23 = &((pointee_storage_0[0]).lent);
+                        (*value_23) = ZiShl64(1ULL, (uint64_t)((uint64_t)(source->parameter)), 64);
                     }
                     Origin cleanup_return_0 = pointee_storage_0[0];
                     zir_foreign_compiler_borrow__CompilerFree((void*)(pointee_storage_0));
                     return cleanup_return_0;
                 }
                 if (source != (BorrowBinding*)(((void *)0)) && source->address_known != 0 && source->address_backing.root != (BorrowBinding*)(((void *)0))) {
-                    void* value_12 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
-                    Origin* pointee_storage_1 = (Origin*)(value_12);
+                    void* value_24 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
+                    Origin* pointee_storage_1 = (Origin*)(value_24);
                     zir_foreign_compiler_borrow__memset((void*)(pointee_storage_1), 0, sizeof(Origin));
-                    Origin* value_13 = &(pointee_storage_1[0]);
-                    (*value_13) = (Origin){0};
-                    int32_t* value_14 = &((pointee_storage_1[0]).depth);
-                    (*value_14) = source->address_backing.root->depth;
+                    Origin* value_25 = &(pointee_storage_1[0]);
+                    (*value_25) = (Origin){0};
+                    int32_t* value_26 = &((pointee_storage_1[0]).depth);
+                    (*value_26) = source->address_backing.root->depth;
                     if (source->address_backing.root->global_index >= 0) {
-                        uint64_t** value_15 = &((pointee_storage_1[0]).globals);
-                        BorrowCheck* value_16 = check;
-                        int32_t value_17 = source->address_backing.root->global_index;
-                        uint64_t* value_18 = (void *)0;
+                        uint64_t** value_27 = &((pointee_storage_1[0]).globals);
+                        BorrowCheck* value_28 = check;
+                        int32_t value_29 = source->address_backing.root->global_index;
+                        uint64_t* value_30 = (void *)0;
                         {
-                            BorrowCheck* check = value_16;
-                            int32_t index = value_17;
+                            BorrowCheck* check = value_28;
+                            int32_t index = value_29;
                             uint64_t* bits = compiler_borrow_new_global_bits(check);
                             if (bits != (uint64_t*)(((void *)0))) {
-                                uint64_t* value_20 = &(bits[((size_t)(index) / (size_t)(64LL))]);
-                                (*value_20) = ZiShl64(1ULL, (uint64_t)((uint64_t)((index % 64))), 64);
+                                uint64_t* value_32 = &(bits[((size_t)(index) / (size_t)(64LL))]);
+                                (*value_32) = ZiShl64(1ULL, (uint64_t)((uint64_t)((index % 64))), 64);
                             }
-                            value_18 = bits;
+                            value_30 = bits;
                         }
-                        (*value_15) = value_18;
+                        (*value_27) = value_30;
                     }
-                    BorrowBinding* value_21 = source->address_backing.root;
-                    int32_t value_22 = 0;
+                    BorrowBinding* value_33 = source->address_backing.root;
+                    int32_t value_34 = 0;
                     {
-                        BorrowBinding* source = value_21;
-                        bool value_24 = source != (BorrowBinding*)(((void *)0)) && (int32_t)((int8_t)((source->type.items)[0])) == 42 && source->parameter >= 0;
-                        bool value_25 = value_24 && source->parameter < 64 && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0);
-                        int32_t value_26 = 0;
-                        if (value_25) {
-                            value_26 = 1;
+                        BorrowBinding* source = value_33;
+                        bool value_36 = source != (BorrowBinding*)(((void *)0)) && (int32_t)((int8_t)((source->type.items)[0])) == 42 && source->parameter >= 0;
+                        bool value_37 = value_36 && source->parameter < 64 && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0);
+                        int32_t value_38 = 0;
+                        if (value_37) {
+                            value_38 = 1;
                         }
-                        value_22 = value_26;
+                        value_34 = value_38;
                     }
-                    if (value_22 != 0) {
-                        uint64_t* value_27 = &((pointee_storage_1[0]).lent);
-                        (*value_27) = ZiShl64(1ULL, (uint64_t)((uint64_t)(source->address_backing.root->parameter)), 64);
+                    if (value_34 != 0) {
+                        uint64_t* value_39 = &((pointee_storage_1[0]).lent);
+                        (*value_39) = ZiShl64(1ULL, (uint64_t)((uint64_t)(source->address_backing.root->parameter)), 64);
                     }
                     Origin cleanup_return_1 = pointee_storage_1[0];
                     zir_foreign_compiler_borrow__CompilerFree((void*)(pointee_storage_1));
                     return cleanup_return_1;
                 }
-                void* value_28 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
-                Origin* unknown_storage_2 = (Origin*)(value_28);
+                void* value_40 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
+                Origin* unknown_storage_2 = (Origin*)(value_40);
                 zir_foreign_compiler_borrow__memset((void*)(unknown_storage_2), 0, sizeof(Origin));
-                Origin* value_29 = &(unknown_storage_2[0]);
-                (*value_29) = (Origin){0};
-                int32_t* value_30 = &((unknown_storage_2[0]).unknown);
-                (*value_30) = 1;
+                Origin* value_41 = &(unknown_storage_2[0]);
+                (*value_41) = (Origin){0};
+                int32_t* value_42 = &((unknown_storage_2[0]).unknown);
+                (*value_42) = 1;
                 Origin cleanup_return_2 = unknown_storage_2[0];
                 zir_foreign_compiler_borrow__CompilerFree((void*)(unknown_storage_2));
                 return cleanup_return_2;
@@ -3488,98 +3784,98 @@ compiler_borrow_expression_origin(BorrowCheck* check, int32_t index)
             if (source == (BorrowBinding*)(((void *)0))) {
                 return (Origin){0};
             }
-            BorrowCheck* value_31 = check;
-            uint8_t* value_32 = (uint8_t*)(&(source->type.items));
-            int32_t value_33 = 0;
+            BorrowCheck* value_43 = check;
+            uint8_t* value_44 = (uint8_t*)(&(source->type.items));
+            int32_t value_45 = 0;
             {
-                BorrowCheck* check = value_31;
-                uint8_t* type = value_32;
-                ZirModule* value_35 = check->current->module;
-                uint8_t* value_36 = type;
-                int32_t value_37 = 0;
+                BorrowCheck* check = value_43;
+                uint8_t* type = value_44;
+                ZirModule* value_47 = check->current->module;
+                uint8_t* value_48 = type;
+                int32_t value_49 = 0;
                 {
-                    ZirModule* module = value_35;
-                    uint8_t* type = value_36;
-                    bool value_39 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_VIEW, (void *)0);
-                    int32_t value_40 = 0;
-                    if (value_39) {
-                        value_40 = 1;
+                    ZirModule* module = value_47;
+                    uint8_t* type = value_48;
+                    bool value_51 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_VIEW, (void *)0);
+                    int32_t value_52 = 0;
+                    if (value_51) {
+                        value_52 = 1;
                     } else {
-                        value_40 = 0;
+                        value_52 = 0;
                     }
-                    value_37 = value_40;
+                    value_49 = value_52;
                 }
-                value_33 = value_37;
+                value_45 = value_49;
             }
-            if (value_33 != 0) {
-                Origin value_41 = {0};
+            if (value_45 != 0) {
+                Origin value_53 = {0};
                 if (source->local >= 0) {
-                    value_41 = check->current->locals[source->local];
+                    value_53 = check->current->locals[source->local];
                 } else {
-                    value_41 = source->origin;
+                    value_53 = source->origin;
                 }
-                return value_41;
+                return value_53;
             }
             return (Origin){.parameters = 0ULL, .depth = source->depth, .invalid = 0};
         } else if (check_choice_241 == ((ZirExprKind)(8)) || check_choice_241 == ((ZirExprKind)(9)) || check_choice_241 == ((ZirExprKind)(10))) {
-            BorrowCheck* value_42 = check;
-            int32_t value_43 = index;
-            int32_t value_44 = 0;
+            BorrowCheck* value_54 = check;
+            int32_t value_55 = index;
+            int32_t value_56 = 0;
             {
-                BorrowCheck* check = value_42;
-                int32_t index = value_43;
+                BorrowCheck* check = value_54;
+                int32_t index = value_55;
                 ZirFunction* fn = check->current->fn;
-                BorrowCheck* value_46 = check;
-                uint8_t* value_47 = (uint8_t*)(fn->exprs[index]).type;
-                int32_t value_48 = 0;
+                BorrowCheck* value_58 = check;
+                uint8_t* value_59 = (uint8_t*)(fn->exprs[index]).type;
+                int32_t value_60 = 0;
                 {
-                    BorrowCheck* check = value_46;
-                    uint8_t* type = value_47;
-                    value_48 = compiler_borrow_contains_view(check->current->module, type);
+                    BorrowCheck* check = value_58;
+                    uint8_t* type = value_59;
+                    value_60 = compiler_borrow_contains_view(check->current->module, type);
                 }
-                if (!(value_48 != 0)) {
-                    value_44 = -1;
-                    goto value_45;
+                if (!(value_60 != 0)) {
+                    value_56 = -1;
+                    goto value_57;
                 }
                 ZirExpr* root = compiler_borrow_destination_root(fn, index);
                 if (root == (ZirExpr*)(((void *)0)) || (int32_t)((int8_t)(root->type[0])) != 42) {
-                    value_44 = -1;
-                    goto value_45;
+                    value_56 = -1;
+                    goto value_57;
                 }
                 BorrowBinding* source = compiler_borrow_binding(check, (uint8_t*)root->name);
                 if (source != (BorrowBinding*)(((void *)0)) && source->address_known != 0 && source->address_backing.root != (BorrowBinding*)(((void *)0))) {
                     source = source->address_backing.root;
                 }
-                BorrowBinding* value_50 = source;
-                int32_t value_51 = 0;
+                BorrowBinding* value_62 = source;
+                int32_t value_63 = 0;
                 {
-                    BorrowBinding* source = value_50;
-                    bool value_53 = source != (BorrowBinding*)(((void *)0)) && (int32_t)((int8_t)((source->type.items)[0])) == 42 && source->parameter >= 0;
-                    bool value_54 = value_53 && source->parameter < 64 && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0);
-                    int32_t value_55 = 0;
-                    if (value_54) {
-                        value_55 = 1;
+                    BorrowBinding* source = value_62;
+                    bool value_65 = source != (BorrowBinding*)(((void *)0)) && (int32_t)((int8_t)((source->type.items)[0])) == 42 && source->parameter >= 0;
+                    bool value_66 = value_65 && source->parameter < 64 && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0);
+                    int32_t value_67 = 0;
+                    if (value_66) {
+                        value_67 = 1;
                     }
-                    value_51 = value_55;
+                    value_63 = value_67;
                 }
-                int32_t value_56 = 0;
-                if (value_51 != 0) {
-                    value_56 = source->parameter;
+                int32_t value_68 = 0;
+                if (value_63 != 0) {
+                    value_68 = source->parameter;
                 } else {
-                    value_56 = -1;
+                    value_68 = -1;
                 }
-                value_44 = value_56;
-            value_45: ;
+                value_56 = value_68;
+            value_57: ;
             }
-            int32_t parameter = value_44;
+            int32_t parameter = value_56;
             if (parameter >= 0) {
-                void* value_57 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
-                Origin* origin_storage_3 = (Origin*)(value_57);
+                void* value_69 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
+                Origin* origin_storage_3 = (Origin*)(value_69);
                 zir_foreign_compiler_borrow__memset((void*)(origin_storage_3), 0, sizeof(Origin));
-                Origin* value_58 = &(origin_storage_3[0]);
-                (*value_58) = (Origin){0};
-                uint64_t* value_59 = &((origin_storage_3[0]).pointees);
-                (*value_59) = ZiShl64(1ULL, (uint64_t)((uint64_t)(parameter)), 64);
+                Origin* value_70 = &(origin_storage_3[0]);
+                (*value_70) = (Origin){0};
+                uint64_t* value_71 = &((origin_storage_3[0]).pointees);
+                (*value_71) = ZiShl64(1ULL, (uint64_t)((uint64_t)(parameter)), 64);
                 Origin cleanup_return_3 = origin_storage_3[0];
                 zir_foreign_compiler_borrow__CompilerFree((void*)(origin_storage_3));
                 return cleanup_return_3;
@@ -3587,24 +3883,27 @@ compiler_borrow_expression_origin(BorrowCheck* check, int32_t index)
             return compiler_borrow_expression_origin(check, expression->left);
         } else if (check_choice_241 == ((ZirExprKind)(16))) {
             ZirExpr* base = (ZirExpr*)(((size_t)(fn->exprs) + ((size_t)(expression->left) * sizeof(ZirExpr))));
-            void* value_60 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
-            Origin* backing_storage_4 = (Origin*)(value_60);
+            if (base->type[0] == 42) {
+                return compiler_borrow_pointer_view_origin(check, expression->left);
+            }
+            void* value_72 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
+            Origin* backing_storage_4 = (Origin*)(value_72);
             zir_foreign_compiler_borrow__memset((void*)(backing_storage_4), 0, sizeof(Origin));
-            Origin* value_61 = &(backing_storage_4[0]);
-            Origin value_62 = compiler_borrow_expression_origin(check, expression->left);
-            (*value_61) = value_62;
+            Origin* value_73 = &(backing_storage_4[0]);
+            Origin value_74 = compiler_borrow_expression_origin(check, expression->left);
+            (*value_73) = value_74;
             if ((backing_storage_4[0]).unknown != 0) {
                 Origin cleanup_return_4 = backing_storage_4[0];
                 zir_foreign_compiler_borrow__CompilerFree((void*)(backing_storage_4));
                 return cleanup_return_4;
             }
-            bool value_63 = zir_foreign_compiler_borrow__ArrayElementType((uint8_t*)base->type, (void *)0, (size_t)(0LL), (void *)0) != 0;
-            bool value_64 = value_63;
-            if (value_64) {
-                BorrowPlace value_65 = compiler_borrow_storage_place(check, expression->left, 1);
-                value_64 = (value_65.root != (BorrowBinding*)(((void *)0)));
+            bool value_75 = zir_foreign_compiler_borrow__ArrayElementType((uint8_t*)base->type, (void *)0, (size_t)(0LL), (void *)0) != 0;
+            bool value_76 = value_75;
+            if (value_76) {
+                BorrowPlace value_77 = compiler_borrow_storage_place(check, expression->left, 1);
+                value_76 = (value_77.root != (BorrowBinding*)(((void *)0)));
             }
-            if (value_64) {
+            if (value_76) {
                 Origin cleanup_return_5 = compiler_borrow_storage_origin(check, expression->left);
                 zir_foreign_compiler_borrow__CompilerFree((void*)(backing_storage_4));
                 return cleanup_return_5;
@@ -3613,37 +3912,37 @@ compiler_borrow_expression_origin(BorrowCheck* check, int32_t index)
             zir_foreign_compiler_borrow__CompilerFree((void*)(backing_storage_4));
             return cleanup_return_6;
         } else if (check_choice_241 == ((ZirExprKind)(14))) {
-            BorrowCheck* value_66 = check;
-            Origin value_67 = compiler_borrow_expression_origin(check, expression->right);
-            return compiler_borrow_merge(value_66, value_67, compiler_borrow_expression_origin(check, expression->third));
+            BorrowCheck* value_78 = check;
+            Origin value_79 = compiler_borrow_expression_origin(check, expression->right);
+            return compiler_borrow_merge(value_78, value_79, compiler_borrow_expression_origin(check, expression->third));
         } else if (check_choice_241 == ((ZirExprKind)(15))) {
             return compiler_borrow_expression_origin(check, expression->right);
         } else if (check_choice_241 == ((ZirExprKind)(11))) {
-            ZirType* value_68 = (void *)0;
+            ZirType* value_80 = (void *)0;
             if (expression->right >= 0) {
-                ZirType* value_69 = zir_foreign_compiler_borrow__FindType(check->current->module, (uint8_t*)(fn->exprs[expression->right]).type, (void *)0);
-                value_68 = value_69;
+                ZirType* value_81 = zir_foreign_compiler_borrow__FindType(check->current->module, (uint8_t*)(fn->exprs[expression->right]).type, (void *)0);
+                value_80 = value_81;
             } else {
-                value_68 = (void *)0;
+                value_80 = (void *)0;
             }
-            ZirType* source = value_68;
-            bool value_70 = zir_foreign_compiler_borrow__SliceElementType((uint8_t*)expression->type, (void *)0, (size_t)(0LL)) != 0;
-            bool value_71 = value_70 && source != ((void *)0);
-            bool value_72 = value_71;
-            if (value_72) {
-                bool value_73 = zir_foreign_compiler_borrow__strncmp((uint8_t*)(&(source->foreign_target)), compiler_check_types_CheckCString(StringLiteral("go:")), (size_t)(3ULL)) != 0;
-                value_72 = !value_73;
+            ZirType* source = value_80;
+            bool value_82 = zir_foreign_compiler_borrow__SliceElementType((uint8_t*)expression->type, (void *)0, (size_t)(0LL)) != 0;
+            bool value_83 = value_82 && source != ((void *)0);
+            bool value_84 = value_83;
+            if (value_84) {
+                bool value_85 = zir_foreign_compiler_borrow__strncmp((uint8_t*)(&(source->foreign_target)), compiler_check_types_CheckCString(StringLiteral("go:")), (size_t)(3ULL)) != 0;
+                value_84 = !value_85;
             }
-            if (value_72) {
+            if (value_84) {
                 return (Origin){0};
             }
             return compiler_borrow_expression_origin(check, expression->right);
         } else if (check_choice_241 == ((ZirExprKind)(12))) {
-            void* value_74 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
-            Origin* result_storage_5 = (Origin*)(value_74);
+            void* value_86 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
+            Origin* result_storage_5 = (Origin*)(value_86);
             zir_foreign_compiler_borrow__memset((void*)(result_storage_5), 0, sizeof(Origin));
-            Origin* value_75 = &(result_storage_5[0]);
-            (*value_75) = (Origin){0};
+            Origin* value_87 = &(result_storage_5[0]);
+            (*value_87) = (Origin){0};
             {
                 int32_t child = expression->first_child;
                 while (true) {
@@ -3651,35 +3950,35 @@ compiler_borrow_expression_origin(BorrowCheck* check, int32_t index)
                     if (!check_loop_242) {
                         break;
                     }
-                    BorrowCheck* value_76 = check;
-                    uint8_t* value_77 = (uint8_t*)(fn->exprs[child]).type;
-                    int32_t value_78 = 0;
+                    BorrowCheck* value_88 = check;
+                    uint8_t* value_89 = (uint8_t*)(fn->exprs[child]).type;
+                    int32_t value_90 = 0;
                     {
-                        BorrowCheck* check = value_76;
-                        uint8_t* type = value_77;
-                        ZirModule* value_80 = check->current->module;
-                        uint8_t* value_81 = type;
-                        int32_t value_82 = 0;
+                        BorrowCheck* check = value_88;
+                        uint8_t* type = value_89;
+                        ZirModule* value_92 = check->current->module;
+                        uint8_t* value_93 = type;
+                        int32_t value_94 = 0;
                         {
-                            ZirModule* module = value_80;
-                            uint8_t* type = value_81;
-                            bool value_84 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_VIEW, (void *)0);
-                            int32_t value_85 = 0;
-                            if (value_84) {
-                                value_85 = 1;
+                            ZirModule* module = value_92;
+                            uint8_t* type = value_93;
+                            bool value_96 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_VIEW, (void *)0);
+                            int32_t value_97 = 0;
+                            if (value_96) {
+                                value_97 = 1;
                             } else {
-                                value_85 = 0;
+                                value_97 = 0;
                             }
-                            value_82 = value_85;
+                            value_94 = value_97;
                         }
-                        value_78 = value_82;
+                        value_90 = value_94;
                     }
-                    if (value_78 != 0) {
-                        Origin* value_86 = &(result_storage_5[0]);
-                        BorrowCheck* value_87 = check;
-                        Origin value_88 = result_storage_5[0];
-                        Origin value_89 = compiler_borrow_merge(value_87, value_88, compiler_borrow_expression_origin(check, child));
-                        (*value_86) = value_89;
+                    if (value_90 != 0) {
+                        Origin* value_98 = &(result_storage_5[0]);
+                        BorrowCheck* value_99 = check;
+                        Origin value_100 = result_storage_5[0];
+                        Origin value_101 = compiler_borrow_merge(value_99, value_100, compiler_borrow_expression_origin(check, child));
+                        (*value_98) = value_101;
                     }
                     child = (fn->exprs[child]).next_sibling;
                 }
@@ -3688,93 +3987,93 @@ compiler_borrow_expression_origin(BorrowCheck* check, int32_t index)
             zir_foreign_compiler_borrow__CompilerFree((void*)(result_storage_5));
             return cleanup_return_7;
         } else if (check_choice_241 == ((ZirExprKind)(5))) {
-            uint8_t* value_90 = (uint8_t*)expression->name;
-            bool value_91 = zir_foreign_compiler_borrow__strcmp(value_90, compiler_check_types_CheckCString(StringLiteral("TextView"))) != 0;
-            if (!value_91) {
+            uint8_t* value_102 = (uint8_t*)expression->name;
+            bool value_103 = zir_foreign_compiler_borrow__strcmp(value_102, compiler_check_types_CheckCString(StringLiteral("TextView"))) != 0;
+            if (!value_103) {
                 int32_t argument = expression->first_child;
-                bool value_92 = argument >= 0;
-                if (value_92 && zir_foreign_compiler_borrow__OwnedTextType(check->current->module, (uint8_t*)(fn->exprs[argument]).type) != 0) {
+                bool value_104 = argument >= 0;
+                if (value_104 && zir_foreign_compiler_borrow__OwnedTextType(check->current->module, (uint8_t*)(fn->exprs[argument]).type) != 0) {
                     return compiler_borrow_storage_origin(check, argument);
                 }
                 return compiler_borrow_expression_origin(check, argument);
             }
-            uint8_t* value_93 = (uint8_t*)expression->name;
-            bool value_94 = zir_foreign_compiler_borrow__strcmp(value_93, compiler_check_types_CheckCString(StringLiteral("BuilderFinish"))) != 0;
-            if (!value_94) {
+            uint8_t* value_105 = (uint8_t*)expression->name;
+            bool value_106 = zir_foreign_compiler_borrow__strcmp(value_105, compiler_check_types_CheckCString(StringLiteral("BuilderFinish"))) != 0;
+            if (!value_106) {
                 return (Origin){0};
             }
-            uint8_t* value_95 = (uint8_t*)expression->name;
-            bool value_96 = zir_foreign_compiler_borrow__strcmp(value_95, compiler_check_types_CheckCString(StringLiteral("VecSlice"))) != 0;
-            if (!value_96) {
-                void* value_97 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
-                Origin* origin_storage_6 = (Origin*)(value_97);
+            uint8_t* value_107 = (uint8_t*)expression->name;
+            bool value_108 = zir_foreign_compiler_borrow__strcmp(value_107, compiler_check_types_CheckCString(StringLiteral("VecSlice"))) != 0;
+            if (!value_108) {
+                void* value_109 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
+                Origin* origin_storage_6 = (Origin*)(value_109);
                 zir_foreign_compiler_borrow__memset((void*)(origin_storage_6), 0, sizeof(Origin));
-                Origin* value_98 = &(origin_storage_6[0]);
-                Origin value_99 = compiler_borrow_expression_origin(check, expression->first_child);
-                (*value_98) = value_99;
-                void* value_100 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(BorrowPlace));
-                BorrowPlace* place_storage_7 = (BorrowPlace*)(value_100);
+                Origin* value_110 = &(origin_storage_6[0]);
+                Origin value_111 = compiler_borrow_expression_origin(check, expression->first_child);
+                (*value_110) = value_111;
+                void* value_112 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(BorrowPlace));
+                BorrowPlace* place_storage_7 = (BorrowPlace*)(value_112);
                 zir_foreign_compiler_borrow__memset((void*)(place_storage_7), 0, sizeof(BorrowPlace));
-                BorrowPlace* value_101 = &(place_storage_7[0]);
-                BorrowPlace value_102 = compiler_borrow_storage_place(check, expression->first_child, 1);
-                (*value_101) = value_102;
-                BorrowBinding* value_103 = (place_storage_7[0]).root;
-                int32_t value_104 = 0;
+                BorrowPlace* value_113 = &(place_storage_7[0]);
+                BorrowPlace value_114 = compiler_borrow_storage_place(check, expression->first_child, 1);
+                (*value_113) = value_114;
+                BorrowBinding* value_115 = (place_storage_7[0]).root;
+                int32_t value_116 = 0;
                 {
-                    BorrowBinding* source = value_103;
-                    bool value_106 = source != (BorrowBinding*)(((void *)0)) && (int32_t)((int8_t)((source->type.items)[0])) == 42 && source->parameter >= 0;
-                    bool value_107 = value_106 && source->parameter < 64 && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0);
-                    int32_t value_108 = 0;
-                    if (value_107) {
-                        value_108 = 1;
+                    BorrowBinding* source = value_115;
+                    bool value_118 = source != (BorrowBinding*)(((void *)0)) && (int32_t)((int8_t)((source->type.items)[0])) == 42 && source->parameter >= 0;
+                    bool value_119 = value_118 && source->parameter < 64 && source->local < 0 && source->origin.depth == 1 && !(source->origin.invalid != 0);
+                    int32_t value_120 = 0;
+                    if (value_119) {
+                        value_120 = 1;
                     }
-                    value_104 = value_108;
+                    value_116 = value_120;
                 }
-                if (value_104 != 0) {
+                if (value_116 != 0) {
                     uint64_t parameter = ZiShl64(1ULL, (uint64_t)((uint64_t)(((place_storage_7[0]).root)->parameter)), 64);
-                    uint64_t* value_109 = &((origin_storage_6[0]).lent);
-                    (*value_109) = (uint64_t)((uint64_t)((*value_109)) & (uint64_t)(((uint64_t)~(uint64_t)parameter)));
-                    uint64_t* value_110 = &((origin_storage_6[0]).lent_vec);
-                    (*value_110) = (uint64_t)((uint64_t)((*value_110)) | (uint64_t)parameter);
+                    uint64_t* value_121 = &((origin_storage_6[0]).lent);
+                    (*value_121) = (uint64_t)((uint64_t)((*value_121)) & (uint64_t)(((uint64_t)~(uint64_t)parameter)));
+                    uint64_t* value_122 = &((origin_storage_6[0]).lent_vec);
+                    (*value_122) = (uint64_t)((uint64_t)((*value_122)) | (uint64_t)parameter);
                 }
-                bool value_111 = !((origin_storage_6[0]).unknown != 0) && (place_storage_7[0]).root != (BorrowBinding*)(((void *)0));
-                if (value_111 && ((place_storage_7[0]).root)->global_index >= 0) {
+                bool value_123 = !((origin_storage_6[0]).unknown != 0) && (place_storage_7[0]).root != (BorrowBinding*)(((void *)0));
+                if (value_123 && ((place_storage_7[0]).root)->global_index >= 0) {
                     if ((origin_storage_6[0]).depth < check->depth) {
-                        int32_t* value_112 = &((origin_storage_6[0]).depth);
-                        (*value_112) = check->depth;
+                        int32_t* value_124 = &((origin_storage_6[0]).depth);
+                        (*value_124) = check->depth;
                     }
-                    int32_t* value_113 = &((origin_storage_6[0]).global_vec);
-                    (*value_113) = 1;
+                    int32_t* value_125 = &((origin_storage_6[0]).global_vec);
+                    (*value_125) = 1;
                 }
                 Origin cleanup_return_8 = origin_storage_6[0];
                 zir_foreign_compiler_borrow__CompilerFree((void*)(place_storage_7));
                 zir_foreign_compiler_borrow__CompilerFree((void*)(origin_storage_6));
                 return cleanup_return_8;
             }
-            BorrowCheck* value_114 = check;
-            uint8_t* value_115 = (uint8_t*)expression->type;
-            int32_t value_116 = 0;
+            BorrowCheck* value_126 = check;
+            uint8_t* value_127 = (uint8_t*)expression->type;
+            int32_t value_128 = 0;
             {
-                BorrowCheck* check = value_114;
-                uint8_t* type = value_115;
-                ZirModule* value_118 = check->current->module;
-                uint8_t* value_119 = type;
-                int32_t value_120 = 0;
+                BorrowCheck* check = value_126;
+                uint8_t* type = value_127;
+                ZirModule* value_130 = check->current->module;
+                uint8_t* value_131 = type;
+                int32_t value_132 = 0;
                 {
-                    ZirModule* module = value_118;
-                    uint8_t* type = value_119;
-                    bool value_122 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_VIEW, (void *)0);
-                    int32_t value_123 = 0;
-                    if (value_122) {
-                        value_123 = 1;
+                    ZirModule* module = value_130;
+                    uint8_t* type = value_131;
+                    bool value_134 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_VIEW, (void *)0);
+                    int32_t value_135 = 0;
+                    if (value_134) {
+                        value_135 = 1;
                     } else {
-                        value_123 = 0;
+                        value_135 = 0;
                     }
-                    value_120 = value_123;
+                    value_132 = value_135;
                 }
-                value_116 = value_120;
+                value_128 = value_132;
             }
-            if (value_116 != 0) {
+            if (value_128 != 0) {
                 ZirModule* owner = (void *)0;
                 ZirFunction* callee = (void *)0;
                 if (zir_foreign_compiler_borrow__ResolveFunction(check->current->module, (uint8_t*)expression->name, &(owner), &(callee)) <= 0) {
@@ -3800,18 +4099,26 @@ compiler_borrow_borrowed_capture_place(ZirFunction* fn, int32_t index, int32_t d
         return false;
     }
     ZirExpr expression = fn->exprs[index];
-    bool value_0 = ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(7));
-    bool value_1 = value_0 && StringEqual(compiler_ir_CText(&(expression.op[0])), StringLiteral("*"));
-    if (value_1 && expression.right >= 0) {
+    bool value_0 = ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(7)) && expression.right >= 0;
+    bool value_1 = value_0;
+    if (value_1) {
+        bool value_2 = StringEqual(compiler_ir_CText(&(expression.op[0])), StringLiteral("*"));
+        bool value_3 = value_2 || StringEqual(compiler_ir_CText(&(expression.op[0])), StringLiteral("&"));
+        value_1 = value_3;
+    }
+    if (value_1) {
         ZirExpr field = fn->exprs[expression.right];
-        bool value_2 = ((ZirExprKind)(field.kind)) == ((ZirExprKind)(8)) && field.left >= 0 && ((ZirExprKind)((fn->exprs[field.left]).kind)) == ((ZirExprKind)(1));
-        bool value_3 = value_2;
-        if (value_3 && StringEqual(compiler_ir_CText((uint8_t*)(fn->exprs[field.left]).name), StringLiteral("__tsx_environment"))) {
+        bool value_4 = StringEqual(compiler_ir_CText(&(expression.op[0])), StringLiteral("*"));
+        bool value_5 = value_4 && (((ZirExprKind)(field.kind)) == ((ZirExprKind)(8)) || ((ZirExprKind)(field.kind)) == ((ZirExprKind)(9)));
+        bool value_6 = value_5 && field.left >= 0 && ((ZirExprKind)((fn->exprs[field.left]).kind)) == ((ZirExprKind)(1));
+        bool value_7 = value_6;
+        if (value_7 && StringEqual(compiler_ir_CText((uint8_t*)(fn->exprs[field.left]).name), StringLiteral("__tsx_environment"))) {
             return true;
         }
+        return compiler_borrow_borrowed_capture_place(fn, expression.right, (int32_t)((uint32_t)depth + 1u));
     }
-    bool value_4 = ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(8)) || ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(9));
-    if (value_4 || ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(10))) {
+    bool value_8 = ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(8)) || ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(9));
+    if (value_8 || ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(10)) || ((ZirExprKind)(expression.kind)) == ((ZirExprKind)(16))) {
         return compiler_borrow_borrowed_capture_place(fn, expression.left, (int32_t)((uint32_t)depth + 1u));
     }
     return false;
@@ -4360,6 +4667,57 @@ compiler_borrow_has_reference_owned_fields(BorrowCheck* check)
     return false;
 }
 
+static BorrowBranch*
+compiler_borrow_borrow_branches(ZirFunction* fn)
+{
+    void* value_0 = zir_foreign_compiler_borrow__CompilerCalloc((size_t)(((int32_t)((uint32_t)(fn->stmt_count) + 1u))), sizeof(BorrowBranch));
+    BorrowBranch* branches = (BorrowBranch*)(value_0);
+    if (branches == ((void *)0)) {
+        return (void *)0;
+    }
+    int32_t parent = 0;
+    int32_t previous = 0;
+    {
+        int32_t range_first_6 = 0;
+        int32_t range_last_6 = (int32_t)((uint32_t)(fn->stmt_count) - 1u);
+        int32_t at = range_first_6;
+        if (at <= range_last_6) for (;;) {
+            ZirStmt* statement = &(fn->stmts[at]);
+            if (((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(2))) {
+                previous = parent;
+                parent = (branches[parent]).parent;
+                int32_t* value_1 = &((branches[((int32_t)((uint32_t)at + 1u))]).parent);
+                (*value_1) = parent;
+                if (at == range_last_6) {
+                    break;
+                }
+                at = (int32_t)((uint32_t)at + 1u);
+                continue;
+            }
+            int32_t* value_2 = &((branches[((int32_t)((uint32_t)at + 1u))]).parent);
+            (*value_2) = parent;
+            if (((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(6))) {
+                int32_t* value_3 = &((branches[((int32_t)((uint32_t)at + 1u))]).group);
+                (*value_3) = (int32_t)((uint32_t)at + 1u);
+                if (statement->is_else != 0 && previous > 0 && ((ZirStmtKind)((fn->stmts[((int32_t)((uint32_t)previous - 1u))]).kind)) == ((ZirStmtKind)(6))) {
+                    int32_t* value_4 = &((branches[((int32_t)((uint32_t)at + 1u))]).group);
+                    (*value_4) = (branches[previous]).group;
+                }
+            }
+            bool value_5 = ((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(6)) || ((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(7));
+            if (value_5 || ((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(1))) {
+                parent = (int32_t)((uint32_t)at + 1u);
+            }
+            previous = 0;
+            if (at == range_last_6) {
+                break;
+            }
+            at = (int32_t)((uint32_t)at + 1u);
+        }
+    }
+    return branches;
+}
+
 static void
 compiler_borrow_check_function(BorrowCheck* check, BorrowFunction* function)
 {
@@ -4382,29 +4740,42 @@ compiler_borrow_check_function(BorrowCheck* check, BorrowFunction* function)
     (*value_6) = 0;
     int32_t* value_7 = &(check->depth);
     (*value_7) = 1;
-    BorrowBinding** value_8 = &(check->bindings);
-    void* value_9 = zir_foreign_compiler_borrow__CompilerCalloc((size_t)(fn->stmt_count) + (size_t)(65LL), (size_t)((uint64_t)(sizeof(BorrowBinding))));
-    (*value_8) = (BorrowBinding*)(value_9);
-    if (check->bindings == (BorrowBinding*)(((void *)0))) {
-        BorrowCheck* value_10 = check;
-        ZirSourceSpan value_11 = fn->span;
-        compiler_borrow_reject(value_10, value_11, compiler_check_types_CheckCString(StringLiteral("out of memory checking slice lifetimes")));
+    int32_t* value_8 = &(check->branch);
+    (*value_8) = 0;
+    BorrowBranch** value_9 = &(check->branches);
+    BorrowBranch* value_10 = compiler_borrow_borrow_branches(fn);
+    (*value_9) = value_10;
+    if (check->branches == ((void *)0)) {
+        BorrowCheck* value_11 = check;
+        ZirSourceSpan value_12 = fn->span;
+        compiler_borrow_reject(value_11, value_12, compiler_check_types_CheckCString(StringLiteral("out of memory checking borrow branches")));
         return;
     }
-    ActiveTextBorrow** value_12 = &(check->active);
-    void* value_13 = zir_foreign_compiler_borrow__CompilerCalloc((size_t)(fn->stmt_count) + (size_t)(1LL), (size_t)((uint64_t)(sizeof(ActiveTextBorrow))));
-    (*value_12) = (ActiveTextBorrow*)(value_13);
-    if (check->active == (ActiveTextBorrow*)(((void *)0))) {
-        zir_foreign_compiler_borrow__CompilerFree((void*)(check->bindings));
-        BorrowBinding** value_14 = &(check->bindings);
-        (*value_14) = (void *)0;
+    BorrowBinding** value_13 = &(check->bindings);
+    void* value_14 = zir_foreign_compiler_borrow__CompilerCalloc((size_t)(fn->stmt_count) + (size_t)(65LL), (size_t)((uint64_t)(sizeof(BorrowBinding))));
+    (*value_13) = (BorrowBinding*)(value_14);
+    if (check->bindings == (BorrowBinding*)(((void *)0))) {
         BorrowCheck* value_15 = check;
         ZirSourceSpan value_16 = fn->span;
-        compiler_borrow_reject(value_15, value_16, compiler_check_types_CheckCString(StringLiteral("out of memory checking text borrows")));
+        compiler_borrow_reject(value_15, value_16, compiler_check_types_CheckCString(StringLiteral("out of memory checking slice lifetimes")));
+        zir_foreign_compiler_borrow__CompilerFree((void*)(check->branches));
         return;
     }
-    int32_t* value_17 = &(check->active_capacity);
-    (*value_17) = (int32_t)((uint32_t)(fn->stmt_count) + 1u);
+    ActiveTextBorrow** value_17 = &(check->active);
+    void* value_18 = zir_foreign_compiler_borrow__CompilerCalloc((size_t)(fn->stmt_count) + (size_t)(1LL), (size_t)((uint64_t)(sizeof(ActiveTextBorrow))));
+    (*value_17) = (ActiveTextBorrow*)(value_18);
+    if (check->active == (ActiveTextBorrow*)(((void *)0))) {
+        zir_foreign_compiler_borrow__CompilerFree((void*)(check->bindings));
+        BorrowBinding** value_19 = &(check->bindings);
+        (*value_19) = (void *)0;
+        BorrowCheck* value_20 = check;
+        ZirSourceSpan value_21 = fn->span;
+        compiler_borrow_reject(value_20, value_21, compiler_check_types_CheckCString(StringLiteral("out of memory checking text borrows")));
+        zir_foreign_compiler_borrow__CompilerFree((void*)(check->branches));
+        return;
+    }
+    int32_t* value_22 = &(check->active_capacity);
+    (*value_22) = (int32_t)((uint32_t)(fn->stmt_count) + 1u);
     ZirParameters* parameters = zir_foreign_compiler_borrow__ParametersOf(compiler_borrow_FunctionArgs(fn));
     {
         int32_t i = 0;
@@ -4420,48 +4791,48 @@ compiler_borrow_check_function(BorrowCheck* check, BorrowFunction* function)
                     compiler_check_s12_types_S12Post2(&(i));
                     goto zir_loop_continue_1;
                 }
-                void* value_18 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
-                Origin* origin_storage_0 = (Origin*)(value_18);
+                void* value_23 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
+                Origin* origin_storage_0 = (Origin*)(value_23);
                 zir_foreign_compiler_borrow__memset((void*)(origin_storage_0), 0, sizeof(Origin));
-                Origin* value_19 = &(origin_storage_0[0]);
-                (*value_19) = (Origin){0};
+                Origin* value_24 = &(origin_storage_0[0]);
+                (*value_24) = (Origin){0};
                 int32_t local = -1;
-                BorrowCheck* value_20 = check;
-                int32_t value_21 = 0;
+                BorrowCheck* value_25 = check;
+                int32_t value_26 = 0;
                 {
-                    BorrowCheck* check = value_20;
+                    BorrowCheck* check = value_25;
                     uint8_t* type = colon;
-                    ZirModule* value_23 = check->current->module;
-                    uint8_t* value_24 = type;
-                    int32_t value_25 = 0;
+                    ZirModule* value_28 = check->current->module;
+                    uint8_t* value_29 = type;
+                    int32_t value_30 = 0;
                     {
-                        ZirModule* module = value_23;
-                        uint8_t* type = value_24;
-                        bool value_27 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_VIEW, (void *)0);
-                        int32_t value_28 = 0;
-                        if (value_27) {
-                            value_28 = 1;
+                        ZirModule* module = value_28;
+                        uint8_t* type = value_29;
+                        bool value_32 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_VIEW, (void *)0);
+                        int32_t value_33 = 0;
+                        if (value_32) {
+                            value_33 = 1;
                         } else {
-                            value_28 = 0;
+                            value_33 = 0;
                         }
-                        value_25 = value_28;
+                        value_30 = value_33;
                     }
-                    value_21 = value_25;
+                    value_26 = value_30;
                 }
-                if (value_21 != 0) {
-                    uint64_t* value_29 = &((origin_storage_0[0]).parameters);
-                    (*value_29) = ZiShl64(1ULL, (uint64_t)((uint64_t)(i)), 64);
+                if (value_26 != 0) {
+                    uint64_t* value_34 = &((origin_storage_0[0]).parameters);
+                    (*value_34) = ZiShl64(1ULL, (uint64_t)((uint64_t)(i)), 64);
                     local = (int32_t)((uint32_t)(fn->stmt_count) + (uint32_t)i);
                     compiler_borrow_accumulate(check, (Origin*)(((size_t)(function->locals) + ((size_t)(local) * sizeof(Origin)))), origin_storage_0[0]);
                 } else {
                     if ((int32_t)((int8_t)(colon[0])) == 42) {
-                        int32_t* value_30 = &((origin_storage_0[0]).depth);
-                        (*value_30) = 1;
+                        int32_t* value_35 = &((origin_storage_0[0]).depth);
+                        (*value_35) = 1;
                     }
                 }
                 BorrowBinding* parameter = compiler_borrow_add_binding(check, name, colon, origin_storage_0[0], local, 1, 0);
-                int32_t* value_31 = &(parameter->parameter);
-                (*value_31) = i;
+                int32_t* value_36 = &(parameter->parameter);
+                (*value_36) = i;
                 compiler_check_s12_types_S12Post2(&(i));
                 zir_foreign_compiler_borrow__CompilerFree((void*)(origin_storage_0));
             }
@@ -4477,6 +4848,8 @@ compiler_borrow_check_function(BorrowCheck* check, BorrowFunction* function)
                 if (!check_loop_248) {
                     break;
                 }
+                int32_t* value_37 = &(check->branch);
+                (*value_37) = (int32_t)((uint32_t)i + 1u);
                 ZirStmt* statement = (ZirStmt*)(((size_t)(fn->stmts) + ((size_t)(i) * sizeof(ZirStmt))));
                 if ((int32_t)(((ZirStmtKind)(statement->kind))) == 2) {
                     compiler_borrow_release_active_text_borrows(check, check->depth);
@@ -4491,184 +4864,225 @@ compiler_borrow_check_function(BorrowCheck* check, BorrowFunction* function)
                     compiler_check_s12_types_S12Post2(&(i));
                     goto zir_loop_continue_2;
                 }
-                bool value_32 = ((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(10));
-                bool value_33 = value_32;
-                if (value_33) {
-                    ZirModule* value_34 = function->module;
-                    uint8_t* value_35 = &(fn->return_type[0]);
-                    bool value_36 = false;
+                bool value_38 = ((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(10));
+                bool value_39 = value_38;
+                if (value_39) {
+                    ZirModule* value_40 = function->module;
+                    uint8_t* value_41 = &(fn->return_type[0]);
+                    bool value_42 = false;
                     {
-                        ZirModule* module = value_34;
-                        uint8_t* type = value_35;
-                        value_36 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_SCOPED, (void *)0);
+                        ZirModule* module = value_40;
+                        uint8_t* type = value_41;
+                        value_42 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_SCOPED, (void *)0);
                     }
-                    value_33 = value_36;
+                    value_39 = value_42;
                 }
-                if (value_33) {
-                    BorrowCheck* value_38 = check;
-                    ZirSourceSpan value_39 = statement->span;
-                    compiler_borrow_reject(value_38, value_39, compiler_check_types_CheckCString(StringLiteral("a Scoped callable cannot be returned or retained")));
+                if (value_39) {
+                    BorrowCheck* value_44 = check;
+                    ZirSourceSpan value_45 = statement->span;
+                    compiler_borrow_reject(value_44, value_45, compiler_check_types_CheckCString(StringLiteral("a Scoped callable cannot be returned or retained")));
                 }
                 compiler_borrow_check_ranges(check, statement->lhs_root);
                 compiler_borrow_check_ranges(check, statement->expr_root);
+                if (((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(10)) && (fn->return_type)[0] == 42) {
+                    BorrowCheck* value_46 = check;
+                    if (compiler_borrow_accumulate(value_46, &(function->returned), compiler_borrow_pointer_view_origin(check, statement->expr_root)) != 0) {
+                        compiler_borrow_summary_changed(check);
+                    }
+                }
                 if ((int32_t)(((ZirStmtKind)(statement->kind))) == 4 && statement->lhs_root >= 0) {
+                    if (compiler_borrow_readonly_pointer_destination(check, statement->lhs_root)) {
+                        BorrowCheck* value_47 = check;
+                        ZirSourceSpan value_48 = statement->span;
+                        compiler_borrow_reject(value_47, value_48, compiler_check_types_CheckCString(StringLiteral("cannot mutate borrowed string bytes through a pointer alias")));
+                    }
                     if (zir_foreign_compiler_borrow__reference_owned_field(function->module, fn, statement->lhs_root) != 0) {
                         compiler_borrow_check_reference_owned_field(check, statement->lhs_root);
-                        BorrowCheck* value_40 = check;
-                        compiler_borrow_record_mutation(value_40, compiler_borrow_storage_place(check, statement->lhs_root, 1), 1);
+                        BorrowCheck* value_49 = check;
+                        compiler_borrow_record_mutation(value_49, compiler_borrow_storage_place(check, statement->lhs_root, 1), 1);
                     }
-                    void* value_41 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(BorrowPlace));
-                    BorrowPlace* destination_storage_1 = (BorrowPlace*)(value_41);
+                    void* value_50 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(BorrowPlace));
+                    BorrowPlace* destination_storage_1 = (BorrowPlace*)(value_50);
                     zir_foreign_compiler_borrow__memset((void*)(destination_storage_1), 0, sizeof(BorrowPlace));
-                    BorrowPlace* value_42 = &(destination_storage_1[0]);
-                    BorrowPlace value_43 = compiler_borrow_storage_place(check, statement->lhs_root, 0);
-                    (*value_42) = value_43;
+                    BorrowPlace* value_51 = &(destination_storage_1[0]);
+                    BorrowPlace value_52 = compiler_borrow_storage_place(check, statement->lhs_root, 0);
+                    (*value_51) = value_52;
                     ZirExpr* left = (ZirExpr*)(((size_t)(fn->exprs) + ((size_t)(statement->lhs_root) * sizeof(ZirExpr))));
-                    bool value_44 = (destination_storage_1[0]).root != (BorrowBinding*)(((void *)0)) && ((destination_storage_1[0]).root)->parameter >= 0;
-                    bool value_45 = value_44 && (int32_t)(((ZirExprKind)(left->kind))) == 1;
-                    bool value_46 = value_45;
-                    if (value_46) {
-                        bool value_47 = (int32_t)((int8_t)(left->type[0])) == 42;
-                        bool value_48 = value_47 || zir_foreign_compiler_borrow__SliceElementType((uint8_t*)left->type, (void *)0, (size_t)(0LL)) != 0;
-                        value_46 = value_48;
+                    bool value_53 = (destination_storage_1[0]).root != (BorrowBinding*)(((void *)0)) && ((destination_storage_1[0]).root)->parameter >= 0;
+                    bool value_54 = value_53 && (int32_t)(((ZirExprKind)(left->kind))) == 1;
+                    bool value_55 = value_54;
+                    if (value_55) {
+                        bool value_56 = (int32_t)((int8_t)(left->type[0])) == 42;
+                        bool value_57 = value_56 || zir_foreign_compiler_borrow__SliceElementType((uint8_t*)left->type, (void *)0, (size_t)(0LL)) != 0;
+                        value_55 = value_57;
                     }
-                    if (!value_46) {
-                        compiler_borrow_check_mutation(check, destination_storage_1[0], statement->span);
+                    if (!value_55) {
+                        compiler_borrow_check_mutation(check, destination_storage_1[0], statement->span, statement->lhs_root);
                     }
                     zir_foreign_compiler_borrow__CompilerFree((void*)(destination_storage_1));
                 }
                 if ((int32_t)(((ZirStmtKind)(statement->kind))) == 3) {
-                    BorrowCheck* value_49 = check;
-                    uint8_t* value_50 = (uint8_t*)statement->type;
-                    int32_t value_51 = 0;
+                    BorrowCheck* value_58 = check;
+                    uint8_t* value_59 = (uint8_t*)statement->type;
+                    int32_t value_60 = 0;
                     {
-                        BorrowCheck* check = value_49;
-                        uint8_t* type = value_50;
-                        ZirModule* value_53 = check->current->module;
-                        uint8_t* value_54 = type;
-                        int32_t value_55 = 0;
+                        BorrowCheck* check = value_58;
+                        uint8_t* type = value_59;
+                        ZirModule* value_62 = check->current->module;
+                        uint8_t* value_63 = type;
+                        int32_t value_64 = 0;
                         {
-                            ZirModule* module = value_53;
-                            uint8_t* type = value_54;
-                            bool value_57 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_VIEW, (void *)0);
-                            int32_t value_58 = 0;
-                            if (value_57) {
-                                value_58 = 1;
+                            ZirModule* module = value_62;
+                            uint8_t* type = value_63;
+                            bool value_66 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_VIEW, (void *)0);
+                            int32_t value_67 = 0;
+                            if (value_66) {
+                                value_67 = 1;
                             } else {
-                                value_58 = 0;
+                                value_67 = 0;
                             }
-                            value_55 = value_58;
+                            value_64 = value_67;
                         }
-                        value_51 = value_55;
+                        value_60 = value_64;
                     }
-                    if (value_51 != 0) {
-                        void* value_59 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
-                        Origin* source_storage_2 = (Origin*)(value_59);
+                    if (value_60 != 0) {
+                        void* value_68 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
+                        Origin* source_storage_2 = (Origin*)(value_68);
                         zir_foreign_compiler_borrow__memset((void*)(source_storage_2), 0, sizeof(Origin));
-                        Origin* value_60 = &(source_storage_2[0]);
-                        Origin value_61 = compiler_borrow_expression_origin(check, statement->expr_root);
-                        (*value_60) = value_61;
-                        bool value_62 = zir_foreign_compiler_borrow__SliceElementType((uint8_t*)statement->type, (void *)0, (size_t)(0LL)) != 0;
-                        bool value_63 = value_62;
-                        if (!value_63) {
-                            uint8_t* value_64 = (uint8_t*)statement->type;
-                            bool value_65 = zir_foreign_compiler_borrow__strcmp(value_64, compiler_check_types_CheckCString(StringLiteral("string"))) != 0;
-                            value_63 = !value_65;
+                        Origin* value_69 = &(source_storage_2[0]);
+                        Origin value_70 = compiler_borrow_expression_origin(check, statement->expr_root);
+                        (*value_69) = value_70;
+                        bool value_71 = zir_foreign_compiler_borrow__SliceElementType((uint8_t*)statement->type, (void *)0, (size_t)(0LL)) != 0;
+                        bool value_72 = value_71;
+                        if (!value_72) {
+                            uint8_t* value_73 = (uint8_t*)statement->type;
+                            bool value_74 = zir_foreign_compiler_borrow__strcmp(value_73, compiler_check_types_CheckCString(StringLiteral("string"))) != 0;
+                            value_72 = !value_74;
                         }
-                        int32_t value_66 = 0;
-                        if (value_63) {
-                            value_66 = 1;
+                        int32_t value_75 = 0;
+                        if (value_72) {
+                            value_75 = 1;
                         }
-                        int32_t direct_view = value_66;
+                        int32_t direct_view = value_75;
                         compiler_borrow_accumulate(check, (Origin*)(((size_t)(function->locals) + ((size_t)(i) * sizeof(Origin)))), source_storage_2[0]);
                         if (((source_storage_2[0]).invalid != 0 && direct_view != 0) || (source_storage_2[0]).depth > check->depth) {
-                            BorrowCheck* value_67 = check;
-                            ZirSourceSpan value_68 = statement->span;
-                            uint8_t* value_69 = (uint8_t*)statement->type;
-                            bool value_70 = zir_foreign_compiler_borrow__strcmp(value_69, compiler_check_types_CheckCString(StringLiteral("string"))) != 0;
-                            uint8_t* value_71 = (void *)0;
-                            if (!value_70) {
-                                uint8_t* value_72 = compiler_check_types_CheckCString(StringLiteral("text view initializer outlives its backing storage"));
-                                value_71 = value_72;
+                            BorrowCheck* value_76 = check;
+                            ZirSourceSpan value_77 = statement->span;
+                            uint8_t* value_78 = (uint8_t*)statement->type;
+                            bool value_79 = zir_foreign_compiler_borrow__strcmp(value_78, compiler_check_types_CheckCString(StringLiteral("string"))) != 0;
+                            uint8_t* value_80 = (void *)0;
+                            if (!value_79) {
+                                uint8_t* value_81 = compiler_check_types_CheckCString(StringLiteral("text view initializer outlives its backing storage"));
+                                value_80 = value_81;
                             } else {
-                                bool value_73 = zir_foreign_compiler_borrow__SliceElementType((uint8_t*)statement->type, (void *)0, (size_t)(0LL)) != 0;
-                                uint8_t* value_74 = (void *)0;
-                                if (value_73) {
-                                    uint8_t* value_75 = compiler_check_types_CheckCString(StringLiteral("slice initializer outlives its backing storage"));
-                                    value_74 = value_75;
+                                bool value_82 = zir_foreign_compiler_borrow__SliceElementType((uint8_t*)statement->type, (void *)0, (size_t)(0LL)) != 0;
+                                uint8_t* value_83 = (void *)0;
+                                if (value_82) {
+                                    uint8_t* value_84 = compiler_check_types_CheckCString(StringLiteral("slice initializer outlives its backing storage"));
+                                    value_83 = value_84;
                                 } else {
-                                    uint8_t* value_76 = compiler_check_types_CheckCString(StringLiteral("view initializer outlives its backing storage"));
-                                    value_74 = value_76;
+                                    uint8_t* value_85 = compiler_check_types_CheckCString(StringLiteral("view initializer outlives its backing storage"));
+                                    value_83 = value_85;
                                 }
-                                value_71 = value_74;
+                                value_80 = value_83;
                             }
-                            compiler_borrow_reject(value_67, value_68, value_71);
+                            compiler_borrow_reject(value_76, value_77, value_80);
                         }
                         zir_foreign_compiler_borrow__CompilerFree((void*)(source_storage_2));
                     }
                     BorrowBinding* declared = compiler_borrow_add_binding(check, (uint8_t*)statement->names.name, (uint8_t*)statement->type, (Origin){0}, i, check->depth, 0);
-                    BorrowSource** value_77 = &(declared->text_backings);
-                    BorrowSource* value_78 = compiler_borrow_text_view_backings(check, statement->expr_root);
-                    (*value_77) = value_78;
-                    BorrowPlace* value_79 = &(declared->text_backing);
-                    BorrowSource* value_80 = declared->text_backings;
-                    BorrowPlace value_81 = {0};
+                    BorrowCheck* value_86 = check;
+                    uint8_t* value_87 = (uint8_t*)statement->type;
+                    int32_t value_88 = 0;
                     {
-                        BorrowSource* sources = value_80;
-                        BorrowPlace value_83 = {0};
-                        if (sources == (BorrowSource*)(((void *)0))) {
-                            value_83 = (BorrowPlace){0};
-                        } else {
-                            value_83 = sources->place;
+                        BorrowCheck* check = value_86;
+                        uint8_t* type = value_87;
+                        ZirModule* value_90 = check->current->module;
+                        uint8_t* value_91 = type;
+                        int32_t value_92 = 0;
+                        {
+                            ZirModule* module = value_90;
+                            uint8_t* type = value_91;
+                            bool value_94 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_VIEW, (void *)0);
+                            int32_t value_95 = 0;
+                            if (value_94) {
+                                value_95 = 1;
+                            } else {
+                                value_95 = 0;
+                            }
+                            value_92 = value_95;
                         }
-                        value_81 = value_83;
+                        value_88 = value_92;
                     }
-                    (*value_79) = value_81;
-                    BorrowPlace* value_84 = &(declared->address_backing);
-                    BorrowPlace value_85 = {0};
+                    if (value_88 != 0 || statement->type[0] == 42) {
+                        BorrowSource** value_96 = &(declared->text_backings);
+                        BorrowSource* value_97 = compiler_borrow_text_view_backings(check, statement->expr_root);
+                        (*value_96) = value_97;
+                    }
+                    BorrowPlace* value_98 = &(declared->text_backing);
+                    BorrowSource* value_99 = declared->text_backings;
+                    BorrowPlace value_100 = {0};
+                    {
+                        BorrowSource* sources = value_99;
+                        BorrowPlace value_102 = {0};
+                        if (sources == (BorrowSource*)(((void *)0))) {
+                            value_102 = (BorrowPlace){0};
+                        } else {
+                            value_102 = sources->place;
+                        }
+                        value_100 = value_102;
+                    }
+                    (*value_98) = value_100;
+                    BorrowPlace* value_103 = &(declared->address_backing);
+                    BorrowPlace value_104 = {0};
                     if ((int32_t)((int8_t)(statement->type[0])) == 42) {
-                        BorrowPlace value_86 = compiler_borrow_address_backing(check, statement->expr_root, &(declared->address_known));
-                        value_85 = value_86;
+                        BorrowPlace value_105 = compiler_borrow_address_backing(check, statement->expr_root, &(declared->address_known));
+                        value_104 = value_105;
                     } else {
-                        value_85 = (BorrowPlace){0};
+                        value_104 = (BorrowPlace){0};
                     }
-                    (*value_84) = value_85;
-                    bool value_87 = i == 0;
-                    if (value_87 && compiler_ir_CaptureEnvironmentBinding(fn)) {
-                        int32_t* value_88 = &(declared->address_known);
-                        (*value_88) = 1;
-                        BorrowPlace* value_89 = &(declared->address_backing);
-                        BorrowPlace value_90 = {0};
+                    (*value_103) = value_104;
+                    if (statement->type[0] == 42) {
+                        Origin* value_106 = &(declared->origin);
+                        Origin value_107 = compiler_borrow_pointer_view_origin(check, statement->expr_root);
+                        (*value_106) = value_107;
+                    }
+                    bool value_108 = i == 0;
+                    if (value_108 && compiler_ir_CaptureEnvironmentBinding(fn)) {
+                        int32_t* value_109 = &(declared->address_known);
+                        (*value_109) = 1;
+                        BorrowPlace* value_110 = &(declared->address_backing);
+                        BorrowPlace value_111 = {0};
                         {
                             BorrowBinding* binding = declared;
-                            value_90 = (BorrowPlace){.root = binding, .path = (void *)0};
+                            value_111 = (BorrowPlace){.root = binding, .path = (void *)0};
                         }
-                        (*value_89) = value_90;
+                        (*value_110) = value_111;
                     }
                     if (reference_fields) {
                         compiler_borrow_protect_owned_reference(check, declared, statement->span);
                     }
-                    BorrowCheck* value_92 = check;
-                    uint8_t* value_93 = (uint8_t*)statement->type;
-                    int32_t value_94 = 0;
+                    BorrowCheck* value_113 = check;
+                    uint8_t* value_114 = (uint8_t*)statement->type;
+                    int32_t value_115 = 0;
                     {
-                        BorrowCheck* check = value_92;
-                        uint8_t* type = value_93;
-                        value_94 = compiler_borrow_cached_contains_text(check, check->current->module, type);
+                        BorrowCheck* check = value_113;
+                        uint8_t* type = value_114;
+                        value_115 = compiler_borrow_cached_contains_text(check, check->current->module, type);
                     }
-                    bool value_96 = value_94 != 0;
-                    if (!value_96) {
-                        ZirModule* value_97 = check->current->module;
-                        uint8_t* value_98 = (uint8_t*)statement->type;
-                        bool value_99 = false;
+                    bool value_117 = value_115 != 0;
+                    if (!value_117) {
+                        ZirModule* value_118 = check->current->module;
+                        uint8_t* value_119 = (uint8_t*)statement->type;
+                        bool value_120 = false;
                         {
-                            ZirModule* module = value_97;
-                            uint8_t* type = value_98;
-                            value_99 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_SCOPED, (void *)0);
+                            ZirModule* module = value_118;
+                            uint8_t* type = value_119;
+                            value_120 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_SCOPED, (void *)0);
                         }
-                        value_96 = value_99;
+                        value_117 = value_120;
                     }
-                    if (value_96) {
+                    if (value_117) {
                         compiler_borrow_add_active_text_borrows(check, declared->text_backings, check->depth);
                     }
                     compiler_borrow_add_active_vec_borrow(check, statement->expr_root, check->depth);
@@ -4676,428 +5090,448 @@ compiler_borrow_check_function(BorrowCheck* check, BorrowFunction* function)
                     if ((int32_t)(((ZirStmtKind)(statement->kind))) == 4 && statement->lhs_root >= 0) {
                         ZirExpr* destination = (ZirExpr*)(((size_t)(fn->exprs) + ((size_t)(statement->lhs_root) * sizeof(ZirExpr))));
                         ZirExpr* assignment_root = compiler_borrow_destination_root(fn, statement->lhs_root);
-                        ZirModule* value_101 = function->module;
-                        uint8_t* value_102 = (uint8_t*)destination->type;
-                        bool value_103 = false;
+                        ZirModule* value_122 = function->module;
+                        uint8_t* value_123 = (uint8_t*)destination->type;
+                        bool value_124 = false;
                         {
-                            ZirModule* module = value_101;
-                            uint8_t* type = value_102;
-                            value_103 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_SCOPED, (void *)0);
+                            ZirModule* module = value_122;
+                            uint8_t* type = value_123;
+                            value_124 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_SCOPED, (void *)0);
                         }
-                        if (value_103) {
-                            BorrowBinding* value_105 = (void *)0;
+                        if (value_124) {
+                            BorrowBinding* value_126 = (void *)0;
                             if (assignment_root == ((void *)0)) {
-                                value_105 = (void *)0;
+                                value_126 = (void *)0;
                             } else {
-                                BorrowBinding* value_106 = compiler_borrow_binding(check, (uint8_t*)assignment_root->name);
-                                value_105 = value_106;
+                                BorrowBinding* value_127 = compiler_borrow_binding(check, (uint8_t*)assignment_root->name);
+                                value_126 = value_127;
                             }
-                            BorrowBinding* target = value_105;
+                            BorrowBinding* target = value_126;
                             if (target == ((void *)0) || target->global_index >= 0 || target->captured != 0 || (target->type.items)[0] == 42) {
-                                BorrowCheck* value_107 = check;
-                                ZirSourceSpan value_108 = statement->span;
-                                compiler_borrow_reject(value_107, value_108, compiler_check_types_CheckCString(StringLiteral("a Scoped callable cannot be retained through global or reference storage")));
+                                BorrowCheck* value_128 = check;
+                                ZirSourceSpan value_129 = statement->span;
+                                compiler_borrow_reject(value_128, value_129, compiler_check_types_CheckCString(StringLiteral("a Scoped callable cannot be retained through global or reference storage")));
                             }
                         }
-                        BorrowBinding* value_109 = (void *)0;
+                        BorrowBinding* value_130 = (void *)0;
                         if (assignment_root == (ZirExpr*)(((void *)0))) {
-                            value_109 = (void *)0;
+                            value_130 = (void *)0;
                         } else {
-                            BorrowBinding* value_110 = compiler_borrow_binding(check, (uint8_t*)assignment_root->name);
-                            value_109 = value_110;
+                            BorrowBinding* value_131 = compiler_borrow_binding(check, (uint8_t*)assignment_root->name);
+                            value_130 = value_131;
                         }
-                        BorrowBinding* assignment_target = value_109;
-                        bool value_111 = (int32_t)(((ZirExprKind)(destination->kind))) == 1 && (int32_t)((int8_t)(destination->type[0])) == 42;
-                        if (value_111 && assignment_target != (BorrowBinding*)(((void *)0))) {
-                            void* value_112 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(BorrowBinding));
-                            BorrowBinding* before_storage_3 = (BorrowBinding*)(value_112);
+                        BorrowBinding* assignment_target = value_130;
+                        bool value_132 = (int32_t)(((ZirExprKind)(destination->kind))) == 1 && (int32_t)((int8_t)(destination->type[0])) == 42;
+                        if (value_132 && assignment_target != (BorrowBinding*)(((void *)0))) {
+                            void* value_133 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(BorrowBinding));
+                            BorrowBinding* before_storage_3 = (BorrowBinding*)(value_133);
                             zir_foreign_compiler_borrow__memset((void*)(before_storage_3), 0, sizeof(BorrowBinding));
-                            BorrowBinding* value_113 = &(before_storage_3[0]);
-                            (*value_113) = assignment_target[0];
-                            BorrowPlace* value_114 = &(assignment_target->address_backing);
-                            BorrowPlace value_115 = compiler_borrow_address_backing(check, statement->expr_root, &(assignment_target->address_known));
-                            (*value_114) = value_115;
+                            BorrowBinding* value_134 = &(before_storage_3[0]);
+                            (*value_134) = assignment_target[0];
+                            Origin* value_135 = &(assignment_target->origin);
+                            BorrowCheck* value_136 = check;
+                            Origin value_137 = assignment_target->origin;
+                            Origin value_138 = compiler_borrow_merge(value_136, value_137, compiler_borrow_pointer_view_origin(check, statement->expr_root));
+                            (*value_135) = value_138;
+                            BorrowPlace* value_139 = &(assignment_target->address_backing);
+                            BorrowPlace value_140 = compiler_borrow_address_backing(check, statement->expr_root, &(assignment_target->address_known));
+                            (*value_139) = value_140;
                             if (reference_fields) {
                                 compiler_borrow_protect_owned_reference(check, assignment_target, statement->span);
                             }
-                            bool value_116 = assignment_target->global_index >= 0 && assignment_target->address_backing.root != (BorrowBinding*)(((void *)0));
-                            if (value_116 && assignment_target->address_backing.root->global_index < 0) {
-                                BorrowPlace* value_117 = &(assignment_target->address_backing);
-                                (*value_117) = (BorrowPlace){0};
-                                int32_t* value_118 = &(assignment_target->address_known);
-                                (*value_118) = 0;
+                            bool value_141 = assignment_target->global_index >= 0 && assignment_target->address_backing.root != (BorrowBinding*)(((void *)0));
+                            if (value_141 && assignment_target->address_backing.root->global_index < 0) {
+                                BorrowPlace* value_142 = &(assignment_target->address_backing);
+                                (*value_142) = (BorrowPlace){0};
+                                int32_t* value_143 = &(assignment_target->address_known);
+                                (*value_143) = 0;
                             }
-                            bool value_119 = assignment_target->global_index >= 0;
-                            bool value_120 = value_119;
-                            if (value_120) {
-                                BorrowBinding* value_121 = &(before_storage_3[0]);
-                                int32_t value_122 = 0;
+                            bool value_144 = assignment_target->global_index >= 0;
+                            bool value_145 = value_144;
+                            if (value_145) {
+                                BorrowBinding* value_146 = &(before_storage_3[0]);
+                                int32_t value_147 = 0;
                                 {
-                                    BorrowBinding* before = value_121;
+                                    BorrowBinding* before = value_146;
                                     BorrowBinding* after = assignment_target;
-                                    Origin value_124 = before->origin;
-                                    Origin value_125 = after->origin;
-                                    int32_t value_126 = 0;
+                                    Origin value_149 = before->origin;
+                                    Origin value_150 = after->origin;
+                                    int32_t value_151 = 0;
                                     {
-                                        Origin left = value_124;
-                                        Origin right = value_125;
-                                        bool value_128 = left.parameters == right.parameters && left.pointees == right.pointees && left.lent == right.lent;
-                                        bool value_129 = value_128 && left.lent_vec == right.lent_vec && left.global_vec == right.global_vec && left.depth == right.depth;
-                                        bool value_130 = value_129 && left.invalid == right.invalid && left.unknown == right.unknown && left.globals == right.globals;
-                                        int32_t value_131 = 0;
-                                        if (value_130) {
-                                            value_131 = 1;
+                                        Origin left = value_149;
+                                        Origin right = value_150;
+                                        if (left.borrowed_pointers != right.borrowed_pointers || left.readonly_bytes != right.readonly_bytes) {
+                                            value_151 = 0;
+                                            goto value_152;
                                         }
-                                        value_126 = value_131;
+                                        bool value_153 = left.parameters == right.parameters && left.pointees == right.pointees && left.lent == right.lent;
+                                        bool value_154 = value_153 && left.lent_vec == right.lent_vec && left.global_vec == right.global_vec && left.depth == right.depth;
+                                        bool value_155 = value_154 && left.invalid == right.invalid && left.unknown == right.unknown && left.globals == right.globals;
+                                        int32_t value_156 = 0;
+                                        if (value_155) {
+                                            value_156 = 1;
+                                        }
+                                        value_151 = value_156;
+                                    value_152: ;
                                     }
-                                    bool value_132 = !(value_126 != 0) || before->global_backing_state != after->global_backing_state;
-                                    bool value_133 = value_132;
-                                    if (!value_133) {
-                                        BorrowPlace value_134 = before->text_backing;
-                                        BorrowPlace value_135 = after->text_backing;
-                                        int32_t value_136 = 0;
+                                    bool value_157 = !(value_151 != 0) || before->global_backing_state != after->global_backing_state;
+                                    bool value_158 = value_157;
+                                    if (!value_158) {
+                                        BorrowPlace value_159 = before->text_backing;
+                                        BorrowPlace value_160 = after->text_backing;
+                                        int32_t value_161 = 0;
                                         {
-                                            BorrowPlace left = value_134;
-                                            BorrowPlace right = value_135;
-                                            bool value_138 = left.root == right.root && compiler_borrow_same_path(left.path, right.path) != 0;
-                                            int32_t value_139 = 0;
-                                            if (value_138) {
-                                                value_139 = 1;
+                                            BorrowPlace left = value_159;
+                                            BorrowPlace right = value_160;
+                                            bool value_163 = left.root == right.root && compiler_borrow_same_path(left.path, right.path) != 0;
+                                            int32_t value_164 = 0;
+                                            if (value_163) {
+                                                value_164 = 1;
                                             }
-                                            value_136 = value_139;
+                                            value_161 = value_164;
                                         }
-                                        value_133 = !(value_136 != 0);
+                                        value_158 = !(value_161 != 0);
                                     }
-                                    bool value_140 = value_133 || before->text_backings != after->text_backings;
-                                    bool value_141 = value_140;
-                                    if (!value_141) {
-                                        BorrowPlace value_142 = before->address_backing;
-                                        BorrowPlace value_143 = after->address_backing;
-                                        int32_t value_144 = 0;
+                                    bool value_165 = value_158 || before->text_backings != after->text_backings;
+                                    bool value_166 = value_165;
+                                    if (!value_166) {
+                                        BorrowPlace value_167 = before->address_backing;
+                                        BorrowPlace value_168 = after->address_backing;
+                                        int32_t value_169 = 0;
                                         {
-                                            BorrowPlace left = value_142;
-                                            BorrowPlace right = value_143;
-                                            bool value_146 = left.root == right.root && compiler_borrow_same_path(left.path, right.path) != 0;
-                                            int32_t value_147 = 0;
-                                            if (value_146) {
-                                                value_147 = 1;
+                                            BorrowPlace left = value_167;
+                                            BorrowPlace right = value_168;
+                                            bool value_171 = left.root == right.root && compiler_borrow_same_path(left.path, right.path) != 0;
+                                            int32_t value_172 = 0;
+                                            if (value_171) {
+                                                value_172 = 1;
                                             }
-                                            value_144 = value_147;
+                                            value_169 = value_172;
                                         }
-                                        value_141 = !(value_144 != 0);
+                                        value_166 = !(value_169 != 0);
                                     }
-                                    bool value_148 = value_141 || before->address_known != after->address_known || before->view_listed != after->view_listed;
-                                    int32_t value_149 = 0;
-                                    if (value_148) {
-                                        value_149 = 1;
+                                    bool value_173 = value_166 || before->address_known != after->address_known || before->view_listed != after->view_listed;
+                                    int32_t value_174 = 0;
+                                    if (value_173) {
+                                        value_174 = 1;
                                     }
-                                    value_122 = value_149;
+                                    value_147 = value_174;
                                 }
-                                value_120 = (value_122 != 0);
+                                value_145 = (value_147 != 0);
                             }
-                            if (value_120) {
-                                uint64_t* value_150 = &(assignment_target->changed_at);
-                                uint64_t value_151 = compiler_check_s12_types_S12Pre13(&(check->clock));
-                                (*value_150) = value_151;
+                            if (value_145) {
+                                uint64_t* value_175 = &(assignment_target->changed_at);
+                                uint64_t value_176 = compiler_check_s12_types_S12Pre13(&(check->clock));
+                                (*value_175) = value_176;
                             }
                             zir_foreign_compiler_borrow__CompilerFree((void*)(before_storage_3));
                         }
-                        BorrowCheck* value_152 = check;
-                        uint8_t* value_153 = (uint8_t*)destination->type;
-                        int32_t value_154 = 0;
+                        BorrowCheck* value_177 = check;
+                        uint8_t* value_178 = (uint8_t*)destination->type;
+                        int32_t value_179 = 0;
                         {
-                            BorrowCheck* check = value_152;
-                            uint8_t* type = value_153;
-                            ZirModule* value_156 = check->current->module;
-                            uint8_t* value_157 = type;
-                            int32_t value_158 = 0;
+                            BorrowCheck* check = value_177;
+                            uint8_t* type = value_178;
+                            ZirModule* value_181 = check->current->module;
+                            uint8_t* value_182 = type;
+                            int32_t value_183 = 0;
                             {
-                                ZirModule* module = value_156;
-                                uint8_t* type = value_157;
-                                bool value_160 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_VIEW, (void *)0);
-                                int32_t value_161 = 0;
-                                if (value_160) {
-                                    value_161 = 1;
+                                ZirModule* module = value_181;
+                                uint8_t* type = value_182;
+                                bool value_185 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_VIEW, (void *)0);
+                                int32_t value_186 = 0;
+                                if (value_185) {
+                                    value_186 = 1;
                                 } else {
-                                    value_161 = 0;
+                                    value_186 = 0;
                                 }
-                                value_158 = value_161;
+                                value_183 = value_186;
                             }
-                            value_154 = value_158;
+                            value_179 = value_183;
                         }
-                        if (value_154 != 0) {
+                        if (value_179 != 0) {
                             ZirExpr* root = compiler_borrow_destination_root(fn, statement->lhs_root);
-                            BorrowBinding* value_162 = (void *)0;
+                            BorrowBinding* value_187 = (void *)0;
                             if (root == (ZirExpr*)(((void *)0))) {
-                                value_162 = (void *)0;
+                                value_187 = (void *)0;
                             } else {
-                                BorrowBinding* value_163 = compiler_borrow_binding(check, (uint8_t*)root->name);
-                                value_162 = value_163;
+                                BorrowBinding* value_188 = compiler_borrow_binding(check, (uint8_t*)root->name);
+                                value_187 = value_188;
                             }
-                            BorrowBinding* target = value_162;
-                            void* value_164 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
-                            Origin* source_storage_4 = (Origin*)(value_164);
+                            BorrowBinding* target = value_187;
+                            void* value_189 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
+                            Origin* source_storage_4 = (Origin*)(value_189);
                             zir_foreign_compiler_borrow__memset((void*)(source_storage_4), 0, sizeof(Origin));
-                            Origin* value_165 = &(source_storage_4[0]);
-                            Origin value_166 = compiler_borrow_expression_origin(check, statement->expr_root);
-                            (*value_165) = value_166;
-                            bool value_167 = !((source_storage_4[0]).invalid != 0) && !((source_storage_4[0]).unknown != 0) && (source_storage_4[0]).depth == 0;
-                            bool value_168 = value_167;
-                            if (value_168) {
-                                uint64_t value_169 = (source_storage_4[0]).parameters;
-                                value_168 = (value_169 == 0ULL);
+                            Origin* value_190 = &(source_storage_4[0]);
+                            Origin value_191 = compiler_borrow_expression_origin(check, statement->expr_root);
+                            (*value_190) = value_191;
+                            bool value_192 = !((source_storage_4[0]).invalid != 0) && !((source_storage_4[0]).unknown != 0) && (source_storage_4[0]).depth == 0;
+                            bool value_193 = value_192;
+                            if (value_193) {
+                                uint64_t value_194 = (source_storage_4[0]).parameters;
+                                value_193 = (value_194 == 0ULL);
                             }
-                            bool value_170 = value_168;
-                            if (value_170) {
-                                uint64_t value_171 = (source_storage_4[0]).pointees;
-                                value_170 = (value_171 == 0ULL);
+                            bool value_195 = value_193;
+                            if (value_195) {
+                                uint64_t value_196 = (source_storage_4[0]).pointees;
+                                value_195 = (value_196 == 0ULL);
                             }
-                            int32_t value_172 = 0;
-                            if (value_170) {
-                                value_172 = 1;
+                            int32_t value_197 = 0;
+                            if (value_195) {
+                                value_197 = 1;
                             }
-                            int32_t static_storage = value_172;
-                            bool value_173 = (int32_t)(((ZirExprKind)(destination->kind))) == 1;
-                            bool value_174 = value_173;
-                            if (value_174) {
-                                bool value_175 = zir_foreign_compiler_borrow__SliceElementType((uint8_t*)destination->type, (void *)0, (size_t)(0LL)) != 0;
-                                bool value_176 = value_175;
-                                if (!value_176) {
-                                    uint8_t* value_177 = (uint8_t*)destination->type;
-                                    bool value_178 = zir_foreign_compiler_borrow__strcmp(value_177, compiler_check_types_CheckCString(StringLiteral("string"))) != 0;
-                                    value_176 = !value_178;
+                            int32_t static_storage = value_197;
+                            bool value_198 = (int32_t)(((ZirExprKind)(destination->kind))) == 1;
+                            bool value_199 = value_198;
+                            if (value_199) {
+                                bool value_200 = zir_foreign_compiler_borrow__SliceElementType((uint8_t*)destination->type, (void *)0, (size_t)(0LL)) != 0;
+                                bool value_201 = value_200;
+                                if (!value_201) {
+                                    uint8_t* value_202 = (uint8_t*)destination->type;
+                                    bool value_203 = zir_foreign_compiler_borrow__strcmp(value_202, compiler_check_types_CheckCString(StringLiteral("string"))) != 0;
+                                    value_201 = !value_203;
                                 }
-                                value_174 = value_176;
+                                value_199 = value_201;
                             }
-                            int32_t value_179 = 0;
-                            if (value_174) {
-                                value_179 = 1;
+                            int32_t value_204 = 0;
+                            if (value_199) {
+                                value_204 = 1;
                             }
-                            int32_t direct_view = value_179;
-                            uint64_t value_180 = (source_storage_4[0]).pointees;
-                            int32_t value_181 = 0;
-                            if (value_180 != 0ULL && (source_storage_4[0]).depth < 1) {
-                                value_181 = 1;
+                            int32_t direct_view = value_204;
+                            uint64_t value_205 = (source_storage_4[0]).pointees;
+                            int32_t value_206 = 0;
+                            if (value_205 != 0ULL && (source_storage_4[0]).depth < 1) {
+                                value_206 = 1;
                             } else {
-                                value_181 = (source_storage_4[0]).depth;
+                                value_206 = (source_storage_4[0]).depth;
                             }
-                            int32_t source_depth = value_181;
-                            bool value_182 = !(static_storage != 0);
-                            if (value_182) {
-                                bool value_183 = target == (BorrowBinding*)(((void *)0)) || (target->captured != 0 && target->global_index < 0) || ((source_storage_4[0]).invalid != 0 && direct_view != 0);
-                                value_182 = (value_183 || source_depth > target->depth);
+                            int32_t source_depth = value_206;
+                            bool value_207 = !(static_storage != 0);
+                            if (value_207) {
+                                bool value_208 = target == (BorrowBinding*)(((void *)0)) || (target->captured != 0 && target->global_index < 0) || ((source_storage_4[0]).invalid != 0 && direct_view != 0);
+                                value_207 = (value_208 || source_depth > target->depth);
                             }
-                            if (value_182) {
-                                BorrowCheck* value_184 = check;
-                                ZirSourceSpan value_185 = statement->span;
-                                uint8_t* value_186 = (uint8_t*)destination->type;
-                                bool value_187 = zir_foreign_compiler_borrow__strcmp(value_186, compiler_check_types_CheckCString(StringLiteral("string"))) != 0;
-                                uint8_t* value_188 = (void *)0;
-                                if (!value_187) {
-                                    uint8_t* value_189 = compiler_check_types_CheckCString(StringLiteral("text view assignment may escape its backing storage"));
-                                    value_188 = value_189;
+                            if (value_207) {
+                                BorrowCheck* value_209 = check;
+                                ZirSourceSpan value_210 = statement->span;
+                                uint8_t* value_211 = (uint8_t*)destination->type;
+                                bool value_212 = zir_foreign_compiler_borrow__strcmp(value_211, compiler_check_types_CheckCString(StringLiteral("string"))) != 0;
+                                uint8_t* value_213 = (void *)0;
+                                if (!value_212) {
+                                    uint8_t* value_214 = compiler_check_types_CheckCString(StringLiteral("text view assignment may escape its backing storage"));
+                                    value_213 = value_214;
                                 } else {
-                                    bool value_190 = zir_foreign_compiler_borrow__SliceElementType((uint8_t*)destination->type, (void *)0, (size_t)(0LL)) != 0;
-                                    uint8_t* value_191 = (void *)0;
-                                    if (value_190) {
-                                        uint8_t* value_192 = compiler_check_types_CheckCString(StringLiteral("slice assignment may escape its backing storage"));
-                                        value_191 = value_192;
+                                    bool value_215 = zir_foreign_compiler_borrow__SliceElementType((uint8_t*)destination->type, (void *)0, (size_t)(0LL)) != 0;
+                                    uint8_t* value_216 = (void *)0;
+                                    if (value_215) {
+                                        uint8_t* value_217 = compiler_check_types_CheckCString(StringLiteral("slice assignment may escape its backing storage"));
+                                        value_216 = value_217;
                                     } else {
-                                        uint8_t* value_193 = compiler_check_types_CheckCString(StringLiteral("view assignment may escape its backing storage"));
-                                        value_191 = value_193;
+                                        uint8_t* value_218 = compiler_check_types_CheckCString(StringLiteral("view assignment may escape its backing storage"));
+                                        value_216 = value_218;
                                     }
-                                    value_188 = value_191;
+                                    value_213 = value_216;
                                 }
-                                compiler_borrow_reject(value_184, value_185, value_188);
+                                compiler_borrow_reject(value_209, value_210, value_213);
                             } else {
                                 if (target != (BorrowBinding*)(((void *)0)) && target->local >= 0) {
                                     compiler_borrow_accumulate(check, (Origin*)(((size_t)(function->locals) + ((size_t)(target->local) * sizeof(Origin)))), source_storage_4[0]);
-                                    BorrowSource** value_194 = &(target->text_backings);
-                                    BorrowCheck* value_195 = check;
-                                    BorrowSource* value_196 = target->text_backings;
-                                    BorrowSource* value_197 = compiler_borrow_merge_sources(value_195, value_196, compiler_borrow_text_view_backings(check, statement->expr_root));
-                                    (*value_194) = value_197;
-                                    BorrowPlace* value_198 = &(target->text_backing);
-                                    BorrowSource* value_199 = target->text_backings;
-                                    BorrowPlace value_200 = {0};
+                                    BorrowSource** value_219 = &(target->text_backings);
+                                    BorrowCheck* value_220 = check;
+                                    BorrowSource* value_221 = target->text_backings;
+                                    BorrowSource* value_222 = compiler_borrow_merge_sources(value_220, value_221, compiler_borrow_text_view_backings(check, statement->expr_root));
+                                    (*value_219) = value_222;
+                                    BorrowPlace* value_223 = &(target->text_backing);
+                                    BorrowSource* value_224 = target->text_backings;
+                                    BorrowPlace value_225 = {0};
                                     {
-                                        BorrowSource* sources = value_199;
-                                        BorrowPlace value_202 = {0};
+                                        BorrowSource* sources = value_224;
+                                        BorrowPlace value_227 = {0};
                                         if (sources == (BorrowSource*)(((void *)0))) {
-                                            value_202 = (BorrowPlace){0};
+                                            value_227 = (BorrowPlace){0};
                                         } else {
-                                            value_202 = sources->place;
+                                            value_227 = sources->place;
                                         }
-                                        value_200 = value_202;
+                                        value_225 = value_227;
                                     }
-                                    (*value_198) = value_200;
+                                    (*value_223) = value_225;
                                 } else {
                                     if (target != (BorrowBinding*)(((void *)0)) && target->global_index >= 0 && static_storage != 0) {
-                                        void* value_203 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(BorrowBinding));
-                                        BorrowBinding* before_storage_5 = (BorrowBinding*)(value_203);
+                                        void* value_228 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(BorrowBinding));
+                                        BorrowBinding* before_storage_5 = (BorrowBinding*)(value_228);
                                         zir_foreign_compiler_borrow__memset((void*)(before_storage_5), 0, sizeof(BorrowBinding));
-                                        BorrowBinding* value_204 = &(before_storage_5[0]);
-                                        (*value_204) = target[0];
-                                        void* value_205 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
-                                        Origin* before_origin_storage_6 = (Origin*)(value_205);
+                                        BorrowBinding* value_229 = &(before_storage_5[0]);
+                                        (*value_229) = target[0];
+                                        void* value_230 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
+                                        Origin* before_origin_storage_6 = (Origin*)(value_230);
                                         zir_foreign_compiler_borrow__memset((void*)(before_origin_storage_6), 0, sizeof(Origin));
-                                        Origin* value_206 = &(before_origin_storage_6[0]);
-                                        (*value_206) = check->global_origins[target->global_index];
+                                        Origin* value_231 = &(before_origin_storage_6[0]);
+                                        (*value_231) = check->global_origins[target->global_index];
                                         BorrowSource* backings = compiler_borrow_text_view_backings(check, statement->expr_root);
-                                        void* value_207 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(BorrowPlace));
-                                        BorrowPlace* backing_storage_7 = (BorrowPlace*)(value_207);
+                                        void* value_232 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(BorrowPlace));
+                                        BorrowPlace* backing_storage_7 = (BorrowPlace*)(value_232);
                                         zir_foreign_compiler_borrow__memset((void*)(backing_storage_7), 0, sizeof(BorrowPlace));
-                                        BorrowPlace* value_208 = &(backing_storage_7[0]);
-                                        BorrowPlace value_209 = {0};
+                                        BorrowPlace* value_233 = &(backing_storage_7[0]);
+                                        BorrowPlace value_234 = {0};
                                         {
                                             BorrowSource* sources = backings;
-                                            BorrowPlace value_211 = {0};
+                                            BorrowPlace value_236 = {0};
                                             if (sources == (BorrowSource*)(((void *)0))) {
-                                                value_211 = (BorrowPlace){0};
+                                                value_236 = (BorrowPlace){0};
                                             } else {
-                                                value_211 = sources->place;
+                                                value_236 = sources->place;
                                             }
-                                            value_209 = value_211;
+                                            value_234 = value_236;
                                         }
-                                        (*value_208) = value_209;
+                                        (*value_233) = value_234;
                                         compiler_borrow_accumulate(check, (Origin*)(((size_t)(check->global_origins) + ((size_t)(target->global_index) * sizeof(Origin)))), source_storage_4[0]);
-                                        Origin* value_212 = &(target->origin);
-                                        (*value_212) = check->global_origins[target->global_index];
+                                        Origin* value_237 = &(target->origin);
+                                        (*value_237) = check->global_origins[target->global_index];
                                         if (target->origin.globals != (uint64_t*)(((void *)0))) {
                                             compiler_borrow_list_view_global(check, target->global_index);
                                         }
                                         if ((source_storage_4[0]).globals != (uint64_t*)(((void *)0))) {
-                                            bool value_213 = backings != (BorrowSource*)(((void *)0)) && backings->next == (BorrowSource*)(((void *)0));
-                                            bool value_214 = value_213 && compiler_borrow_only_global(check, source_storage_4[0], ((backing_storage_7[0]).root)->global_index) != 0;
-                                            int32_t value_215 = 0;
-                                            if (value_214) {
-                                                value_215 = 1;
+                                            bool value_238 = backings != (BorrowSource*)(((void *)0)) && backings->next == (BorrowSource*)(((void *)0));
+                                            bool value_239 = value_238 && compiler_borrow_only_global(check, source_storage_4[0], ((backing_storage_7[0]).root)->global_index) != 0;
+                                            int32_t value_240 = 0;
+                                            if (value_239) {
+                                                value_240 = 1;
                                             }
-                                            int32_t precise = value_215;
+                                            int32_t precise = value_240;
                                             if (!(precise != 0)) {
-                                                int32_t* value_216 = &(target->global_backing_state);
-                                                (*value_216) = 2;
+                                                int32_t* value_241 = &(target->global_backing_state);
+                                                (*value_241) = 2;
                                             } else {
                                                 if (target->global_backing_state == 0) {
-                                                    BorrowPlace* value_217 = &(target->text_backing);
-                                                    (*value_217) = backing_storage_7[0];
-                                                    int32_t* value_218 = &(target->global_backing_state);
-                                                    (*value_218) = 1;
+                                                    BorrowPlace* value_242 = &(target->text_backing);
+                                                    (*value_242) = backing_storage_7[0];
+                                                    int32_t* value_243 = &(target->global_backing_state);
+                                                    (*value_243) = 1;
                                                 } else {
-                                                    bool value_219 = target->global_backing_state == 1;
-                                                    bool value_220 = value_219;
-                                                    if (value_220) {
-                                                        BorrowPlace value_221 = target->text_backing;
-                                                        BorrowPlace value_222 = backing_storage_7[0];
-                                                        int32_t value_223 = 0;
+                                                    bool value_244 = target->global_backing_state == 1;
+                                                    bool value_245 = value_244;
+                                                    if (value_245) {
+                                                        BorrowPlace value_246 = target->text_backing;
+                                                        BorrowPlace value_247 = backing_storage_7[0];
+                                                        int32_t value_248 = 0;
                                                         {
-                                                            BorrowPlace left = value_221;
-                                                            BorrowPlace right = value_222;
-                                                            bool value_225 = left.root == right.root && compiler_borrow_same_path(left.path, right.path) != 0;
-                                                            int32_t value_226 = 0;
-                                                            if (value_225) {
-                                                                value_226 = 1;
+                                                            BorrowPlace left = value_246;
+                                                            BorrowPlace right = value_247;
+                                                            bool value_250 = left.root == right.root && compiler_borrow_same_path(left.path, right.path) != 0;
+                                                            int32_t value_251 = 0;
+                                                            if (value_250) {
+                                                                value_251 = 1;
                                                             }
-                                                            value_223 = value_226;
+                                                            value_248 = value_251;
                                                         }
-                                                        value_220 = !(value_223 != 0);
+                                                        value_245 = !(value_248 != 0);
                                                     }
-                                                    if (value_220) {
-                                                        int32_t* value_227 = &(target->global_backing_state);
-                                                        (*value_227) = 2;
+                                                    if (value_245) {
+                                                        int32_t* value_252 = &(target->global_backing_state);
+                                                        (*value_252) = 2;
                                                     }
                                                 }
                                             }
                                         }
-                                        BorrowSource** value_228 = &(target->text_backings);
-                                        BorrowSource* value_229 = compiler_borrow_merge_sources(check, target->text_backings, backings);
-                                        (*value_228) = value_229;
-                                        Origin value_230 = before_origin_storage_6[0];
-                                        Origin value_231 = check->global_origins[target->global_index];
-                                        int32_t value_232 = 0;
+                                        BorrowSource** value_253 = &(target->text_backings);
+                                        BorrowSource* value_254 = compiler_borrow_merge_sources(check, target->text_backings, backings);
+                                        (*value_253) = value_254;
+                                        Origin value_255 = before_origin_storage_6[0];
+                                        Origin value_256 = check->global_origins[target->global_index];
+                                        int32_t value_257 = 0;
                                         {
-                                            Origin left = value_230;
-                                            Origin right = value_231;
-                                            bool value_234 = left.parameters == right.parameters && left.pointees == right.pointees && left.lent == right.lent;
-                                            bool value_235 = value_234 && left.lent_vec == right.lent_vec && left.global_vec == right.global_vec && left.depth == right.depth;
-                                            bool value_236 = value_235 && left.invalid == right.invalid && left.unknown == right.unknown && left.globals == right.globals;
-                                            int32_t value_237 = 0;
-                                            if (value_236) {
-                                                value_237 = 1;
+                                            Origin left = value_255;
+                                            Origin right = value_256;
+                                            if (left.borrowed_pointers != right.borrowed_pointers || left.readonly_bytes != right.readonly_bytes) {
+                                                value_257 = 0;
+                                                goto value_258;
                                             }
-                                            value_232 = value_237;
+                                            bool value_259 = left.parameters == right.parameters && left.pointees == right.pointees && left.lent == right.lent;
+                                            bool value_260 = value_259 && left.lent_vec == right.lent_vec && left.global_vec == right.global_vec && left.depth == right.depth;
+                                            bool value_261 = value_260 && left.invalid == right.invalid && left.unknown == right.unknown && left.globals == right.globals;
+                                            int32_t value_262 = 0;
+                                            if (value_261) {
+                                                value_262 = 1;
+                                            }
+                                            value_257 = value_262;
+                                        value_258: ;
                                         }
-                                        bool value_238 = !(value_232 != 0);
-                                        if (!value_238) {
-                                            BorrowBinding* value_239 = &(before_storage_5[0]);
-                                            int32_t value_240 = 0;
+                                        bool value_263 = !(value_257 != 0);
+                                        if (!value_263) {
+                                            BorrowBinding* value_264 = &(before_storage_5[0]);
+                                            int32_t value_265 = 0;
                                             {
-                                                BorrowBinding* before = value_239;
+                                                BorrowBinding* before = value_264;
                                                 BorrowBinding* after = target;
-                                                Origin value_242 = before->origin;
-                                                Origin value_243 = after->origin;
-                                                int32_t value_244 = 0;
+                                                Origin value_267 = before->origin;
+                                                Origin value_268 = after->origin;
+                                                int32_t value_269 = 0;
                                                 {
-                                                    Origin left = value_242;
-                                                    Origin right = value_243;
-                                                    bool value_246 = left.parameters == right.parameters && left.pointees == right.pointees && left.lent == right.lent;
-                                                    bool value_247 = value_246 && left.lent_vec == right.lent_vec && left.global_vec == right.global_vec && left.depth == right.depth;
-                                                    bool value_248 = value_247 && left.invalid == right.invalid && left.unknown == right.unknown && left.globals == right.globals;
-                                                    int32_t value_249 = 0;
-                                                    if (value_248) {
-                                                        value_249 = 1;
+                                                    Origin left = value_267;
+                                                    Origin right = value_268;
+                                                    if (left.borrowed_pointers != right.borrowed_pointers || left.readonly_bytes != right.readonly_bytes) {
+                                                        value_269 = 0;
+                                                        goto value_270;
                                                     }
-                                                    value_244 = value_249;
+                                                    bool value_271 = left.parameters == right.parameters && left.pointees == right.pointees && left.lent == right.lent;
+                                                    bool value_272 = value_271 && left.lent_vec == right.lent_vec && left.global_vec == right.global_vec && left.depth == right.depth;
+                                                    bool value_273 = value_272 && left.invalid == right.invalid && left.unknown == right.unknown && left.globals == right.globals;
+                                                    int32_t value_274 = 0;
+                                                    if (value_273) {
+                                                        value_274 = 1;
+                                                    }
+                                                    value_269 = value_274;
+                                                value_270: ;
                                                 }
-                                                bool value_250 = !(value_244 != 0) || before->global_backing_state != after->global_backing_state;
-                                                bool value_251 = value_250;
-                                                if (!value_251) {
-                                                    BorrowPlace value_252 = before->text_backing;
-                                                    BorrowPlace value_253 = after->text_backing;
-                                                    int32_t value_254 = 0;
+                                                bool value_275 = !(value_269 != 0) || before->global_backing_state != after->global_backing_state;
+                                                bool value_276 = value_275;
+                                                if (!value_276) {
+                                                    BorrowPlace value_277 = before->text_backing;
+                                                    BorrowPlace value_278 = after->text_backing;
+                                                    int32_t value_279 = 0;
                                                     {
-                                                        BorrowPlace left = value_252;
-                                                        BorrowPlace right = value_253;
-                                                        bool value_256 = left.root == right.root && compiler_borrow_same_path(left.path, right.path) != 0;
-                                                        int32_t value_257 = 0;
-                                                        if (value_256) {
-                                                            value_257 = 1;
+                                                        BorrowPlace left = value_277;
+                                                        BorrowPlace right = value_278;
+                                                        bool value_281 = left.root == right.root && compiler_borrow_same_path(left.path, right.path) != 0;
+                                                        int32_t value_282 = 0;
+                                                        if (value_281) {
+                                                            value_282 = 1;
                                                         }
-                                                        value_254 = value_257;
+                                                        value_279 = value_282;
                                                     }
-                                                    value_251 = !(value_254 != 0);
+                                                    value_276 = !(value_279 != 0);
                                                 }
-                                                bool value_258 = value_251 || before->text_backings != after->text_backings;
-                                                bool value_259 = value_258;
-                                                if (!value_259) {
-                                                    BorrowPlace value_260 = before->address_backing;
-                                                    BorrowPlace value_261 = after->address_backing;
-                                                    int32_t value_262 = 0;
+                                                bool value_283 = value_276 || before->text_backings != after->text_backings;
+                                                bool value_284 = value_283;
+                                                if (!value_284) {
+                                                    BorrowPlace value_285 = before->address_backing;
+                                                    BorrowPlace value_286 = after->address_backing;
+                                                    int32_t value_287 = 0;
                                                     {
-                                                        BorrowPlace left = value_260;
-                                                        BorrowPlace right = value_261;
-                                                        bool value_264 = left.root == right.root && compiler_borrow_same_path(left.path, right.path) != 0;
-                                                        int32_t value_265 = 0;
-                                                        if (value_264) {
-                                                            value_265 = 1;
+                                                        BorrowPlace left = value_285;
+                                                        BorrowPlace right = value_286;
+                                                        bool value_289 = left.root == right.root && compiler_borrow_same_path(left.path, right.path) != 0;
+                                                        int32_t value_290 = 0;
+                                                        if (value_289) {
+                                                            value_290 = 1;
                                                         }
-                                                        value_262 = value_265;
+                                                        value_287 = value_290;
                                                     }
-                                                    value_259 = !(value_262 != 0);
+                                                    value_284 = !(value_287 != 0);
                                                 }
-                                                bool value_266 = value_259 || before->address_known != after->address_known || before->view_listed != after->view_listed;
-                                                int32_t value_267 = 0;
-                                                if (value_266) {
-                                                    value_267 = 1;
+                                                bool value_291 = value_284 || before->address_known != after->address_known || before->view_listed != after->view_listed;
+                                                int32_t value_292 = 0;
+                                                if (value_291) {
+                                                    value_292 = 1;
                                                 }
-                                                value_240 = value_267;
+                                                value_265 = value_292;
                                             }
-                                            value_238 = (value_240 != 0);
+                                            value_263 = (value_265 != 0);
                                         }
-                                        if (value_238) {
-                                            uint64_t* value_268 = &(target->changed_at);
-                                            uint64_t value_269 = compiler_check_s12_types_S12Pre13(&(check->clock));
-                                            (*value_268) = value_269;
+                                        if (value_263) {
+                                            uint64_t* value_293 = &(target->changed_at);
+                                            uint64_t value_294 = compiler_check_s12_types_S12Pre13(&(check->clock));
+                                            (*value_293) = value_294;
                                         }
                                         zir_foreign_compiler_borrow__CompilerFree((void*)(backing_storage_7));
                                         zir_foreign_compiler_borrow__CompilerFree((void*)(before_origin_storage_6));
@@ -5105,79 +5539,79 @@ compiler_borrow_check_function(BorrowCheck* check, BorrowFunction* function)
                                     }
                                 }
                             }
-                            BorrowCheck* value_270 = check;
-                            uint8_t* value_271 = (uint8_t*)destination->type;
-                            int32_t value_272 = 0;
+                            BorrowCheck* value_295 = check;
+                            uint8_t* value_296 = (uint8_t*)destination->type;
+                            int32_t value_297 = 0;
                             {
-                                BorrowCheck* check = value_270;
-                                uint8_t* type = value_271;
-                                value_272 = compiler_borrow_cached_contains_text(check, check->current->module, type);
+                                BorrowCheck* check = value_295;
+                                uint8_t* type = value_296;
+                                value_297 = compiler_borrow_cached_contains_text(check, check->current->module, type);
                             }
-                            bool value_274 = value_272 != 0;
-                            if (!value_274) {
-                                ZirModule* value_275 = function->module;
-                                uint8_t* value_276 = (uint8_t*)destination->type;
-                                bool value_277 = false;
+                            bool value_299 = value_297 != 0;
+                            if (!value_299) {
+                                ZirModule* value_300 = function->module;
+                                uint8_t* value_301 = (uint8_t*)destination->type;
+                                bool value_302 = false;
                                 {
-                                    ZirModule* module = value_275;
-                                    uint8_t* type = value_276;
-                                    value_277 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_SCOPED, (void *)0);
+                                    ZirModule* module = value_300;
+                                    uint8_t* type = value_301;
+                                    value_302 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_SCOPED, (void *)0);
                                 }
-                                value_274 = value_277;
+                                value_299 = value_302;
                             }
-                            bool value_279 = value_274 && (static_storage == 0 || source_storage_4->globals != ((void *)0)) && target != ((void *)0);
-                            if (value_279 && !(target->captured != 0 && target->global_index < 0)) {
-                                BorrowCheck* value_280 = check;
-                                BorrowSource* value_281 = compiler_borrow_text_view_backings(check, statement->expr_root);
-                                compiler_borrow_add_active_text_borrows(value_280, value_281, target->depth);
+                            bool value_304 = value_299 && (static_storage == 0 || source_storage_4->globals != ((void *)0)) && target != ((void *)0);
+                            if (value_304 && !(target->captured != 0 && target->global_index < 0)) {
+                                BorrowCheck* value_305 = check;
+                                BorrowSource* value_306 = compiler_borrow_text_view_backings(check, statement->expr_root);
+                                compiler_borrow_add_active_text_borrows(value_305, value_306, target->depth);
                             }
                             zir_foreign_compiler_borrow__CompilerFree((void*)(source_storage_4));
                         }
                     } else {
-                        bool value_282 = (int32_t)(((ZirStmtKind)(statement->kind))) == 10;
-                        bool value_283 = value_282;
-                        if (value_283) {
-                            BorrowCheck* value_284 = check;
-                            uint8_t* value_285 = (uint8_t*)(&(fn->return_type));
-                            int32_t value_286 = 0;
+                        bool value_307 = (int32_t)(((ZirStmtKind)(statement->kind))) == 10;
+                        bool value_308 = value_307;
+                        if (value_308) {
+                            BorrowCheck* value_309 = check;
+                            uint8_t* value_310 = (uint8_t*)(&(fn->return_type));
+                            int32_t value_311 = 0;
                             {
-                                BorrowCheck* check = value_284;
-                                uint8_t* type = value_285;
-                                ZirModule* value_288 = check->current->module;
-                                uint8_t* value_289 = type;
-                                int32_t value_290 = 0;
+                                BorrowCheck* check = value_309;
+                                uint8_t* type = value_310;
+                                ZirModule* value_313 = check->current->module;
+                                uint8_t* value_314 = type;
+                                int32_t value_315 = 0;
                                 {
-                                    ZirModule* module = value_288;
-                                    uint8_t* type = value_289;
-                                    bool value_292 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_VIEW, (void *)0);
-                                    int32_t value_293 = 0;
-                                    if (value_292) {
-                                        value_293 = 1;
+                                    ZirModule* module = value_313;
+                                    uint8_t* type = value_314;
+                                    bool value_317 = compiler_borrow_contains_borrow_type(module, type, BorrowTypeKind_VIEW, (void *)0);
+                                    int32_t value_318 = 0;
+                                    if (value_317) {
+                                        value_318 = 1;
                                     } else {
-                                        value_293 = 0;
+                                        value_318 = 0;
                                     }
-                                    value_290 = value_293;
+                                    value_315 = value_318;
                                 }
-                                value_286 = value_290;
+                                value_311 = value_315;
                             }
-                            value_283 = (value_286 != 0);
+                            value_308 = (value_311 != 0);
                         }
-                        if (value_283) {
-                            void* value_294 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
-                            Origin* source_storage_8 = (Origin*)(value_294);
+                        if (value_308) {
+                            void* value_319 = zir_foreign_compiler_borrow__AllocateOrExit(sizeof(Origin));
+                            Origin* source_storage_8 = (Origin*)(value_319);
                             zir_foreign_compiler_borrow__memset((void*)(source_storage_8), 0, sizeof(Origin));
-                            Origin* value_295 = &(source_storage_8[0]);
-                            Origin value_296 = compiler_borrow_expression_origin(check, statement->expr_root);
-                            (*value_295) = value_296;
-                            uint64_t value_297 = (source_storage_8[0]).lent;
-                            bool value_298 = value_297 == 0ULL;
-                            if (value_298) {
-                                uint64_t value_299 = (source_storage_8[0]).lent_vec;
-                                value_298 = (value_299 != 0ULL);
+                            Origin* value_320 = &(source_storage_8[0]);
+                            Origin value_321 = compiler_borrow_expression_origin(check, statement->expr_root);
+                            (*value_320) = value_321;
+                            uint64_t value_322 = (source_storage_8[0]).lent;
+                            bool value_323 = value_322 == 0ULL;
+                            if (value_323) {
+                                uint64_t value_324 = (source_storage_8[0]).lent_vec;
+                                value_323 = (value_324 != 0ULL);
                             }
-                            if (value_298 && !((source_storage_8[0]).invalid != 0) && !((source_storage_8[0]).unknown != 0) && (source_storage_8[0]).depth <= 1) {
-                                int32_t* value_300 = &((source_storage_8[0]).depth);
-                                (*value_300) = 0;
+                            if (value_323 && !((source_storage_8[0]).invalid != 0) && !((source_storage_8[0]).unknown != 0) && (source_storage_8[0]).depth <= 1) {
+                                int32_t* value_325 = &((source_storage_8[0]).depth);
+                                (*value_325) = 0;
                             }
                             if ((source_storage_8[0]).invalid != 0 || (source_storage_8[0]).unknown != 0 || (source_storage_8[0]).depth > 0) {
                                 compiler_borrow_reject_return(check, statement->span, source_storage_8[0]);
@@ -5189,8 +5623,8 @@ compiler_borrow_check_function(BorrowCheck* check, BorrowFunction* function)
                         }
                     }
                 }
-                bool value_301 = (int32_t)(((ZirStmtKind)(statement->kind))) == 6 || (int32_t)(((ZirStmtKind)(statement->kind))) == 7;
-                if (value_301 || (int32_t)(((ZirStmtKind)(statement->kind))) == 1) {
+                bool value_326 = (int32_t)(((ZirStmtKind)(statement->kind))) == 6 || (int32_t)(((ZirStmtKind)(statement->kind))) == 7;
+                if (value_326 || (int32_t)(((ZirStmtKind)(statement->kind))) == 1) {
                     compiler_check_s12_types_S12Post2(&(check->depth));
                 }
                 compiler_check_s12_types_S12Post2(&(i));
@@ -5200,13 +5634,14 @@ compiler_borrow_check_function(BorrowCheck* check, BorrowFunction* function)
         zir_loop_break_2: ;
     }
     zir_foreign_compiler_borrow__CompilerFree((void*)(check->bindings));
-    BorrowBinding** value_302 = &(check->bindings);
-    (*value_302) = (void *)0;
+    BorrowBinding** value_327 = &(check->bindings);
+    (*value_327) = (void *)0;
     zir_foreign_compiler_borrow__CompilerFree((void*)(check->active));
-    ActiveTextBorrow** value_303 = &(check->active);
-    (*value_303) = (void *)0;
-    int32_t* value_304 = &(check->active_capacity);
-    (*value_304) = 0;
+    ActiveTextBorrow** value_328 = &(check->active);
+    (*value_328) = (void *)0;
+    int32_t* value_329 = &(check->active_capacity);
+    (*value_329) = 0;
+    zir_foreign_compiler_borrow__CompilerFree((void*)(check->branches));
 }
 
 static int32_t

@@ -18,7 +18,7 @@ operations_Operations(void)
         bool value_2 = false;
         void *value_3 = ZirVecGrow((void *)(result).data, &(result).capacity, (result).count, sizeof(*(result).data));
         if (value_3 != NULL) {
-            (result).data = (String *)value_3;
+            (result).data = value_3;
             (result).data[(result).count++] = value_1;
             value_2 = true;
         }
@@ -178,7 +178,7 @@ operations_Signature(String op, VectorType t)
                 bool value_18 = false;
                 void *value_19 = ZirVecGrow((void *)(result.parameters).data, &(result.parameters).capacity, (result.parameters).count, sizeof(*(result.parameters).data));
                 if (value_19 != NULL) {
-                    (result.parameters).data = (Parameter *)value_19;
+                    (result.parameters).data = value_19;
                     (result.parameters).data[(result.parameters).count++] = value_17;
                     value_18 = true;
                 }
@@ -194,7 +194,7 @@ operations_Signature(String op, VectorType t)
         bool value_21 = false;
         void *value_22 = ZirVecGrow((void *)(result.parameters).data, &(result.parameters).capacity, (result.parameters).count, sizeof(*(result.parameters).data));
         if (value_22 != NULL) {
-            (result.parameters).data = (Parameter *)value_22;
+            (result.parameters).data = value_22;
             (result.parameters).data[(result.parameters).count++] = value_20;
             value_21 = true;
         }
@@ -205,7 +205,7 @@ operations_Signature(String op, VectorType t)
         bool value_24 = false;
         void *value_25 = ZirVecGrow((void *)(result.parameters).data, &(result.parameters).capacity, (result.parameters).count, sizeof(*(result.parameters).data));
         if (value_25 != NULL) {
-            (result.parameters).data = (Parameter *)value_25;
+            (result.parameters).data = value_25;
             (result.parameters).data[(result.parameters).count++] = value_23;
             value_24 = true;
         }
@@ -215,7 +215,7 @@ operations_Signature(String op, VectorType t)
         bool value_27 = false;
         void *value_28 = ZirVecGrow((void *)(result.parameters).data, &(result.parameters).capacity, (result.parameters).count, sizeof(*(result.parameters).data));
         if (value_28 != NULL) {
-            (result.parameters).data = (Parameter *)value_28;
+            (result.parameters).data = value_28;
             (result.parameters).data[(result.parameters).count++] = value_26;
             value_27 = true;
         }
@@ -224,7 +224,7 @@ operations_Signature(String op, VectorType t)
         bool value_30 = false;
         void *value_31 = ZirVecGrow((void *)(result.parameters).data, &(result.parameters).capacity, (result.parameters).count, sizeof(*(result.parameters).data));
         if (value_31 != NULL) {
-            (result.parameters).data = (Parameter *)value_31;
+            (result.parameters).data = value_31;
             (result.parameters).data[(result.parameters).count++] = value_29;
             value_30 = true;
         }
@@ -239,7 +239,7 @@ operations_Signature(String op, VectorType t)
             bool value_35 = false;
             void *value_36 = ZirVecGrow((void *)(result.parameters).data, &(result.parameters).capacity, (result.parameters).count, sizeof(*(result.parameters).data));
             if (value_36 != NULL) {
-                (result.parameters).data = (Parameter *)value_36;
+                (result.parameters).data = value_36;
                 (result.parameters).data[(result.parameters).count++] = value_34;
                 value_35 = true;
             }
@@ -249,7 +249,7 @@ operations_Signature(String op, VectorType t)
         bool value_38 = false;
         void *value_39 = ZirVecGrow((void *)(result.parameters).data, &(result.parameters).capacity, (result.parameters).count, sizeof(*(result.parameters).data));
         if (value_39 != NULL) {
-            (result.parameters).data = (Parameter *)value_39;
+            (result.parameters).data = value_39;
             (result.parameters).data[(result.parameters).count++] = value_37;
             value_38 = true;
         }
@@ -259,7 +259,7 @@ operations_Signature(String op, VectorType t)
             bool value_41 = false;
             void *value_42 = ZirVecGrow((void *)(result.parameters).data, &(result.parameters).capacity, (result.parameters).count, sizeof(*(result.parameters).data));
             if (value_42 != NULL) {
-                (result.parameters).data = (Parameter *)value_42;
+                (result.parameters).data = value_42;
                 (result.parameters).data[(result.parameters).count++] = value_40;
                 value_41 = true;
             }
@@ -269,7 +269,7 @@ operations_Signature(String op, VectorType t)
                 bool value_44 = false;
                 void *value_45 = ZirVecGrow((void *)(result.parameters).data, &(result.parameters).capacity, (result.parameters).count, sizeof(*(result.parameters).data));
                 if (value_45 != NULL) {
-                    (result.parameters).data = (Parameter *)value_45;
+                    (result.parameters).data = value_45;
                     (result.parameters).data[(result.parameters).count++] = value_43;
                     value_44 = true;
                 }
@@ -280,7 +280,7 @@ operations_Signature(String op, VectorType t)
             bool value_47 = false;
             void *value_48 = ZirVecGrow((void *)(result.parameters).data, &(result.parameters).capacity, (result.parameters).count, sizeof(*(result.parameters).data));
             if (value_48 != NULL) {
-                (result.parameters).data = (Parameter *)value_48;
+                (result.parameters).data = value_48;
                 (result.parameters).data[(result.parameters).count++] = value_46;
                 value_47 = true;
             }
@@ -309,7 +309,7 @@ operations_Signature(String op, VectorType t)
                 bool value_56 = false;
                 void *value_57 = ZirVecGrow((void *)(result.parameters).data, &(result.parameters).capacity, (result.parameters).count, sizeof(*(result.parameters).data));
                 if (value_57 != NULL) {
-                    (result.parameters).data = (Parameter *)value_57;
+                    (result.parameters).data = value_57;
                     (result.parameters).data[(result.parameters).count++] = value_55;
                     value_56 = true;
                 }

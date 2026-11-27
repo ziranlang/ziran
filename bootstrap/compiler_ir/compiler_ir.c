@@ -93,8 +93,8 @@ compiler_ir_SamePackage(ZirModule* viewer, ZirModule* owner)
     if (viewer == ((void *)0) || owner == ((void *)0)) {
         return false;
     }
-    String value_0 = compiler_ir_CText(&(viewer->package[0]));
-    return StringEqual(value_0, compiler_ir_CText(&(owner->package[0])));
+    String value_0 = compiler_ir_CText((uint8_t*)(&(viewer->package[0])));
+    return StringEqual(value_0, compiler_ir_CText((uint8_t*)(&(owner->package[0]))));
 }
 
 bool
@@ -118,8 +118,8 @@ compiler_ir_PackageVisible(ZirModule* viewer, ZirModule* owner, int32_t is_publi
                 value_3 = false;
                 goto value_4;
             }
-            String value_5 = compiler_ir_CText(&(viewer->package[0]));
-            value_3 = StringEqual(value_5, compiler_ir_CText(&(owner->package[0])));
+            String value_5 = compiler_ir_CText((uint8_t*)(&(viewer->package[0])));
+            value_3 = StringEqual(value_5, compiler_ir_CText((uint8_t*)(&(owner->package[0]))));
         value_4: ;
         }
         value_0 = value_3;

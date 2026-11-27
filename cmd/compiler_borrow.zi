@@ -472,13 +472,406 @@ exclusive_borrow_branch :: (check: *BorrowCheck, branch: s32) -> bool {
     return false
 }
 
+// A must-clear proof is deliberately separate from the global may-origin
+// fixed point. Clearing one owner never removes another owner's possible loan.
+#scope_file
+loan_global :: (check: *BorrowCheck, module: *IR.ZirModule, name: *u8) -> s32 {
+    owner: *IR.ZirModule
+    global: *IR.ZirGlobal
+    if ResolveGlobal(module, name, *owner, *global) != 1 { return -1 }
+    index := pointer_index_get(*check.global_index, cast(*void)owner, cast(*void)global)
+    if index >= 0 { read_global(check, index) }
+    return index
+}
+
+#scope_file
+loan_close :: (fn: *IR.ZirFunction, begin: s32, end: s32) -> s32 {
+    depth: s32 = 1
+    for at: begin + 1..end - 1 {
+        kind := fn.stmts[at].kind
+        if kind == .IF || kind == .WHILE || kind == .BLOCK_OPEN { depth += 1 }
+        if kind == .BLOCK_CLOSE { depth -= 1; if depth == 0 { return at } }
+    }
+    return end
+}
+
+#scope_file
+loan_static :: (fn: *IR.ZirFunction, index: s32) -> bool {
+    if index < 0 { return true }
+    expression := *fn.exprs[index]
+    if expression.kind == .STRING || expression.kind == .INT || expression.kind == .FLOAT { return true }
+    if expression.kind == .IDENT {
+        return IR.CText(expression.name) == "null" || IR.CText(expression.name) == "false" || IR.CText(expression.name) == "true"
+    }
+    if expression.kind != .COMPOUND && expression.kind != .FIELD_INIT { return false }
+    if !loan_static(fn, expression.left) || !loan_static(fn, expression.right) || !loan_static(fn, expression.third) { return false }
+    child := expression.first_child
+    while child >= 0 {
+        if !loan_static(fn, child) { return false }
+        child = fn.exprs[child].next_sibling
+    }
+    return true
+}
+
+// Root masks: owning view cell, backing storage, unresolved reference. Local
+// value copies own separate cells. Only references inherit their source root.
+#scope_file
+loan_roots :: (check: *BorrowCheck, frame: BorrowLoanFrame, index: s32, statement: s32) -> s32 {
+    fn := frame.function.fn
+    if index < 0 { return 0 }
+    expression := *fn.exprs[index]
+    if expression.kind == .MEMBER || expression.kind == .POINTER_MEMBER || expression.kind == .INDEX || expression.kind == .SLICE {
+        return loan_roots(check, frame, expression.left, statement)
+    }
+    if expression.kind == .UNARY { return loan_roots(check, frame, expression.right, statement) }
+    if expression.kind == .CAST { return loan_roots(check, frame, expression.first_child, statement) }
+    if expression.kind == .CONDITIONAL {
+        return loan_roots(check, frame, expression.right, statement) | loan_roots(check, frame, expression.third, statement)
+    }
+    if expression.kind == .CALL {
+        owner: *IR.ZirModule
+        callee: *IR.ZirFunction
+        ResolveFunction(frame.function.module, expression.name, *owner, *callee)
+        summary := function_summary(check, callee)
+        if summary == null { return 4 }
+        origin := summary.returned
+        roots: s32 = 0
+        if has_global(origin, frame.view) != 0 { roots |= 1 }
+        if has_global(origin, frame.backing) != 0 { roots |= 2 }
+        child := expression.first_child
+        while child >= 0 {
+            parameter := fn.exprs[child].argument_index
+            if parameter >= 0 && parameter < 64 && ((origin.parameters | origin.pointees | origin.borrowed_pointers) & (1 << cast(u64)parameter)) != 0 {
+                roots |= loan_roots(check, frame, child, statement)
+            }
+            child = fn.exprs[child].next_sibling
+        }
+        if origin.unknown != 0 { roots |= 4 }
+        return roots
+    }
+    if expression.kind != .IDENT { return 0 }
+    // Skip declarations in scopes already closed at this point. Union pointer
+    // reassignments conservatively; none can manufacture a must-clear fact.
+    skipped: s32 = 0
+    aliases: s32 = 0
+    at := statement - 1
+    while at >= 0 {
+        previous := *fn.stmts[at]
+        if previous.kind == .BLOCK_CLOSE { skipped += 1 }
+        if previous.kind == .IF || previous.kind == .WHILE || previous.kind == .BLOCK_OPEN {
+            if skipped > 0 { skipped -= 1; at -= 1; continue }
+        }
+        if skipped == 0 {
+            if previous.kind == .ASSIGN && previous.lhs_root >= 0 {
+                lhs := *fn.exprs[previous.lhs_root]
+                if lhs.kind == .IDENT && strcmp(lhs.name, expression.name) == 0 &&
+                   (lhs.type[0] == #char "*" || SliceElementType(lhs.type, null, 0) != 0) {
+                    aliases |= loan_roots(check, frame, previous.expr_root, at)
+                }
+            }
+            if previous.kind == .DECL && strcmp(previous.names.name, expression.name) == 0 {
+                if previous.type[0] != #char "*" && SliceElementType(previous.type, null, 0) == 0 { return 0 }
+                return aliases | loan_roots(check, frame, previous.expr_root, at)
+            }
+        }
+        at -= 1
+    }
+    parameters := ParametersOf(FunctionArgs(fn))
+    for parameter: cast(s32)0..parameters.count - 1 {
+        if strcmp(parameters.items.items[parameter].name, expression.name) != 0 { continue }
+        if parameter >= 64 { return aliases | 4 }
+        bit := 1 << cast(u64)parameter
+        if (frame.view_parameters & bit) != 0 { aliases |= 1 }
+        if (frame.backing_parameters & bit) != 0 { aliases |= 2 }
+        return aliases
+    }
+    global := loan_global(check, frame.function.module, expression.name)
+    if global == frame.view { aliases |= 1 }
+    if global == frame.backing { aliases |= 2 }
+    if global >= 0 && global != frame.view && global != frame.backing {
+        binding := *check.globals[global]
+        if binding.type.items[0] == #char "*" || SliceElementType(*binding.type.items[0], null, 0) != 0 {
+            origin := check.global_origins[global]
+            if has_global(origin, frame.view) != 0 { aliases |= 1 }
+            if has_global(origin, frame.backing) != 0 { aliases |= 2 }
+            if binding.address_known != 0 && binding.address_backing.root != null {
+                if binding.address_backing.root.global_index == frame.view { aliases |= 1 }
+                if binding.address_backing.root.global_index == frame.backing { aliases |= 2 }
+            } else if binding.type.items[0] == #char "*" { aliases |= 4 }
+        }
+    }
+    return aliases
+}
+
+#scope_file
+loan_whole_global :: (check: *BorrowCheck, frame: BorrowLoanFrame, index: s32, statement: s32) -> s32 {
+    fn := frame.function.fn
+    if index < 0 || fn.exprs[index].kind != .IDENT { return -1 }
+    name := fn.exprs[index].name
+    skipped: s32 = 0
+    at := statement - 1
+    while at >= 0 {
+        previous := *fn.stmts[at]
+        if previous.kind == .BLOCK_CLOSE { skipped += 1 }
+        if previous.kind == .IF || previous.kind == .WHILE || previous.kind == .BLOCK_OPEN {
+            if skipped > 0 { skipped -= 1; at -= 1; continue }
+        }
+        if skipped == 0 && previous.kind == .DECL && strcmp(previous.names.name, name) == 0 { return -1 }
+        at -= 1
+    }
+    parameters := ParametersOf(FunctionArgs(fn))
+    for parameter: cast(s32)0..parameters.count - 1 {
+        if strcmp(parameters.items.items[parameter].name, name) == 0 { return -1 }
+    }
+    return loan_global(check, frame.function.module, name)
+}
+
+#scope_file
+loan_merge :: (first: BorrowLoanFlow, second: BorrowLoanFlow) -> BorrowLoanFlow {
+    result := first
+    result.safe = first.safe && second.safe
+    result.touched = first.touched || second.touched
+    result.clear = (!first.live || first.clear) && (!second.live || second.clear)
+    result.live = first.live || second.live
+    result.return_clear = (!first.returned || first.return_clear) && (!second.returned || second.return_clear)
+    result.returned = first.returned || second.returned
+    return result
+}
+
+#scope_file
+loan_relevant :: (summary: *BorrowFunction, frame: BorrowLoanFrame, mask: s32) -> bool {
+    item := summary.mutations
+    while item != null {
+        if ((mask & 1) != 0 && (item.global == frame.view ||
+            (item.parameter >= 0 && item.parameter < 64 && (frame.view_parameters & (1 << cast(u64)item.parameter)) != 0))) ||
+           ((mask & 2) != 0 && (item.global == frame.backing ||
+            (item.parameter >= 0 && item.parameter < 64 && (frame.backing_parameters & (1 << cast(u64)item.parameter)) != 0))) { return true }
+        item = item.next
+    }
+    return false
+}
+
+#scope_file
+loan_apply_call :: (check: *BorrowCheck, frame: BorrowLoanFrame, index: s32, statement: s32, flow: BorrowLoanFlow) -> BorrowLoanFlow {
+    expression := *frame.function.fn.exprs[index]
+    owner: *IR.ZirModule
+    callee: *IR.ZirFunction
+    ResolveFunction(frame.function.module, expression.name, *owner, *callee)
+    summary := function_summary(check, callee)
+    nested := BorrowLoanFrame.{summary, frame.view, frame.backing, 0, 0, -1, -1}
+    unknown: bool = false
+    child := expression.first_child
+    while child >= 0 {
+        parameter := frame.function.fn.exprs[child].argument_index
+        roots := loan_roots(check, frame, child, statement)
+        if parameter >= 0 && parameter < 64 {
+            if (roots & 5) != 0 { nested.view_parameters |= 1 << cast(u64)parameter }
+            if (roots & 6) != 0 { nested.backing_parameters |= 1 << cast(u64)parameter }
+        } else if roots != 0 { unknown = true }
+        if (roots & 4) != 0 { unknown = true }
+        child = frame.function.fn.exprs[child].next_sibling
+    }
+    result := flow
+    if summary == null || callee.is_extern != 0 {
+        // Opaque effects cannot establish a clear. References to the owner may
+        // replace it, and references to backing may write immediately.
+        if nested.backing_parameters != 0 || unknown { result.safe = result.safe && result.clear; result.touched = true }
+        if nested.view_parameters != 0 || unknown { result.clear = false }
+        if unknown { result.safe = false }
+        return result
+    }
+    if callee.checked == 0 { result.safe = false; result.clear = false; return result }
+    if !loan_relevant(summary, nested, 3) { return result }
+    effect := loan_function(check, nested, flow.clear)
+    result.safe = result.safe && effect.safe
+    result.touched = result.touched || effect.touched
+    result.clear = effect.clear
+    return result
+}
+
+#scope_file
+loan_expression :: (check: *BorrowCheck, frame: BorrowLoanFrame, index: s32, statement: s32, flow: BorrowLoanFlow) -> BorrowLoanFlow {
+    if index < 0 || flow.stopped { return flow }
+    fn := frame.function.fn
+    expression := *fn.exprs[index]
+    result := flow
+    if expression.is_move != 0 {
+        if statement == frame.stop_statement && index == frame.stop_expression { result.stopped = true; return result }
+        roots := loan_roots(check, frame, index, statement)
+        if (roots & 2) != 0 { result.safe = result.safe && result.clear; result.touched = true }
+        if (roots & 1) != 0 { result.clear = false }
+    }
+    result = loan_expression(check, frame, expression.left, statement, result)
+    if expression.kind == .CONDITIONAL {
+        yes := loan_expression(check, frame, expression.right, statement, result)
+        no := loan_expression(check, frame, expression.third, statement, result)
+        if yes.stopped { return yes }; if no.stopped { return no }
+        result = loan_merge(yes, no)
+    } else if expression.kind == .BINARY && (IR.CText(*expression.op[0]) == "&&" || IR.CText(*expression.op[0]) == "||") {
+        right := loan_expression(check, frame, expression.right, statement, result)
+        if right.stopped { return right }
+        result = loan_merge(result, right)
+    } else {
+        result = loan_expression(check, frame, expression.right, statement, result)
+        result = loan_expression(check, frame, expression.third, statement, result)
+    }
+    child := expression.first_child
+    while child >= 0 && !result.stopped {
+        result = loan_expression(check, frame, child, statement, result)
+        child = fn.exprs[child].next_sibling
+    }
+    if result.stopped { return result }
+    if statement == frame.stop_statement && index == frame.stop_expression { result.stopped = true; return result }
+    if expression.kind == .CALL { result = loan_apply_call(check, frame, index, statement, result) }
+    return result
+}
+
+#scope_file
+loan_sequence :: (check: *BorrowCheck, frame: BorrowLoanFrame, begin: s32, end: s32, flow: BorrowLoanFlow) -> BorrowLoanFlow {
+    fn := frame.function.fn
+    result := flow
+    at := begin
+    while at < end && result.live && !result.stopped {
+        statement := *fn.stmts[at]
+        if statement.kind == .DEFER {
+            // Registration cannot grant an early clear. Unrelated deferred
+            // cleanup leaves this proof alone; a relevant deferred effect is
+            // conservatively rejected rather than executed at registration.
+            no_clear := loan_expression(check, frame, statement.expr_root, at,
+                BorrowLoanFlow.{false, true, true, false, true, false, false})
+            cleared := loan_expression(check, frame, statement.expr_root, at,
+                BorrowLoanFlow.{true, true, true, false, true, false, false})
+            if no_clear.touched || cleared.touched || no_clear.clear || !cleared.clear || !no_clear.safe || !cleared.safe {
+                result.clear = false; result.safe = false
+            }
+            at += 1; continue
+        }
+        // A loop condition also executes after backedges. Do not carry an
+        // entry-only clear into a later condition evaluation.
+        if statement.kind == .WHILE { result.clear = false }
+        result = loan_expression(check, frame, statement.lhs_root, at, result)
+        result = loan_expression(check, frame, statement.expr_root, at, result)
+        if result.stopped { return result }
+        if at == frame.stop_statement && frame.stop_expression < 0 { result.stopped = true; return result }
+        if statement.kind == .IF {
+            close := loan_close(fn, at, end)
+            alternative := close + 1
+            yes := loan_sequence(check, frame, at + 1, close, result)
+            if statement.expr_root < 0 { result = yes; at = alternative; continue }
+            if yes.stopped { return yes }
+            no := result
+            if alternative < end && fn.stmts[alternative].kind == .IF && fn.stmts[alternative].is_else != 0 {
+                // Recurse over the entire else-if chain, but not the following
+                // shared sequence. loan_branch_end finds its final close.
+                last := loan_branch_end(fn, alternative, end)
+                no = loan_sequence(check, frame, alternative, last + 1, result)
+                alternative = last + 1
+            }
+            if no.stopped { return no }
+            result = loan_merge(yes, no)
+            at = alternative; continue
+        }
+        if statement.kind == .WHILE {
+            close := loan_close(fn, at, end)
+            // The loop may execute zero times. Prove its body with the least
+            // clear fact so backedges, breaks and continues cannot hide a loan.
+            iteration := result
+            iteration.clear = false
+            iteration = loan_sequence(check, frame, at + 1, close, iteration)
+            if iteration.stopped { return iteration }
+            result.safe = result.safe && iteration.safe
+            result.touched = result.touched || iteration.touched
+            result.clear = result.clear && iteration.clear && (!iteration.returned || iteration.return_clear)
+            result.return_clear = result.return_clear && (!iteration.returned || iteration.return_clear)
+            result.returned = result.returned || iteration.returned
+            at = close + 1; continue
+        }
+        if statement.kind == .BLOCK_OPEN {
+            close := loan_close(fn, at, end)
+            result = loan_sequence(check, frame, at + 1, close, result)
+            at = close + 1; continue
+        }
+        if statement.kind == .ASSIGN {
+            roots := loan_roots(check, frame, statement.lhs_root, at)
+            if (roots & 2) != 0 { result.safe = result.safe && result.clear; result.touched = true }
+            if (roots & 1) != 0 {
+                lhs := *fn.exprs[statement.lhs_root]
+                result.clear = loan_whole_global(check, frame, statement.lhs_root, at) == frame.view &&
+                    IR.CText(*statement.assignment_op[0]) == "=" && loan_static(fn, statement.expr_root)
+            }
+            if (roots & 4) != 0 {
+                if loan_relevant(frame.function, frame, 2) { result.safe = false }
+                result.clear = false
+            }
+        }
+        if statement.kind == .RETURN {
+            result.return_clear = (!result.returned || result.return_clear) && result.clear
+            result.returned = true; result.live = false
+        }
+        if statement.kind == .BREAK || statement.kind == .CONTINUE {
+            result.clear = false; result.live = false
+            result.returned = true; result.return_clear = false
+        }
+        if statement.kind == .CASE || statement.kind == .IF_CASE { result.clear = false; result.safe = false }
+        at += 1
+    }
+    return result
+}
+
+#scope_file
+loan_branch_end :: (fn: *IR.ZirFunction, begin: s32, end: s32) -> s32 {
+    close := loan_close(fn, begin, end)
+    next := close + 1
+    if next < end && fn.stmts[next].kind == .IF && fn.stmts[next].is_else != 0 { return loan_branch_end(fn, next, end) }
+    return close
+}
+
+#scope_file
+loan_function :: (check: *BorrowCheck, frame: BorrowLoanFrame, clear: bool) -> BorrowLoanFlow {
+    proof := check.loan_proofs
+    while proof != null {
+        previous := proof.frame
+        if previous.function == frame.function && previous.view == frame.view && previous.backing == frame.backing &&
+           previous.view_parameters == frame.view_parameters && previous.backing_parameters == frame.backing_parameters && proof.input_clear == clear {
+            if proof.complete { return proof.result }
+            return BorrowLoanFlow.{false, false, true, false, true, false, false}
+        }
+        proof = proof.next
+    }
+    proof = cast(*BorrowLoanProof)AllocateOrExit(size_of(BorrowLoanProof))
+    proof[0] = BorrowLoanProof.{frame, clear, false, .{}, check.loan_proofs}
+    check.loan_proofs = proof
+    result := loan_sequence(check, frame, 0, frame.function.fn.stmt_count, BorrowLoanFlow.{clear, true, true, false, true, false, false})
+    result.clear = (!result.live || result.clear) && (!result.returned || result.return_clear)
+    proof.result = result
+    proof.complete = true
+    return result
+}
+
+#scope_file
+global_loan_ended :: (check: *BorrowCheck, view: s32, destination: BorrowPlace) -> bool {
+    if view < 0 || destination.root == null || destination.root.global_index < 0 { return false }
+    frame := BorrowLoanFrame.{check.current, view, destination.root.global_index, 0, 0, check.loan_statement, -1}
+    if check.loan_move >= 0 { frame.stop_expression = check.loan_move }
+    if check.loan_call != null {
+        frame.stop_expression = cast(s32)((cast(usize)check.loan_call - cast(usize)check.current.fn.exprs) / size_of(IR.ZirExpr))
+    }
+    prefix := loan_sequence(check, frame, 0, check.current.fn.stmt_count, BorrowLoanFlow.{false, true, true, false, true, false, false})
+    if !prefix.stopped { return false }
+    if check.loan_call == null { return prefix.clear }
+    effect := loan_apply_call(check, frame, frame.stop_expression, check.loan_statement,
+        BorrowLoanFlow.{prefix.clear, true, true, false, true, false, false})
+    return effect.safe && effect.touched
+}
+
 #scope_file
 text_backing_conflict :: (check: *BorrowCheck, destination: BorrowPlace) -> s32 {
     {
         i: s32 = 0
         while check_loop_210 := (i < (check).active_count) {
             if (!((((check).active)[i]).vec != 0) && (places_overlap((((check).active)[i]).backing, destination) != 0) &&
-                !exclusive_borrow_branch(check, check.active[i].branch)) {
+                !exclusive_borrow_branch(check, check.active[i].branch) &&
+                !global_loan_ended(check, check.active[i].owner_global, destination)) {
                 return 1
             }
             S12Post2(*(i))
@@ -552,6 +945,7 @@ add_active_text_borrows :: (check: *BorrowCheck, sources: *BorrowSource, depth: 
             (((check).active)[(check).active_count]).depth = depth
             (((check).active)[(check).active_count]).vec = 0
             check.active[check.active_count].branch = check.branch
+            check.active[check.active_count].owner_global = -1
             S12Post2(*((check).active_count))
             source = (source).next
         }
@@ -992,6 +1386,10 @@ check_mutation :: (check: *BorrowCheck, destination: BorrowPlace, span: IR.ZirSo
                 S12Post2(*(v))
                 continue check_loop_229
             }
+            if global_loan_ended(check, g, destination) {
+                S12Post2(*(v))
+                continue check_loop_229
+            }
             if !((check).failed != 0) {
                 details: State.DiagnosticDetails = .{}
                 (details).related_span = ((view).global).span
@@ -1407,6 +1805,26 @@ text_view_backings :: (check: *BorrowCheck, index: s32) -> *BorrowSource {
         return null
     }
     result: *BorrowSource = null
+    returned := summary.returned_backings
+    while returned != null {
+        place: BorrowPlace
+        if returned.global >= 0 {
+            read_global(check, returned.global)
+            place = root_place(*check.globals[returned.global])
+        } else {
+            argument := expression.first_child
+            while argument >= 0 {
+                if fn.exprs[argument].argument_index == returned.parameter {
+                    place = storage_place(check, argument, 1)
+                    break
+                }
+                argument = fn.exprs[argument].next_sibling
+            }
+        }
+        place.path = join_path(check, place.path, returned.path)
+        result = add_source(check, result, place)
+        returned = returned.next
+    }
     {
         child: s32 = (expression).first_child
         while check_loop_239 := (child >= 0) {
@@ -1424,10 +1842,14 @@ text_view_backings :: (check: *BorrowCheck, index: s32) -> *BorrowSource {
             if ((((((summary).returned).lent | ((summary).returned).lent_vec)) & ((1 << cast(u64)(parameter)))) != 0) {
                 pointee: *BorrowBinding = pointee_binding(check, child)
                 if (pointee != cast(*BorrowBinding)((null))) {
-                    result = add_source(check, result, root_place(pointee))
+                    // Keep the actual argument's field path when a pointer
+                    // alias lends storage from a field of a larger record.
+                    result = add_source(check, result, storage_place(check, child, 1))
                 }
             }
-            if !((((summary).returned).parameters & ((1 << cast(u64)(parameter)))) != 0) {
+            // Returned pointer loans carry their field paths above. The
+            // older value-origin transfer still handles copied descriptors.
+            if ((summary.returned.parameters & (1 << cast(u64)parameter)) == 0) {
                 child = (((fn).exprs)[child]).next_sibling
                 continue check_loop_239
             }
@@ -1440,6 +1862,50 @@ text_view_backings :: (check: *BorrowCheck, index: s32) -> *BorrowSource {
         }
     }
     return result
+}
+
+// Function summaries cannot retain pointers to temporary local bindings.
+// Store canonical globals/parameter numbers and owned path nodes instead.
+#scope_file
+record_returned_backing :: (check: *BorrowCheck, parameter: s32, global: s32, path: *BorrowPath) {
+    if parameter < 0 && global < 0 { return }
+    // Recursive forwarding can extend paths indefinitely. Widen to the root
+    // rather than losing the loan, as mutation summaries already do.
+    if path != null && path.depth > 32 { path = null }
+    function := check.current
+    known := function.returned_backings
+    while known != null {
+        if known.parameter == parameter && known.global == global &&
+           (known.path == null || same_path(known.path, path) != 0) { return }
+        known = known.next
+    }
+    item := cast(*BorrowReturnedBacking)AllocateOrExit(size_of(BorrowReturnedBacking))
+    item[0] = BorrowReturnedBacking.{parameter, global, path, function.returned_backings}
+    function.returned_backings = item
+    check.changed = 1
+    summary_changed(check)
+}
+
+#scope_file
+record_returned_backings :: (check: *BorrowCheck, index: s32, origin: Origin) {
+    sources := text_view_backings(check, index)
+    covered: u64 = 0
+    while sources != null {
+        place := sources.place
+        if place.root != null {
+            parameter := place.root.parameter
+            global := place.root.global_index
+            if parameter >= 0 && parameter < 64 { covered |= 1 << cast(u64)parameter }
+            record_returned_backing(check, parameter, global, place.path)
+        }
+        sources = sources.next
+    }
+    // Every return contributes its unknown-path pointer loans as well. A
+    // precise path in another arm must never hide this arm's possible root.
+    missing := origin.borrowed_pointers & ~covered
+    for parameter: cast(s32)0..63 {
+        if (missing & (1 << cast(u64)parameter)) != 0 { record_returned_backing(check, parameter, -1, null) }
+    }
 }
 
 #scope_file
@@ -1871,11 +2337,13 @@ check_ranges :: (check: *BorrowCheck, index: s32) {
             check_reference_owned_field(check, index)
         }
         destination := storage_place(check, index, 1)
+        check.loan_move = index
         if vec_view_conflict(check, destination) != 0 {
             reject(check, expression.span, CheckCString("cannot move a Vec with a live borrowed view or record reference"))
         } else if text_backing_conflict(check, destination) != 0 {
             reject(check, expression.span, CheckCString("moving owned storage while its text view is live"))
         }
+        check.loan_move = -1
         record_mutation(check, destination,
             reference_owned_field(check.current.module, check.current.fn, index))
     }
@@ -1899,7 +2367,9 @@ check_ranges :: (check: *BorrowCheck, index: s32) {
         reject(check, expression.span, CheckCString("Scoped callable cannot be retained in owned collection storage"))
     }
     if (cast(s32)((expression).kind) == 5) {
+        check.loan_call = expression
         check_call_mutations(check, expression)
+        check.loan_call = null
     }
     (check).active_count = saved_active
 }
@@ -2095,6 +2565,15 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
     (check).active_count = 0
     (check).depth = 1
     check.branch = 0
+    check.loan_call = null
+    check.loan_move = -1
+    defer {
+        while check.loan_proofs != null {
+            proof := check.loan_proofs
+            check.loan_proofs = proof.next
+            CompilerFree(cast(*void)proof)
+        }
+    }
     // Retain loans at joins, but do not apply one arm's loans to another arm.
     check.branches = borrow_branches(fn)
     if check.branches == null {
@@ -2148,6 +2627,7 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
         i: s32 = 0
         while check_loop_248 := ((i < (fn).stmt_count) && !((check).failed != 0)) {
             check.branch = i + 1
+            check.loan_statement = i
             statement: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))
             if (cast(s32)((statement).kind) == 2) {
                 release_active_text_borrows(check, (check).depth)
@@ -2308,7 +2788,9 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                         if (text_view_type(check, destination.type) != 0 || contains_scoped(function.module, destination.type)) &&
                            (static_storage == 0 || source_storage_4.globals != null) && target != null &&
                            !(target.captured != 0 && target.global_index < 0) {
+                            first_loan := check.active_count
                             add_active_text_borrows(check, text_view_backings(check, (statement).expr_root), (target).depth)
+                            for loan: first_loan..check.active_count - 1 { check.active[loan].owner_global = target.global_index }
                         }
                     }
                 } else {
@@ -2326,6 +2808,7 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                         if (accumulate(check, *((function).returned), source_storage_8[0]) != 0) {
                             summary_changed(check)
                         }
+                        record_returned_backings(check, statement.expr_root, source_storage_8[0])
                     }
                 }
             }
@@ -2512,6 +2995,11 @@ check_slice_lifetimes :: (programs: **IR.ZirProgram, count: s32) -> s32 {
                 next: *BorrowMutation = ((((check_storage_0[0]).functions)[i]).mutations).next
                 CompilerFree(cast(*void)((((check_storage_0[0]).functions)[i]).mutations))
                 (((check_storage_0[0]).functions)[i]).mutations = next
+            }
+            while check_storage_0.functions[i].returned_backings != null {
+                returned := check_storage_0.functions[i].returned_backings
+                check_storage_0.functions[i].returned_backings = returned.next
+                CompilerFree(cast(*void)returned)
             }
             CompilerFree(cast(*void)((((check_storage_0[0]).functions)[i]).mutation_roots))
             CompilerFree(cast(*void)(((((check_storage_0[0]).functions)[i]).callees).items))

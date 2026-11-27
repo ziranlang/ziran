@@ -62,6 +62,19 @@ SiteCurrentZx :: (test: *NativeTest, document: *JsonDocument, example: s32,
     return executable
 }
 
+// Only the extracted source used by today's compiler changes. The measured
+// archive and its IR, binaries, timings and hashes remain immutable. Its old
+// first-frame result must end before a later Draw may reuse clipboard storage.
+SiteCurrentLibrarySource :: (test: *NativeTest, source: string) -> bool {
+    text := NativeRead(test, source)
+    old := "    first := TextField.Draw(session, props)\n    if EndFrame(session) != cast(FrameStatus)FrameOk || first.edit.changed { return 2 }\n"
+    scoped := "    {\n        first := TextField.Draw(session, props)\n        if EndFrame(session) != cast(FrameStatus)FrameOk || first.edit.changed { return 2 }\n    }\n"
+    at := TextFind(text, old)
+    if !NativeAssert(test, at >= 0 && TextFind(text, old, at + old.count) < 0,
+        "archived first-frame result scope migration requires one exact source match") { return false }
+    return NativeWrite(test, source, TextDetach(TextReplace(text, old, scoped)))
+}
+
 SiteLibraryInputs :: (test: *NativeTest, document: *JsonDocument,
     bindings: *Vec(string)) -> string {
     fixture := CheckPath(test.work, "library-inputs")
@@ -97,7 +110,8 @@ SiteLibraryInputs :: (test: *NativeTest, document: *JsonDocument,
         if !VecPush(<<bindings, TextDetach(TextCopy(binding))) { return "" }
     }
     ir := CheckPath(test.work, "library-ir")
-    if !SiteCurrentIr(test, CheckPath(fixture, CheckField(*inputs, inputs.root, "source")), ir, fixture) { return "" }
+    source := CheckPath(fixture, CheckField(*inputs, inputs.root, "source"))
+    if !SiteCurrentLibrarySource(test, source) || !SiteCurrentIr(test, source, ir, fixture) { return "" }
     return ir
 }
 

@@ -1201,19 +1201,26 @@ main :: (argc: s32, argv: **u8) -> s32 {
             diagnostic.instruction, diagnostic.operand, diagnostic.virtual)
         return status
     }
-    native := Pipeline.MachineNativeView(*(machine_owner))
-    if native.count <= 0 || native.count > READ_LIMIT {
+    size: s64 = 0
+    {
+        native := Pipeline.MachineNativeView(*(machine_owner))
+        size = native.count
+        if size > 0 && size <= READ_LIMIT {
+            bytes = cast(*u8)malloc(cast(usize)size)
+            if bytes != null {
+                memcpy(cast(*void)bytes, cast(*void)(*(native[0])), cast(usize)size)
+            }
+        }
+    }
+    if size <= 0 || size > READ_LIMIT {
         Diagnostic(NoSpan(), CStr("assembly.machine"),
             CStr("machine pipeline produced an invalid ELF extent; no alternate engine was selected"))
         return status
     }
-    size := native.count
-    bytes = cast(*u8)malloc(cast(usize)size)
     if bytes == null {
         DiagnosticOutOfMemory()
         return status
     }
-    memcpy(cast(*void)bytes, cast(*void)(*(native[0])), cast(usize)size)
     if strcmp(output, CStr("-")) == 0 && !executable {
         written := MachineMap(view, StandardOutput(), *(selection), *(machine_owner),
                               hosts.links, bytes, size, 1, ifx perf then 1 else 0)

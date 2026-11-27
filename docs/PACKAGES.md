@@ -339,7 +339,7 @@ fetching or creating checkouts. The resulting lock uses the usual format and
 can be used with `--locked` once the project's development overrides are removed.
 Build commands still require their normal locked source checkouts.
 
-`--locked` requires a matching lock and ignores local development overrides;
+`--locked` requires a matching lock and rejects local development overrides;
 `--offline` requires cached checkouts. The cache is under
 `$XDG_CACHE_HOME/ziran` or `~/.cache/ziran`.
 Normal `fetch` and `pkg path` commands also validate cached tracked payloads.

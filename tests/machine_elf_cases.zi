@@ -109,20 +109,23 @@ StartupInitializers :: () -> bool {
     if !Check(diagnostic.problem == .None, "startup initializer pipeline") {
         Pipeline.MachineNativeFree(*owner); return false
     }
-    bytes := Pipeline.MachineNativeView(*owner)
-    empty: [0]u8
-    layout := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:], Unbounded, Static())
-    initializer_target := cast(s64)(0x400000 + layout.text_offset + layout.startup_size +
-        owner.encoded.image.functions[0].begin)
-    // No function checks its stack, so _start sets no limit and first calls
-    // the initializer, then the entry.
-    field := cast(s64)(0x400000 + layout.text_offset + 1)
-    result := Check(bytes[layout.text_offset] == 0xe8 && bytes[layout.text_offset + 5] == 0xe8 &&
-        Signed32(bytes, layout.text_offset + 1) == initializer_target - 4 - field,
-        "startup calls the initializer before entry")
-    image := Pipeline.MachineCodeImageView(*owner)
-    result = result && Check(image.initializers.count == 1 && image.initializers[0] == 0,
-        "machine image retains ordered initializer identities")
+    result: bool
+    {
+        bytes := Pipeline.MachineNativeView(*owner)
+        empty: [0]u8
+        layout := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:], Unbounded, Static())
+        initializer_target := cast(s64)(0x400000 + layout.text_offset + layout.startup_size +
+            owner.encoded.image.functions[0].begin)
+        // No function checks its stack, so _start sets no limit and first calls
+        // the initializer, then the entry.
+        field := cast(s64)(0x400000 + layout.text_offset + 1)
+        result = Check(bytes[layout.text_offset] == 0xe8 && bytes[layout.text_offset + 5] == 0xe8 &&
+            Signed32(bytes, layout.text_offset + 1) == initializer_target - 4 - field,
+            "startup calls the initializer before entry")
+        image := Pipeline.MachineCodeImageView(*owner)
+        result = result && Check(image.initializers.count == 1 && image.initializers[0] == 0,
+            "machine image retains ordered initializer identities")
+    }
     Pipeline.MachineNativeFree(*owner)
     return result
 }
@@ -159,13 +162,16 @@ PlatformImage :: () -> bool {
         "machine-code build accepts a platform service without requiring an ELF veneer") {
         Pipeline.MachineNativeFree(*owner); return false
     }
-    image := Pipeline.MachineCodeImageView(*owner)
-    saw_platform := false
-    for relocation: image.relocations {
-        if relocation.kind == .PlatformService && relocation.symbol == 1 { saw_platform = true }
+    result: bool
+    {
+        image := Pipeline.MachineCodeImageView(*owner)
+        saw_platform := false
+        for relocation: image.relocations {
+            if relocation.kind == .PlatformService && relocation.symbol == 1 { saw_platform = true }
+        }
+        result = Check(Image.MachineImageValidate(image).problem == .None && saw_platform,
+            "machine image retains the platform-service relocation")
     }
-    result := Check(Image.MachineImageValidate(image).problem == .None && saw_platform,
-        "machine image retains the platform-service relocation")
     Pipeline.MachineNativeFree(*owner)
     return result
 }
@@ -306,36 +312,43 @@ Rejections :: (owner: *Pipeline.MachineNativeOwner) -> bool {
 }
 
 Preservation :: (owner: *Pipeline.MachineNativeOwner) -> bool {
-    before := Pipeline.MachineNativeView(owner)
-    before_count := before.count
+    before_count: s64
     fingerprint: u64 = 1469598103934665603
-    for byte: before { fingerprint = (fingerprint ^ byte) * 1099511628211 }
+    {
+        before := Pipeline.MachineNativeView(owner)
+        before_count = before.count
+        for byte: before { fingerprint = (fingerprint ^ byte) * 1099511628211 }
+    }
     unsupported := Target.TargetDescribe(.AArch64, .Windows).target
     diagnostic := BuildTarget(owner, unsupported)
-    after := Pipeline.MachineNativeView(owner)
-    actual: u64 = 1469598103934665603
-    for byte: after { actual = (actual ^ byte) * 1099511628211 }
-    if !Check(diagnostic.problem == .UnsupportedTarget && before_count == after.count && fingerprint == actual,
-        "failed pipeline preserves prior output") { return false }
+    {
+        after := Pipeline.MachineNativeView(owner)
+        actual: u64 = 1469598103934665603
+        for byte: after { actual = (actual ^ byte) * 1099511628211 }
+        if !Check(diagnostic.problem == .UnsupportedTarget && before_count == after.count && fingerprint == actual,
+            "failed pipeline preserves prior output") { return false }
+    }
     diagnostic = Build(owner, true)
     if !Check(diagnostic.problem == .None, "read-only initialized data is supported") { return false }
-    after = Pipeline.MachineNativeView(owner)
-    empty: [0]u8
-    measured := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:], Unbounded, Static())
-    // When the program resolves pointers at all, the read-only global's
-    // pointer slot is live and not writable, so a store through it traps.
-    flags: u64 = Image.MachinePointerLive
-    if measured.pointer_offset >= 0 {
-        table := cast(s64)Little(after, measured.pointer_offset + Image.MachinePointerHeaderTable, 8) - 0x400000 -
-            DataShift(measured)
-        flags = Little(after, table + Image.MachinePointerEntryBytes + Image.MachinePointerEntryFlags, 2)
+    {
+        after := Pipeline.MachineNativeView(owner)
+        empty: [0]u8
+        measured := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:], Unbounded, Static())
+        // When the program resolves pointers at all, the read-only global's
+        // pointer slot is live and not writable, so a store through it traps.
+        flags: u64 = Image.MachinePointerLive
+        if measured.pointer_offset >= 0 {
+            table := cast(s64)Little(after, measured.pointer_offset + Image.MachinePointerHeaderTable, 8) - 0x400000 -
+                DataShift(measured)
+            flags = Little(after, table + Image.MachinePointerEntryBytes + Image.MachinePointerEntryFlags, 2)
+        }
+        if !Check(measured.diagnostic.problem == .None && !owner.machine.program.globals[0].writable &&
+            flags == Image.MachinePointerLive, "read-only global has a read-only pointer slot") { return false }
+        machine_image := Pipeline.MachineCodeImageView(owner)
+        if !Check(machine_image.constants.bytes.count == 8 && machine_image.constants.bytes[0] == 42 &&
+            machine_image.constant_offsets[0] == 0 && machine_image.global_offsets[0] == -1,
+            "machine image carries initialized read-only bytes") { return false }
     }
-    if !Check(measured.diagnostic.problem == .None && !owner.machine.program.globals[0].writable &&
-        flags == Image.MachinePointerLive, "read-only global has a read-only pointer slot") { return false }
-    machine_image := Pipeline.MachineCodeImageView(owner)
-    if !Check(machine_image.constants.bytes.count == 8 && machine_image.constants.bytes[0] == 42 &&
-        machine_image.constant_offsets[0] == 0 && machine_image.global_offsets[0] == -1,
-        "machine image carries initialized read-only bytes") { return false }
     return Check(Build(owner).problem == .None,
         "writable image restores after read-only preservation test")
 }
@@ -347,17 +360,23 @@ Fingerprint :: (bytes: []u8) -> u64 {
 }
 
 TransactionalView :: (owner: *Pipeline.MachineNativeOwner) -> bool {
-    before := Pipeline.MachineNativeView(owner)
-    if !Check(before.count > 0, "transaction starts with a nonempty native view") { return false }
-    before_count := before.count
-    before_fingerprint := Fingerprint(before)
+    before_count: s64
+    before_fingerprint: u64
+    {
+        before := Pipeline.MachineNativeView(owner)
+        if !Check(before.count > 0, "transaction starts with a nonempty native view") { return false }
+        before_count = before.count
+        before_fingerprint = Fingerprint(before)
+    }
     if !Check(Build(owner).problem == .None, "successful transactional replacement") { return false }
-    replaced := Pipeline.MachineNativeView(owner)
-    if !Check(replaced.count == before_count && Fingerprint(replaced) == before_fingerprint,
-        "successful replacement publishes the built ELF view") { return false }
-
     limits := Machine.MachineDefaultLimits()
-    limits.bytes = replaced.count - 1
+    {
+        replaced := Pipeline.MachineNativeView(owner)
+        if !Check(replaced.count == before_count && Fingerprint(replaced) == before_fingerprint,
+            "successful replacement publishes the built ELF view") { return false }
+
+        limits.bytes = replaced.count - 1
+    }
     diagnostic := BuildTarget(owner, Target.TargetLinuxX64(), false, limits)
     preserved := Pipeline.MachineNativeView(owner)
     return Check(diagnostic.problem == .Limit && preserved.count == before_count &&

@@ -17,12 +17,17 @@ main :: () -> s32 {
     if Protect(cast(*void)*bytes[page],cast(usize)page,0) != 0 { return 3 }
     for size: 0..128 {
         for i: page - size..page - 1 { bytes[i] = 120 }
-        text := TextFromBytes(bytes[page - size:page])
-        if JsonStringRunEnd(text,0) != size || JsonStringRunEnd(text,size) != size { return 4 }
-        for start: 0..size { if JsonStringRunEnd(text,start) != size { return 5 } }
+        {
+            text := TextFromBytes(bytes[page - size:page])
+            if JsonStringRunEnd(text,0) != size || JsonStringRunEnd(text,size) != size { return 4 }
+            for start: 0..size { if JsonStringRunEnd(text,start) != size { return 5 } }
+        }
         for position: 0..size - 1 {
             bytes[page - size + position] = 34
-            if JsonStringRunEnd(text,0) != position { return 6 }
+            {
+                text := TextFromBytes(bytes[page - size:page])
+                if JsonStringRunEnd(text,0) != position { return 6 }
+            }
             bytes[page - size + position] = 120
         }
     }

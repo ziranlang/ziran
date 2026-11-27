@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 #ifndef ZIRAN_TYPE_FORWARD_BorrowPlace
 #define ZIRAN_TYPE_FORWARD_BorrowPlace
 typedef struct BorrowPlace BorrowPlace;
@@ -43,6 +44,22 @@ typedef struct IndexList IndexList;
 #ifndef ZIRAN_TYPE_FORWARD_BorrowFunction
 #define ZIRAN_TYPE_FORWARD_BorrowFunction
 typedef struct BorrowFunction BorrowFunction;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BorrowLoanFlow
+#define ZIRAN_TYPE_FORWARD_BorrowLoanFlow
+typedef struct BorrowLoanFlow BorrowLoanFlow;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BorrowLoanFrame
+#define ZIRAN_TYPE_FORWARD_BorrowLoanFrame
+typedef struct BorrowLoanFrame BorrowLoanFrame;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BorrowLoanProof
+#define ZIRAN_TYPE_FORWARD_BorrowLoanProof
+typedef struct BorrowLoanProof BorrowLoanProof;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BorrowReturnedBacking
+#define ZIRAN_TYPE_FORWARD_BorrowReturnedBacking
+typedef struct BorrowReturnedBacking BorrowReturnedBacking;
 #endif
 #ifndef ZIRAN_TYPE_FORWARD_BorrowMutation
 #define ZIRAN_TYPE_FORWARD_BorrowMutation
@@ -221,6 +238,7 @@ struct ActiveTextBorrow {
     int32_t depth;
     int32_t vec;
     int32_t branch;
+    int32_t owner_global;
 };
 
 struct BorrowBranch {
@@ -308,6 +326,10 @@ struct BorrowCheck {
     uint64_t clock;
     uint64_t views_changed_at;
     uint64_t checks;
+    int32_t loan_statement;
+    int32_t loan_move;
+    ZirExpr* loan_call;
+    BorrowLoanProof* loan_proofs;
 };
 
 struct IndexList {
@@ -320,6 +342,7 @@ struct BorrowFunction {
     ZirModule* module;
     ZirFunction* fn;
     Origin returned;
+    BorrowReturnedBacking* returned_backings;
     Origin* locals;
     BorrowMutation* mutations;
     MutationRoot* mutation_roots;
@@ -332,6 +355,41 @@ struct BorrowFunction {
     int32_t stale;
     uint64_t summary_changed_at;
     uint64_t listed_by;
+};
+
+struct BorrowLoanFlow {
+    bool clear;
+    bool safe;
+    bool live;
+    bool returned;
+    bool return_clear;
+    bool touched;
+    bool stopped;
+};
+
+struct BorrowLoanFrame {
+    BorrowFunction* function;
+    int32_t view;
+    int32_t backing;
+    uint64_t view_parameters;
+    uint64_t backing_parameters;
+    int32_t stop_statement;
+    int32_t stop_expression;
+};
+
+struct BorrowLoanProof {
+    BorrowLoanFrame frame;
+    bool input_clear;
+    bool complete;
+    BorrowLoanFlow result;
+    struct BorrowLoanProof* next;
+};
+
+struct BorrowReturnedBacking {
+    int32_t parameter;
+    int32_t global;
+    BorrowPath* path;
+    struct BorrowReturnedBacking* next;
 };
 
 struct BorrowMutation {

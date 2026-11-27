@@ -137,43 +137,50 @@ ProcessCall :: (state: *RunnerState, function: string, arguments: *HostValue, co
 
 FileCall :: (state: *RunnerState, function: string, arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
     if count < 1 { return 0 }
-    path := Text(arguments[0])
-    if function == "FileStatusHost" && count == 1 {
-        info := PathStatus(path)
-        if info.kind == .Missing { return Integer(result, -1) }
-        if info.kind == .Directory { return Integer(result, -2) }
-        return Integer(result, info.size)
-    }
-    if function == "FileReadHost" && count == 1 {
-        text, ok := ReadEntireFile(path)
-        if !ok { return Borrowed(result, null, 0) }
-        return Answer(state, result, text)
-    }
-    if function == "FileWriteHost" && count == 2 {
-        return Integer(result, ifx WriteEntireFile(path, Text(arguments[1])) then 1 else 0)
-    }
-    if function == "FileRemoveHost" && count == 1 { return Integer(result, ifx RemoveFile(path) then 1 else 0) }
-    if function == "FileRenameHost" && count == 2 {
-        return Integer(result, ifx RenamePath(path, Text(arguments[1])) then 1 else 0)
-    }
-    if function == "DirectoryMakeHost" && count == 1 { return Integer(result, ifx CreateDirectory(path) then 1 else 0) }
-    if function == "DirectoryListHost" && count == 1 {
-        listing: Vec(u8)
-        cursor := OpenDirectory(path)
-        if cursor.valid {
-            while true {
-                entry := NextDirectoryEntry(*cursor)
-                if !entry.valid { break }
-                name := TextFromBytes(entry.name[0:entry.name_count])
-                if name == "." || name == ".." { continue }
-                if listing.count > 0 { VecPush(listing, #char "\n") }
-                for byte: name { VecPush(listing, byte) }
+    reply: HostValue
+    handled: s32 = 0
+    {
+        path := Text(arguments[0])
+        if function == "FileStatusHost" && count == 1 {
+            info := PathStatus(path)
+            value := info.size
+            if info.kind == .Missing { value = -1 }
+            else if info.kind == .Directory { value = -2 }
+            handled = Integer(*reply, value)
+        } else if function == "FileReadHost" && count == 1 {
+            text, ok := ReadEntireFile(path)
+            if !ok { handled = Borrowed(*reply, null, 0) }
+            else { handled = Answer(state, *reply, text) }
+        } else if function == "FileWriteHost" && count == 2 {
+            handled = Integer(*reply, ifx WriteEntireFile(path, Text(arguments[1])) then 1 else 0)
+        } else if function == "FileRemoveHost" && count == 1 {
+            handled = Integer(*reply, ifx RemoveFile(path) then 1 else 0)
+        } else if function == "FileRenameHost" && count == 2 {
+            handled = Integer(*reply, ifx RenamePath(path, Text(arguments[1])) then 1 else 0)
+        } else if function == "DirectoryMakeHost" && count == 1 {
+            handled = Integer(*reply, ifx CreateDirectory(path) then 1 else 0)
+        } else if function == "DirectoryListHost" && count == 1 {
+            listing: Vec(u8)
+            cursor := OpenDirectory(path)
+            if cursor.valid {
+                while true {
+                    entry := NextDirectoryEntry(*cursor)
+                    if !entry.valid { break }
+                    name := TextFromBytes(entry.name[0:entry.name_count])
+                    if name == "." || name == ".." { continue }
+                    if listing.count > 0 { VecPush(listing, #char "\n") }
+                    for byte: name { VecPush(listing, byte) }
+                }
+                unused CloseDirectory(*cursor)
             }
-            unused CloseDirectory(*cursor)
+            handled = Answer(state, *reply, TextFromBytes(VecSlice(listing, 0, listing.count)))
         }
-        return Answer(state, result, TextFromBytes(VecSlice(listing, 0, listing.count)))
     }
-    return 0
+    if handled != 0 {
+        reply.type_name = result.type_name
+        result[0] = reply
+    }
+    return handled
 }
 
 #if #defined(ZX_WINDOW) || #defined(ZX_ANDROID) {
@@ -183,8 +190,11 @@ WindowCall :: (state: *RunnerState, function: string, arguments: *HostValue, cou
         return Integer(result, ifx opened then 1 else 0)
     }
     if function == "WindowPresentHost" && count == 3 {
-        pixels := BytesFromPointer(cast(*u8)arguments[0].data, cast(u64)arguments[0].length)
-        shown := Window.WindowPresent(pixels, cast(s32)Whole(arguments[1]), cast(s32)Whole(arguments[2]))
+        shown := false
+        {
+            pixels := BytesFromPointer(cast(*u8)arguments[0].data, cast(u64)arguments[0].length)
+            shown = Window.WindowPresent(pixels, cast(s32)Whole(arguments[1]), cast(s32)Whole(arguments[2]))
+        }
         return Integer(result, ifx shown then 1 else 0)
     }
     if function == "WindowNextEventHost" && count == 0 {

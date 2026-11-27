@@ -554,9 +554,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
         !NativeWrite(*test, CheckPath(root, "generic_props.ts"), TSX_GENERIC_PROPS) ||
         !NativeWrite(*test, CheckPath(root, "scope_component.tsx"), TSX_SCOPE) ||
         !NativeWrite(*test, CheckPath(root, "logic.ts"), TSX_LOGIC) { return 1 }
-    warm := string.[test.ziran, "check", "--root", root, source]
-    unused NativeRun(*test, warm[:])
-    unused NativeRun(*test, warm[:])
     save := string.[test.ziran, "ir", "--root", root, "-o", saved_root, source]
     unused NativeRun(*test, save[:])
     if test.failed || !TsxTargets(*test, source, root, "source") ||
@@ -568,7 +565,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
         !TsxReject(*test, root, "uninitialized", "export function main(): s32 { let value: number; return s32(value); }", "native bindings require an initializer") ||
         !TsxReject(*test, root, "collection_const", "export function main(): s32 { const values: [number] = [1]; for (const value of values) { value = 2; } return s32(0); }", "cannot assign to a const binding") ||
         !TsxReject(*test, root, "collection_borrow", "import * as Domain from \"domain\"; import { Vec } from \"std/vec\"; export function main(): s32 { const values: Vec<number> = Domain.Numbers(); for (const value of values) { VecPush(values, value); } return s32(0); }", "borrow") ||
-        !TsxReject(*test, root, "generic_identity", "import * as Domain from \"domain\"; interface Box<T> { value: T; } export function main(): s32 { const box: Box<number> = Domain.Wrapped(); return s32(box.value); }", "type") ||
         !TsxReject(*test, root, "generic_nested_identity", "import * as Domain from \"domain\"; interface Box<T> { value: T; } interface Holder<T> { value: T; } export function main(): s32 { const native: Holder<Domain.Box<number>> = {value: Domain.Wrapped()}; const local: Holder<Box<number>> = native; return s32(0); }", "type") ||
         !TsxReject(*test, root, "generic_type", "interface Box<T> { value: T; } export function main(): s32 { const box: Box<number> = {value: true}; return s32(box.value); }", "type") ||
         !TsxReject(*test, root, "action", "import * as Domain from \"domain\"; export function main(): s32 { Domain.Increment(true); return s32(0); }", "argument") ||

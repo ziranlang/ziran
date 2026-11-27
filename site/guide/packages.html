@@ -273,7 +273,7 @@ Missing stores, commits, or valid manifests fail the lock command without
 fetching or creating checkouts. The resulting lock uses the usual format and
 can be used with <code>--locked</code> once the project's development overrides are removed.
 Build commands still require their normal locked source checkouts.</p>
-<p><code>--locked</code> requires a matching lock and ignores local development overrides;
+<p><code>--locked</code> requires a matching lock and rejects local development overrides;
 <code>--offline</code> requires cached checkouts. The cache is under
 <code>$XDG_CACHE_HOME/ziran</code> or <code>~/.cache/ziran</code>.
 Normal <code>fetch</code> and <code>pkg path</code> commands also validate cached tracked payloads.

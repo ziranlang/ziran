@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Preserve the exact backing field of returned native views. End a global view's
+  loan only when every relevant path clears that owner before mutating its
+  storage; retain independent aliases and local views through calls and joins.
+
 - Check explicitly bounded native pointer slices and preserve their caller's
   backing storage through pointer-returning helpers. Reject expired views and
   writes through string aliases. Preserve zero-copy Go text views and real

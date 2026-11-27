@@ -13,6 +13,7 @@ ActiveTextBorrow :: struct {
     depth: s32
     vec: s32
     branch: s32
+    owner_global: s32
 }
 
 BorrowBranch :: struct {
@@ -100,6 +101,10 @@ BorrowCheck :: struct {
     clock: u64
     views_changed_at: u64
     checks: u64
+    loan_statement: s32
+    loan_move: s32
+    loan_call: *IR.ZirExpr
+    loan_proofs: *BorrowLoanProof
 }
 
 IndexList :: struct {
@@ -112,6 +117,7 @@ BorrowFunction :: struct {
     module: *IR.ZirModule
     fn: *IR.ZirFunction
     returned: Origin
+    returned_backings: *BorrowReturnedBacking
     locals: *Origin
     mutations: *BorrowMutation
     mutation_roots: *MutationRoot
@@ -124,6 +130,44 @@ BorrowFunction :: struct {
     stale: s32
     summary_changed_at: u64
     listed_by: u64
+}
+
+// Ordered effects for one owning global view and one backing global. The
+// monotone may-origin summaries remain unchanged; these proofs only end the
+// loan belonging to that exact view. Cache lifetime is one function check.
+BorrowLoanFlow :: struct {
+    clear: bool
+    safe: bool
+    live: bool
+    returned: bool
+    return_clear: bool
+    touched: bool
+    stopped: bool
+}
+
+BorrowLoanFrame :: struct {
+    function: *BorrowFunction
+    view: s32
+    backing: s32
+    view_parameters: u64
+    backing_parameters: u64
+    stop_statement: s32
+    stop_expression: s32
+}
+
+BorrowLoanProof :: struct {
+    frame: BorrowLoanFrame
+    input_clear: bool
+    complete: bool
+    result: BorrowLoanFlow
+    next: *BorrowLoanProof
+}
+
+BorrowReturnedBacking :: struct {
+    parameter: s32
+    global: s32
+    path: *BorrowPath
+    next: *BorrowReturnedBacking
 }
 
 BorrowMutation :: struct {

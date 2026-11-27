@@ -60,13 +60,7 @@ ZirSourceSpan zir_foreign_compiler_tsx__Span(uint8_t* path, int32_t line, int32_
 #else
 ZirSourceSpan zir_foreign_compiler_tsx__Span(uint8_t* path, int32_t line, int32_t column) __asm__("Span");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static String compiler_tsx_Join(String a, String b, String c) ZIRAN_MAYBE_UNUSED;
 static String compiler_tsx_Token(Parser* p) ZIRAN_MAYBE_UNUSED;
 static ZirSourceSpan compiler_tsx_Location(Parser* p) ZIRAN_MAYBE_UNUSED;
@@ -1513,7 +1507,7 @@ compiler_tsx_TypePrimary(Parser* p)
         int64_t loop_cursor_32 = 0LL;
         while (loop_cursor_32 < loop_count_32) {
             int64_t loop_index_32 = loop_cursor_32;
-            String item = ((String *)loop_view_32.data)[loop_index_32];
+            String item = ((String *)(loop_view_32).data)[loop_index_32];
             if (StringEqual(item, name)) {
                 parameter = true;
             }
@@ -1900,7 +1894,7 @@ compiler_tsx_ResolveImportedName(Parser* p, String name)
         int64_t loop_cursor_0 = 0LL;
         while (loop_cursor_0 < loop_count_0) {
             int64_t loop_index_0 = loop_cursor_0;
-            ImportedName imported = ((ImportedName *)loop_view_0.data)[loop_index_0];
+            ImportedName imported = ((ImportedName *)(loop_view_0).data)[loop_index_0];
             if (StringEqual(imported.alias, name)) {
                 return imported.path;
             }
@@ -9090,7 +9084,7 @@ compiler_tsx_ModuleBinding(Parser* p, bool public)
         int64_t loop_cursor_10 = 0LL;
         while (loop_cursor_10 < loop_count_10) {
             int64_t loop_index_10 = loop_cursor_10;
-            ImportedName imported = ((ImportedName *)loop_view_10.data)[loop_index_10];
+            ImportedName imported = ((ImportedName *)(loop_view_10).data)[loop_index_10];
             if (StringEqual(imported.alias, name)) {
                 Parser* value_56 = p;
                 String value_57 = StringLiteral("module binding conflicts with an import");
@@ -10403,7 +10397,7 @@ compiler_tsx_Import(Parser* p, bool collect)
                 int64_t loop_cursor_47 = 0LL;
                 while (loop_cursor_47 < loop_count_47) {
                     int64_t loop_index_47 = loop_cursor_47;
-                    ImportedName existing = ((ImportedName *)loop_view_47.data)[loop_index_47];
+                    ImportedName existing = ((ImportedName *)(loop_view_47).data)[loop_index_47];
                     if (StringEqual(existing.alias, mapping.alias)) {
                         Parser* value_146 = p;
                         String value_147 = StringLiteral("duplicate named import");

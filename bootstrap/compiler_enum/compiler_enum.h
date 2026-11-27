@@ -5,6 +5,20 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_Entry
+#define ZIRAN_TYPE_FORWARD_Entry
+typedef struct Entry Entry;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Evaluation
+#define ZIRAN_TYPE_FORWARD_Evaluation
+typedef struct Evaluation Evaluation;
+#endif
+#ifdef ZIRAN_COMPILER_ENUM_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Cursor
+#define ZIRAN_TYPE_FORWARD_Cursor
+typedef struct Cursor Cursor;
+#endif
+#endif
 #include "compiler_text.h"
 
 #ifdef __cplusplus
@@ -15,11 +29,6 @@ extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_ENUM_H_PRIVATE
 #define Maximum 9223372036854775807
-#endif
-typedef struct Entry Entry;
-typedef struct Evaluation Evaluation;
-#ifdef ZIRAN_COMPILER_ENUM_H_PRIVATE
-typedef struct Cursor Cursor;
 #endif
 
 struct Entry {

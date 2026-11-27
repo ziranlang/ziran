@@ -55,13 +55,7 @@ void* zir_foreign_compiler_semantic__CompilerStandardError(void) __asm__("_Compi
 #else
 void* zir_foreign_compiler_semantic__CompilerStandardError(void) __asm__("CompilerStandardError");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_semantic_FunctionArgs(ZirFunction* fn) ZIRAN_MAYBE_UNUSED;
 static ParserArray17_u8 semantic_SemanticId_hex = {.items = {48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 97, 98, 99, 100, 101, 102, 0}};
 

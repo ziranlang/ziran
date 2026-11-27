@@ -352,13 +352,7 @@ uint8_t* zir_foreign_compiler_check__trim_in_place(uint8_t* s) __asm__("_trim_in
 #else
 uint8_t* zir_foreign_compiler_check__trim_in_place(uint8_t* s) __asm__("trim_in_place");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int32_t compiler_check_file_private_name(ZirModule* module, uint8_t* name, uint8_t* path) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_check_file_private_expression_with_buffers(ZirModule* module, uint8_t* source, ZirSourceSpan span, CheckFilePrivateExpressionBuffers* buffers) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_file_scope_symbol_visible(ZirModule* module, uint8_t* name) ZIRAN_MAYBE_UNUSED;

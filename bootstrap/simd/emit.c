@@ -70,7 +70,7 @@ emit_Function(__type_131eebaaeb761e42* output, Helper* helper, bool split)
             int64_t loop_cursor_3 = 0LL;
             while (loop_cursor_3 < loop_count_3) {
                 int64_t loop_index_3 = loop_cursor_3;
-                Parameter parameter = ((Parameter *)loop_view_3.data)[loop_index_3];
+                Parameter parameter = ((Parameter *)(loop_view_3).data)[loop_index_3];
                 if (model_WideParameter(parameter)) {
                     String value_10 = model_Render(StringLiteral("    @0 @1 = *@1_p_;"), parameter.type, parameter.name, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
                     model_AppendLine(output, value_10);
@@ -159,7 +159,7 @@ emit_SplitMacros(__type_131eebaaeb761e42* output, Slice helpers, String* marker)
             {
                 int64_t it_index = 0LL;
                 while (it_index < (int64_t)(helpers).length) {
-                    Helper* helper = &(((Helper *)helpers.data)[it_index]);
+                    Helper* helper = &(((Helper *)(helpers).data)[it_index]);
                     Slice value_5 = {(helper->parameters).data, (helper->parameters).count};
                     bool value_6 = model_WideParameters(SliceRangeAt(value_5, 0LL, helper->parameters.count, sizeof(*(helper->parameters).data)));
                     if (!value_6) {

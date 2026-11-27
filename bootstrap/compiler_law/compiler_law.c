@@ -4,13 +4,7 @@
 #define ZIRAN_COMPILER_LAW_H_PRIVATE 1
 #include "compiler_law.h"
 #undef ZIRAN_COMPILER_LAW_H_PRIVATE
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int32_t compiler_law_Rank(String name) ZIRAN_MAYBE_UNUSED;
 static String compiler_law_RankName(int32_t rank) ZIRAN_MAYBE_UNUSED;
 static bool compiler_law_ReferencesGlobal(ZirExpr* expression) ZIRAN_MAYBE_UNUSED;

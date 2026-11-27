@@ -223,25 +223,33 @@ PackageModuleName :: (map: *ZirPackageMap, path: *u8) -> *u8 {
     return null
 }
 
+RemapSavedName :: (map: *ZirPackageMap, owner: *u8, spelling: *u8, size: usize) -> bool {
+    for rename: cast(s32)0..map.rename_count - 1 {
+        row := *map.renames[rename]
+        length := strlen(row.original)
+        if strcmp(row.owner, owner) != 0 || strncmp(spelling, row.original, length) != 0 ||
+            strncmp(cast(*u8)(cast(usize)spelling + length), ParserCString("__"), 2) != 0 { continue }
+        renamed: [IR.ZIR_PATH_MAX]u8
+        if snprintf(*renamed[0], size, ParserCString("%s%s"), row.target,
+            cast(*u8)(cast(usize)spelling + length)) >= cast(s32)size { return false }
+        return copy_spelling(spelling, size, *renamed[0])
+    }
+    return true
+}
+
 // Saved imports use the provider's namespaces. Rebind them once, before
 // resolving or checking the module, so two aliased revisions stay distinct.
 PackageRemapSaved :: (map: *ZirPackageMap, path: *u8, module: *IR.ZirModule) -> bool {
     owner := PackageOwner(map, path)
-    if owner == null { return false }
-    for index: cast(s32)-1..module.import_count - 1 {
-        spelling := ifx index < 0 then *module.name[0] else *module.imports[index].target[0]
-        if index >= 0 && module.imports[index].kind == .EXTERN { continue }
-        for rename: cast(s32)0..map.rename_count - 1 {
-            row := *map.renames[rename]
-            length := strlen(row.original)
-            if strcmp(row.owner, owner) != 0 || strncmp(spelling, row.original, length) != 0 ||
-                strncmp(cast(*u8)(cast(usize)spelling + length), ParserCString("__"), 2) != 0 { continue }
-            renamed: [IR.ZIR_PATH_MAX]u8
-            size := ifx index < 0 then cast(usize)IR.ZIR_NAME_MAX else cast(usize)IR.ZIR_PATH_MAX
-            if snprintf(*renamed[0], size, ParserCString("%s%s"), row.target,
-                cast(*u8)(cast(usize)spelling + length)) >= cast(s32)size { return false }
-            if !copy_spelling(spelling, size, *renamed[0]) { return false }
-            break
+    if owner == null || !RemapSavedName(map, owner, *module.name[0], IR.ZIR_NAME_MAX) { return false }
+    for index: cast(s32)0..module.import_count - 1 {
+        imported := *module.imports[index]
+        if imported.kind != .EXTERN {
+            if !RemapSavedName(map, owner, *imported.target[0], IR.ZIR_PATH_MAX) { return false }
+        } else {
+            if !RemapSavedName(map, owner, *imported.declaration_module[0], IR.ZIR_NAME_MAX) { return false }
+            if strncmp(*imported.target[0], ParserCString("ziran:"), 6) == 0 &&
+               !RemapSavedName(map, owner, *imported.target[6], IR.ZIR_PATH_MAX - 6) { return false }
         }
     }
     return true

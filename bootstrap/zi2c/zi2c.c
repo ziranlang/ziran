@@ -7,12 +7,17 @@
 #include "compiler_cli.h"
 #include "compiler_c_backend.h"
 #include "compiler_runtime_emit.h"
+#include "compiler_c_emit_call.h"
+#include "compiler_c_emit_value.h"
+#ifndef ZIRAN_TYPE_FORWARD_zi2c_StaticText
+#define ZIRAN_TYPE_FORWARD_zi2c_StaticText
+typedef struct zi2c_StaticText zi2c_StaticText;
+#endif
 #define TARGET_C 0
 #define OS_WEB 5
 #define MAX_EMIT_WORKERS 16
 #define PROGRAMS_PER_WORKER 16
 #define TEXT_LIMIT 2147483647
-typedef struct zi2c_StaticText zi2c_StaticText;
 
 struct zi2c_StaticText {
     uint8_t* data;

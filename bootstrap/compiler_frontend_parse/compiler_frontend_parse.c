@@ -149,13 +149,7 @@ int32_t zir_foreign_compiler_frontend_parse__snprintf(uint8_t* output, size_t ca
 #else
 int32_t zir_foreign_compiler_frontend_parse__snprintf(uint8_t* output, size_t capacity, uint8_t* format, ...) __asm__("snprintf");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_frontend_parse_byte_at(uint8_t* text, size_t index) ZIRAN_MAYBE_UNUSED;
 static size_t compiler_frontend_parse_distance(uint8_t* start, uint8_t* end) ZIRAN_MAYBE_UNUSED;
 static String compiler_frontend_parse_view_bytes(uint8_t* text, size_t length) ZIRAN_MAYBE_UNUSED;

@@ -291,13 +291,7 @@ int32_t zir_foreign_compiler_c_emit_value__CNativeGoType(ZirModule* module, uint
 #else
 int32_t zir_foreign_compiler_c_emit_value__CNativeGoType(ZirModule* module, uint8_t* type, uint8_t* dst, size_t dst_size) __asm__("NativeGoType");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_c_emit_value_CStr(String s) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_c_emit_value_PtrAdd(uint8_t* p, size_t n) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_c_emit_value_PtrSub(uint8_t* p, size_t n) ZIRAN_MAYBE_UNUSED;
@@ -3783,7 +3777,7 @@ void
 zir_emit_slice_index(Emitter* e, uint8_t* type, uint8_t* base, uint8_t* index, int32_t checked, uint8_t* out, size_t size)
 {
     if (((ZirTarget)(e->target)) == ((ZirTarget)(1))) {
-        String value_0 = StringLiteral("%s[%s]");
+        String value_0 = StringLiteral("(%s)[%s]");
         uint8_t* value_1 = (void *)0;
         {
             String s = value_0;
@@ -3825,7 +3819,7 @@ zir_emit_slice_index(Emitter* e, uint8_t* type, uint8_t* base, uint8_t* index, i
     uint8_t* value_8 = &(mapped[used]);
     (*value_8) = 0;
     if (checked != 0) {
-        String value_9 = StringLiteral("((%s *)%s.data)[SliceIndex(%s, (int64_t)%s)]");
+        String value_9 = StringLiteral("((%s *)(%s).data)[SliceIndex(%s, (int64_t)%s)]");
         uint8_t* value_10 = (void *)0;
         {
             String s = value_9;
@@ -3833,7 +3827,7 @@ zir_emit_slice_index(Emitter* e, uint8_t* type, uint8_t* base, uint8_t* index, i
         }
         compiler_c_emit_value_CheckFormat(zir_foreign_compiler_c_emit_value__snprintf(out, size, value_10, &(mapped[0]), base, base, index), size);
     } else {
-        String value_12 = StringLiteral("((%s *)%s.data)[%s]");
+        String value_12 = StringLiteral("((%s *)(%s).data)[%s]");
         uint8_t* value_13 = (void *)0;
         {
             String s = value_12;

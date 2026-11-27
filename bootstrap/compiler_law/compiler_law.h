@@ -5,6 +5,12 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "zir_slice.h"
+#ifdef ZIRAN_COMPILER_LAW_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Spelled
+#define ZIRAN_TYPE_FORWARD_Spelled
+typedef struct Spelled Spelled;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_services.h"
 #include "compiler_text.h"
@@ -14,9 +20,6 @@ extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_LAW_H_PRIVATE
 #define NameMax 128
-#endif
-#ifdef ZIRAN_COMPILER_LAW_H_PRIVATE
-typedef struct Spelled Spelled;
 #endif
 #ifdef ZIRAN_COMPILER_LAW_H_PRIVATE
 

@@ -5,6 +5,42 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_ProcessArgumentSlot
+#define ZIRAN_TYPE_FORWARD_ProcessArgumentSlot
+typedef struct ProcessArgumentSlot ProcessArgumentSlot;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ProcessOptions
+#define ZIRAN_TYPE_FORWARD_ProcessOptions
+typedef struct ProcessOptions ProcessOptions;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ProcessRun
+#define ZIRAN_TYPE_FORWARD_ProcessRun
+typedef struct ProcessRun ProcessRun;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_063f9895eff4d34b
+#define ZIRAN_CONCRETE_FORWARD___type_063f9895eff4d34b
+typedef struct __type_063f9895eff4d34b __type_063f9895eff4d34b;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_03c9bb6e22816916
+#define ZIRAN_CONCRETE_FORWARD___type_03c9bb6e22816916
+typedef struct __type_03c9bb6e22816916 __type_03c9bb6e22816916;
+#endif
+#ifdef ZIRAN_PROCESS_RUN_LINUX_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Prepared
+#define ZIRAN_TYPE_FORWARD_Prepared
+typedef struct Prepared Prepared;
+#endif
+#endif
+#ifdef ZIRAN_PROCESS_RUN_LINUX_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_SignalHandler
+#define ZIRAN_CALLABLE_SignalHandler
+typedef void (*SignalHandler)(int32_t);
+#endif
+#endif
 #include "c_string.h"
 #include "vec.h"
 
@@ -22,27 +58,6 @@ extern "C" {
 #endif
 #ifdef ZIRAN_PROCESS_RUN_LINUX_H_PRIVATE
 #define zir_d_ed0a0fdef7fd3c5a 4
-#endif
-typedef struct ProcessArgumentSlot ProcessArgumentSlot;
-typedef struct ProcessOptions ProcessOptions;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
-#endif
-typedef struct ProcessRun ProcessRun;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_063f9895eff4d34b
-#define ZIRAN_CONCRETE_FORWARD___type_063f9895eff4d34b
-typedef struct __type_063f9895eff4d34b __type_063f9895eff4d34b;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_03c9bb6e22816916
-#define ZIRAN_CONCRETE_FORWARD___type_03c9bb6e22816916
-typedef struct __type_03c9bb6e22816916 __type_03c9bb6e22816916;
-#endif
-#ifdef ZIRAN_PROCESS_RUN_LINUX_H_PRIVATE
-typedef struct Prepared Prepared;
-#endif
-#ifdef ZIRAN_PROCESS_RUN_LINUX_H_PRIVATE
-typedef void (*SignalHandler)(int32_t);
 #endif
 
 struct ProcessArgumentSlot {

@@ -3,13 +3,7 @@
 #include <stdbool.h>
 #include "zir_string.h"
 #include "compiler_source.h"
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t compiler_source_Byte(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
 static bool compiler_source_Space(uint8_t byte) ZIRAN_MAYBE_UNUSED;
 static bool compiler_source_Letter(uint8_t byte) ZIRAN_MAYBE_UNUSED;
@@ -163,7 +157,7 @@ compiler_source_Put(Slice output, int64_t* used, uint8_t byte)
     int64_t value_0 = *(used);
     int64_t value_1 = (int64_t)(output).length;
     if (value_0 < value_1) {
-        uint8_t* value_2 = &(((uint8_t *)output.data)[*(used)]);
+        uint8_t* value_2 = &(((uint8_t *)(output).data)[*(used)]);
         (*value_2) = byte;
     }
     int64_t* value_3 = &((*(used)));
@@ -1107,7 +1101,7 @@ compiler_source_NormalizeRecordSeparators(Slice body, bool split_commas)
     bool quoted = false;
     int32_t nesting = 0;
     while (at < (int64_t)(body).length) {
-        uint8_t byte = ((uint8_t *)body.data)[at];
+        uint8_t byte = ((uint8_t *)(body).data)[at];
         if (quoted) {
             if (byte == 92 && (int64_t)((uint64_t)at + UINT64_C(1)) < (int64_t)(body).length) {
                 at = (int64_t)((uint64_t)at + UINT64_C(1));
@@ -1121,7 +1115,7 @@ compiler_source_NormalizeRecordSeparators(Slice body, bool split_commas)
         } else if (byte == 93 || byte == 41) {
             nesting = (int32_t)((uint32_t)nesting - 1u);
         } else if (nesting == 0 && (byte == 59 || (split_commas && byte == 44))) {
-            uint8_t* value_0 = &(((uint8_t *)body.data)[at]);
+            uint8_t* value_0 = &(((uint8_t *)(body).data)[at]);
             (*value_0) = 10;
         }
         at = (int64_t)((uint64_t)at + UINT64_C(1));
@@ -2345,7 +2339,7 @@ compiler_source_CopyProcedureText(String source, Slice output, bool normalize_ty
             int64_t range_last_15 = (int64_t)((uint64_t)count - UINT64_C(1));
             int64_t index = range_first_15;
             if (index <= range_last_15) for (;;) {
-                uint8_t* value_5 = &(((uint8_t *)output.data)[index]);
+                uint8_t* value_5 = &(((uint8_t *)(output).data)[index]);
                 (*value_5) = (uint8_t)source.data[index];
                 if (index == range_last_15) {
                     break;
@@ -2355,7 +2349,7 @@ compiler_source_CopyProcedureText(String source, Slice output, bool normalize_ty
         }
         used = count;
     }
-    uint8_t* value_6 = &(((uint8_t *)output.data)[used]);
+    uint8_t* value_6 = &(((uint8_t *)(output).data)[used]);
     (*value_6) = 0;
     return used;
 }

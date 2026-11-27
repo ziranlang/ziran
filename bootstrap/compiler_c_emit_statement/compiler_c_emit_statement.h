@@ -4,6 +4,30 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#ifdef ZIRAN_COMPILER_C_EMIT_STATEMENT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_c_emit_statement_CParameter
+#define ZIRAN_TYPE_FORWARD_compiler_c_emit_statement_CParameter
+typedef struct compiler_c_emit_statement_CParameter compiler_c_emit_statement_CParameter;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_STATEMENT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_c_emit_statement_CParameters
+#define ZIRAN_TYPE_FORWARD_compiler_c_emit_statement_CParameters
+typedef struct compiler_c_emit_statement_CParameters compiler_c_emit_statement_CParameters;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_STATEMENT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_c_emit_statement_StaticText
+#define ZIRAN_TYPE_FORWARD_compiler_c_emit_statement_StaticText
+typedef struct compiler_c_emit_statement_StaticText compiler_c_emit_statement_StaticText;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_STATEMENT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParallelRegion
+#define ZIRAN_TYPE_FORWARD_ParallelRegion
+typedef struct ParallelRegion ParallelRegion;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_native_names.h"
 #include "compiler_c_range.h"
@@ -31,18 +55,6 @@ extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_STATEMENT_H_PRIVATE
 #define INLINE_RECORD_DEPTH 3
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_STATEMENT_H_PRIVATE
-typedef struct compiler_c_emit_statement_CParameter compiler_c_emit_statement_CParameter;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_STATEMENT_H_PRIVATE
-typedef struct compiler_c_emit_statement_CParameters compiler_c_emit_statement_CParameters;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_STATEMENT_H_PRIVATE
-typedef struct compiler_c_emit_statement_StaticText compiler_c_emit_statement_StaticText;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_STATEMENT_H_PRIVATE
-typedef struct ParallelRegion ParallelRegion;
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_STATEMENT_H_PRIVATE
 

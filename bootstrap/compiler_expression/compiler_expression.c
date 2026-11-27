@@ -3,13 +3,7 @@
 #include <stdbool.h>
 #include "zir_string.h"
 #include "compiler_expression.h"
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static String compiler_expression_Trim(String source) ZIRAN_MAYBE_UNUSED;
 static String compiler_expression_SkipSpace(String source) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_expression_FindByte(String source, uint8_t wanted) ZIRAN_MAYBE_UNUSED;

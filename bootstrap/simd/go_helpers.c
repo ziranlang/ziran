@@ -71,7 +71,7 @@ go_helpers_Define(LaneFunctions* functions, String name, String parameters, Stri
         int64_t loop_cursor_0 = 0LL;
         while (loop_cursor_0 < loop_count_0) {
             int64_t loop_index_0 = loop_cursor_0;
-            String existing = ((String *)loop_view_0.data)[loop_index_0];
+            String existing = ((String *)(loop_view_0).data)[loop_index_0];
             if (StringEqual(existing, name)) {
                 return name;
             }
@@ -358,7 +358,7 @@ go_helpers_List(String prefix, Slice items, String suffix)
     __type_131eebaaeb761e42 row = {0};
     __type_131eebaaeb761e42* value_4 = &row;
     for (int64_t it_index = 0LL; it_index < (int64_t)(items).length; it_index++) {
-        String item = ((String *)items.data)[it_index];
+        String item = ((String *)(items).data)[it_index];
         if (row.count > 0LL && (int64_t)(((uint64_t)(row.count) + (uint64_t)((int64_t)(item).length)) + UINT64_C(2)) > 88LL) {
             Slice value_5 = {(row).data, (row).count};
             Slice value_6 = SliceRangeAt(value_5, 0LL, row.count, sizeof(*(row).data));
@@ -1511,7 +1511,7 @@ go_helpers_GoEntries(LaneFunctions* functions)
         int64_t loop_cursor_7 = 0LL;
         while (loop_cursor_7 < loop_count_7) {
             int64_t loop_index_7 = loop_cursor_7;
-            String op = ((String *)loop_view_7.data)[loop_index_7];
+            String op = ((String *)(loop_view_7).data)[loop_index_7];
             int64_t it_index = loop_index_7;
             bool value_7 = text_tools_TextHasPrefix(op, StringLiteral("load"));
             bool value_8 = value_7 || text_tools_TextHasPrefix(op, StringLiteral("store"));
@@ -1526,7 +1526,7 @@ go_helpers_GoEntries(LaneFunctions* functions)
                 int64_t loop_cursor_11 = 0LL;
                 while (loop_cursor_11 < loop_count_11) {
                     int64_t loop_index_11 = loop_cursor_11;
-                    VectorType t = ((VectorType *)loop_view_11.data)[loop_index_11];
+                    VectorType t = ((VectorType *)(loop_view_11).data)[loop_index_11];
                     int64_t it_index = loop_index_11;
                     if (StringEqual(op, StringLiteral("narrow"))) {
                         if (t.is_float || t.bits == 8) {
@@ -1699,7 +1699,7 @@ go_helpers_Table(__type_131eebaaeb761e42* output, String table, Slice names, Sli
     __type_9f828aa1372cb21a sorted = {0};
     __type_9f828aa1372cb21a* value_1 = &sorted;
     for (int64_t it_index = 0LL; it_index < (int64_t)(names).length; it_index++) {
-        String name = ((String *)names.data)[it_index];
+        String name = ((String *)(names).data)[it_index];
         String value_2 = name;
         bool value_3 = false;
         void *value_4 = ZirVecGrow((void *)(sorted).data, &(sorted).capacity, (sorted).count, sizeof(*(sorted).data));
@@ -1719,8 +1719,8 @@ go_helpers_Table(__type_131eebaaeb761e42* output, String table, Slice names, Sli
             int64_t range_last_7 = (int64_t)((uint64_t)((int64_t)(names).length) - UINT64_C(1));
             int64_t i = range_first_7;
             if (i <= range_last_7) for (;;) {
-                if (StringEqual(((String *)names.data)[i], name)) {
-                    String value_6 = go_helpers_CString(((String *)texts.data)[i]);
+                if (StringEqual(((String *)(names).data)[i], name)) {
+                    String value_6 = go_helpers_CString(((String *)(texts).data)[i]);
                     String value_7 = model_Render(StringLiteral("    {\"@0\",\n     @1},"), name, value_6, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
                     model_AppendLine(output, value_7);
                     break;

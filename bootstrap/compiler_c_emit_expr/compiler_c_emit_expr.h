@@ -4,6 +4,42 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#ifdef ZIRAN_COMPILER_C_EMIT_EXPR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_TextStream
+#define ZIRAN_TYPE_FORWARD_TextStream
+typedef struct TextStream TextStream;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_EXPR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ConstantTables
+#define ZIRAN_TYPE_FORWARD_ConstantTables
+typedef struct ConstantTables ConstantTables;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_EXPR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_EmitMapCallBuffers
+#define ZIRAN_TYPE_FORWARD_EmitMapCallBuffers
+typedef struct EmitMapCallBuffers EmitMapCallBuffers;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_EXPR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_EmitVecCallBuffers
+#define ZIRAN_TYPE_FORWARD_EmitVecCallBuffers
+typedef struct EmitVecCallBuffers EmitVecCallBuffers;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_EXPR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_EmitExprBuffers
+#define ZIRAN_TYPE_FORWARD_EmitExprBuffers
+typedef struct EmitExprBuffers EmitExprBuffers;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_EXPR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_c_emit_expr_StaticText
+#define ZIRAN_TYPE_FORWARD_compiler_c_emit_expr_StaticText
+typedef struct compiler_c_emit_expr_StaticText compiler_c_emit_expr_StaticText;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_native_names.h"
 #include "compiler_c_range.h"
@@ -21,24 +57,6 @@ extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_EXPR_H_PRIVATE
 #define ZIR_BIT_BSWAP 4
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_EXPR_H_PRIVATE
-typedef struct TextStream TextStream;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_EXPR_H_PRIVATE
-typedef struct ConstantTables ConstantTables;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_EXPR_H_PRIVATE
-typedef struct EmitMapCallBuffers EmitMapCallBuffers;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_EXPR_H_PRIVATE
-typedef struct EmitVecCallBuffers EmitVecCallBuffers;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_EXPR_H_PRIVATE
-typedef struct EmitExprBuffers EmitExprBuffers;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_EXPR_H_PRIVATE
-typedef struct compiler_c_emit_expr_StaticText compiler_c_emit_expr_StaticText;
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_EXPR_H_PRIVATE
 

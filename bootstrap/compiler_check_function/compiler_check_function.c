@@ -453,13 +453,7 @@ Binding* zir_foreign_compiler_check_function__vec_place_root(Checker* c, int32_t
 #else
 Binding* zir_foreign_compiler_check_function__vec_place_root(Checker* c, int32_t index) __asm__("private_check_vec_place_root");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static ZirSourceSpan compiler_check_function_assignment_declaration(Checker* c, int32_t index) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_function_tree_reads_name(ZirFunction* fn, int32_t root, uint8_t* name, int32_t move) ZIRAN_MAYBE_UNUSED;
 static void compiler_check_function_reject_read_of_moved(Checker* c, int32_t root, int32_t node) ZIRAN_MAYBE_UNUSED;

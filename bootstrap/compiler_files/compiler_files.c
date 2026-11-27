@@ -117,13 +117,7 @@ int32_t zir_foreign_compiler_files__S15StatIsLink(void* info) __asm__("_S15StatI
 #else
 int32_t zir_foreign_compiler_files__S15StatIsLink(void* info) __asm__("S15StatIsLink");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_files_WindowsPrefix(bool unc) ZIRAN_MAYBE_UNUSED;
 static uint8_t unc_prefix[9] = {92, 92, 63, 92, 85, 78, 67, 92, 0};
 static uint8_t path_prefix[5] = {92, 92, 63, 92, 0};

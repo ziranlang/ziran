@@ -5,16 +5,31 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_RecordField
+#define ZIRAN_TYPE_FORWARD_RecordField
+typedef struct RecordField RecordField;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ElementType
+#define ZIRAN_TYPE_FORWARD_ElementType
+typedef struct ElementType ElementType;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ForeignCall
+#define ZIRAN_TYPE_FORWARD_ForeignCall
+typedef struct ForeignCall ForeignCall;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_VectorShape
+#define ZIRAN_TYPE_FORWARD_VectorShape
+typedef struct VectorShape VectorShape;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_VectorSpelling
+#define ZIRAN_TYPE_FORWARD_VectorSpelling
+typedef struct VectorSpelling VectorSpelling;
+#endif
 #include "compiler_text.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct RecordField RecordField;
-typedef struct ElementType ElementType;
-typedef struct ForeignCall ForeignCall;
-typedef struct VectorShape VectorShape;
-typedef struct VectorSpelling VectorSpelling;
 
 struct RecordField {
     int32_t status;

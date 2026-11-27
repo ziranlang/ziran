@@ -23,7 +23,7 @@ KeepNameFormat :: (format: *u8, varargs: ..any) -> *u8 #foreign compiler "KeepNa
 KeepText :: (text: *u8) -> *u8 #foreign compiler "KeepText";
 ParametersOf :: (text: *u8) -> *ZirParameters #foreign compiler "ParametersOf";
 ResolveFunction :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunction";
-ResolveQualifiedHostImportAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8, owner: **IR.ZirModule, declaration: **IR.ZirImport) -> s32 #foreign compiler "ResolveQualifiedHostImportAt";
+ResolveForeignImportAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8, owner: **IR.ZirModule, declaration: **IR.ZirImport) -> s32 #foreign compiler "ResolveForeignImportAt";
 SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
 StandardModuleName :: (name: *u8, leaf: *u8) -> s32 #foreign compiler "StandardModuleName";
 StandardScopedName :: (leaf: *u8, out: *u8, size: usize) -> s32 #foreign compiler "StandardScopedName";
@@ -169,7 +169,7 @@ argument_flow :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction,
     found: s32 = ResolveFunction(module, (e).name, *(owner), *(callee))
     if ((((found != 1) || (callee == cast(*IR.ZirFunction)((null)))) || (owner == cast(*IR.ZirModule)((null)))) || ((callee).is_extern != 0)) {
         qualified_host: *IR.ZirImport = null
-        if (((((field == cast(*u8)((null))) && (found == 0)) && (!((e).slot_type != null) || !(((e).slot_type)[0] != 0))) && (ResolveQualifiedHostImportAt(module, (e).name, SpanPath((e).span), *(owner), *(qualified_host)) == 1)) && ((qualified_host).reads_arguments != 0)) {
+        if (((((field == cast(*u8)((null))) && (found == 0)) && (!((e).slot_type != null) || !(((e).slot_type)[0] != 0))) && (ResolveForeignImportAt(module, (e).name, SpanPath((e).span), *(owner), *(qualified_host)) == 1)) && ((qualified_host).reads_arguments != 0)) {
             return 1
         }
         if (((field == cast(*u8)((null))) && (found != (-1))) && (reading_foreign((ifx ((found == 1) && (owner != null)) then owner else module), (ifx ((found == 1) && (callee != null)) then cast(*u8)(*((callee).name)) else (e).name)) != 0)) {

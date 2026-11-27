@@ -340,13 +340,7 @@ ZirSourceSpan zir_foreign_compiler_load__SpanEnd(uint8_t* path, int32_t line, in
 #else
 ZirSourceSpan zir_foreign_compiler_load__SpanEnd(uint8_t* path, int32_t line, int32_t column, int32_t end_line, int32_t end_column) __asm__("SpanEnd");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t compiler_load_PersistenceSet0(uint8_t* p, uint8_t value) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_load_PersistencePost1(int32_t* p) ZIRAN_MAYBE_UNUSED;
 static ProgramSet compiler_load_PersistenceSet2(ProgramSet* p, ProgramSet value) ZIRAN_MAYBE_UNUSED;

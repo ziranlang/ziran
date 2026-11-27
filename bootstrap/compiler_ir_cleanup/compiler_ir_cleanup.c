@@ -117,13 +117,7 @@ int32_t zir_foreign_compiler_ir_cleanup__isspace(int32_t character) __asm__("_is
 #else
 int32_t zir_foreign_compiler_ir_cleanup__isspace(int32_t character) __asm__("isspace");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int32_t compiler_ir_cleanup_fail(ZirStmt* st, uint8_t* message) ZIRAN_MAYBE_UNUSED;
 static String compiler_ir_cleanup_statement_text(uint8_t* text) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_ir_cleanup_statement_copy(String source, uint8_t* output, size_t capacity) ZIRAN_MAYBE_UNUSED;

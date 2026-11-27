@@ -198,13 +198,7 @@ int32_t zir_foreign_compiler_parse_condition__isspace(int32_t character) __asm__
 #else
 int32_t zir_foreign_compiler_parse_condition__isspace(int32_t character) __asm__("isspace");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static void compiler_parse_condition_add_visible_compile_defines(ZirModule* visible, ZirModule* parsed, ZirConsts* constants) ZIRAN_MAYBE_UNUSED;
 static ZirExpr* compiler_parse_condition_outer_compile_ifx(ZirFunction* fn) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_parse_condition_compile_size_of_ready(ZirModule* module, uint8_t* condition) ZIRAN_MAYBE_UNUSED;

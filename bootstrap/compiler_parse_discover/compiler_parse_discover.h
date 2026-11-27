@@ -4,6 +4,16 @@
 
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_Results__string__s64
+#define ZIRAN_TYPE_FORWARD_Results__string__s64
+typedef struct Results__string__s64 Results__string__s64;
+#endif
+#ifdef ZIRAN_COMPILER_PARSE_DISCOVER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_OwnedCallableBuffers
+#define ZIRAN_TYPE_FORWARD_OwnedCallableBuffers
+typedef struct OwnedCallableBuffers OwnedCallableBuffers;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_parse_types.h"
 #include "compiler_type.h"
@@ -21,10 +31,6 @@ extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_PARSE_DISCOVER_H_PRIVATE
 #define POINTER_STORE_HINT "*p = value is not Ziran syntax; *p takes an address, so store through a pointer with <<p = value"
-#endif
-typedef struct Results__string__s64 Results__string__s64;
-#ifdef ZIRAN_COMPILER_PARSE_DISCOVER_H_PRIVATE
-typedef struct OwnedCallableBuffers OwnedCallableBuffers;
 #endif
 
 struct Results__string__s64 {

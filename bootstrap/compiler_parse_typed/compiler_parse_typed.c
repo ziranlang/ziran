@@ -480,13 +480,7 @@ int32_t zir_foreign_compiler_parse_typed__isspace(int32_t character) __asm__("_i
 #else
 int32_t zir_foreign_compiler_parse_typed__isspace(int32_t character) __asm__("isspace");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int32_t compiler_parse_typed_enum_member_spelling(ZirType* enumeration, int64_t value, uint8_t* out, size_t size) ZIRAN_MAYBE_UNUSED;
 static ZirType* compiler_parse_typed_enum_type(ZirModule* module, uint8_t* type) ZIRAN_MAYBE_UNUSED;
 static void compiler_parse_typed_enum_member_expr(ZirModule* module, uint8_t* type, int64_t value, uint8_t** expr) ZIRAN_MAYBE_UNUSED;

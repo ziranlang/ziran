@@ -2,13 +2,7 @@
 #include <stdbool.h>
 #include "zir_string.h"
 #include "compiler_statement.h"
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static bool compiler_statement_CompilePrefix(String source, String prefix) ZIRAN_MAYBE_UNUSED;
 static String compiler_statement_Trim(String source) ZIRAN_MAYBE_UNUSED;
 static bool compiler_statement_Name(String source, int64_t limit) ZIRAN_MAYBE_UNUSED;

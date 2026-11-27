@@ -5,15 +5,30 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_SourceRange
+#define ZIRAN_TYPE_FORWARD_SourceRange
+typedef struct SourceRange SourceRange;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_SourcePart
+#define ZIRAN_TYPE_FORWARD_SourcePart
+typedef struct SourcePart SourcePart;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_DecodedLiteral
+#define ZIRAN_TYPE_FORWARD_DecodedLiteral
+typedef struct DecodedLiteral DecodedLiteral;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_FormatStep
+#define ZIRAN_TYPE_FORWARD_FormatStep
+typedef struct FormatStep FormatStep;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LiteralBits
+#define ZIRAN_TYPE_FORWARD_LiteralBits
+typedef struct LiteralBits LiteralBits;
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct SourceRange SourceRange;
-typedef struct SourcePart SourcePart;
-typedef struct DecodedLiteral DecodedLiteral;
-typedef struct FormatStep FormatStep;
-typedef struct LiteralBits LiteralBits;
 
 struct SourceRange {
     int64_t begin;
@@ -170,7 +185,7 @@ compiler_text_CamelIdentifier_ziran_inline(String source, Slice output)
             if (upper && byte >= 97 && byte <= 122) {
                 byte = (uint8_t)((uint32_t)byte - 32u);
             }
-            uint8_t* value_0 = &(((uint8_t *)output.data)[used]);
+            uint8_t* value_0 = &(((uint8_t *)(output).data)[used]);
             (*value_0) = byte;
             used = (int64_t)((uint64_t)used + UINT64_C(1));
             upper = false;
@@ -179,22 +194,22 @@ compiler_text_CamelIdentifier_ziran_inline(String source, Slice output)
         }
     }
     if (used == 0LL && (int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
-        uint8_t* value_1 = &(((uint8_t *)output.data)[used]);
+        uint8_t* value_1 = &(((uint8_t *)(output).data)[used]);
         (*value_1) = 88;
         used = (int64_t)((uint64_t)used + UINT64_C(1));
     }
-    if (used > 0LL && ((uint8_t *)output.data)[0] >= 48 && ((uint8_t *)output.data)[0] <= 57 && (int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
+    if (used > 0LL && ((uint8_t *)(output).data)[0] >= 48 && ((uint8_t *)(output).data)[0] <= 57 && (int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
         int64_t index = used;
         while (index > 0LL) {
-            uint8_t* value_2 = &(((uint8_t *)output.data)[index]);
-            (*value_2) = ((uint8_t *)output.data)[((int64_t)((uint64_t)index - UINT64_C(1)))];
+            uint8_t* value_2 = &(((uint8_t *)(output).data)[index]);
+            (*value_2) = ((uint8_t *)(output).data)[((int64_t)((uint64_t)index - UINT64_C(1)))];
             index = (int64_t)((uint64_t)index - UINT64_C(1));
         }
-        uint8_t* value_3 = &(((uint8_t *)output.data)[0]);
+        uint8_t* value_3 = &(((uint8_t *)(output).data)[0]);
         (*value_3) = 77;
         used = (int64_t)((uint64_t)used + UINT64_C(1));
     }
-    uint8_t* value_4 = &(((uint8_t *)output.data)[used]);
+    uint8_t* value_4 = &(((uint8_t *)(output).data)[used]);
     (*value_4) = 0;
     return used;
 }

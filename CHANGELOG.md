@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+- Avoid an extra register copy for x86-64 immediate integer multiplication
+  when its input remains live. Keep the existing power-of-two and factor-31
+  specializations; matched Alpha trials improve indexed record updates by
+  about 2%, with the wider standard workload mean unchanged.
+
+- Declare cyclic native/TSX interface types before C header includes, and keep
+  inline bodies behind the same complete-type rules as their signatures.
+  Preserve contextual scoped callbacks and captured slice indexing in C and Go.
+
+- Resolve imported native foreign procedures through ordinary typed module
+  exports. Preserve host capability identity, checked signatures and bindings
+  across TSX aliases and saved IR, including unbound native host linker symbols;
+  rebuild checked IR with format 70.
+
 - Share C compiler annotations in `ziran_compiler.h` instead of repeating
   portability macros throughout generated sources and inline headers.
 
@@ -11,7 +25,6 @@
 
 - Add checked defaults to named TypeScript functions and preserve authored
   caller columns through native and saved IR, including JSX component calls.
-  Rebuild checked IR with format 69 for the expanded source-location record.
 
 - Check borrowed callbacks and views through deeply nested and recursive record
   declarations without a depth cutoff. Keep bound native provider names when

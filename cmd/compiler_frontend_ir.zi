@@ -892,47 +892,64 @@ ResolveFunction :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, fun
 }
 
 
-#scope_export
-#program_export "ResolveQualifiedHostImportAt"
-ResolveQualifiedHostImportAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8, owner: **IR.ZirModule, declaration: **IR.ZirImport) -> s32 {
-    ParserSet5(owner, null)
-    ParserSet7(declaration, null)
-    dot: *u8 = strchr(name, 46)
-    if ((((dot == cast(*u8)((null))) || (dot == name)) || (cast(s32)(cast(s8)((dot)[1])) == 0)) || (strchr(cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8)), 46) != cast(*u8)((null)))) {
-        return 0
+#scope_file
+ForeignVisit :: struct {
+    module: *IR.ZirModule
+    name: *u8
+    next: *ForeignVisit
+}
+
+ResolveForeignDepth :: (module: *IR.ZirModule, name: *u8, source_path: *u8,
+                        exported_only: bool, visits: *ForeignVisit,
+                        owner: **IR.ZirModule, declaration: **IR.ZirImport) -> s32 {
+    owner[0] = null; declaration[0] = null
+    previous := visits
+    while previous != null {
+        if previous.module == module && strcmp(previous.name, name) == 0 { return 0 }
+        previous = previous.next
     }
-    alias_length: usize = cast(usize)(((cast(isize)(cast(usize)(dot) - cast(usize)(name)) / cast(isize)size_of(u8))))
-    {
-        i: s32 = 0
-        while check_loop_11 := (i < (module).import_count) {
-            alias: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)((module).imports) + cast(usize)(i) * size_of(IR.ZirImport))
-            target: *IR.ZirModule = (alias).resolved_module
-            if (((((cast(s32)((alias).kind) != cast(s32)(2)) || (target == cast(*IR.ZirModule)((null)))) || !(file_scope_visible_at(source_path, (alias).is_file_private, (alias).span) != 0)) || (strlen(cast(*u8)(*((alias).name))) != alias_length)) || (strncmp(cast(*u8)(*((alias).name)), name, alias_length) != 0)) {
-                ParserPost2(*(i))
-                continue check_loop_11
-            }
-            {
-                j: s32 = 0
-                while check_loop_12 := (j < (target).import_count) {
-                    candidate: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)((target).imports) + cast(usize)(j) * size_of(IR.ZirImport))
-                    if (((((cast(s32)((candidate).kind) != cast(s32)(3)) || (cast(s32)((candidate).extern_kind) != cast(s32)(1))) || !((candidate).is_public != 0)) || ((candidate).is_file_private != 0)) || (strcmp(cast(*u8)(*((candidate).name)), cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8))) != 0)) {
-                        ParserPost2(*(j))
-                        continue check_loop_12
-                    }
-                    if (((declaration)[0] != cast(*IR.ZirImport)((null))) && ((declaration)[0] != candidate)) {
-                        ParserSet5(owner, null)
-                        ParserSet7(declaration, null)
-                        return (-1)
-                    }
-                    ParserSet5(owner, target)
-                    ParserSet7(declaration, candidate)
-                    ParserPost2(*(j))
-                }
-            }
-            ParserPost2(*(i))
+    visit := ForeignVisit.{module = module, name = name, next = visits}
+    dot := strchr(name, 46)
+    if dot == name || (dot != null && dot[1] == 0) { return 0 }
+    if dot == null {
+        for index: cast(s32)0..module.import_count - 1 {
+            candidate := *module.imports[index]
+            if candidate.kind != .EXTERN || strcmp(*candidate.name[0], name) != 0 ||
+               file_scope_visible_at(source_path, candidate.is_file_private, candidate.span) == 0 ||
+               (exported_only && (candidate.is_public == 0 || candidate.is_file_private != 0)) { continue }
+            if declaration[0] != null && declaration[0] != candidate { return -1 }
+            owner[0] = module; declaration[0] = candidate
         }
+        if declaration[0] != null { return 1 }
     }
-    return cast(s32)((declaration)[0] != cast(*IR.ZirImport)((null)))
+    for index: cast(s32)0..module.import_count - 1 {
+        binding := *module.imports[index]
+        if binding.resolved_module == null ||
+           file_scope_visible_at(source_path, binding.is_file_private, binding.span) == 0 ||
+           (exported_only && binding.is_file_private != 0) { continue }
+        wanted := name
+        if dot != null {
+            length := cast(usize)dot - cast(usize)name
+            if binding.kind != .MODULE || strlen(*binding.name[0]) != length ||
+               strncmp(*binding.name[0], name, length) != 0 { continue }
+            wanted = cast(*u8)(cast(usize)dot + 1)
+        } else if !((binding.kind == .OPEN && !exported_only) ||
+                    (binding.kind == .MODULE && binding.is_using != 0)) { continue }
+        nested_owner: *IR.ZirModule = null
+        nested: *IR.ZirImport = null
+        status := ResolveForeignDepth(binding.resolved_module, wanted, null, true, *visit,
+                                      *nested_owner, *nested)
+        if status < 0 || (status > 0 && declaration[0] != null && declaration[0] != nested) { return -1 }
+        if status > 0 { owner[0] = nested_owner; declaration[0] = nested }
+    }
+    return cast(s32)(declaration[0] != null)
+}
+
+#scope_export
+#program_export "ResolveForeignImportAt"
+ResolveForeignImportAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8,
+                          owner: **IR.ZirModule, declaration: **IR.ZirImport) -> s32 {
+    return ResolveForeignDepth(module, name, source_path, false, null, owner, declaration)
 }
 
 

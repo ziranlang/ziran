@@ -16,13 +16,7 @@ static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int64_t compiler_declaration_Find(String source, String needle) ZIRAN_MAYBE_UNUSED;
 static String compiler_declaration_Trim(String source) ZIRAN_MAYBE_UNUSED;
 static void compiler_declaration_Put(Slice output, int64_t* used, String source) ZIRAN_MAYBE_UNUSED;
@@ -79,7 +73,7 @@ compiler_declaration_Put(Slice output, int64_t* used, String source)
         int64_t value_0 = *(used);
         int64_t value_1 = (int64_t)(output).length;
         if (value_0 < value_1) {
-            uint8_t* value_2 = &(((uint8_t *)output.data)[*(used)]);
+            uint8_t* value_2 = &(((uint8_t *)(output).data)[*(used)]);
             (*value_2) = byte;
         }
         int64_t* value_3 = &((*(used)));
@@ -1589,7 +1583,7 @@ compiler_declaration_ParameterCanonical(String value, Slice output)
     while (count > 0LL) {
         count = (int64_t)((uint64_t)count - UINT64_C(1));
         if (used < (int64_t)(output).length) {
-            uint8_t* value_15 = &(((uint8_t *)output.data)[used]);
+            uint8_t* value_15 = &(((uint8_t *)(output).data)[used]);
             (*value_15) = (digits)[count];
         }
         used = (int64_t)((uint64_t)used + UINT64_C(1));
@@ -3158,7 +3152,7 @@ compiler_declaration_PutByte(Slice output, int64_t* used, uint8_t byte)
     int64_t value_0 = *(used);
     int64_t value_1 = (int64_t)(output).length;
     if (value_0 < value_1) {
-        uint8_t* value_2 = &(((uint8_t *)output.data)[*(used)]);
+        uint8_t* value_2 = &(((uint8_t *)(output).data)[*(used)]);
         (*value_2) = byte;
     }
     int64_t* value_3 = &((*(used)));
@@ -3297,7 +3291,7 @@ compiler_declaration_RewriteLocalNames(String source, Slice names, Slice output)
                 int64_t range_last_21 = (int64_t)((uint64_t)((int64_t)(names).length) - UINT64_C(1));
                 int64_t index = range_last_21;
                 if (index >= range_first_21) for (;;) {
-                    if (!StringEqual((((NameReplacement *)names.data)[index]).source, spelling)) {
+                    if (!StringEqual((((NameReplacement *)(names).data)[index]).source, spelling)) {
                         if (index == range_first_21) {
                             break;
                         }
@@ -3305,7 +3299,7 @@ compiler_declaration_RewriteLocalNames(String source, Slice names, Slice output)
                         continue;
                     }
                     compiler_declaration_Put(output, &(result.count), StringRangeAt(source, (int64_t)copied, (int64_t)token.begin));
-                    compiler_declaration_Put(output, &(result.count), (((NameReplacement *)names.data)[index]).target);
+                    compiler_declaration_Put(output, &(result.count), (((NameReplacement *)(names).data)[index]).target);
                     copied = token.end;
                     bool* value_0 = &(result.changed);
                     (*value_0) = true;
@@ -3773,7 +3767,7 @@ compiler_declaration_AddPrintPiece(PrintRewrite* result, Slice output, int32_t m
     int64_t value_1 = (int64_t)(result->statements);
     int64_t value_2 = (int64_t)(output).length;
     if (value_1 < value_2) {
-        slot = (((StatementOutput *)output.data)[result->statements]).bytes;
+        slot = (((StatementOutput *)(output).data)[result->statements]).bytes;
     }
     int64_t used = 0LL;
     compiler_declaration_Put(slot, &(used), StringLiteral("Append("));

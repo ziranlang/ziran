@@ -48,13 +48,7 @@ void* zir_foreign_compiler_context__CompilerStandardError(void) __asm__("_Compil
 #else
 void* zir_foreign_compiler_context__CompilerStandardError(void) __asm__("CompilerStandardError");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static void* compiler_context_storage_in(CompilerThread* thread, CompilerContext* context_local, int32_t key, size_t size, S15Callback0 destroy) ZIRAN_MAYBE_UNUSED;
 static void compiler_context_destroy_context(CompilerContext* context_local) ZIRAN_MAYBE_UNUSED;
 static void compiler_context_free_scratch_pools(void* value) ZIRAN_MAYBE_UNUSED;

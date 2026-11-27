@@ -5,6 +5,80 @@
 #include <stdbool.h>
 #include "zir_string.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_Range
+#define ZIRAN_TYPE_FORWARD_Range
+typedef struct Range Range;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_RangeMemo
+#define ZIRAN_TYPE_FORWARD_RangeMemo
+typedef struct RangeMemo RangeMemo;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CallRange
+#define ZIRAN_TYPE_FORWARD_CallRange
+typedef struct CallRange CallRange;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Term
+#define ZIRAN_TYPE_FORWARD_Term
+typedef struct Term Term;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Poly
+#define ZIRAN_TYPE_FORWARD_Poly
+typedef struct Poly Poly;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_GuardSides
+#define ZIRAN_TYPE_FORWARD_GuardSides
+typedef struct GuardSides GuardSides;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_GuardFacts
+#define ZIRAN_TYPE_FORWARD_GuardFacts
+typedef struct GuardFacts GuardFacts;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_RangeContext
+#define ZIRAN_TYPE_FORWARD_RangeContext
+typedef struct RangeContext RangeContext;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CallSite
+#define ZIRAN_TYPE_FORWARD_CallSite
+typedef struct CallSite CallSite;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Callers
+#define ZIRAN_TYPE_FORWARD_Callers
+typedef struct Callers Callers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_RangeFacts
+#define ZIRAN_TYPE_FORWARD_RangeFacts
+typedef struct RangeFacts RangeFacts;
+#endif
+#ifdef ZIRAN_COMPILER_C_RANGE_FACTS_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_RangeParameter
+#define ZIRAN_TYPE_FORWARD_RangeParameter
+typedef struct RangeParameter RangeParameter;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_RANGE_FACTS_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_RangeParameters
+#define ZIRAN_TYPE_FORWARD_RangeParameters
+typedef struct RangeParameters RangeParameters;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_RANGE_FACTS_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_c_range_facts_TextDescriptor
+#define ZIRAN_TYPE_FORWARD_compiler_c_range_facts_TextDescriptor
+typedef struct compiler_c_range_facts_TextDescriptor compiler_c_range_facts_TextDescriptor;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_RANGE_FACTS_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ScopeEntry
+#define ZIRAN_TYPE_FORWARD_ScopeEntry
+typedef struct ScopeEntry ScopeEntry;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_RANGE_FACTS_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Scope
+#define ZIRAN_TYPE_FORWARD_Scope
+typedef struct Scope Scope;
+#endif
+#endif
 #include "compiler_ir.h"
 
 #ifdef __cplusplus
@@ -26,32 +100,6 @@ extern "C" {
 #define CALL_SITES 32
 #define MAX_S64 9223372036854775807
 #define MIN_S64 -9223372036854775807 - 1
-typedef struct Range Range;
-typedef struct RangeMemo RangeMemo;
-typedef struct CallRange CallRange;
-typedef struct Term Term;
-typedef struct Poly Poly;
-typedef struct GuardSides GuardSides;
-typedef struct GuardFacts GuardFacts;
-typedef struct RangeContext RangeContext;
-typedef struct CallSite CallSite;
-typedef struct Callers Callers;
-typedef struct RangeFacts RangeFacts;
-#ifdef ZIRAN_COMPILER_C_RANGE_FACTS_H_PRIVATE
-typedef struct RangeParameter RangeParameter;
-#endif
-#ifdef ZIRAN_COMPILER_C_RANGE_FACTS_H_PRIVATE
-typedef struct RangeParameters RangeParameters;
-#endif
-#ifdef ZIRAN_COMPILER_C_RANGE_FACTS_H_PRIVATE
-typedef struct compiler_c_range_facts_TextDescriptor compiler_c_range_facts_TextDescriptor;
-#endif
-#ifdef ZIRAN_COMPILER_C_RANGE_FACTS_H_PRIVATE
-typedef struct ScopeEntry ScopeEntry;
-#endif
-#ifdef ZIRAN_COMPILER_C_RANGE_FACTS_H_PRIVATE
-typedef struct Scope Scope;
-#endif
 
 struct Range {
     int64_t low;

@@ -102,13 +102,7 @@ int32_t zir_foreign_compiler_zx_assets__ferror(void* file) __asm__("_ferror");
 #else
 int32_t zir_foreign_compiler_zx_assets__ferror(void* file) __asm__("ferror");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static bool compiler_zx_assets_collect_path(ZxAssets* assets, uint8_t* name, uint8_t* path) ZIRAN_MAYBE_UNUSED;
 static void* compiler_zx_assets_read_rest(void* file, size_t* size) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_zx_assets_join_path(uint8_t* left, uint8_t* right) ZIRAN_MAYBE_UNUSED;

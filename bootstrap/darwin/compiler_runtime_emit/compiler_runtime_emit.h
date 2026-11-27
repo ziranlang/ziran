@@ -5,34 +5,48 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
-#include "file.h"
-#include "vec.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-#define IncludePrefix "#include \""
-#ifdef ZIRAN_COMPILER_RUNTIME_EMIT_H_PRIVATE
-#define SimdOpsName "ziran_simd_ops.h"
-#endif
+#ifndef ZIRAN_TYPE_FORWARD_RuntimeHeader
+#define ZIRAN_TYPE_FORWARD_RuntimeHeader
 typedef struct RuntimeHeader RuntimeHeader;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_SimdNames
+#define ZIRAN_TYPE_FORWARD_SimdNames
 typedef struct SimdNames SimdNames;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirSimdUses
+#define ZIRAN_TYPE_FORWARD_ZirSimdUses
 typedef struct ZirSimdUses ZirSimdUses;
+#endif
 #ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
 #define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
 typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
 #endif
+#ifndef ZIRAN_TYPE_FORWARD_GeneratedPathStore
+#define ZIRAN_TYPE_FORWARD_GeneratedPathStore
 typedef struct GeneratedPathStore GeneratedPathStore;
+#endif
 #ifdef ZIRAN_COMPILER_RUNTIME_EMIT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_TextDescriptor
+#define ZIRAN_TYPE_FORWARD_TextDescriptor
 typedef struct TextDescriptor TextDescriptor;
 #endif
+#endif
 #ifdef ZIRAN_COMPILER_RUNTIME_EMIT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ByteDescriptor
+#define ZIRAN_TYPE_FORWARD_ByteDescriptor
 typedef struct ByteDescriptor ByteDescriptor;
 #endif
+#endif
 #ifdef ZIRAN_COMPILER_RUNTIME_EMIT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Segment
+#define ZIRAN_TYPE_FORWARD_Segment
 typedef struct Segment Segment;
 #endif
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_compiler_runtime_emit_Results__string__bool
+#define ZIRAN_TYPE_FORWARD_compiler_runtime_emit_Results__string__bool
 typedef struct compiler_runtime_emit_Results__string__bool compiler_runtime_emit_Results__string__bool;
+#endif
 #ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
 #define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
 typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
@@ -50,6 +64,16 @@ typedef struct __type_6d6e28b0bceaff19 __type_6d6e28b0bceaff19;
 #ifndef ZIRAN_CONCRETE_FORWARD___type_03c9bb6e22816916
 #define ZIRAN_CONCRETE_FORWARD___type_03c9bb6e22816916
 typedef struct __type_03c9bb6e22816916 __type_03c9bb6e22816916;
+#endif
+#include "file.h"
+#include "vec.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+#define IncludePrefix "#include \""
+#ifdef ZIRAN_COMPILER_RUNTIME_EMIT_H_PRIVATE
+#define SimdOpsName "ziran_simd_ops.h"
 #endif
 
 struct RuntimeHeader {

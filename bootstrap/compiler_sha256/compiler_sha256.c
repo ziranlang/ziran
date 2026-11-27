@@ -78,13 +78,7 @@ void zir_foreign_compiler_sha256__S15FlagClear(void* lock) __asm__("_S15FlagClea
 #else
 void zir_foreign_compiler_sha256__S15FlagClear(void* lock) __asm__("S15FlagClear");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint32_t compiler_sha256_rotate(uint32_t value, int32_t bits) ZIRAN_MAYBE_UNUSED;
 static void compiler_sha256_portable_round(uint32_t a, uint32_t b, uint32_t c, uint32_t* d, uint32_t e, uint32_t f, uint32_t g, uint32_t* h, uint32_t word) ZIRAN_MAYBE_UNUSED;
 static void compiler_sha256_compress_portable(uint32_t* state, uint8_t* block, size_t blocks) ZIRAN_MAYBE_UNUSED;

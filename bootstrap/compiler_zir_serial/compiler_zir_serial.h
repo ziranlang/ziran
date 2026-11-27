@@ -4,6 +4,138 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_zir_serial_ParserArray8192_u8
+#define ZIRAN_TYPE_FORWARD_compiler_zir_serial_ParserArray8192_u8
+typedef struct compiler_zir_serial_ParserArray8192_u8 compiler_zir_serial_ParserArray8192_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CheckCanonicalProgramsBuffers
+#define ZIRAN_TYPE_FORWARD_CheckCanonicalProgramsBuffers
+typedef struct CheckCanonicalProgramsBuffers CheckCanonicalProgramsBuffers;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_FieldKind
+#define ZIRAN_TYPE_FORWARD_FieldKind
+typedef int32_t FieldKind;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Field
+#define ZIRAN_TYPE_FORWARD_Field
+typedef struct Field Field;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParserAnonymous3
+#define ZIRAN_TYPE_FORWARD_ParserAnonymous3
+typedef union ParserAnonymous3 ParserAnonymous3;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_zir_serial_ParserArray1024_u8
+#define ZIRAN_TYPE_FORWARD_compiler_zir_serial_ParserArray1024_u8
+typedef struct compiler_zir_serial_ParserArray1024_u8 compiler_zir_serial_ParserArray1024_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Reader
+#define ZIRAN_TYPE_FORWARD_Reader
+typedef struct Reader Reader;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_SavedModuleShape
+#define ZIRAN_TYPE_FORWARD_SavedModuleShape
+typedef struct SavedModuleShape SavedModuleShape;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_SerialString
+#define ZIRAN_TYPE_FORWARD_SerialString
+typedef struct SerialString SerialString;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Writer
+#define ZIRAN_TYPE_FORWARD_Writer
+typedef struct Writer Writer;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_zir_serial_ParserArray128_u8
+#define ZIRAN_TYPE_FORWARD_compiler_zir_serial_ParserArray128_u8
+typedef struct compiler_zir_serial_ParserArray128_u8 compiler_zir_serial_ParserArray128_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_zir_serial_ParserArray4096_u8
+#define ZIRAN_TYPE_FORWARD_compiler_zir_serial_ParserArray4096_u8
+typedef struct compiler_zir_serial_ParserArray4096_u8 compiler_zir_serial_ParserArray4096_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_zir_serial_ParserArray4_u8
+#define ZIRAN_TYPE_FORWARD_compiler_zir_serial_ParserArray4_u8
+typedef struct compiler_zir_serial_ParserArray4_u8 compiler_zir_serial_ParserArray4_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray8_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray8_u8
+typedef struct ParserArray8_u8 ParserArray8_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_SerialFields
+#define ZIRAN_TYPE_FORWARD_SerialFields
+typedef struct SerialFields SerialFields;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray12_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray12_u8
+typedef struct ParserArray12_u8 ParserArray12_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_zir_serial_ParserArray16_u8
+#define ZIRAN_TYPE_FORWARD_compiler_zir_serial_ParserArray16_u8
+typedef struct compiler_zir_serial_ParserArray16_u8 compiler_zir_serial_ParserArray16_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_zir_serial_ParserArray8__u8
+#define ZIRAN_TYPE_FORWARD_compiler_zir_serial_ParserArray8__u8
+typedef struct compiler_zir_serial_ParserArray8__u8 compiler_zir_serial_ParserArray8__u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray10_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray10_u8
+typedef struct ParserArray10_u8 ParserArray10_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray2_s32
+#define ZIRAN_TYPE_FORWARD_ParserArray2_s32
+typedef struct ParserArray2_s32 ParserArray2_s32;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray2560_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray2560_u8
+typedef struct ParserArray2560_u8 ParserArray2560_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_DescribeFields
+#define ZIRAN_CALLABLE_DescribeFields
+typedef size_t (*DescribeFields)(void*, Field*);
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_parse_types.h"
 #include "compiler_parse.h"
@@ -13,71 +145,7 @@
 extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-#define ZIR_FORMAT_VERSION 69
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct compiler_zir_serial_ParserArray8192_u8 compiler_zir_serial_ParserArray8192_u8;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct CheckCanonicalProgramsBuffers CheckCanonicalProgramsBuffers;
-#endif
-typedef int32_t FieldKind;
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct Field Field;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef union ParserAnonymous3 ParserAnonymous3;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct compiler_zir_serial_ParserArray1024_u8 compiler_zir_serial_ParserArray1024_u8;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct Reader Reader;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct SavedModuleShape SavedModuleShape;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct SerialString SerialString;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct Writer Writer;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct compiler_zir_serial_ParserArray128_u8 compiler_zir_serial_ParserArray128_u8;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct compiler_zir_serial_ParserArray4096_u8 compiler_zir_serial_ParserArray4096_u8;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct compiler_zir_serial_ParserArray4_u8 compiler_zir_serial_ParserArray4_u8;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct ParserArray8_u8 ParserArray8_u8;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct SerialFields SerialFields;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct ParserArray12_u8 ParserArray12_u8;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct compiler_zir_serial_ParserArray16_u8 compiler_zir_serial_ParserArray16_u8;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct compiler_zir_serial_ParserArray8__u8 compiler_zir_serial_ParserArray8__u8;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct ParserArray10_u8 ParserArray10_u8;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct ParserArray2_s32 ParserArray2_s32;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef struct ParserArray2560_u8 ParserArray2560_u8;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-typedef size_t (*DescribeFields)(void*, Field*);
+#define ZIR_FORMAT_VERSION 70
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
 
@@ -283,7 +351,7 @@ static inline int32_t compiler_zir_serial_ZirFormatVersion_ziran_inline(void);
 static inline int32_t
 compiler_zir_serial_ZirFormatVersion_ziran_inline(void)
 {
-    return 69;
+    return 70;
 }
 #endif
 

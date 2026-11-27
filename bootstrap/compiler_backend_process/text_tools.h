@@ -5,12 +5,10 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
-#include "vec.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#ifndef ZIRAN_TYPE_FORWARD_Results__s64__bool
+#define ZIRAN_TYPE_FORWARD_Results__s64__bool
 typedef struct Results__s64__bool Results__s64__bool;
+#endif
 #ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
 #define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
 typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
@@ -18,6 +16,11 @@ typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
 #ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
 #define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
 typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
+#endif
+#include "vec.h"
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 struct Results__s64__bool {

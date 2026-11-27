@@ -4,15 +4,24 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
+#ifndef ZIRAN_TYPE_FORWARD_StaticText
+#define ZIRAN_TYPE_FORWARD_StaticText
+typedef struct StaticText StaticText;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirSourceSpan
+#define ZIRAN_TYPE_FORWARD_ZirSourceSpan
+typedef struct ZirSourceSpan ZirSourceSpan;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ProfileSample
+#define ZIRAN_TYPE_FORWARD_ProfileSample
+typedef struct ProfileSample ProfileSample;
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #define PROFILE_SAMPLES 32
 #define PROFILE_RECORD 8192
-typedef struct StaticText StaticText;
-typedef struct ZirSourceSpan ZirSourceSpan;
-typedef struct ProfileSample ProfileSample;
 
 struct StaticText {
     uint8_t* data;

@@ -85,13 +85,7 @@ void* zir_foreign_compiler_portable_body__ClearBytes(void* memory, int32_t byte,
 #else
 void* zir_foreign_compiler_portable_body__ClearBytes(void* memory, int32_t byte, size_t size) __asm__("memset");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static void compiler_portable_body_ReleaseBodySupport(void* memory) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_portable_body_MemoType(ZirModule* module, uint8_t* type) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_portable_body_CName(String text) ZIRAN_MAYBE_UNUSED;

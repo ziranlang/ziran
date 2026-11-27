@@ -210,13 +210,7 @@ float zir_foreign_compiler_source_store__strtof(uint8_t* ziran_keyword___nptr_0,
 #else
 float zir_foreign_compiler_source_store__strtof(uint8_t* ziran_keyword___nptr_0, uint8_t** ziran_keyword___endptr_0) __asm__("strtof");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static void compiler_source_store_free_source_files(void* value) ZIRAN_MAYBE_UNUSED;
 static SourceFiles* compiler_source_store_source_files_in(CompilerContext* context_local) ZIRAN_MAYBE_UNUSED;
 static void compiler_source_store_lock_table(int32_t* lock) ZIRAN_MAYBE_UNUSED;

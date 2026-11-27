@@ -5,28 +5,15 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
-#include "vec.h"
-#include "hash_map.h"
-#include "text_tools.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-#define PRUNE_MARK 1
-#define PRUNE_FRAME 70
-#define PRUNE_MODULES 85
-#define PRUNE_DECLARATION 68
-#define PRUNE_ROOT 82
-#define PRUNE_HELPER 72
-#define PRUNE_INLINE 73
-#define PRUNE_INLINE_BODY 74
-#define PRUNE_NAME 78
-#define PRUNE_END 69
-#define PRUNE_SOURCE_MARK "\001S\n"
-#define PRUNE_INCLUDES_MARK "\001U\n"
+#ifndef ZIRAN_TYPE_FORWARD_ZirCPruneModule
+#define ZIRAN_TYPE_FORWARD_ZirCPruneModule
 typedef struct ZirCPruneModule ZirCPruneModule;
+#endif
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Chunk
+#define ZIRAN_TYPE_FORWARD_Chunk
 typedef struct Chunk Chunk;
+#endif
 #endif
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
 #ifndef ZIRAN_CONCRETE_FORWARD___type_ca45a416a4c278d1
@@ -35,10 +22,16 @@ typedef struct __type_ca45a416a4c278d1 __type_ca45a416a4c278d1;
 #endif
 #endif
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Chunks
+#define ZIRAN_TYPE_FORWARD_Chunks
 typedef struct Chunks Chunks;
 #endif
+#endif
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Word
+#define ZIRAN_TYPE_FORWARD_Word
 typedef struct Word Word;
+#endif
 #endif
 #ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
 #define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
@@ -63,11 +56,22 @@ typedef struct __type_d18112a8c2754324 __type_d18112a8c2754324;
 #endif
 #endif
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Prune
+#define ZIRAN_TYPE_FORWARD_Prune
 typedef struct Prune Prune;
 #endif
-typedef int64_t NoteKind;
+#endif
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_NoteKind
+#define ZIRAN_TYPE_FORWARD_NoteKind
+typedef int64_t NoteKind;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_TextDescriptor
+#define ZIRAN_TYPE_FORWARD_TextDescriptor
 typedef struct TextDescriptor TextDescriptor;
+#endif
 #endif
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
 #ifndef ZIRAN_CONCRETE_FORWARD___type_76ce7479f672fb46
@@ -75,6 +79,25 @@ typedef struct TextDescriptor TextDescriptor;
 typedef struct __type_76ce7479f672fb46 __type_76ce7479f672fb46;
 #endif
 #endif
+#include "vec.h"
+#include "hash_map.h"
+#include "text_tools.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+#define PRUNE_MARK 1
+#define PRUNE_FRAME 70
+#define PRUNE_MODULES 85
+#define PRUNE_DECLARATION 68
+#define PRUNE_ROOT 82
+#define PRUNE_HELPER 72
+#define PRUNE_INLINE 73
+#define PRUNE_INLINE_BODY 74
+#define PRUNE_NAME 78
+#define PRUNE_END 69
+#define PRUNE_SOURCE_MARK "\001S\n"
+#define PRUNE_INCLUDES_MARK "\001U\n"
 
 struct ZirCPruneModule {
     char * stem;

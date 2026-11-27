@@ -6,6 +6,74 @@
 #include "zir_string_types.h"
 #include <stdlib.h>
 #include "zir_slice.h"
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Job
+#define ZIRAN_TYPE_FORWARD_Job
+typedef struct Job Job;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_SlotOutput
+#define ZIRAN_TYPE_FORWARD_SlotOutput
+typedef struct SlotOutput SlotOutput;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PendingOutput
+#define ZIRAN_TYPE_FORWARD_PendingOutput
+typedef struct PendingOutput PendingOutput;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_compiler_backend_process_Results__string__bool
+#define ZIRAN_TYPE_FORWARD_compiler_backend_process_Results__string__bool
+typedef struct compiler_backend_process_Results__string__bool compiler_backend_process_Results__string__bool;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_MapOwner
+#define ZIRAN_TYPE_FORWARD_MapOwner
+typedef struct MapOwner MapOwner;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_MapLink
+#define ZIRAN_TYPE_FORWARD_MapLink
+typedef struct MapLink MapLink;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Results__pu8__bool
+#define ZIRAN_TYPE_FORWARD_Results__pu8__bool
+typedef struct Results__pu8__bool Results__pu8__bool;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_DiagnosticSpan
+#define ZIRAN_TYPE_FORWARD_DiagnosticSpan
+typedef struct DiagnosticSpan DiagnosticSpan;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PollRecord
+#define ZIRAN_TYPE_FORWARD_PollRecord
+typedef struct PollRecord PollRecord;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_OwnedText
+#define ZIRAN_TYPE_FORWARD_OwnedText
+typedef struct OwnedText OwnedText;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CapturePointer
+#define ZIRAN_TYPE_FORWARD_CapturePointer
+typedef struct CapturePointer CapturePointer;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_6897586eed124d12
+#define ZIRAN_CONCRETE_FORWARD___type_6897586eed124d12
+typedef struct __type_6897586eed124d12 __type_6897586eed124d12;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_791f4dbda1b77cfe
+#define ZIRAN_CONCRETE_FORWARD___type_791f4dbda1b77cfe
+typedef struct __type_791f4dbda1b77cfe __type_791f4dbda1b77cfe;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_32a8006a7b472f5f
+#define ZIRAN_CONCRETE_FORWARD___type_32a8006a7b472f5f
+typedef struct __type_32a8006a7b472f5f __type_32a8006a7b472f5f;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_a62c3df80303f6fb
+#define ZIRAN_CONCRETE_FORWARD___type_a62c3df80303f6fb
+typedef struct __type_a62c3df80303f6fb __type_a62c3df80303f6fb;
+#endif
 #include "file.h"
 #include "vec.h"
 #include "file_tree_linux.h"
@@ -30,41 +98,6 @@ extern "C" {
 #define ProcessorsOnline 58
 #define AffinityBytes 128
 #define ToolLogMaximum 4095
-#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
-#endif
-typedef struct Job Job;
-typedef struct SlotOutput SlotOutput;
-typedef struct PendingOutput PendingOutput;
-typedef struct compiler_backend_process_Results__string__bool compiler_backend_process_Results__string__bool;
-typedef struct MapOwner MapOwner;
-typedef struct MapLink MapLink;
-typedef struct Results__pu8__bool Results__pu8__bool;
-typedef struct DiagnosticSpan DiagnosticSpan;
-typedef struct PollRecord PollRecord;
-typedef struct OwnedText OwnedText;
-typedef struct CapturePointer CapturePointer;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
-#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
-typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_6897586eed124d12
-#define ZIRAN_CONCRETE_FORWARD___type_6897586eed124d12
-typedef struct __type_6897586eed124d12 __type_6897586eed124d12;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_791f4dbda1b77cfe
-#define ZIRAN_CONCRETE_FORWARD___type_791f4dbda1b77cfe
-typedef struct __type_791f4dbda1b77cfe __type_791f4dbda1b77cfe;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_32a8006a7b472f5f
-#define ZIRAN_CONCRETE_FORWARD___type_32a8006a7b472f5f
-typedef struct __type_32a8006a7b472f5f __type_32a8006a7b472f5f;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_a62c3df80303f6fb
-#define ZIRAN_CONCRETE_FORWARD___type_a62c3df80303f6fb
-typedef struct __type_a62c3df80303f6fb __type_a62c3df80303f6fb;
-#endif
 #ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
 #define ZIRAN_CONCRETE___type_131eebaaeb761e42
 

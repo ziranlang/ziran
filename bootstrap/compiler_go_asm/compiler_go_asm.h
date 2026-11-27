@@ -4,6 +4,36 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#ifndef ZIRAN_TYPE_FORWARD_GoAssemblySite
+#define ZIRAN_TYPE_FORWARD_GoAssemblySite
+typedef struct GoAssemblySite GoAssemblySite;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_GoAssembly
+#define ZIRAN_TYPE_FORWARD_GoAssembly
+typedef struct GoAssembly GoAssembly;
+#endif
+#ifdef ZIRAN_COMPILER_GO_ASM_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZirParameter
+#define ZIRAN_TYPE_FORWARD_ZirParameter
+typedef struct ZirParameter ZirParameter;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_ASM_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZirParameters
+#define ZIRAN_TYPE_FORWARD_ZirParameters
+typedef struct ZirParameters ZirParameters;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_ASM_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_go_asm_StaticText
+#define ZIRAN_TYPE_FORWARD_compiler_go_asm_StaticText
+typedef struct compiler_go_asm_StaticText compiler_go_asm_StaticText;
+#endif
+#endif
+#ifndef ZIRAN_CALLABLE_GoAssemblyOperandResolver
+#define ZIRAN_CALLABLE_GoAssemblyOperandResolver
+typedef void (*GoAssemblyOperandResolver)(void*, int32_t, uint8_t*, size_t);
+#endif
 #include "compiler_ir.h"
 #include "compiler_native_names.h"
 #include "compiler_go_asm_x64.h"
@@ -11,18 +41,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct GoAssemblySite GoAssemblySite;
-typedef struct GoAssembly GoAssembly;
-#ifdef ZIRAN_COMPILER_GO_ASM_H_PRIVATE
-typedef struct ZirParameter ZirParameter;
-#endif
-#ifdef ZIRAN_COMPILER_GO_ASM_H_PRIVATE
-typedef struct ZirParameters ZirParameters;
-#endif
-#ifdef ZIRAN_COMPILER_GO_ASM_H_PRIVATE
-typedef struct compiler_go_asm_StaticText compiler_go_asm_StaticText;
-#endif
-typedef void (*GoAssemblyOperandResolver)(void*, int32_t, uint8_t*, size_t);
 
 struct GoAssemblySite {
     ZirFunction* function;

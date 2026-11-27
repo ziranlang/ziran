@@ -5,6 +5,46 @@
 #include <stdbool.h>
 #include "zir_string.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_Digest
+#define ZIRAN_TYPE_FORWARD_Digest
+typedef struct Digest Digest;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Fingerprint
+#define ZIRAN_TYPE_FORWARD_Fingerprint
+typedef struct Fingerprint Fingerprint;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_c555612ad40905fa
+#define ZIRAN_CONCRETE_FORWARD___type_c555612ad40905fa
+typedef struct __type_c555612ad40905fa __type_c555612ad40905fa;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BuildCache
+#define ZIRAN_TYPE_FORWARD_BuildCache
+typedef struct BuildCache BuildCache;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ClockValue
+#define ZIRAN_TYPE_FORWARD_ClockValue
+typedef struct ClockValue ClockValue;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_HashState
+#define ZIRAN_TYPE_FORWARD_HashState
+typedef struct HashState HashState;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ByteView
+#define ZIRAN_TYPE_FORWARD_ByteView
+typedef struct ByteView ByteView;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_View
+#define ZIRAN_TYPE_FORWARD_View
+typedef struct View View;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
+#endif
 #include "file.h"
 #include "vec.h"
 #include "file_tree_linux.h"
@@ -22,25 +62,6 @@ extern "C" {
 #define PathMaximum 4096
 #define CacheMagic "Ziran C cache 1\n"
 #define IdentitySeed "Ziran native object cache 4"
-typedef struct Digest Digest;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
-#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
-typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
-#endif
-typedef struct Fingerprint Fingerprint;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_c555612ad40905fa
-#define ZIRAN_CONCRETE_FORWARD___type_c555612ad40905fa
-typedef struct __type_c555612ad40905fa __type_c555612ad40905fa;
-#endif
-typedef struct BuildCache BuildCache;
-typedef struct ClockValue ClockValue;
-typedef struct HashState HashState;
-typedef struct ByteView ByteView;
-typedef struct View View;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
-#endif
 
 struct Digest {
     uint8_t bytes[32];
@@ -448,7 +469,7 @@ compiler_backend_cache_ReadInteger_ziran_inline(Slice bytes, int64_t* offset, ui
     }
     uint32_t value = 0;
     for (int64_t index = 0LL; index <= 3LL; index++) {
-        uint32_t value_2 = ZiShl32((uint32_t)(((uint8_t *)bytes.data)[((int64_t)((uint64_t)(*(offset)) + (uint64_t)index))]), (uint64_t)((uint32_t)(((int64_t)(UINT64_C(8) * (uint64_t)index)))), 32);
+        uint32_t value_2 = ZiShl32((uint32_t)(((uint8_t *)(bytes).data)[((int64_t)((uint64_t)(*(offset)) + (uint64_t)index))]), (uint64_t)((uint32_t)(((int64_t)(UINT64_C(8) * (uint64_t)index)))), 32);
         value = (uint32_t)((uint32_t)value | (uint32_t)value_2);
     }
     int64_t* value_3 = &((*(offset)));
@@ -468,7 +489,7 @@ compiler_backend_cache_ReadDigest_ziran_inline(Slice bytes, int64_t* offset, Dig
     }
     for (int64_t index = 0LL; index <= 31LL; index++) {
         uint8_t* value_2 = &(output->bytes[index]);
-        (*value_2) = ((uint8_t *)bytes.data)[((int64_t)((uint64_t)(*(offset)) + (uint64_t)index))];
+        (*value_2) = ((uint8_t *)(bytes).data)[((int64_t)((uint64_t)(*(offset)) + (uint64_t)index))];
     }
     int64_t* value_3 = &((*(offset)));
     (*value_3) = (int64_t)((uint64_t)((*value_3)) + UINT64_C(32));

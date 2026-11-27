@@ -4,6 +4,162 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray32__u8
+#define ZIRAN_TYPE_FORWARD_ParserArray32__u8
+typedef struct ParserArray32__u8 ParserArray32__u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_LoadContext
+#define ZIRAN_TYPE_FORWARD_LoadContext
+typedef struct LoadContext LoadContext;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_load_ParserArray2048_u8
+#define ZIRAN_TYPE_FORWARD_compiler_load_ParserArray2048_u8
+typedef struct compiler_load_ParserArray2048_u8 compiler_load_ParserArray2048_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray3072_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray3072_u8
+typedef struct ParserArray3072_u8 ParserArray3072_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_LoadImportBuffers
+#define ZIRAN_TYPE_FORWARD_LoadImportBuffers
+typedef struct LoadImportBuffers LoadImportBuffers;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_load_ParserArray1024_u8
+#define ZIRAN_TYPE_FORWARD_compiler_load_ParserArray1024_u8
+typedef struct compiler_load_ParserArray1024_u8 compiler_load_ParserArray1024_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_load_ParserArray128_u8
+#define ZIRAN_TYPE_FORWARD_compiler_load_ParserArray128_u8
+typedef struct compiler_load_ParserArray128_u8 compiler_load_ParserArray128_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray3__u8
+#define ZIRAN_TYPE_FORWARD_ParserArray3__u8
+typedef struct ParserArray3__u8 ParserArray3__u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray2__u8
+#define ZIRAN_TYPE_FORWARD_ParserArray2__u8
+typedef struct ParserArray2__u8 ParserArray2__u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray5__IR_ZirModule
+#define ZIRAN_TYPE_FORWARD_ParserArray5__IR_ZirModule
+typedef struct ParserArray5__IR_ZirModule ParserArray5__IR_ZirModule;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_load_ParserArray4096_u8
+#define ZIRAN_TYPE_FORWARD_compiler_load_ParserArray4096_u8
+typedef struct compiler_load_ParserArray4096_u8 compiler_load_ParserArray4096_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray14_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray14_u8
+typedef struct ParserArray14_u8 ParserArray14_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_SourceCandidates
+#define ZIRAN_TYPE_FORWARD_SourceCandidates
+typedef struct SourceCandidates SourceCandidates;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CacheDigits
+#define ZIRAN_TYPE_FORWARD_CacheDigits
+typedef struct CacheDigits CacheDigits;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CacheLine
+#define ZIRAN_TYPE_FORWARD_CacheLine
+typedef struct CacheLine CacheLine;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CacheSuffix
+#define ZIRAN_TYPE_FORWARD_CacheSuffix
+typedef struct CacheSuffix CacheSuffix;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CacheDigest
+#define ZIRAN_TYPE_FORWARD_CacheDigest
+typedef struct CacheDigest CacheDigest;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CacheHex
+#define ZIRAN_TYPE_FORWARD_CacheHex
+typedef struct CacheHex CacheHex;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CachePath
+#define ZIRAN_TYPE_FORWARD_CachePath
+typedef struct CachePath CachePath;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CacheHash
+#define ZIRAN_TYPE_FORWARD_CacheHash
+typedef struct CacheHash CacheHash;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CacheUsingLine
+#define ZIRAN_TYPE_FORWARD_CacheUsingLine
+typedef struct CacheUsingLine CacheUsingLine;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CacheMeta
+#define ZIRAN_TYPE_FORWARD_CacheMeta
+typedef struct CacheMeta CacheMeta;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CacheCursor
+#define ZIRAN_TYPE_FORWARD_CacheCursor
+typedef struct CacheCursor CacheCursor;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CacheSink
+#define ZIRAN_TYPE_FORWARD_CacheSink
+typedef struct CacheSink CacheSink;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CachePending
+#define ZIRAN_TYPE_FORWARD_CachePending
+typedef struct CachePending CachePending;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_CacheExitHandler
+#define ZIRAN_CALLABLE_CacheExitHandler
+typedef void (*CacheExitHandler)(void);
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_parse_types.h"
 #include "compiler_package_resolve.h"
@@ -12,84 +168,6 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct ParserArray32__u8 ParserArray32__u8;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct LoadContext LoadContext;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct compiler_load_ParserArray2048_u8 compiler_load_ParserArray2048_u8;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct ParserArray3072_u8 ParserArray3072_u8;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct LoadImportBuffers LoadImportBuffers;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct compiler_load_ParserArray1024_u8 compiler_load_ParserArray1024_u8;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct compiler_load_ParserArray128_u8 compiler_load_ParserArray128_u8;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct ParserArray3__u8 ParserArray3__u8;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct ParserArray2__u8 ParserArray2__u8;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct ParserArray5__IR_ZirModule ParserArray5__IR_ZirModule;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct compiler_load_ParserArray4096_u8 compiler_load_ParserArray4096_u8;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct ParserArray14_u8 ParserArray14_u8;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct SourceCandidates SourceCandidates;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct CacheDigits CacheDigits;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct CacheLine CacheLine;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct CacheSuffix CacheSuffix;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct CacheDigest CacheDigest;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct CacheHex CacheHex;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct CachePath CachePath;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct CacheHash CacheHash;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct CacheUsingLine CacheUsingLine;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct CacheMeta CacheMeta;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct CacheCursor CacheCursor;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct CacheSink CacheSink;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct CachePending CachePending;
-#endif
-#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef void (*CacheExitHandler)(void);
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 

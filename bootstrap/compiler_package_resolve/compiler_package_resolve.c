@@ -62,13 +62,7 @@ int32_t zir_foreign_compiler_package_resolve__snprintf(uint8_t* out, size_t capa
 #else
 int32_t zir_foreign_compiler_package_resolve__snprintf(uint8_t* out, size_t capacity, uint8_t* format, ...) __asm__("snprintf");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_package_resolve_next_field(uint8_t** cursor) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_package_resolve_copy_field(uint8_t** cursor) ZIRAN_MAYBE_UNUSED;
 static bool compiler_package_resolve_read_row(ZirPackageMap* map, uint8_t* line) ZIRAN_MAYBE_UNUSED;
@@ -439,72 +433,80 @@ compiler_package_resolve_PackageModuleName(ZirPackageMap* map, uint8_t* path)
 }
 
 bool
+compiler_package_resolve_RemapSavedName(ZirPackageMap* map, uint8_t* owner, uint8_t* spelling, size_t size)
+{
+    {
+        int32_t range_first_0 = 0;
+        int32_t range_last_0 = (int32_t)((uint32_t)(map->rename_count) - 1u);
+        int32_t rename = range_first_0;
+        if (rename <= range_last_0) for (;;) {
+            PackageRename* row = &(map->renames[rename]);
+            size_t length = zir_foreign_compiler_package_resolve__strlen(row->original);
+            bool value_0 = zir_foreign_compiler_package_resolve__strcmp(row->owner, owner) != 0;
+            bool value_1 = value_0 || zir_foreign_compiler_package_resolve__strncmp(spelling, row->original, length) != 0;
+            bool value_2 = value_1;
+            if (!value_2) {
+                uint8_t* value_3 = (uint8_t*)(((size_t)(spelling) + length));
+                bool value_4 = zir_foreign_compiler_package_resolve__strncmp(value_3, compiler_parse_types_ParserCString(StringLiteral("__")), 2) != 0;
+                value_2 = value_4;
+            }
+            if (value_2) {
+                if (rename == range_last_0) {
+                    break;
+                }
+                rename = (int32_t)((uint32_t)rename + 1u);
+                continue;
+            }
+            uint8_t renamed[1024] = {0};
+            size_t value_5 = size;
+            uint8_t* value_6 = compiler_parse_types_ParserCString(StringLiteral("%s%s"));
+            int32_t value_7 = zir_foreign_compiler_package_resolve__snprintf(&(renamed[0]), value_5, value_6, row->target, (uint8_t*)(((size_t)(spelling) + length)));
+            if (value_7 >= (int32_t)(size)) {
+                return false;
+            }
+            return compiler_package_resolve_copy_spelling(spelling, size, &(renamed[0]));
+        }
+    }
+    return true;
+}
+
+bool
 compiler_package_resolve_PackageRemapSaved(ZirPackageMap* map, uint8_t* path, ZirModule* module)
 {
     uint8_t* owner = compiler_package_resolve_PackageOwner(map, path);
-    if (owner == ((void *)0)) {
+    bool value_0 = owner == ((void *)0);
+    bool value_1 = value_0;
+    if (!value_1) {
+        bool value_2 = compiler_package_resolve_RemapSavedName(map, owner, &(module->name[0]), 128);
+        value_1 = !value_2;
+    }
+    if (value_1) {
         return false;
     }
     {
-        int32_t range_first_4 = -1;
+        int32_t range_first_4 = 0;
         int32_t range_last_4 = (int32_t)((uint32_t)(module->import_count) - 1u);
         int32_t index = range_first_4;
         if (index <= range_last_4) for (;;) {
-            uint8_t* value_0 = (void *)0;
-            if (index < 0) {
-                value_0 = &(module->name[0]);
-            } else {
-                value_0 = &(((module->imports[index]).target)[0]);
-            }
-            uint8_t* spelling = value_0;
-            if (index >= 0 && ((ZirImportKind)((module->imports[index]).kind)) == ((ZirImportKind)(3))) {
-                if (index == range_last_4) {
-                    break;
+            ZirImport* imported = &(module->imports[index]);
+            if (((ZirImportKind)(imported->kind)) != ((ZirImportKind)(3))) {
+                bool value_3 = compiler_package_resolve_RemapSavedName(map, owner, &(imported->target[0]), 1024);
+                if (!value_3) {
+                    return false;
                 }
-                index = (int32_t)((uint32_t)index + 1u);
-                continue;
-            }
-            {
-                int32_t range_first_9 = 0;
-                int32_t range_last_9 = (int32_t)((uint32_t)(map->rename_count) - 1u);
-                int32_t rename = range_first_9;
-                if (rename <= range_last_9) for (;;) {
-                    PackageRename* row = &(map->renames[rename]);
-                    size_t length = zir_foreign_compiler_package_resolve__strlen(row->original);
-                    bool value_1 = zir_foreign_compiler_package_resolve__strcmp(row->owner, owner) != 0;
-                    bool value_2 = value_1 || zir_foreign_compiler_package_resolve__strncmp(spelling, row->original, length) != 0;
-                    bool value_3 = value_2;
-                    if (!value_3) {
-                        uint8_t* value_4 = (uint8_t*)(((size_t)(spelling) + length));
-                        bool value_5 = zir_foreign_compiler_package_resolve__strncmp(value_4, compiler_parse_types_ParserCString(StringLiteral("__")), 2) != 0;
-                        value_3 = value_5;
-                    }
-                    if (value_3) {
-                        if (rename == range_last_9) {
-                            break;
-                        }
-                        rename = (int32_t)((uint32_t)rename + 1u);
-                        continue;
-                    }
-                    uint8_t renamed[1024] = {0};
-                    size_t value_6 = 0;
-                    if (index < 0) {
-                        value_6 = (size_t)(128LL);
-                    } else {
-                        value_6 = (size_t)(1024LL);
-                    }
-                    size_t size = value_6;
-                    size_t value_7 = size;
-                    uint8_t* value_8 = compiler_parse_types_ParserCString(StringLiteral("%s%s"));
-                    int32_t value_9 = zir_foreign_compiler_package_resolve__snprintf(&(renamed[0]), value_7, value_8, row->target, (uint8_t*)(((size_t)(spelling) + length)));
-                    if (value_9 >= (int32_t)(size)) {
-                        return false;
-                    }
-                    bool value_10 = compiler_package_resolve_copy_spelling(spelling, size, &(renamed[0]));
-                    if (!value_10) {
-                        return false;
-                    }
-                    break;
+            } else {
+                bool value_4 = compiler_package_resolve_RemapSavedName(map, owner, &(imported->declaration_module[0]), 128);
+                if (!value_4) {
+                    return false;
+                }
+                bool value_5 = zir_foreign_compiler_package_resolve__strncmp(&(imported->target[0]), compiler_parse_types_ParserCString(StringLiteral("ziran:")), 6) == 0;
+                bool value_6 = value_5;
+                if (value_6) {
+                    bool value_7 = compiler_package_resolve_RemapSavedName(map, owner, &(imported->target[6]), 1024 - 6);
+                    value_6 = !value_7;
+                }
+                if (value_6) {
+                    return false;
                 }
             }
             if (index == range_last_4) {

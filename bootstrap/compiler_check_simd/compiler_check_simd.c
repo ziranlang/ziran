@@ -160,13 +160,7 @@ uint8_t* zir_foreign_compiler_check_simd__widen_expression(Checker* c, int32_t i
 #else
 uint8_t* zir_foreign_compiler_check_simd__widen_expression(Checker* c, int32_t index, uint8_t* to) __asm__("private_check_widen_expression");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int32_t compiler_check_simd_declares(ZirModule* module, uint8_t* name) ZIRAN_MAYBE_UNUSED;
 static SimdOp* compiler_check_simd_named_operation(Checker* c, uint8_t* name) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_simd_constant_position(SimdOp* op, int32_t position) ZIRAN_MAYBE_UNUSED;

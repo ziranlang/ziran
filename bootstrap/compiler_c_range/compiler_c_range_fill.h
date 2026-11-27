@@ -5,6 +5,24 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "zir_slice.h"
+#ifdef ZIRAN_COMPILER_C_RANGE_FILL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_RangeVector
+#define ZIRAN_TYPE_FORWARD_RangeVector
+typedef struct RangeVector RangeVector;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_RANGE_FILL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_RangeSimdOp
+#define ZIRAN_TYPE_FORWARD_RangeSimdOp
+typedef struct RangeSimdOp RangeSimdOp;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_RANGE_FILL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Fill
+#define ZIRAN_TYPE_FORWARD_Fill
+typedef struct Fill Fill;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_c_range_facts.h"
 #include "compiler_c_range_values.h"
@@ -41,15 +59,6 @@ extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_C_RANGE_FILL_H_PRIVATE
 #define FILL_CONTINUE 4
-#endif
-#ifdef ZIRAN_COMPILER_C_RANGE_FILL_H_PRIVATE
-typedef struct RangeVector RangeVector;
-#endif
-#ifdef ZIRAN_COMPILER_C_RANGE_FILL_H_PRIVATE
-typedef struct RangeSimdOp RangeSimdOp;
-#endif
-#ifdef ZIRAN_COMPILER_C_RANGE_FILL_H_PRIVATE
-typedef struct Fill Fill;
 #endif
 #ifdef ZIRAN_COMPILER_C_RANGE_FILL_H_PRIVATE
 

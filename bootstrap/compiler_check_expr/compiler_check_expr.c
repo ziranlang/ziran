@@ -232,9 +232,14 @@ int32_t zir_foreign_compiler_check_expr__ResolveGlobal(ZirModule* module, uint8_
 int32_t zir_foreign_compiler_check_expr__ResolveGlobal(ZirModule* module, uint8_t* name, ZirModule** owner, ZirGlobal** global) __asm__("ResolveGlobal");
 #endif
 #ifdef __APPLE__
-int32_t zir_foreign_compiler_check_expr__ResolveQualifiedHostImportAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirImport** declaration) __asm__("_ResolveQualifiedHostImportAt");
+ZirImport* zir_foreign_compiler_check_expr__ModuleAddImport(ZirModule* module, ZirImportKind kind, uint8_t* name, uint8_t* target, uint8_t* signature, int32_t required, ZirSourceSpan span) __asm__("_ModuleAddImport");
 #else
-int32_t zir_foreign_compiler_check_expr__ResolveQualifiedHostImportAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirImport** declaration) __asm__("ResolveQualifiedHostImportAt");
+ZirImport* zir_foreign_compiler_check_expr__ModuleAddImport(ZirModule* module, ZirImportKind kind, uint8_t* name, uint8_t* target, uint8_t* signature, int32_t required, ZirSourceSpan span) __asm__("ModuleAddImport");
+#endif
+#ifdef __APPLE__
+int32_t zir_foreign_compiler_check_expr__ResolveForeignImportAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirImport** declaration) __asm__("_ResolveForeignImportAt");
+#else
+int32_t zir_foreign_compiler_check_expr__ResolveForeignImportAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirImport** declaration) __asm__("ResolveForeignImportAt");
 #endif
 #ifdef __APPLE__
 int32_t zir_foreign_compiler_check_expr__ResolveRecordField(ZirModule* owner, ZirType* record, uint8_t* name, uint8_t* path, size_t path_size, uint8_t* type, size_t type_size) __asm__("_ResolveRecordField");
@@ -661,13 +666,7 @@ int32_t zir_foreign_compiler_check_expr__widens_losslessly(uint8_t* to, uint8_t*
 #else
 int32_t zir_foreign_compiler_check_expr__widens_losslessly(uint8_t* to, uint8_t* from) __asm__("private_check_widens_losslessly");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int32_t compiler_check_expr_text_owner_position(Checker* c, int32_t index) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_check_expr_text_procedure(Checker* c, uint8_t* name) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_check_expr_detach_text_result(Checker* c, int32_t index) ZIRAN_MAYBE_UNUSED;
@@ -700,6 +699,7 @@ static bool compiler_check_expr_declared_in_function(ZirFunction* fn, uint8_t* n
 static bool compiler_check_expr_is_generated_name(uint8_t* name) ZIRAN_MAYBE_UNUSED;
 static bool compiler_check_expr_is_length_spelling(uint8_t* name) ZIRAN_MAYBE_UNUSED;
 static void compiler_check_expr_unresolved_error(Checker* c, ZirExpr* expression, int32_t procedures) ZIRAN_MAYBE_UNUSED;
+static void compiler_check_expr_BindForeignCall(Checker* c, ZirExpr* expression, ZirImport* declaration, ZirModule* owner, CheckArray4096_u8* parameters, int32_t count, uint8_t* result_type) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_check_expr_expression_type_with_buffers(Checker* c, int32_t index, ExpressionTypeBuffers* buffers) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_expr_InferExpressionType_with_buffers(ZirModule* module, uint8_t* expression, ZirSourceSpan span, uint8_t* type, size_t capacity, InferExpressionTypeBuffers* buffers) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_expr_ParseExpr(ZirFunction* fn, ZirModule* module, uint8_t* text, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
@@ -3692,7 +3692,7 @@ compiler_check_expr_file_declares(uint8_t* path, Slice declaration)
                     value_2 = text[((int64_t)((uint64_t)at + (uint64_t)index))];
                 }
                 uint8_t byte = value_2;
-                if (byte != ((uint8_t *)declaration.data)[index]) {
+                if (byte != ((uint8_t *)(declaration).data)[index]) {
                     matched = false;
                     break;
                 }
@@ -3848,6 +3848,170 @@ compiler_check_expr_unresolved_error(Checker* c, ZirExpr* expression, int32_t pr
     zir_foreign_compiler_check_expr__CompilerFree((void*)(details_storage_2));
     zir_foreign_compiler_check_expr__CompilerFree((void*)(id_storage_1));
     zir_foreign_compiler_check_expr__CompilerFree((void*)(message_storage_0));
+}
+
+static void
+compiler_check_expr_BindForeignCall(Checker* c, ZirExpr* expression, ZirImport* declaration, ZirModule* owner, CheckArray4096_u8* parameters, int32_t count, uint8_t* result_type)
+{
+    void* value_0 = zir_foreign_compiler_check_expr__AllocateOrExit(sizeof(ZirImport));
+    ZirImport* binding = (ZirImport*)(value_0);
+    ZirImport* value_1 = &(binding[0]);
+    (*value_1) = declaration[0];
+    int32_t* value_2 = &(binding->is_public);
+    (*value_2) = 0;
+    int32_t* value_3 = &(binding->is_file_private);
+    (*value_3) = 0;
+    if ((binding->declaration_module)[0] == 0) {
+        zir_foreign_compiler_check_expr__copy_text(&(binding->declaration_module[0]), (128) * (sizeof(uint8_t)), &(owner->name[0]));
+    }
+    if (((ZirExternKind)(binding->extern_kind)) == ((ZirExternKind)(1)) && (binding->extern_symbol)[0] == 0) {
+        zir_foreign_compiler_check_expr__copy_text(&(binding->extern_symbol[0]), (128) * (sizeof(uint8_t)), &(declaration->name[0]));
+    }
+    size_t used = 0;
+    uint8_t* value_4 = &(binding->args[0]);
+    (*value_4) = 0;
+    {
+        int32_t range_first_12 = 0;
+        int32_t range_last_12 = (int32_t)((uint32_t)count - 1u);
+        int32_t index = range_first_12;
+        if (index <= range_last_12) for (;;) {
+            uint8_t* value_5 = (uint8_t*)(((size_t)(&(binding->args[0])) + used));
+            size_t value_6 = ((4096) * (sizeof(uint8_t))) - used;
+            uint8_t* value_7 = compiler_check_types_CheckCString(StringLiteral("%s%s"));
+            uint8_t* value_8 = (void *)0;
+            if (index == 0) {
+                uint8_t* value_9 = compiler_check_types_CheckCString(StringLiteral(""));
+                value_8 = value_9;
+            } else {
+                uint8_t* value_10 = compiler_check_types_CheckCString(StringLiteral(", "));
+                value_8 = value_10;
+            }
+            int32_t written = zir_foreign_compiler_check_expr__snprintf(value_5, value_6, value_7, value_8, &(((parameters[index]).items)[0]));
+            if (written < 0 || (size_t)(written) >= ((4096) * (sizeof(uint8_t))) - used) {
+                Checker* value_11 = c;
+                ZirSourceSpan value_12 = expression->span;
+                uint8_t* value_13 = compiler_check_types_CheckCString(StringLiteral("imported foreign signature is too long"));
+                zir_foreign_compiler_check_expr__error(value_11, value_12, value_13, (uint8_t*)expression->name);
+                zir_foreign_compiler_check_expr__CompilerFree((void*)(binding));
+                return;
+            }
+            used = used + (size_t)(written);
+            if (index == range_last_12) {
+                break;
+            }
+            index = (int32_t)((uint32_t)index + 1u);
+        }
+    }
+    zir_foreign_compiler_check_expr__copy_text(&(binding->return_type[0]), (128) * (sizeof(uint8_t)), result_type);
+    {
+        int32_t range_first_22 = 0;
+        int32_t range_last_22 = (int32_t)((uint32_t)(c->module->import_count) - 1u);
+        int32_t index = range_first_22;
+        if (index <= range_last_22) for (;;) {
+            ZirImport* existing = &(c->module->imports[index]);
+            bool value_14 = ((ZirImportKind)(existing->kind)) == ((ZirImportKind)(3)) && ((ZirExternKind)(existing->extern_kind)) == ((ZirExternKind)(binding->extern_kind));
+            bool value_15 = value_14 && ((uint8_t*)existing->span.context) == ((uint8_t*)binding->span.context) && existing->span.file == binding->span.file;
+            bool value_16 = value_15 && existing->span.line == binding->span.line && existing->span.column == binding->span.column;
+            bool value_17 = value_16;
+            bool value_18 = value_17 && zir_foreign_compiler_check_expr__strcmp(&(existing->declaration_module[0]), &(binding->declaration_module[0])) == 0;
+            bool value_19 = value_18;
+            bool value_20 = value_19 && zir_foreign_compiler_check_expr__strcmp(&(existing->target[0]), &(binding->target[0])) == 0;
+            bool value_21 = value_20;
+            bool value_22 = value_21 && zir_foreign_compiler_check_expr__strcmp(&(existing->extern_symbol[0]), &(binding->extern_symbol[0])) == 0;
+            bool value_23 = value_22;
+            bool value_24 = value_23 && zir_foreign_compiler_check_expr__strcmp(&(existing->args[0]), &(binding->args[0])) == 0;
+            bool value_25 = value_24;
+            if (value_25 && zir_foreign_compiler_check_expr__strcmp(&(existing->return_type[0]), &(binding->return_type[0])) == 0) {
+                const char ** value_26 = &(expression->name);
+                uint8_t* value_27 = zir_foreign_compiler_check_expr__KeepName(&(existing->name[0]));
+                (*value_26) = (const char *)(value_27);
+                zir_foreign_compiler_check_expr__CompilerFree((void*)(binding));
+                return;
+            }
+            if (index == range_last_22) {
+                break;
+            }
+            index = (int32_t)((uint32_t)index + 1u);
+        }
+    }
+    int32_t serial = c->module->import_count;
+    while (true) {
+        uint8_t* value_28 = compiler_check_types_CheckCString(StringLiteral("__ziran_foreign_%d"));
+        zir_foreign_compiler_check_expr__snprintf(&(binding->name[0]), (128) * (sizeof(uint8_t)), value_28, serial);
+        uint8_t* value_29 = zir_foreign_compiler_check_expr__lookup(c, &(binding->name[0]));
+        bool collision = value_29[0] != 0;
+        {
+            int32_t range_first_34 = 0;
+            int32_t range_last_34 = (int32_t)((uint32_t)(c->module->import_count) - 1u);
+            int32_t index = range_first_34;
+            if (index <= range_last_34) for (;;) {
+                if (zir_foreign_compiler_check_expr__strcmp(&(((c->module->imports[index]).name)[0]), &(binding->name[0])) == 0) {
+                    collision = true;
+                }
+                if (index == range_last_34) {
+                    break;
+                }
+                index = (int32_t)((uint32_t)index + 1u);
+            }
+        }
+        {
+            int32_t range_first_39 = 0;
+            int32_t range_last_39 = (int32_t)((uint32_t)(c->module->function_count) - 1u);
+            int32_t index = range_first_39;
+            if (index <= range_last_39) for (;;) {
+                ZirFunction* function = &(c->module->functions[index]);
+                bool value_30 = zir_foreign_compiler_check_expr__strcmp(&(function->name[0]), &(binding->name[0])) == 0;
+                bool value_31 = value_30;
+                if (!value_31) {
+                    uint8_t* value_32 = zir_foreign_compiler_check_expr__strstr(compiler_check_expr_FunctionArgs(function), &(binding->name[0]));
+                    value_31 = (value_32 != ((void *)0));
+                }
+                if (value_31) {
+                    collision = true;
+                }
+                {
+                    int32_t range_first_44 = 0;
+                    int32_t range_last_44 = (int32_t)((uint32_t)(function->stmt_count) - 1u);
+                    int32_t statement = range_first_44;
+                    if (statement <= range_last_44) for (;;) {
+                        ZirStmt* entry = &(function->stmts[statement]);
+                        bool value_33 = ((ZirStmtKind)(entry->kind)) == ((ZirStmtKind)(3)) && ((uint8_t*)entry->names.name) != ((void *)0);
+                        bool value_34 = value_33;
+                        if (value_34 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)entry->names.name, &(binding->name[0])) == 0) {
+                            collision = true;
+                        }
+                        if (statement == range_last_44) {
+                            break;
+                        }
+                        statement = (int32_t)((uint32_t)statement + 1u);
+                    }
+                }
+                if (index == range_last_39) {
+                    break;
+                }
+                index = (int32_t)((uint32_t)index + 1u);
+            }
+        }
+        if (!collision) {
+            break;
+        }
+        serial = (int32_t)((uint32_t)serial + 1u);
+    }
+    ZirImport* stored = zir_foreign_compiler_check_expr__ModuleAddImport(c->module, (ZirImportKind)(3), &(binding->name[0]), &(binding->target[0]), &(binding->signature[0]), binding->required, binding->span);
+    if (stored == ((void *)0)) {
+        Checker* value_35 = c;
+        ZirSourceSpan value_36 = expression->span;
+        uint8_t* value_37 = compiler_check_types_CheckCString(StringLiteral("cannot allocate imported foreign binding"));
+        zir_foreign_compiler_check_expr__error(value_35, value_36, value_37, (uint8_t*)expression->name);
+        zir_foreign_compiler_check_expr__CompilerFree((void*)(binding));
+        return;
+    }
+    ZirImport* value_38 = &(stored[0]);
+    (*value_38) = binding[0];
+    const char ** value_39 = &(expression->name);
+    uint8_t* value_40 = zir_foreign_compiler_check_expr__KeepName(&(stored->name[0]));
+    (*value_39) = (const char *)(value_40);
+    zir_foreign_compiler_check_expr__CompilerFree((void*)(binding));
 }
 
 static uint8_t*
@@ -4153,7 +4317,12 @@ compiler_check_expr_expression_type_with_buffers(Checker* c, int32_t index, Expr
         zir_foreign_compiler_check_expr__CompilerFree((void*)(member_type_storage_0));
         return cleanup_return_12;
     }
-    if (((ZirExprKind)(e->kind)) == ((ZirExprKind)(20)) || ((ZirExprKind)(e->kind)) == ((ZirExprKind)(21))) {
+    bool needs_callable_context = ((ZirExprKind)(e->kind)) == ((ZirExprKind)(20)) || ((ZirExprKind)(e->kind)) == ((ZirExprKind)(21));
+    if (((ZirExprKind)(e->kind)) == ((ZirExprKind)(1)) && e->is_function_value == 0) {
+        ZirType* slot = zir_foreign_compiler_check_expr__FindType(c->module, &(c->expected_type.items[0]), (void *)0);
+        needs_callable_context = slot != ((void *)0) && (slot->is_owned_callable != 0 || slot->is_scoped_callable != 0);
+    }
+    if (needs_callable_context) {
         zir_foreign_compiler_check_expr__contextual_slot(c, index, &(c->expected_type.items[0]));
         e = &(c->fn->exprs[index]);
         if (((ZirExprKind)(e->kind)) == ((ZirExprKind)(20)) || ((ZirExprKind)(e->kind)) == ((ZirExprKind)(21))) {
@@ -7573,50 +7742,59 @@ compiler_check_expr_expression_type_with_buffers(Checker* c, int32_t index, Expr
                                 zir_foreign_compiler_check_expr__CompilerFree((void*)(field_path_storage_39));
                                 zir_foreign_compiler_check_expr__CompilerFree((void*)(member_type_storage_38));
                             }
-                            ZirTargetFacts value_1156 = zir_foreign_compiler_check_expr__CompilerTargetFacts();
-                            int32_t target = value_1156.target;
-                            bool value_1157 = args == (uint8_t*)(((void *)0)) && !(binding[0] != 0) && !(base_type[0] != 0) && !(e->is_this != 0);
-                            if (value_1157 && ((uint32_t)(target) == 3 || (uint32_t)(target) == 2)) {
-                                ZirModule* value_1158 = c->module;
-                                uint8_t* value_1159 = (uint8_t*)e->name;
-                                int32_t found = zir_foreign_compiler_check_expr__ResolveQualifiedHostImportAt(value_1158, value_1159, zir_foreign_compiler_check_expr__SpanPath(e->span), &(callee_owner), &(qualified_host));
-                                if (found < 0) {
-                                    Checker* value_1160 = c;
-                                    ZirSourceSpan value_1161 = e->span;
-                                    uint8_t* value_1162 = compiler_check_types_CheckCString(StringLiteral("ambiguous imported function"));
-                                    zir_foreign_compiler_check_expr__error(value_1160, value_1161, value_1162, (uint8_t*)e->name);
-                                    zir_foreign_compiler_check_expr__CompilerFree((void*)(parts));
-                                    zir_foreign_compiler_check_expr__CompilerFree((void*)(base_storage_37));
-                                    zir_foreign_compiler_check_expr__CompilerFree((void*)(specialized_return_storage_30));
-                                    zir_foreign_compiler_check_expr__CompilerFree((void*)(display_name_storage_17));
-                                    goto zir_loop_break_4;
-                                }
-                                if (found > 0) {
-                                    args = (uint8_t*)(&(qualified_host->args));
-                                    return_type = (uint8_t*)(&(qualified_host->return_type));
-                                    varargs = qualified_host->is_varargs;
-                                    int32_t* value_1163 = &(c->fn->uses_host);
-                                    (*value_1163) = 1;
-                                }
-                            }
                             zir_foreign_compiler_check_expr__CompilerFree((void*)(base_storage_37));
                         }
                     }
                 }
-                bool value_1164 = args != ((void *)0);
-                bool value_1165 = value_1164;
-                if (value_1165) {
-                    uint8_t* value_1166 = zir_foreign_compiler_check_expr__skip_ws(args);
-                    value_1165 = (value_1166[0] != 0);
+                if (callee == ((void *)0) && slot == ((void *)0) && args == ((void *)0) && binding[0] == 0 && e->is_this == 0) {
+                    ZirImport* declaration = (void *)0;
+                    ZirModule* value_1156 = c->module;
+                    uint8_t* value_1157 = (uint8_t*)e->name;
+                    int32_t found = zir_foreign_compiler_check_expr__ResolveForeignImportAt(value_1156, value_1157, zir_foreign_compiler_check_expr__SpanPath(e->span), &(callee_owner), &(declaration));
+                    if (found < 0) {
+                        Checker* value_1158 = c;
+                        ZirSourceSpan value_1159 = e->span;
+                        uint8_t* value_1160 = compiler_check_types_CheckCString(StringLiteral("ambiguous imported function"));
+                        zir_foreign_compiler_check_expr__error(value_1158, value_1159, value_1160, (uint8_t*)e->name);
+                        zir_foreign_compiler_check_expr__CompilerFree((void*)(parts));
+                        zir_foreign_compiler_check_expr__CompilerFree((void*)(specialized_return_storage_30));
+                        zir_foreign_compiler_check_expr__CompilerFree((void*)(display_name_storage_17));
+                        goto zir_loop_break_4;
+                    }
+                    if (found > 0) {
+                        void* value_1161 = zir_foreign_compiler_check_expr__AllocateOrExit(sizeof(ZirImport));
+                        qualified_host = (ZirImport*)(value_1161);
+                        ZirImport* value_1162 = &(qualified_host[0]);
+                        (*value_1162) = declaration[0];
+                        args = &(qualified_host->args[0]);
+                        return_type = &(qualified_host->return_type[0]);
+                        varargs = qualified_host->is_varargs;
+                        if (((ZirExternKind)(qualified_host->extern_kind)) == ((ZirExternKind)(1))) {
+                            int32_t* value_1163 = &(c->fn->uses_host);
+                            (*value_1163) = 1;
+                        }
+                        if (qualified_host->go_defer != 0 && (c->current_stmt == ((void *)0) || ((ZirStmtKind)(c->current_stmt->kind)) != ((ZirStmtKind)(5)) || c->current_stmt->expr_root != index)) {
+                            Checker* value_1164 = c;
+                            ZirSourceSpan value_1165 = e->span;
+                            uint8_t* value_1166 = compiler_check_types_CheckCString(StringLiteral("#go_defer requires a standalone call statement"));
+                            zir_foreign_compiler_check_expr__error(value_1164, value_1165, value_1166, (uint8_t*)e->name);
+                        }
+                    }
                 }
-                int32_t value_1167 = 0;
-                if (value_1165) {
-                    int32_t value_1168 = zir_foreign_compiler_check_expr__split_top_level(args, (uint8_t*)(&((parts[0]).items)), 64, (size_t)((uint64_t)(sizeof(CheckArray4096_u8))));
-                    value_1167 = value_1168;
+                bool value_1167 = args != ((void *)0);
+                bool value_1168 = value_1167;
+                if (value_1168) {
+                    uint8_t* value_1169 = zir_foreign_compiler_check_expr__skip_ws(args);
+                    value_1168 = (value_1169[0] != 0);
+                }
+                int32_t value_1170 = 0;
+                if (value_1168) {
+                    int32_t value_1171 = zir_foreign_compiler_check_expr__split_top_level(args, (uint8_t*)(&((parts[0]).items)), 64, (size_t)((uint64_t)(sizeof(CheckArray4096_u8))));
+                    value_1170 = value_1171;
                 } else {
-                    value_1167 = 0;
+                    value_1170 = 0;
                 }
-                expected = value_1167;
+                expected = value_1170;
                 if (callee_owner != (ZirModule*)(((void *)0)) && callee_owner != c->module) {
                     {
                         int32_t parameter = 0;
@@ -7631,44 +7809,44 @@ compiler_check_expr_expression_type_with_buffers(Checker* c, int32_t index, Expr
                                     compiler_check_types_CheckPost0(&(parameter));
                                     goto zir_loop_continue_21;
                                 }
-                                void* value_1169 = zir_foreign_compiler_check_expr__AllocateOrExit(sizeof(CheckArray128_u8));
-                                CheckArray128_u8* mapped_storage_40 = (CheckArray128_u8*)(value_1169);
+                                void* value_1172 = zir_foreign_compiler_check_expr__AllocateOrExit(sizeof(CheckArray128_u8));
+                                CheckArray128_u8* mapped_storage_40 = (CheckArray128_u8*)(value_1172);
                                 zir_foreign_compiler_check_expr__memset((void*)(mapped_storage_40), 0, sizeof(CheckArray128_u8));
                                 zir_foreign_compiler_check_expr__copy_text((uint8_t*)(&((mapped_storage_40[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))), zir_foreign_compiler_check_expr__skip_ws((uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t))))));
                                 zir_foreign_compiler_check_expr__trim_in_place((uint8_t*)(&((mapped_storage_40[0]).items)));
-                                uint8_t* value_1170 = (void *)0;
+                                uint8_t* value_1173 = (void *)0;
                                 if (slot != ((void *)0)) {
-                                    value_1170 = (uint8_t*)e->slot_type;
+                                    value_1173 = (uint8_t*)e->slot_type;
                                 } else {
-                                    value_1170 = (uint8_t*)e->name;
+                                    value_1173 = (uint8_t*)e->name;
                                 }
-                                bool value_1171 = zir_foreign_compiler_check_expr__record_field_type_at_use(c->module, callee_owner, value_1170, (uint8_t*)(&((mapped_storage_40[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8)))) != 0;
-                                if (!value_1171) {
-                                    Checker* value_1172 = c;
-                                    ZirSourceSpan value_1173 = e->span;
-                                    uint8_t* value_1174 = compiler_check_types_CheckCString(StringLiteral("imported procedure parameter type is shadowed"));
-                                    zir_foreign_compiler_check_expr__error(value_1172, value_1173, value_1174, (uint8_t*)e->name);
+                                bool value_1174 = zir_foreign_compiler_check_expr__record_field_type_at_use(c->module, callee_owner, value_1173, (uint8_t*)(&((mapped_storage_40[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8)))) != 0;
+                                if (!value_1174) {
+                                    Checker* value_1175 = c;
+                                    ZirSourceSpan value_1176 = e->span;
+                                    uint8_t* value_1177 = compiler_check_types_CheckCString(StringLiteral("imported procedure parameter type is shadowed"));
+                                    zir_foreign_compiler_check_expr__error(value_1175, value_1176, value_1177, (uint8_t*)e->name);
                                     compiler_check_types_CheckPost0(&(parameter));
                                     zir_foreign_compiler_check_expr__CompilerFree((void*)(mapped_storage_40));
                                     goto zir_loop_continue_21;
                                 }
-                                uint8_t* value_1175 = (uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t))));
-                                size_t value_1176 = (size_t)((uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t))))) - (size_t)((uint8_t*)(&((parts[parameter]).items)));
-                                uint64_t value_1177 = (uint64_t)((uint64_t)(sizeof(CheckArray4096_u8)) - (uint64_t)((size_t)((ZiDivS64((int64_t)((ptrdiff_t)(value_1176)), sizeof(uint8_t), INT64_MIN)))));
-                                size_t value_1178 = (size_t)(value_1177);
-                                int32_t written = zir_foreign_compiler_check_expr__snprintf(value_1175, value_1178, compiler_check_types_CheckCString(StringLiteral(" %s")), (uint8_t*)(&((mapped_storage_40[0]).items)));
-                                bool value_1179 = written < 0;
-                                if (!value_1179) {
-                                    uint64_t value_1180 = (uint64_t)((size_t)(written));
-                                    size_t value_1181 = (size_t)((uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t))))) - (size_t)((uint8_t*)(&((parts[parameter]).items)));
-                                    uint64_t value_1182 = (uint64_t)((uint64_t)(sizeof(CheckArray4096_u8)) - (uint64_t)((size_t)((ZiDivS64((int64_t)((ptrdiff_t)(value_1181)), sizeof(uint8_t), INT64_MIN)))));
-                                    value_1179 = (value_1180 >= value_1182);
+                                uint8_t* value_1178 = (uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t))));
+                                size_t value_1179 = (size_t)((uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t))))) - (size_t)((uint8_t*)(&((parts[parameter]).items)));
+                                uint64_t value_1180 = (uint64_t)((uint64_t)(sizeof(CheckArray4096_u8)) - (uint64_t)((size_t)((ZiDivS64((int64_t)((ptrdiff_t)(value_1179)), sizeof(uint8_t), INT64_MIN)))));
+                                size_t value_1181 = (size_t)(value_1180);
+                                int32_t written = zir_foreign_compiler_check_expr__snprintf(value_1178, value_1181, compiler_check_types_CheckCString(StringLiteral(" %s")), (uint8_t*)(&((mapped_storage_40[0]).items)));
+                                bool value_1182 = written < 0;
+                                if (!value_1182) {
+                                    uint64_t value_1183 = (uint64_t)((size_t)(written));
+                                    size_t value_1184 = (size_t)((uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t))))) - (size_t)((uint8_t*)(&((parts[parameter]).items)));
+                                    uint64_t value_1185 = (uint64_t)((uint64_t)(sizeof(CheckArray4096_u8)) - (uint64_t)((size_t)((ZiDivS64((int64_t)((ptrdiff_t)(value_1184)), sizeof(uint8_t), INT64_MIN)))));
+                                    value_1182 = (value_1183 >= value_1185);
                                 }
-                                if (value_1179) {
-                                    Checker* value_1183 = c;
-                                    ZirSourceSpan value_1184 = e->span;
-                                    uint8_t* value_1185 = compiler_check_types_CheckCString(StringLiteral("imported parameter type is too long"));
-                                    zir_foreign_compiler_check_expr__error(value_1183, value_1184, value_1185, (uint8_t*)e->name);
+                                if (value_1182) {
+                                    Checker* value_1186 = c;
+                                    ZirSourceSpan value_1187 = e->span;
+                                    uint8_t* value_1188 = compiler_check_types_CheckCString(StringLiteral("imported parameter type is too long"));
+                                    zir_foreign_compiler_check_expr__error(value_1186, value_1187, value_1188, (uint8_t*)e->name);
                                 }
                                 compiler_check_types_CheckPost0(&(parameter));
                                 zir_foreign_compiler_check_expr__CompilerFree((void*)(mapped_storage_40));
@@ -7682,47 +7860,49 @@ compiler_check_expr_expression_type_with_buffers(Checker* c, int32_t index, Expr
                     uint8_t qualified_return[128] = {0};
                     zir_foreign_compiler_check_expr__copy_text(&(qualified_return[0]), (128) * (sizeof(uint8_t)), return_type);
                     if (zir_foreign_compiler_check_expr__record_field_type_at_use(c->module, slot_owner, (uint8_t*)e->slot_type, &(qualified_return[0]), (128) * (sizeof(uint8_t))) == 0) {
-                        Checker* value_1186 = c;
-                        ZirSourceSpan value_1187 = e->span;
-                        uint8_t* value_1188 = compiler_check_types_CheckCString(StringLiteral("imported slot result type is shadowed"));
-                        zir_foreign_compiler_check_expr__error(value_1186, value_1187, value_1188, (uint8_t*)e->slot_type);
+                        Checker* value_1189 = c;
+                        ZirSourceSpan value_1190 = e->span;
+                        uint8_t* value_1191 = compiler_check_types_CheckCString(StringLiteral("imported slot result type is shadowed"));
+                        zir_foreign_compiler_check_expr__error(value_1189, value_1190, value_1191, (uint8_t*)e->slot_type);
                     }
                     return_type = zir_foreign_compiler_check_expr__KeepName(&(qualified_return[0]));
                 }
-                int32_t value_1189 = 0;
+                int32_t value_1192 = 0;
                 if (varargs != 0 && expected > 0) {
-                    value_1189 = (int32_t)((uint32_t)expected - 1u);
+                    value_1192 = (int32_t)((uint32_t)expected - 1u);
                 } else {
-                    value_1189 = expected;
+                    value_1192 = expected;
                 }
-                int32_t fixed = value_1189;
+                int32_t fixed = value_1192;
                 if (varargs != 0 && expected > 0) {
-                    bool value_1190 = zir_foreign_compiler_check_expr__bind_varargs_call(c, e, parts, fixed, (uint8_t*)(&((display_name_storage_17[0]).items))) != 0;
-                    if (!value_1190) {
+                    bool value_1193 = zir_foreign_compiler_check_expr__bind_varargs_call(c, e, parts, fixed, (uint8_t*)(&((display_name_storage_17[0]).items))) != 0;
+                    if (!value_1193) {
+                        zir_foreign_compiler_check_expr__CompilerFree((void*)(qualified_host));
                         zir_foreign_compiler_check_expr__CompilerFree((void*)(parts));
                         zir_foreign_compiler_check_expr__CompilerFree((void*)(specialized_return_storage_30));
                         zir_foreign_compiler_check_expr__CompilerFree((void*)(display_name_storage_17));
                         goto zir_loop_break_4;
                     }
                 } else {
-                    bool value_1191 = args != ((void *)0);
-                    bool value_1192 = value_1191;
-                    if (value_1192) {
-                        Checker* value_1193 = c;
-                        ZirExpr* value_1194 = e;
-                        CheckArray4096_u8* value_1195 = parts;
-                        int32_t value_1196 = expected;
-                        uint8_t* value_1197 = (void *)0;
+                    bool value_1194 = args != ((void *)0);
+                    bool value_1195 = value_1194;
+                    if (value_1195) {
+                        Checker* value_1196 = c;
+                        ZirExpr* value_1197 = e;
+                        CheckArray4096_u8* value_1198 = parts;
+                        int32_t value_1199 = expected;
+                        uint8_t* value_1200 = (void *)0;
                         if (callee != ((void *)0)) {
-                            uint8_t* value_1198 = compiler_check_expr_FunctionDefaultArgs(callee);
-                            value_1197 = value_1198;
+                            uint8_t* value_1201 = compiler_check_expr_FunctionDefaultArgs(callee);
+                            value_1200 = value_1201;
                         } else {
-                            value_1197 = (void *)0;
+                            value_1200 = (void *)0;
                         }
-                        bool value_1199 = zir_foreign_compiler_check_expr__bind_call_arguments(value_1193, value_1194, value_1195, value_1196, (uint8_t*)(&((display_name_storage_17[0]).items)), value_1197) != 0;
-                        value_1192 = !value_1199;
+                        bool value_1202 = zir_foreign_compiler_check_expr__bind_call_arguments(value_1196, value_1197, value_1198, value_1199, (uint8_t*)(&((display_name_storage_17[0]).items)), value_1200) != 0;
+                        value_1195 = !value_1202;
                     }
-                    if (value_1192) {
+                    if (value_1195) {
+                        zir_foreign_compiler_check_expr__CompilerFree((void*)(qualified_host));
                         zir_foreign_compiler_check_expr__CompilerFree((void*)(parts));
                         zir_foreign_compiler_check_expr__CompilerFree((void*)(specialized_return_storage_30));
                         zir_foreign_compiler_check_expr__CompilerFree((void*)(display_name_storage_17));
@@ -7737,130 +7917,130 @@ compiler_check_expr_expression_type_with_buffers(Checker* c, int32_t index, Expr
                             break;
                         }
                         int32_t parameter = (c->fn->exprs[child]).argument_index;
-                        uint8_t* value_1200 = (void *)0;
+                        uint8_t* value_1203 = (void *)0;
                         if (parameter >= 0 && parameter < expected && parameter < fixed) {
-                            uint8_t* value_1201 = zir_foreign_compiler_check_expr__strchr((uint8_t*)(&((parts[parameter]).items)), 58);
-                            value_1200 = value_1201;
+                            uint8_t* value_1204 = zir_foreign_compiler_check_expr__strchr((uint8_t*)(&((parts[parameter]).items)), 58);
+                            value_1203 = value_1204;
                         } else {
-                            value_1200 = (void *)0;
+                            value_1203 = (void *)0;
                         }
-                        uint8_t* expected_type = value_1200;
-                        void* value_1202 = zir_foreign_compiler_check_expr__AllocateOrExit(sizeof(CheckArray128_u8));
-                        CheckArray128_u8* saved_expected_storage_41 = (CheckArray128_u8*)(value_1202);
+                        uint8_t* expected_type = value_1203;
+                        void* value_1205 = zir_foreign_compiler_check_expr__AllocateOrExit(sizeof(CheckArray128_u8));
+                        CheckArray128_u8* saved_expected_storage_41 = (CheckArray128_u8*)(value_1205);
                         zir_foreign_compiler_check_expr__memset((void*)(saved_expected_storage_41), 0, sizeof(CheckArray128_u8));
                         zir_foreign_compiler_check_expr__copy_text((uint8_t*)(&((saved_expected_storage_41[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))), (uint8_t*)(&(c->expected_type.items)));
                         if (expected_type != (uint8_t*)(((void *)0))) {
-                            Checker* value_1203 = c;
-                            int32_t value_1204 = child;
-                            zir_foreign_compiler_check_expr__contextual_slot(value_1203, value_1204, zir_foreign_compiler_check_expr__skip_ws((uint8_t*)(((size_t)(expected_type) + ((size_t)(1LL) * sizeof(uint8_t))))));
+                            Checker* value_1206 = c;
+                            int32_t value_1207 = child;
+                            zir_foreign_compiler_check_expr__contextual_slot(value_1206, value_1207, zir_foreign_compiler_check_expr__skip_ws((uint8_t*)(((size_t)(expected_type) + ((size_t)(1LL) * sizeof(uint8_t))))));
                         }
                         if (expected_type != (uint8_t*)(((void *)0))) {
                             zir_foreign_compiler_check_expr__copy_text((uint8_t*)(&(c->expected_type.items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))), zir_foreign_compiler_check_expr__skip_ws((uint8_t*)(((size_t)(expected_type) + ((size_t)(1LL) * sizeof(uint8_t))))));
                         }
                         uint8_t* arg_type = private_check_expression_type(c, child);
                         e = (ZirExpr*)(((size_t)(c->fn->exprs) + ((size_t)(index) * sizeof(ZirExpr))));
-                        bool value_1205 = expected_type != (uint8_t*)(((void *)0));
-                        bool value_1206 = value_1205;
-                        if (value_1206) {
-                            uint8_t* value_1207 = zir_foreign_compiler_check_expr__skip_ws((uint8_t*)(((size_t)(expected_type) + ((size_t)(1LL) * sizeof(uint8_t)))));
-                            bool value_1208 = zir_foreign_compiler_check_expr__strcmp(value_1207, compiler_check_types_CheckCString(StringLiteral("string"))) != 0;
-                            value_1206 = !value_1208;
+                        bool value_1208 = expected_type != (uint8_t*)(((void *)0));
+                        bool value_1209 = value_1208;
+                        if (value_1209) {
+                            uint8_t* value_1210 = zir_foreign_compiler_check_expr__skip_ws((uint8_t*)(((size_t)(expected_type) + ((size_t)(1LL) * sizeof(uint8_t)))));
+                            bool value_1211 = zir_foreign_compiler_check_expr__strcmp(value_1210, compiler_check_types_CheckCString(StringLiteral("string"))) != 0;
+                            value_1209 = !value_1211;
                         }
-                        bool value_1209 = value_1206;
-                        bool value_1210 = value_1209 && zir_foreign_compiler_check_expr__OwnedTextType(c->module, arg_type) != 0;
-                        int32_t value_1211 = 0;
-                        if (value_1210 && (int32_t)(((ZirExprKind)((c->fn->exprs[child]).kind))) != 5) {
-                            value_1211 = 1;
+                        bool value_1212 = value_1209;
+                        bool value_1213 = value_1212 && zir_foreign_compiler_check_expr__OwnedTextType(c->module, arg_type) != 0;
+                        int32_t value_1214 = 0;
+                        if (value_1213 && (int32_t)(((ZirExprKind)((c->fn->exprs[child]).kind))) != 5) {
+                            value_1214 = 1;
                         }
-                        int32_t lends_text = value_1211;
-                        bool value_1212 = !(lends_text != 0);
-                        bool value_1213 = value_1212 && zir_foreign_compiler_check_expr__contains_vec(c->module, arg_type, 0) != 0;
-                        bool value_1214 = value_1213 && (int32_t)(((ZirExprKind)((c->fn->exprs[child]).kind))) != 1 && (int32_t)(((ZirExprKind)((c->fn->exprs[child]).kind))) != 5;
-                        bool value_1215 = value_1214;
-                        bool value_1216 = value_1215;
-                        if (value_1216) {
-                            bool value_1217 = zir_foreign_compiler_check_expr__owned_transfer_shape(c, child) != 0;
-                            value_1216 = !value_1217;
+                        int32_t lends_text = value_1214;
+                        bool value_1215 = !(lends_text != 0);
+                        bool value_1216 = value_1215 && zir_foreign_compiler_check_expr__contains_vec(c->module, arg_type, 0) != 0;
+                        bool value_1217 = value_1216 && (int32_t)(((ZirExprKind)((c->fn->exprs[child]).kind))) != 1 && (int32_t)(((ZirExprKind)((c->fn->exprs[child]).kind))) != 5;
+                        bool value_1218 = value_1217;
+                        bool value_1219 = value_1218;
+                        if (value_1219) {
+                            bool value_1220 = zir_foreign_compiler_check_expr__owned_transfer_shape(c, child) != 0;
+                            value_1219 = !value_1220;
                         }
-                        if (value_1216) {
-                            Checker* value_1218 = c;
-                            ZirSourceSpan value_1219 = (c->fn->exprs[child]).span;
-                            zir_foreign_compiler_check_expr__error(value_1218, value_1219, compiler_check_types_CheckCString(StringLiteral("Vec arguments move a binding or pass a call result")), (uint8_t*)(&((display_name_storage_17[0]).items)));
+                        if (value_1219) {
+                            Checker* value_1221 = c;
+                            ZirSourceSpan value_1222 = (c->fn->exprs[child]).span;
+                            zir_foreign_compiler_check_expr__error(value_1221, value_1222, compiler_check_types_CheckCString(StringLiteral("Vec arguments move a binding or pass a call result")), (uint8_t*)(&((display_name_storage_17[0]).items)));
                         }
-                        bool value_1220 = !(lends_text != 0);
-                        bool value_1221 = value_1220 && zir_foreign_compiler_check_expr__contains_vec(c->module, arg_type, 0) != 0;
-                        bool value_1222 = value_1221;
-                        if (value_1222 && zir_foreign_compiler_check_expr__global_vec_source(c, child) != 0) {
-                            Checker* value_1223 = c;
-                            ZirSourceSpan value_1224 = (c->fn->exprs[child]).span;
-                            String value_1225 = StringLiteral("global Vec storage would move into the call and empty the global; pass its address or move it into a local first");
-                            uint8_t* value_1226 = compiler_check_types_CheckCString(value_1225);
-                            zir_foreign_compiler_check_expr__error(value_1223, value_1224, value_1226, (uint8_t*)(c->fn->exprs[child]).name);
+                        bool value_1223 = !(lends_text != 0);
+                        bool value_1224 = value_1223 && zir_foreign_compiler_check_expr__contains_vec(c->module, arg_type, 0) != 0;
+                        bool value_1225 = value_1224;
+                        if (value_1225 && zir_foreign_compiler_check_expr__global_vec_source(c, child) != 0) {
+                            Checker* value_1226 = c;
+                            ZirSourceSpan value_1227 = (c->fn->exprs[child]).span;
+                            String value_1228 = StringLiteral("global Vec storage would move into the call and empty the global; pass its address or move it into a local first");
+                            uint8_t* value_1229 = compiler_check_types_CheckCString(value_1228);
+                            zir_foreign_compiler_check_expr__error(value_1226, value_1227, value_1229, (uint8_t*)(c->fn->exprs[child]).name);
                         }
                         zir_foreign_compiler_check_expr__copy_text((uint8_t*)(&(c->expected_type.items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))), (uint8_t*)(&((saved_expected_storage_41[0]).items)));
                         if (args != ((void *)0) && parameter >= 0 && parameter < fixed) {
                             uint8_t* colon = zir_foreign_compiler_check_expr__strchr((uint8_t*)(&((parts[parameter]).items)), 58);
-                            bool value_1227 = colon != ((void *)0);
-                            bool value_1228 = value_1227;
-                            if (value_1228) {
-                                Checker* value_1229 = c;
-                                uint8_t* value_1230 = zir_foreign_compiler_check_expr__skip_ws((uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t)))));
-                                bool value_1231 = zir_foreign_compiler_check_expr__compatible_checked(value_1229, value_1230, arg_type) != 0;
-                                value_1228 = !value_1231;
-                            }
-                            if (value_1228) {
+                            bool value_1230 = colon != ((void *)0);
+                            bool value_1231 = value_1230;
+                            if (value_1231) {
                                 Checker* value_1232 = c;
-                                int32_t value_1233 = child;
-                                uint8_t* value_1234 = zir_foreign_compiler_check_expr__skip_ws((uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t)))));
-                                uint8_t* converted = zir_foreign_compiler_check_expr__try_conversion(value_1232, value_1233, value_1234, (c->fn->exprs[child]).span);
+                                uint8_t* value_1233 = zir_foreign_compiler_check_expr__skip_ws((uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t)))));
+                                bool value_1234 = zir_foreign_compiler_check_expr__compatible_checked(value_1232, value_1233, arg_type) != 0;
+                                value_1231 = !value_1234;
+                            }
+                            if (value_1231) {
+                                Checker* value_1235 = c;
+                                int32_t value_1236 = child;
+                                uint8_t* value_1237 = zir_foreign_compiler_check_expr__skip_ws((uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t)))));
+                                uint8_t* converted = zir_foreign_compiler_check_expr__try_conversion(value_1235, value_1236, value_1237, (c->fn->exprs[child]).span);
                                 e = (ZirExpr*)(((size_t)(c->fn->exprs) + ((size_t)(index) * sizeof(ZirExpr))));
                                 if (converted != (uint8_t*)(((void *)0))) {
                                     arg_type = converted;
                                 } else {
-                                    Checker* value_1235 = c;
-                                    ZirSourceSpan value_1236 = (c->fn->exprs[child]).span;
-                                    uint8_t* value_1237 = compiler_check_types_CheckCString(StringLiteral("argument type mismatch"));
-                                    uint8_t* value_1238 = zir_foreign_compiler_check_expr__skip_ws((uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t)))));
-                                    ZirSourceSpan value_1239 = {0};
+                                    Checker* value_1238 = c;
+                                    ZirSourceSpan value_1239 = (c->fn->exprs[child]).span;
+                                    uint8_t* value_1240 = compiler_check_types_CheckCString(StringLiteral("argument type mismatch"));
+                                    uint8_t* value_1241 = zir_foreign_compiler_check_expr__skip_ws((uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t)))));
+                                    ZirSourceSpan value_1242 = {0};
                                     if (callee != ((void *)0)) {
-                                        value_1239 = callee->span;
+                                        value_1242 = callee->span;
                                     } else {
-                                        ZirSourceSpan value_1240 = {0};
+                                        ZirSourceSpan value_1243 = {0};
                                         if (slot != ((void *)0)) {
-                                            value_1240 = slot->span;
+                                            value_1243 = slot->span;
                                         } else {
-                                            ZirSourceSpan value_1241 = {0};
+                                            ZirSourceSpan value_1244 = {0};
                                             if (qualified_host != ((void *)0)) {
-                                                value_1241 = qualified_host->span;
+                                                value_1244 = qualified_host->span;
                                             } else {
-                                                value_1241 = (ZirSourceSpan){0};
+                                                value_1244 = (ZirSourceSpan){0};
                                             }
-                                            value_1240 = value_1241;
+                                            value_1243 = value_1244;
                                         }
-                                        value_1239 = value_1240;
+                                        value_1242 = value_1243;
                                     }
-                                    zir_foreign_compiler_check_expr__type_error(value_1235, value_1236, value_1237, (uint8_t*)(&((display_name_storage_17[0]).items)), value_1238, arg_type, value_1239);
+                                    zir_foreign_compiler_check_expr__type_error(value_1238, value_1239, value_1240, (uint8_t*)(&((display_name_storage_17[0]).items)), value_1241, arg_type, value_1242);
                                 }
                             }
-                            bool value_1242 = colon != ((void *)0);
-                            bool value_1243 = value_1242;
-                            if (value_1243) {
-                                uint8_t* value_1244 = arg_type;
-                                bool value_1245 = zir_foreign_compiler_check_expr__strcmp(value_1244, compiler_check_types_CheckCString(StringLiteral("integer"))) != 0;
-                                bool value_1246 = !value_1245;
-                                if (!value_1246) {
-                                    uint8_t* value_1247 = arg_type;
-                                    bool value_1248 = zir_foreign_compiler_check_expr__strcmp(value_1247, compiler_check_types_CheckCString(StringLiteral("real"))) != 0;
-                                    value_1246 = !value_1248;
+                            bool value_1245 = colon != ((void *)0);
+                            bool value_1246 = value_1245;
+                            if (value_1246) {
+                                uint8_t* value_1247 = arg_type;
+                                bool value_1248 = zir_foreign_compiler_check_expr__strcmp(value_1247, compiler_check_types_CheckCString(StringLiteral("integer"))) != 0;
+                                bool value_1249 = !value_1248;
+                                if (!value_1249) {
+                                    uint8_t* value_1250 = arg_type;
+                                    bool value_1251 = zir_foreign_compiler_check_expr__strcmp(value_1250, compiler_check_types_CheckCString(StringLiteral("real"))) != 0;
+                                    value_1249 = !value_1251;
                                 }
-                                value_1243 = value_1246;
+                                value_1246 = value_1249;
                             }
-                            if (value_1243) {
+                            if (value_1246) {
                                 uint8_t* context = zir_foreign_compiler_check_expr__ScalarType(zir_foreign_compiler_check_expr__skip_ws((uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t))))));
                                 if (context[0] != 0) {
-                                    const char ** value_1249 = &((c->fn->exprs[child]).type);
-                                    uint8_t* value_1250 = zir_foreign_compiler_check_expr__KeepName(context);
-                                    (*value_1249) = (const char *)(value_1250);
+                                    const char ** value_1252 = &((c->fn->exprs[child]).type);
+                                    uint8_t* value_1253 = zir_foreign_compiler_check_expr__KeepName(context);
+                                    (*value_1252) = (const char *)(value_1253);
                                 }
                             }
                         }
@@ -7870,61 +8050,65 @@ compiler_check_expr_expression_type_with_buffers(Checker* c, int32_t index, Expr
                     }
                 }
                 if (args != ((void *)0)) {
-                    void* value_1251 = zir_foreign_compiler_check_expr__AllocateOrExit(sizeof(CheckArray128_u8));
-                    CheckArray128_u8* saved_checked_type_storage_42 = (CheckArray128_u8*)(value_1251);
+                    void* value_1254 = zir_foreign_compiler_check_expr__AllocateOrExit(sizeof(CheckArray128_u8));
+                    CheckArray128_u8* saved_checked_type_storage_42 = (CheckArray128_u8*)(value_1254);
                     zir_foreign_compiler_check_expr__memset((void*)(saved_checked_type_storage_42), 0, sizeof(CheckArray128_u8));
                     zir_foreign_compiler_check_expr__copy_text((uint8_t*)(&((saved_checked_type_storage_42[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))), (uint8_t*)e->type);
                     type = return_type;
                     if (((specialized_return_storage_30[0]).items)[0] != 0) {
-                        const char ** value_1252 = &(e->type);
-                        uint8_t* value_1253 = zir_foreign_compiler_check_expr__KeepName((uint8_t*)(&((specialized_return_storage_30[0]).items)));
-                        (*value_1252) = (const char *)(value_1253);
+                        const char ** value_1255 = &(e->type);
+                        uint8_t* value_1256 = zir_foreign_compiler_check_expr__KeepName((uint8_t*)(&((specialized_return_storage_30[0]).items)));
+                        (*value_1255) = (const char *)(value_1256);
                         type = (uint8_t*)e->type;
                     }
                     if (callee_owner != (ZirModule*)(((void *)0)) && callee_owner != c->module) {
                         if (type != ((uint8_t*)e->type)) {
-                            const char ** value_1254 = &(e->type);
-                            uint8_t* value_1255 = zir_foreign_compiler_check_expr__KeepName(type);
-                            (*value_1254) = (const char *)(value_1255);
+                            const char ** value_1257 = &(e->type);
+                            uint8_t* value_1258 = zir_foreign_compiler_check_expr__KeepName(type);
+                            (*value_1257) = (const char *)(value_1258);
                         }
-                        void* value_1256 = zir_foreign_compiler_check_expr__AllocateOrExit(sizeof(CheckArray128_u8));
-                        CheckArray128_u8* field_type_storage_43 = (CheckArray128_u8*)(value_1256);
+                        void* value_1259 = zir_foreign_compiler_check_expr__AllocateOrExit(sizeof(CheckArray128_u8));
+                        CheckArray128_u8* field_type_storage_43 = (CheckArray128_u8*)(value_1259);
                         zir_foreign_compiler_check_expr__memset((void*)(field_type_storage_43), 0, sizeof(CheckArray128_u8));
                         zir_foreign_compiler_check_expr__copy_text((uint8_t*)(&((field_type_storage_43[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))), (uint8_t*)e->type);
                         int32_t visible = zir_foreign_compiler_check_expr__record_field_type_at_use(c->module, callee_owner, (uint8_t*)e->name, (uint8_t*)(&((field_type_storage_43[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))));
-                        const char ** value_1257 = &(e->type);
-                        uint8_t* value_1258 = zir_foreign_compiler_check_expr__KeepName((uint8_t*)(&((field_type_storage_43[0]).items)));
-                        (*value_1257) = (const char *)(value_1258);
+                        const char ** value_1260 = &(e->type);
+                        uint8_t* value_1261 = zir_foreign_compiler_check_expr__KeepName((uint8_t*)(&((field_type_storage_43[0]).items)));
+                        (*value_1260) = (const char *)(value_1261);
                         if (!(visible != 0)) {
-                            Checker* value_1259 = c;
-                            ZirSourceSpan value_1260 = e->span;
-                            uint8_t* value_1261 = compiler_check_types_CheckCString(StringLiteral("imported procedure result type is shadowed"));
-                            zir_foreign_compiler_check_expr__error(value_1259, value_1260, value_1261, (uint8_t*)e->name);
+                            Checker* value_1262 = c;
+                            ZirSourceSpan value_1263 = e->span;
+                            uint8_t* value_1264 = compiler_check_types_CheckCString(StringLiteral("imported procedure result type is shadowed"));
+                            zir_foreign_compiler_check_expr__error(value_1262, value_1263, value_1264, (uint8_t*)e->name);
                         }
-                        bool value_1262 = ((saved_checked_type_storage_42[0]).items)[0] != 0;
-                        if (value_1262 && zir_foreign_compiler_check_expr__same_declared_type(c->module, (uint8_t*)e->type, (uint8_t*)(&((saved_checked_type_storage_42[0]).items)), 0) != 0) {
-                            const char ** value_1263 = &(e->type);
-                            uint8_t* value_1264 = zir_foreign_compiler_check_expr__KeepName((uint8_t*)(&((saved_checked_type_storage_42[0]).items)));
-                            (*value_1263) = (const char *)(value_1264);
+                        bool value_1265 = ((saved_checked_type_storage_42[0]).items)[0] != 0;
+                        if (value_1265 && zir_foreign_compiler_check_expr__same_declared_type(c->module, (uint8_t*)e->type, (uint8_t*)(&((saved_checked_type_storage_42[0]).items)), 0) != 0) {
+                            const char ** value_1266 = &(e->type);
+                            uint8_t* value_1267 = zir_foreign_compiler_check_expr__KeepName((uint8_t*)(&((saved_checked_type_storage_42[0]).items)));
+                            (*value_1266) = (const char *)(value_1267);
                         }
                         type = (uint8_t*)e->type;
                         zir_foreign_compiler_check_expr__CompilerFree((void*)(field_type_storage_43));
                     }
                     if (actual < fixed && !(c->inference_only != 0)) {
-                        void* value_1265 = zir_foreign_compiler_check_expr__AllocateOrExit(sizeof(CheckArray4096_u8));
-                        CheckArray4096_u8* detail_storage_44 = (CheckArray4096_u8*)(value_1265);
+                        void* value_1268 = zir_foreign_compiler_check_expr__AllocateOrExit(sizeof(CheckArray4096_u8));
+                        CheckArray4096_u8* detail_storage_44 = (CheckArray4096_u8*)(value_1268);
                         zir_foreign_compiler_check_expr__memset((void*)(detail_storage_44), 0, sizeof(CheckArray4096_u8));
-                        uint8_t* value_1266 = compiler_check_types_CheckCString(StringLiteral("%s (takes %d, given %d)"));
-                        zir_foreign_compiler_check_expr__snprintf((uint8_t*)(&((detail_storage_44[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray4096_u8))), value_1266, (uint8_t*)(&((display_name_storage_17[0]).items)), fixed, actual);
-                        Checker* value_1267 = c;
-                        ZirSourceSpan value_1268 = e->span;
-                        zir_foreign_compiler_check_expr__signature_error(value_1267, value_1268, compiler_check_types_CheckCString(StringLiteral("argument count mismatch")), (uint8_t*)(&((detail_storage_44[0]).items)));
+                        uint8_t* value_1269 = compiler_check_types_CheckCString(StringLiteral("%s (takes %d, given %d)"));
+                        zir_foreign_compiler_check_expr__snprintf((uint8_t*)(&((detail_storage_44[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray4096_u8))), value_1269, (uint8_t*)(&((display_name_storage_17[0]).items)), fixed, actual);
+                        Checker* value_1270 = c;
+                        ZirSourceSpan value_1271 = e->span;
+                        zir_foreign_compiler_check_expr__signature_error(value_1270, value_1271, compiler_check_types_CheckCString(StringLiteral("argument count mismatch")), (uint8_t*)(&((detail_storage_44[0]).items)));
                         zir_foreign_compiler_check_expr__CompilerFree((void*)(detail_storage_44));
                     }
                     zir_foreign_compiler_check_expr__CompilerFree((void*)(saved_checked_type_storage_42));
                 } else {
                     compiler_check_expr_unresolved_error(c, e, 1);
                 }
+                if (qualified_host != ((void *)0) && c->failed == 0) {
+                    compiler_check_expr_BindForeignCall(c, e, qualified_host, callee_owner, parts, expected, type);
+                }
+                zir_foreign_compiler_check_expr__CompilerFree((void*)(qualified_host));
                 zir_foreign_compiler_check_expr__CompilerFree((void*)(parts));
                 zir_foreign_compiler_check_expr__CompilerFree((void*)(specialized_return_storage_30));
                 zir_foreign_compiler_check_expr__CompilerFree((void*)(display_name_storage_17));
@@ -7945,320 +8129,320 @@ compiler_check_expr_expression_type_with_buffers(Checker* c, int32_t index, Expr
                     e = (ZirExpr*)(((size_t)(c->fn->exprs) + ((size_t)(index) * sizeof(ZirExpr))));
                     goto zir_loop_break_4;
                 }
-                bool value_1269 = zir_foreign_compiler_check_expr__VectorType(left, (void *)0) != 0;
-                if (value_1269 || zir_foreign_compiler_check_expr__VectorType(right, (void *)0) != 0) {
-                    Checker* value_1270 = c;
-                    ZirSourceSpan value_1271 = e->span;
-                    zir_foreign_compiler_check_expr__error(value_1270, value_1271, compiler_check_types_CheckCString(StringLiteral("vectors use std/simd operations, such as Simd.Add or Simd.Equal")), (uint8_t*)(&(e->op)));
+                bool value_1272 = zir_foreign_compiler_check_expr__VectorType(left, (void *)0) != 0;
+                if (value_1272 || zir_foreign_compiler_check_expr__VectorType(right, (void *)0) != 0) {
+                    Checker* value_1273 = c;
+                    ZirSourceSpan value_1274 = e->span;
+                    zir_foreign_compiler_check_expr__error(value_1273, value_1274, compiler_check_types_CheckCString(StringLiteral("vectors use std/simd operations, such as Simd.Add or Simd.Equal")), (uint8_t*)(&(e->op)));
                     goto zir_loop_break_4;
                 }
-                bool value_1272 = compiler_check_expr_operator_operand(c, left) != 0;
-                bool value_1273 = value_1272 || compiler_check_expr_operator_operand(c, right) != 0;
-                bool value_1274 = value_1273;
-                if (value_1274) {
-                    uint8_t* value_1275 = zir_foreign_compiler_check_expr__OperatorProcedureName((uint8_t*)(&(e->op)));
-                    value_1274 = (value_1275 != (uint8_t*)(((void *)0)));
+                bool value_1275 = compiler_check_expr_operator_operand(c, left) != 0;
+                bool value_1276 = value_1275 || compiler_check_expr_operator_operand(c, right) != 0;
+                bool value_1277 = value_1276;
+                if (value_1277) {
+                    uint8_t* value_1278 = zir_foreign_compiler_check_expr__OperatorProcedureName((uint8_t*)(&(e->op)));
+                    value_1277 = (value_1278 != (uint8_t*)(((void *)0)));
                 }
-                bool value_1276 = value_1274;
-                bool value_1277 = value_1276 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("=="))) != 0;
-                bool value_1278 = value_1277;
-                if (value_1278 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!="))) != 0) {
-                    Checker* value_1279 = c;
-                    ZirSourceSpan value_1280 = e->span;
-                    uint8_t* value_1281 = compiler_check_types_CheckCString(StringLiteral("record operation needs an operator procedure, such as operator + :: (a: T, b: T) -> T"));
-                    zir_foreign_compiler_check_expr__error(value_1279, value_1280, value_1281, (uint8_t*)(&(e->op)));
-                    bool value_1282 = compiler_check_expr_operator_operand(c, left) != 0;
-                    uint8_t* value_1283 = (void *)0;
-                    if (value_1282) {
-                        value_1283 = left;
+                bool value_1279 = value_1277;
+                bool value_1280 = value_1279 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("=="))) != 0;
+                bool value_1281 = value_1280;
+                if (value_1281 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!="))) != 0) {
+                    Checker* value_1282 = c;
+                    ZirSourceSpan value_1283 = e->span;
+                    uint8_t* value_1284 = compiler_check_types_CheckCString(StringLiteral("record operation needs an operator procedure, such as operator + :: (a: T, b: T) -> T"));
+                    zir_foreign_compiler_check_expr__error(value_1282, value_1283, value_1284, (uint8_t*)(&(e->op)));
+                    bool value_1285 = compiler_check_expr_operator_operand(c, left) != 0;
+                    uint8_t* value_1286 = (void *)0;
+                    if (value_1285) {
+                        value_1286 = left;
                     } else {
-                        value_1283 = right;
+                        value_1286 = right;
                     }
-                    type = value_1283;
+                    type = value_1286;
                     goto zir_loop_break_4;
                 }
                 if ((int32_t)((int8_t)(left[0])) == 91 || (int32_t)((int8_t)(right[0])) == 91) {
-                    Checker* value_1284 = c;
-                    ZirSourceSpan value_1285 = e->span;
-                    zir_foreign_compiler_check_expr__error(value_1284, value_1285, compiler_check_types_CheckCString(StringLiteral("array values do not support binary operations")), (uint8_t*)(&(e->op)));
+                    Checker* value_1287 = c;
+                    ZirSourceSpan value_1288 = e->span;
+                    zir_foreign_compiler_check_expr__error(value_1287, value_1288, compiler_check_types_CheckCString(StringLiteral("array values do not support binary operations")), (uint8_t*)(&(e->op)));
                 }
                 ZirType* left_slot = zir_foreign_compiler_check_expr__FindType(c->module, left, (void *)0);
                 ZirType* right_slot = zir_foreign_compiler_check_expr__FindType(c->module, right, (void *)0);
-                bool value_1286 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("=="))) != 0;
-                bool value_1287 = !value_1286;
-                if (!value_1287) {
-                    bool value_1288 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!="))) != 0;
-                    value_1287 = !value_1288;
+                bool value_1289 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("=="))) != 0;
+                bool value_1290 = !value_1289;
+                if (!value_1290) {
+                    bool value_1291 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!="))) != 0;
+                    value_1290 = !value_1291;
                 }
-                bool value_1289 = value_1287;
-                if (value_1289) {
-                    bool value_1290 = left_slot != (ZirType*)(((void *)0)) && left_slot->is_map != 0;
-                    bool value_1291 = value_1290;
-                    if (value_1291) {
-                        uint8_t* value_1292 = right;
-                        bool value_1293 = zir_foreign_compiler_check_expr__strcmp(value_1292, compiler_check_types_CheckCString(StringLiteral("null"))) != 0;
-                        value_1291 = !value_1293;
+                bool value_1292 = value_1290;
+                if (value_1292) {
+                    bool value_1293 = left_slot != (ZirType*)(((void *)0)) && left_slot->is_map != 0;
+                    bool value_1294 = value_1293;
+                    if (value_1294) {
+                        uint8_t* value_1295 = right;
+                        bool value_1296 = zir_foreign_compiler_check_expr__strcmp(value_1295, compiler_check_types_CheckCString(StringLiteral("null"))) != 0;
+                        value_1294 = !value_1296;
                     }
-                    bool value_1294 = value_1291;
-                    bool value_1295 = value_1294;
-                    if (!value_1295) {
-                        bool value_1296 = right_slot != (ZirType*)(((void *)0)) && right_slot->is_map != 0;
-                        bool value_1297 = value_1296;
-                        if (value_1297) {
-                            uint8_t* value_1298 = left;
-                            bool value_1299 = zir_foreign_compiler_check_expr__strcmp(value_1298, compiler_check_types_CheckCString(StringLiteral("null"))) != 0;
-                            value_1297 = !value_1299;
+                    bool value_1297 = value_1294;
+                    bool value_1298 = value_1297;
+                    if (!value_1298) {
+                        bool value_1299 = right_slot != (ZirType*)(((void *)0)) && right_slot->is_map != 0;
+                        bool value_1300 = value_1299;
+                        if (value_1300) {
+                            uint8_t* value_1301 = left;
+                            bool value_1302 = zir_foreign_compiler_check_expr__strcmp(value_1301, compiler_check_types_CheckCString(StringLiteral("null"))) != 0;
+                            value_1300 = !value_1302;
                         }
-                        value_1295 = value_1297;
+                        value_1298 = value_1300;
                     }
-                    value_1289 = value_1295;
+                    value_1292 = value_1298;
                 }
-                int32_t value_1300 = 0;
-                if (value_1289) {
-                    value_1300 = 1;
+                int32_t value_1303 = 0;
+                if (value_1292) {
+                    value_1303 = 1;
                 }
-                int32_t map_null_compare = value_1300;
-                bool value_1301 = (left_slot != ((void *)0) && left_slot->is_map != 0) || (right_slot != ((void *)0) && right_slot->is_map != 0);
-                if (value_1301 && !(map_null_compare != 0)) {
-                    Checker* value_1302 = c;
-                    ZirSourceSpan value_1303 = e->span;
-                    zir_foreign_compiler_check_expr__error(value_1302, value_1303, compiler_check_types_CheckCString(StringLiteral("maps only support comparison with null")), (uint8_t*)(&(e->op)));
+                int32_t map_null_compare = value_1303;
+                bool value_1304 = (left_slot != ((void *)0) && left_slot->is_map != 0) || (right_slot != ((void *)0) && right_slot->is_map != 0);
+                if (value_1304 && !(map_null_compare != 0)) {
+                    Checker* value_1305 = c;
+                    ZirSourceSpan value_1306 = e->span;
+                    zir_foreign_compiler_check_expr__error(value_1305, value_1306, compiler_check_types_CheckCString(StringLiteral("maps only support comparison with null")), (uint8_t*)(&(e->op)));
                 }
-                bool value_1304 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("=="))) != 0;
-                bool value_1305 = !value_1304;
-                if (!value_1305) {
-                    bool value_1306 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!="))) != 0;
-                    value_1305 = !value_1306;
+                bool value_1307 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("=="))) != 0;
+                bool value_1308 = !value_1307;
+                if (!value_1308) {
+                    bool value_1309 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!="))) != 0;
+                    value_1308 = !value_1309;
                 }
-                bool value_1307 = value_1305;
-                if (value_1307) {
-                    bool value_1308 = left_slot != (ZirType*)(((void *)0)) && left_slot->is_procedure_type != 0;
-                    bool value_1309 = value_1308;
-                    if (value_1309) {
-                        uint8_t* value_1310 = right;
-                        bool value_1311 = zir_foreign_compiler_check_expr__strcmp(value_1310, compiler_check_types_CheckCString(StringLiteral("null"))) != 0;
-                        bool value_1312 = !value_1311;
-                        if (!value_1312) {
-                            bool value_1313 = right_slot != (ZirType*)(((void *)0)) && right_slot->is_procedure_type != 0;
-                            bool value_1314 = value_1313;
-                            if (value_1314) {
-                                bool value_1315 = zir_foreign_compiler_check_expr__strcmp(left, right) != 0;
-                                value_1314 = !value_1315;
+                bool value_1310 = value_1308;
+                if (value_1310) {
+                    bool value_1311 = left_slot != (ZirType*)(((void *)0)) && left_slot->is_procedure_type != 0;
+                    bool value_1312 = value_1311;
+                    if (value_1312) {
+                        uint8_t* value_1313 = right;
+                        bool value_1314 = zir_foreign_compiler_check_expr__strcmp(value_1313, compiler_check_types_CheckCString(StringLiteral("null"))) != 0;
+                        bool value_1315 = !value_1314;
+                        if (!value_1315) {
+                            bool value_1316 = right_slot != (ZirType*)(((void *)0)) && right_slot->is_procedure_type != 0;
+                            bool value_1317 = value_1316;
+                            if (value_1317) {
+                                bool value_1318 = zir_foreign_compiler_check_expr__strcmp(left, right) != 0;
+                                value_1317 = !value_1318;
                             }
-                            value_1312 = value_1314;
+                            value_1315 = value_1317;
                         }
-                        value_1309 = value_1312;
+                        value_1312 = value_1315;
                     }
-                    bool value_1316 = value_1309;
-                    bool value_1317 = value_1316;
-                    if (!value_1317) {
-                        bool value_1318 = right_slot != (ZirType*)(((void *)0)) && right_slot->is_procedure_type != 0;
-                        bool value_1319 = value_1318;
-                        if (value_1319) {
-                            uint8_t* value_1320 = left;
-                            bool value_1321 = zir_foreign_compiler_check_expr__strcmp(value_1320, compiler_check_types_CheckCString(StringLiteral("null"))) != 0;
-                            value_1319 = !value_1321;
+                    bool value_1319 = value_1312;
+                    bool value_1320 = value_1319;
+                    if (!value_1320) {
+                        bool value_1321 = right_slot != (ZirType*)(((void *)0)) && right_slot->is_procedure_type != 0;
+                        bool value_1322 = value_1321;
+                        if (value_1322) {
+                            uint8_t* value_1323 = left;
+                            bool value_1324 = zir_foreign_compiler_check_expr__strcmp(value_1323, compiler_check_types_CheckCString(StringLiteral("null"))) != 0;
+                            value_1322 = !value_1324;
                         }
-                        value_1317 = value_1319;
+                        value_1320 = value_1322;
                     }
-                    value_1307 = value_1317;
+                    value_1310 = value_1320;
                 }
-                int32_t value_1322 = 0;
-                if (value_1307) {
-                    value_1322 = 1;
+                int32_t value_1325 = 0;
+                if (value_1310) {
+                    value_1325 = 1;
                 }
-                int32_t slot_null_compare = value_1322;
-                bool value_1323 = (left_slot != ((void *)0) && left_slot->is_procedure_type != 0) || (right_slot != ((void *)0) && right_slot->is_procedure_type != 0);
-                if (value_1323 && !(slot_null_compare != 0)) {
-                    Checker* value_1324 = c;
-                    ZirSourceSpan value_1325 = e->span;
-                    zir_foreign_compiler_check_expr__error(value_1324, value_1325, compiler_check_types_CheckCString(StringLiteral("slot values do not support binary operations")), (uint8_t*)(&(e->op)));
+                int32_t slot_null_compare = value_1325;
+                bool value_1326 = (left_slot != ((void *)0) && left_slot->is_procedure_type != 0) || (right_slot != ((void *)0) && right_slot->is_procedure_type != 0);
+                if (value_1326 && !(slot_null_compare != 0)) {
+                    Checker* value_1327 = c;
+                    ZirSourceSpan value_1328 = e->span;
+                    zir_foreign_compiler_check_expr__error(value_1327, value_1328, compiler_check_types_CheckCString(StringLiteral("slot values do not support binary operations")), (uint8_t*)(&(e->op)));
                 }
-                bool value_1326 = zir_foreign_compiler_check_expr__text_type(left) != 0;
-                bool value_1327 = value_1326 || zir_foreign_compiler_check_expr__text_type(right) != 0;
-                bool value_1328 = value_1327 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("=="))) != 0;
-                if (value_1328 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!="))) != 0) {
-                    Checker* value_1329 = c;
-                    ZirSourceSpan value_1330 = e->span;
-                    zir_foreign_compiler_check_expr__error(value_1329, value_1330, compiler_check_types_CheckCString(StringLiteral("string operation is not supported")), (uint8_t*)(&(e->op)));
+                bool value_1329 = zir_foreign_compiler_check_expr__text_type(left) != 0;
+                bool value_1330 = value_1329 || zir_foreign_compiler_check_expr__text_type(right) != 0;
+                bool value_1331 = value_1330 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("=="))) != 0;
+                if (value_1331 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!="))) != 0) {
+                    Checker* value_1332 = c;
+                    ZirSourceSpan value_1333 = e->span;
+                    zir_foreign_compiler_check_expr__error(value_1332, value_1333, compiler_check_types_CheckCString(StringLiteral("string operation is not supported")), (uint8_t*)(&(e->op)));
                 }
-                bool value_1331 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("&"))) != 0;
-                bool value_1332 = !value_1331;
-                if (!value_1332) {
-                    bool value_1333 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("|"))) != 0;
-                    value_1332 = !value_1333;
+                bool value_1334 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("&"))) != 0;
+                bool value_1335 = !value_1334;
+                if (!value_1335) {
+                    bool value_1336 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("|"))) != 0;
+                    value_1335 = !value_1336;
                 }
-                bool value_1334 = value_1332;
-                if (!value_1334) {
-                    bool value_1335 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("^"))) != 0;
-                    value_1334 = !value_1335;
+                bool value_1337 = value_1335;
+                if (!value_1337) {
+                    bool value_1338 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("^"))) != 0;
+                    value_1337 = !value_1338;
                 }
-                bool value_1336 = value_1334;
-                if (!value_1336) {
-                    bool value_1337 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("<<"))) != 0;
-                    value_1336 = !value_1337;
+                bool value_1339 = value_1337;
+                if (!value_1339) {
+                    bool value_1340 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("<<"))) != 0;
+                    value_1339 = !value_1340;
                 }
-                bool value_1338 = value_1336;
-                if (!value_1338) {
-                    bool value_1339 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral(">>"))) != 0;
-                    value_1338 = !value_1339;
+                bool value_1341 = value_1339;
+                if (!value_1341) {
+                    bool value_1342 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral(">>"))) != 0;
+                    value_1341 = !value_1342;
                 }
-                bool value_1340 = value_1338;
-                if (!value_1340) {
-                    bool value_1341 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("%"))) != 0;
-                    value_1340 = !value_1341;
+                bool value_1343 = value_1341;
+                if (!value_1343) {
+                    bool value_1344 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("%"))) != 0;
+                    value_1343 = !value_1344;
                 }
-                bool value_1342 = value_1340;
-                if (value_1342) {
-                    bool value_1343 = (int32_t)((int8_t)(left[0])) == 102 || (int32_t)((int8_t)(right[0])) == 102;
-                    bool value_1344 = value_1343;
-                    if (!value_1344) {
-                        uint8_t* value_1345 = left;
-                        bool value_1346 = zir_foreign_compiler_check_expr__strcmp(value_1345, compiler_check_types_CheckCString(StringLiteral("real"))) != 0;
-                        value_1344 = !value_1346;
+                bool value_1345 = value_1343;
+                if (value_1345) {
+                    bool value_1346 = (int32_t)((int8_t)(left[0])) == 102 || (int32_t)((int8_t)(right[0])) == 102;
+                    bool value_1347 = value_1346;
+                    if (!value_1347) {
+                        uint8_t* value_1348 = left;
+                        bool value_1349 = zir_foreign_compiler_check_expr__strcmp(value_1348, compiler_check_types_CheckCString(StringLiteral("real"))) != 0;
+                        value_1347 = !value_1349;
                     }
-                    bool value_1347 = value_1344;
-                    bool value_1348 = value_1347;
-                    if (!value_1348) {
-                        uint8_t* value_1349 = right;
-                        bool value_1350 = zir_foreign_compiler_check_expr__strcmp(value_1349, compiler_check_types_CheckCString(StringLiteral("real"))) != 0;
-                        value_1348 = !value_1350;
+                    bool value_1350 = value_1347;
+                    bool value_1351 = value_1350;
+                    if (!value_1351) {
+                        uint8_t* value_1352 = right;
+                        bool value_1353 = zir_foreign_compiler_check_expr__strcmp(value_1352, compiler_check_types_CheckCString(StringLiteral("real"))) != 0;
+                        value_1351 = !value_1353;
                     }
-                    value_1342 = value_1348;
+                    value_1345 = value_1351;
                 }
-                if (value_1342) {
-                    Checker* value_1351 = c;
-                    ZirSourceSpan value_1352 = e->span;
-                    zir_foreign_compiler_check_expr__error(value_1351, value_1352, compiler_check_types_CheckCString(StringLiteral("integer operands required")), (uint8_t*)(&(e->op)));
+                if (value_1345) {
+                    Checker* value_1354 = c;
+                    ZirSourceSpan value_1355 = e->span;
+                    zir_foreign_compiler_check_expr__error(value_1354, value_1355, compiler_check_types_CheckCString(StringLiteral("integer operands required")), (uint8_t*)(&(e->op)));
                 }
-                bool value_1353 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("&&"))) != 0;
-                bool value_1354 = !value_1353;
-                if (!value_1354) {
-                    bool value_1355 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("||"))) != 0;
-                    value_1354 = !value_1355;
+                bool value_1356 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("&&"))) != 0;
+                bool value_1357 = !value_1356;
+                if (!value_1357) {
+                    bool value_1358 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("||"))) != 0;
+                    value_1357 = !value_1358;
                 }
-                bool value_1356 = value_1354;
-                if (value_1356) {
-                    uint8_t* value_1357 = left;
-                    bool value_1358 = zir_foreign_compiler_check_expr__strcmp(value_1357, compiler_check_types_CheckCString(StringLiteral("bool"))) != 0;
-                    bool value_1359 = value_1358;
-                    if (!value_1359) {
-                        uint8_t* value_1360 = right;
-                        bool value_1361 = zir_foreign_compiler_check_expr__strcmp(value_1360, compiler_check_types_CheckCString(StringLiteral("bool"))) != 0;
-                        value_1359 = value_1361;
+                bool value_1359 = value_1357;
+                if (value_1359) {
+                    uint8_t* value_1360 = left;
+                    bool value_1361 = zir_foreign_compiler_check_expr__strcmp(value_1360, compiler_check_types_CheckCString(StringLiteral("bool"))) != 0;
+                    bool value_1362 = value_1361;
+                    if (!value_1362) {
+                        uint8_t* value_1363 = right;
+                        bool value_1364 = zir_foreign_compiler_check_expr__strcmp(value_1363, compiler_check_types_CheckCString(StringLiteral("bool"))) != 0;
+                        value_1362 = value_1364;
                     }
-                    value_1356 = value_1359;
+                    value_1359 = value_1362;
                 }
-                if (value_1356) {
-                    Checker* value_1362 = c;
-                    ZirSourceSpan value_1363 = e->span;
-                    zir_foreign_compiler_check_expr__error(value_1362, value_1363, compiler_check_types_CheckCString(StringLiteral("logical operands require bool")), (uint8_t*)(&(e->op)));
+                if (value_1359) {
+                    Checker* value_1365 = c;
+                    ZirSourceSpan value_1366 = e->span;
+                    zir_foreign_compiler_check_expr__error(value_1365, value_1366, compiler_check_types_CheckCString(StringLiteral("logical operands require bool")), (uint8_t*)(&(e->op)));
                 }
                 ZirType* left_flags = zir_foreign_compiler_check_expr__flags_type(c, left);
                 ZirType* right_flags = zir_foreign_compiler_check_expr__flags_type(c, right);
                 if (left_flags != (ZirType*)(((void *)0)) || right_flags != (ZirType*)(((void *)0))) {
-                    uint8_t* value_1364 = (void *)0;
+                    uint8_t* value_1367 = (void *)0;
                     if (left_flags != (ZirType*)(((void *)0))) {
-                        value_1364 = left;
+                        value_1367 = left;
                     } else {
-                        value_1364 = right;
+                        value_1367 = right;
                     }
-                    uint8_t* flag_name = value_1364;
-                    uint8_t* value_1365 = (void *)0;
+                    uint8_t* flag_name = value_1367;
+                    uint8_t* value_1368 = (void *)0;
                     if (left_flags != (ZirType*)(((void *)0))) {
-                        value_1365 = right;
+                        value_1368 = right;
                     } else {
-                        value_1365 = left;
+                        value_1368 = left;
                     }
-                    uint8_t* other = value_1365;
-                    bool value_1366 = left_flags != (ZirType*)(((void *)0)) && right_flags != (ZirType*)(((void *)0));
-                    bool value_1367 = value_1366 && zir_foreign_compiler_check_expr__strcmp(left, right) != 0;
-                    bool value_1368 = value_1367;
-                    bool value_1369 = value_1368;
-                    if (!value_1369) {
-                        bool value_1370 = zir_foreign_compiler_check_expr__strcmp(other, flag_name) != 0;
-                        bool value_1371 = value_1370;
-                        if (value_1371) {
-                            bool value_1372 = zir_foreign_compiler_check_expr__integer_type(other) != 0;
-                            value_1371 = !value_1372;
+                    uint8_t* other = value_1368;
+                    bool value_1369 = left_flags != (ZirType*)(((void *)0)) && right_flags != (ZirType*)(((void *)0));
+                    bool value_1370 = value_1369 && zir_foreign_compiler_check_expr__strcmp(left, right) != 0;
+                    bool value_1371 = value_1370;
+                    bool value_1372 = value_1371;
+                    if (!value_1372) {
+                        bool value_1373 = zir_foreign_compiler_check_expr__strcmp(other, flag_name) != 0;
+                        bool value_1374 = value_1373;
+                        if (value_1374) {
+                            bool value_1375 = zir_foreign_compiler_check_expr__integer_type(other) != 0;
+                            value_1374 = !value_1375;
                         }
-                        value_1369 = value_1371;
+                        value_1372 = value_1374;
                     }
-                    if (value_1369) {
-                        Checker* value_1373 = c;
-                        ZirSourceSpan value_1374 = e->span;
-                        zir_foreign_compiler_check_expr__error(value_1373, value_1374, compiler_check_types_CheckCString(StringLiteral("flag operands require the same enum or an integer")), (uint8_t*)(&(e->op)));
+                    if (value_1372) {
+                        Checker* value_1376 = c;
+                        ZirSourceSpan value_1377 = e->span;
+                        zir_foreign_compiler_check_expr__error(value_1376, value_1377, compiler_check_types_CheckCString(StringLiteral("flag operands require the same enum or an integer")), (uint8_t*)(&(e->op)));
                     }
-                    bool value_1375 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("=="))) != 0;
-                    bool value_1376 = !value_1375;
-                    if (!value_1376) {
-                        bool value_1377 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!="))) != 0;
-                        value_1376 = !value_1377;
+                    bool value_1378 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("=="))) != 0;
+                    bool value_1379 = !value_1378;
+                    if (!value_1379) {
+                        bool value_1380 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!="))) != 0;
+                        value_1379 = !value_1380;
                     }
-                    if (value_1376) {
+                    if (value_1379) {
                         type = compiler_check_types_CheckCString(StringLiteral("bool"));
                     } else {
-                        bool value_1378 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("&"))) != 0;
-                        bool value_1379 = !value_1378;
-                        if (!value_1379) {
-                            bool value_1380 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("|"))) != 0;
-                            value_1379 = !value_1380;
+                        bool value_1381 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("&"))) != 0;
+                        bool value_1382 = !value_1381;
+                        if (!value_1382) {
+                            bool value_1383 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("|"))) != 0;
+                            value_1382 = !value_1383;
                         }
-                        bool value_1381 = value_1379;
-                        if (!value_1381) {
-                            bool value_1382 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("^"))) != 0;
-                            value_1381 = !value_1382;
+                        bool value_1384 = value_1382;
+                        if (!value_1384) {
+                            bool value_1385 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("^"))) != 0;
+                            value_1384 = !value_1385;
                         }
-                        bool value_1383 = value_1381;
-                        if (!value_1383) {
-                            bool value_1384 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("+"))) != 0;
-                            value_1383 = !value_1384;
+                        bool value_1386 = value_1384;
+                        if (!value_1386) {
+                            bool value_1387 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("+"))) != 0;
+                            value_1386 = !value_1387;
                         }
-                        bool value_1385 = value_1383;
-                        if (!value_1385) {
-                            bool value_1386 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("-"))) != 0;
-                            value_1385 = !value_1386;
+                        bool value_1388 = value_1386;
+                        if (!value_1388) {
+                            bool value_1389 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("-"))) != 0;
+                            value_1388 = !value_1389;
                         }
-                        if (value_1385) {
+                        if (value_1388) {
                             type = flag_name;
                         } else {
-                            Checker* value_1387 = c;
-                            ZirSourceSpan value_1388 = e->span;
-                            zir_foreign_compiler_check_expr__error(value_1387, value_1388, compiler_check_types_CheckCString(StringLiteral("unsupported enum_flags operation")), (uint8_t*)(&(e->op)));
+                            Checker* value_1390 = c;
+                            ZirSourceSpan value_1391 = e->span;
+                            zir_foreign_compiler_check_expr__error(value_1390, value_1391, compiler_check_types_CheckCString(StringLiteral("unsupported enum_flags operation")), (uint8_t*)(&(e->op)));
                         }
                     }
                     goto zir_loop_break_4;
                 }
-                bool value_1389 = zir_foreign_compiler_check_expr__compatible_checked(c, left, right) != 0;
-                bool value_1390 = !value_1389;
-                if (value_1390) {
-                    bool value_1391 = zir_foreign_compiler_check_expr__compatible_checked(c, right, left) != 0;
-                    value_1390 = !value_1391;
+                bool value_1392 = zir_foreign_compiler_check_expr__compatible_checked(c, left, right) != 0;
+                bool value_1393 = !value_1392;
+                if (value_1393) {
+                    bool value_1394 = zir_foreign_compiler_check_expr__compatible_checked(c, right, left) != 0;
+                    value_1393 = !value_1394;
                 }
-                if (value_1390 && !(slot_null_compare != 0) && !(map_null_compare != 0)) {
+                if (value_1393 && !(slot_null_compare != 0) && !(map_null_compare != 0)) {
                     int32_t widen_left = zir_foreign_compiler_check_expr__widens_losslessly(right, left);
-                    bool value_1392 = widen_left != 0;
-                    if (value_1392 || zir_foreign_compiler_check_expr__widens_losslessly(left, right) != 0) {
-                        uint8_t* value_1393 = (void *)0;
+                    bool value_1395 = widen_left != 0;
+                    if (value_1395 || zir_foreign_compiler_check_expr__widens_losslessly(left, right) != 0) {
+                        uint8_t* value_1396 = (void *)0;
                         if (widen_left != 0) {
-                            value_1393 = right;
+                            value_1396 = right;
                         } else {
-                            value_1393 = left;
+                            value_1396 = left;
                         }
-                        uint8_t* wider = zir_foreign_compiler_check_expr__ScalarType(value_1393);
-                        bool value_1394 = !(c->inference_only != 0);
-                        bool value_1395 = value_1394;
-                        if (value_1395) {
-                            int32_t value_1396 = 0;
+                        uint8_t* wider = zir_foreign_compiler_check_expr__ScalarType(value_1396);
+                        bool value_1397 = !(c->inference_only != 0);
+                        bool value_1398 = value_1397;
+                        if (value_1398) {
+                            int32_t value_1399 = 0;
                             if (widen_left != 0) {
-                                value_1396 = e->left;
+                                value_1399 = e->left;
                             } else {
-                                value_1396 = e->right;
+                                value_1399 = e->right;
                             }
-                            uint8_t* value_1397 = zir_foreign_compiler_check_expr__widen_expression(c, value_1396, wider);
-                            value_1395 = (value_1397 == (uint8_t*)(((void *)0)));
+                            uint8_t* value_1400 = zir_foreign_compiler_check_expr__widen_expression(c, value_1399, wider);
+                            value_1398 = (value_1400 == (uint8_t*)(((void *)0)));
                         }
-                        if (value_1395) {
+                        if (value_1398) {
                             uint8_t* cleanup_return_22 = compiler_check_types_CheckCString(StringLiteral(""));
                             zir_foreign_compiler_check_expr__CompilerFree((void*)(member_type_storage_0));
                             return cleanup_return_22;
@@ -8266,186 +8450,186 @@ compiler_check_expr_expression_type_with_buffers(Checker* c, int32_t index, Expr
                         e = (ZirExpr*)(((size_t)(c->fn->exprs) + ((size_t)(index) * sizeof(ZirExpr))));
                         left = compiler_check_types_CheckSet12(&(right), wider);
                     } else {
-                        Checker* value_1398 = c;
-                        ZirSourceSpan value_1399 = e->span;
-                        zir_foreign_compiler_check_expr__error(value_1398, value_1399, compiler_check_types_CheckCString(StringLiteral("operand types differ; use an explicit cast")), (uint8_t*)(&(e->op)));
+                        Checker* value_1401 = c;
+                        ZirSourceSpan value_1402 = e->span;
+                        zir_foreign_compiler_check_expr__error(value_1401, value_1402, compiler_check_types_CheckCString(StringLiteral("operand types differ; use an explicit cast")), (uint8_t*)(&(e->op)));
                     }
                 }
-                bool value_1400 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("=="))) != 0;
-                bool value_1401 = !value_1400;
-                if (!value_1401) {
-                    bool value_1402 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!="))) != 0;
-                    value_1401 = !value_1402;
+                bool value_1403 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("=="))) != 0;
+                bool value_1404 = !value_1403;
+                if (!value_1404) {
+                    bool value_1405 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!="))) != 0;
+                    value_1404 = !value_1405;
                 }
-                bool value_1403 = value_1401;
-                if (!value_1403) {
-                    bool value_1404 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("<"))) != 0;
-                    value_1403 = !value_1404;
+                bool value_1406 = value_1404;
+                if (!value_1406) {
+                    bool value_1407 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("<"))) != 0;
+                    value_1406 = !value_1407;
                 }
-                bool value_1405 = value_1403;
-                if (!value_1405) {
-                    bool value_1406 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("<="))) != 0;
-                    value_1405 = !value_1406;
+                bool value_1408 = value_1406;
+                if (!value_1408) {
+                    bool value_1409 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("<="))) != 0;
+                    value_1408 = !value_1409;
                 }
-                bool value_1407 = value_1405;
-                if (!value_1407) {
-                    bool value_1408 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral(">"))) != 0;
-                    value_1407 = !value_1408;
+                bool value_1410 = value_1408;
+                if (!value_1410) {
+                    bool value_1411 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral(">"))) != 0;
+                    value_1410 = !value_1411;
                 }
-                bool value_1409 = value_1407;
-                if (!value_1409) {
-                    bool value_1410 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral(">="))) != 0;
-                    value_1409 = !value_1410;
+                bool value_1412 = value_1410;
+                if (!value_1412) {
+                    bool value_1413 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral(">="))) != 0;
+                    value_1412 = !value_1413;
                 }
-                bool value_1411 = value_1409;
-                if (!value_1411) {
-                    bool value_1412 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("&&"))) != 0;
-                    value_1411 = !value_1412;
+                bool value_1414 = value_1412;
+                if (!value_1414) {
+                    bool value_1415 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("&&"))) != 0;
+                    value_1414 = !value_1415;
                 }
-                bool value_1413 = value_1411;
-                if (!value_1413) {
-                    bool value_1414 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("||"))) != 0;
-                    value_1413 = !value_1414;
+                bool value_1416 = value_1414;
+                if (!value_1416) {
+                    bool value_1417 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("||"))) != 0;
+                    value_1416 = !value_1417;
                 }
-                if (value_1413) {
+                if (value_1416) {
                     type = compiler_check_types_CheckCString(StringLiteral("bool"));
                 } else {
-                    bool value_1415 = zir_foreign_compiler_check_expr__numeric(left) != 0;
-                    if (value_1415 && zir_foreign_compiler_check_expr__numeric(right) != 0) {
-                        uint8_t* value_1416 = left;
-                        bool value_1417 = zir_foreign_compiler_check_expr__strcmp(value_1416, compiler_check_types_CheckCString(StringLiteral("integer"))) != 0;
-                        bool value_1418 = !value_1417;
-                        if (!value_1418) {
-                            uint8_t* value_1419 = left;
-                            bool value_1420 = zir_foreign_compiler_check_expr__strcmp(value_1419, compiler_check_types_CheckCString(StringLiteral("real"))) != 0;
-                            value_1418 = !value_1420;
+                    bool value_1418 = zir_foreign_compiler_check_expr__numeric(left) != 0;
+                    if (value_1418 && zir_foreign_compiler_check_expr__numeric(right) != 0) {
+                        uint8_t* value_1419 = left;
+                        bool value_1420 = zir_foreign_compiler_check_expr__strcmp(value_1419, compiler_check_types_CheckCString(StringLiteral("integer"))) != 0;
+                        bool value_1421 = !value_1420;
+                        if (!value_1421) {
+                            uint8_t* value_1422 = left;
+                            bool value_1423 = zir_foreign_compiler_check_expr__strcmp(value_1422, compiler_check_types_CheckCString(StringLiteral("real"))) != 0;
+                            value_1421 = !value_1423;
                         }
-                        uint8_t* value_1421 = (void *)0;
-                        if (value_1418) {
-                            value_1421 = right;
+                        uint8_t* value_1424 = (void *)0;
+                        if (value_1421) {
+                            value_1424 = right;
                         } else {
-                            value_1421 = left;
+                            value_1424 = left;
                         }
-                        type = value_1421;
+                        type = value_1424;
                     } else {
                         if (left[0] != 0 && right[0] != 0) {
-                            Checker* value_1422 = c;
-                            ZirSourceSpan value_1423 = e->span;
-                            zir_foreign_compiler_check_expr__error(value_1422, value_1423, compiler_check_types_CheckCString(StringLiteral("numeric operands required")), (uint8_t*)(&(e->op)));
+                            Checker* value_1425 = c;
+                            ZirSourceSpan value_1426 = e->span;
+                            zir_foreign_compiler_check_expr__error(value_1425, value_1426, compiler_check_types_CheckCString(StringLiteral("numeric operands required")), (uint8_t*)(&(e->op)));
                         }
                     }
                 }
                 goto zir_loop_break_4;
             } else if (check_choice_243 == ((ZirExprKind)(7))) {
-                bool value_1424 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("&"))) != 0;
-                bool value_1425 = value_1424 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("*"))) != 0;
-                if (value_1425 && zir_foreign_compiler_check_expr__VectorType(right, (void *)0) != 0) {
-                    Checker* value_1426 = c;
-                    ZirSourceSpan value_1427 = e->span;
-                    zir_foreign_compiler_check_expr__error(value_1426, value_1427, compiler_check_types_CheckCString(StringLiteral("vectors use std/simd operations, such as Simd.Neg or Simd.Not")), (uint8_t*)(&(e->op)));
+                bool value_1427 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("&"))) != 0;
+                bool value_1428 = value_1427 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("*"))) != 0;
+                if (value_1428 && zir_foreign_compiler_check_expr__VectorType(right, (void *)0) != 0) {
+                    Checker* value_1429 = c;
+                    ZirSourceSpan value_1430 = e->span;
+                    zir_foreign_compiler_check_expr__error(value_1429, value_1430, compiler_check_types_CheckCString(StringLiteral("vectors use std/simd operations, such as Simd.Neg or Simd.Not")), (uint8_t*)(&(e->op)));
                     goto zir_loop_break_4;
                 }
-                bool value_1428 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("+"))) != 0;
-                bool value_1429 = value_1428 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("-"))) != 0;
-                bool value_1430 = value_1429 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!"))) != 0;
-                bool value_1431 = value_1430 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("~"))) != 0;
-                bool value_1432 = value_1431 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("&"))) != 0;
-                if (value_1432 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("*"))) != 0) {
-                    Checker* value_1433 = c;
-                    ZirSourceSpan value_1434 = e->span;
-                    zir_foreign_compiler_check_expr__error(value_1433, value_1434, compiler_check_types_CheckCString(StringLiteral("unsupported unary operator")), (uint8_t*)(&(e->op)));
+                bool value_1431 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("+"))) != 0;
+                bool value_1432 = value_1431 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("-"))) != 0;
+                bool value_1433 = value_1432 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!"))) != 0;
+                bool value_1434 = value_1433 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("~"))) != 0;
+                bool value_1435 = value_1434 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("&"))) != 0;
+                if (value_1435 && zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("*"))) != 0) {
+                    Checker* value_1436 = c;
+                    ZirSourceSpan value_1437 = e->span;
+                    zir_foreign_compiler_check_expr__error(value_1436, value_1437, compiler_check_types_CheckCString(StringLiteral("unsupported unary operator")), (uint8_t*)(&(e->op)));
                 }
-                bool value_1435 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!"))) != 0;
-                bool value_1436 = !value_1435;
-                if (value_1436) {
-                    uint8_t* value_1437 = right;
-                    bool value_1438 = zir_foreign_compiler_check_expr__strcmp(value_1437, compiler_check_types_CheckCString(StringLiteral("bool"))) != 0;
-                    value_1436 = value_1438;
+                bool value_1438 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!"))) != 0;
+                bool value_1439 = !value_1438;
+                if (value_1439) {
+                    uint8_t* value_1440 = right;
+                    bool value_1441 = zir_foreign_compiler_check_expr__strcmp(value_1440, compiler_check_types_CheckCString(StringLiteral("bool"))) != 0;
+                    value_1439 = value_1441;
                 }
-                if (value_1436) {
-                    Checker* value_1439 = c;
-                    ZirSourceSpan value_1440 = e->span;
-                    zir_foreign_compiler_check_expr__error(value_1439, value_1440, compiler_check_types_CheckCString(StringLiteral("logical operand requires bool")), (uint8_t*)(&(e->op)));
+                if (value_1439) {
+                    Checker* value_1442 = c;
+                    ZirSourceSpan value_1443 = e->span;
+                    zir_foreign_compiler_check_expr__error(value_1442, value_1443, compiler_check_types_CheckCString(StringLiteral("logical operand requires bool")), (uint8_t*)(&(e->op)));
                 }
-                bool value_1441 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("~"))) != 0;
-                bool value_1442 = !value_1441;
-                if (value_1442) {
-                    bool value_1443 = zir_foreign_compiler_check_expr__integer_type(right) != 0;
-                    value_1442 = !value_1443;
+                bool value_1444 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("~"))) != 0;
+                bool value_1445 = !value_1444;
+                if (value_1445) {
+                    bool value_1446 = zir_foreign_compiler_check_expr__integer_type(right) != 0;
+                    value_1445 = !value_1446;
                 }
-                if (value_1442) {
-                    Checker* value_1444 = c;
-                    ZirSourceSpan value_1445 = e->span;
-                    zir_foreign_compiler_check_expr__error(value_1444, value_1445, compiler_check_types_CheckCString(StringLiteral("bitwise operand requires an integer")), (uint8_t*)(&(e->op)));
+                if (value_1445) {
+                    Checker* value_1447 = c;
+                    ZirSourceSpan value_1448 = e->span;
+                    zir_foreign_compiler_check_expr__error(value_1447, value_1448, compiler_check_types_CheckCString(StringLiteral("bitwise operand requires an integer")), (uint8_t*)(&(e->op)));
                 }
-                bool value_1446 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("&"))) != 0;
-                if (!value_1446) {
-                    bool value_1447 = zir_foreign_compiler_check_expr__assignable(c, e->right) != 0;
-                    if (!value_1447) {
-                        Checker* value_1448 = c;
-                        ZirSourceSpan value_1449 = e->span;
-                        uint8_t* value_1450 = compiler_check_types_CheckCString(StringLiteral("address-of requires an assignable expression"));
-                        zir_foreign_compiler_check_expr__error(value_1448, value_1449, value_1450, (uint8_t*)e->text);
+                bool value_1449 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("&"))) != 0;
+                if (!value_1449) {
+                    bool value_1450 = zir_foreign_compiler_check_expr__assignable(c, e->right) != 0;
+                    if (!value_1450) {
+                        Checker* value_1451 = c;
+                        ZirSourceSpan value_1452 = e->span;
+                        uint8_t* value_1453 = compiler_check_types_CheckCString(StringLiteral("address-of requires an assignable expression"));
+                        zir_foreign_compiler_check_expr__error(value_1451, value_1452, value_1453, (uint8_t*)e->text);
                     }
-                    bool value_1451 = !(right[0] != 0);
-                    bool value_1452 = value_1451;
-                    if (!value_1452) {
-                        uint8_t* value_1453 = right;
-                        bool value_1454 = zir_foreign_compiler_check_expr__strcmp(value_1453, compiler_check_types_CheckCString(StringLiteral("null"))) != 0;
-                        value_1452 = !value_1454;
+                    bool value_1454 = !(right[0] != 0);
+                    bool value_1455 = value_1454;
+                    if (!value_1455) {
+                        uint8_t* value_1456 = right;
+                        bool value_1457 = zir_foreign_compiler_check_expr__strcmp(value_1456, compiler_check_types_CheckCString(StringLiteral("null"))) != 0;
+                        value_1455 = !value_1457;
                     }
-                    bool value_1455 = value_1452;
-                    bool value_1456 = value_1455;
-                    if (!value_1456) {
-                        uint64_t value_1457 = (uint64_t)((uint64_t)(compiler_check_types_CheckCStringLength(right)) + UINT64_C(1));
-                        value_1456 = (value_1457 >= 128ULL);
+                    bool value_1458 = value_1455;
+                    bool value_1459 = value_1458;
+                    if (!value_1459) {
+                        uint64_t value_1460 = (uint64_t)((uint64_t)(compiler_check_types_CheckCStringLength(right)) + UINT64_C(1));
+                        value_1459 = (value_1460 >= 128ULL);
                     }
-                    if (value_1456) {
-                        Checker* value_1458 = c;
-                        ZirSourceSpan value_1459 = e->span;
-                        uint8_t* value_1460 = compiler_check_types_CheckCString(StringLiteral("address-of requires a known type"));
-                        zir_foreign_compiler_check_expr__error(value_1458, value_1459, value_1460, (uint8_t*)e->text);
+                    if (value_1459) {
+                        Checker* value_1461 = c;
+                        ZirSourceSpan value_1462 = e->span;
+                        uint8_t* value_1463 = compiler_check_types_CheckCString(StringLiteral("address-of requires a known type"));
+                        zir_foreign_compiler_check_expr__error(value_1461, value_1462, value_1463, (uint8_t*)e->text);
                     }
-                    const char ** value_1461 = &(e->type);
-                    uint8_t* value_1462 = compiler_check_types_CheckCString(StringLiteral("*%s"));
-                    uint8_t* value_1463 = zir_foreign_compiler_check_expr__KeepNameFormat(value_1462, right);
-                    (*value_1461) = (const char *)(value_1463);
+                    const char ** value_1464 = &(e->type);
+                    uint8_t* value_1465 = compiler_check_types_CheckCString(StringLiteral("*%s"));
+                    uint8_t* value_1466 = zir_foreign_compiler_check_expr__KeepNameFormat(value_1465, right);
+                    (*value_1464) = (const char *)(value_1466);
                     type = (uint8_t*)e->type;
                 } else {
-                    bool value_1464 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("*"))) != 0;
-                    if (!value_1464) {
-                        bool value_1465 = (int32_t)((int8_t)(right[0])) != 42;
-                        bool value_1466 = value_1465;
-                        if (!value_1466) {
-                            uint8_t* value_1467 = zir_foreign_compiler_check_expr__skip_ws((uint8_t*)(((size_t)(right) + ((size_t)(1LL) * sizeof(uint8_t)))));
-                            value_1466 = !(value_1467[0] != 0);
+                    bool value_1467 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("*"))) != 0;
+                    if (!value_1467) {
+                        bool value_1468 = (int32_t)((int8_t)(right[0])) != 42;
+                        bool value_1469 = value_1468;
+                        if (!value_1469) {
+                            uint8_t* value_1470 = zir_foreign_compiler_check_expr__skip_ws((uint8_t*)(((size_t)(right) + ((size_t)(1LL) * sizeof(uint8_t)))));
+                            value_1469 = !(value_1470[0] != 0);
                         }
-                        if (value_1466) {
-                            Checker* value_1468 = c;
-                            ZirSourceSpan value_1469 = e->span;
-                            uint8_t* value_1470 = compiler_check_types_CheckCString(StringLiteral("dereference requires a pointer"));
-                            zir_foreign_compiler_check_expr__error(value_1468, value_1469, value_1470, right);
+                        if (value_1469) {
+                            Checker* value_1471 = c;
+                            ZirSourceSpan value_1472 = e->span;
+                            uint8_t* value_1473 = compiler_check_types_CheckCString(StringLiteral("dereference requires a pointer"));
+                            zir_foreign_compiler_check_expr__error(value_1471, value_1472, value_1473, right);
                         }
                         type = zir_foreign_compiler_check_expr__skip_ws((uint8_t*)(((size_t)(right) + ((size_t)(1LL) * sizeof(uint8_t)))));
                     } else {
-                        bool value_1471 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!"))) != 0;
-                        if (!value_1471) {
+                        bool value_1474 = zir_foreign_compiler_check_expr__strcmp((uint8_t*)(&(e->op)), compiler_check_types_CheckCString(StringLiteral("!"))) != 0;
+                        if (!value_1474) {
                             type = compiler_check_types_CheckCString(StringLiteral("bool"));
                         } else {
                             if (zir_foreign_compiler_check_expr__numeric(right) != 0) {
                                 type = right;
                             } else {
-                                Checker* value_1472 = c;
-                                ZirSourceSpan value_1473 = e->span;
-                                zir_foreign_compiler_check_expr__error(value_1472, value_1473, compiler_check_types_CheckCString(StringLiteral("unresolved unary operation")), (uint8_t*)(&(e->op)));
+                                Checker* value_1475 = c;
+                                ZirSourceSpan value_1476 = e->span;
+                                zir_foreign_compiler_check_expr__error(value_1475, value_1476, compiler_check_types_CheckCString(StringLiteral("unresolved unary operation")), (uint8_t*)(&(e->op)));
                             }
                         }
                     }
                 }
                 goto zir_loop_break_4;
             } else if (check_choice_243 == ((ZirExprKind)(11))) {
-                bool value_1474 = zir_foreign_compiler_check_expr__JaiTypeSpelling(e->span, (uint8_t*)e->name) != 0;
-                if (!value_1474) {
+                bool value_1477 = zir_foreign_compiler_check_expr__JaiTypeSpelling(e->span, (uint8_t*)e->name) != 0;
+                if (!value_1477) {
                     compiler_check_types_CheckPost0(&(c->errors));
                     uint8_t* cleanup_return_23 = compiler_check_types_CheckCString(StringLiteral(""));
                     zir_foreign_compiler_check_expr__CompilerFree((void*)(member_type_storage_0));
@@ -8454,110 +8638,110 @@ compiler_check_expr_expression_type_with_buffers(Checker* c, int32_t index, Expr
                 ZirType* destination = zir_foreign_compiler_check_expr__FindType(c->module, (uint8_t*)e->name, (void *)0);
                 ZirType* source = zir_foreign_compiler_check_expr__FindType(c->module, right, (void *)0);
                 if ((int32_t)((int8_t)(right[0])) == 91 || (int32_t)((int8_t)(e->name[0])) == 91) {
-                    ZirType* value_1475 = (void *)0;
+                    ZirType* value_1478 = (void *)0;
                     if ((int32_t)((int8_t)(right[0])) == 91) {
-                        value_1475 = destination;
+                        value_1478 = destination;
                     } else {
-                        value_1475 = source;
+                        value_1478 = source;
                     }
-                    ZirType* foreign = value_1475;
-                    uint8_t* value_1476 = (void *)0;
+                    ZirType* foreign = value_1478;
+                    uint8_t* value_1479 = (void *)0;
                     if ((int32_t)((int8_t)(right[0])) == 91) {
-                        value_1476 = right;
+                        value_1479 = right;
                     } else {
-                        value_1476 = (uint8_t*)e->name;
+                        value_1479 = (uint8_t*)e->name;
                     }
-                    uint8_t* slice = value_1476;
-                    void* value_1477 = zir_foreign_compiler_check_expr__AllocateOrExit(sizeof(CheckArray128_u8));
-                    CheckArray128_u8* element_storage_45 = (CheckArray128_u8*)(value_1477);
+                    uint8_t* slice = value_1479;
+                    void* value_1480 = zir_foreign_compiler_check_expr__AllocateOrExit(sizeof(CheckArray128_u8));
+                    CheckArray128_u8* element_storage_45 = (CheckArray128_u8*)(value_1480);
                     zir_foreign_compiler_check_expr__memset((void*)(element_storage_45), 0, sizeof(CheckArray128_u8));
-                    bool value_1478 = zir_foreign_compiler_check_expr__SliceElementType(slice, (uint8_t*)(&((element_storage_45[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8)))) != 0;
-                    bool value_1479 = !value_1478 || !(foreign != ((void *)0));
-                    bool value_1480 = value_1479 || zir_foreign_compiler_check_expr__strncmp((uint8_t*)(&(foreign->foreign_target)), compiler_check_types_CheckCString(StringLiteral("go:")), (size_t)(3ULL)) != 0;
-                    bool value_1481 = value_1480;
-                    if (value_1481 || zir_foreign_compiler_check_expr__contains_vec(c->module, (uint8_t*)(&((element_storage_45[0]).items)), 0) != 0) {
-                        Checker* value_1482 = c;
-                        ZirSourceSpan value_1483 = e->span;
-                        uint8_t* value_1484 = compiler_check_types_CheckCString(StringLiteral("slice casts require a foreign Go type without owned elements"));
-                        zir_foreign_compiler_check_expr__error(value_1482, value_1483, value_1484, (uint8_t*)e->name);
+                    bool value_1481 = zir_foreign_compiler_check_expr__SliceElementType(slice, (uint8_t*)(&((element_storage_45[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8)))) != 0;
+                    bool value_1482 = !value_1481 || !(foreign != ((void *)0));
+                    bool value_1483 = value_1482 || zir_foreign_compiler_check_expr__strncmp((uint8_t*)(&(foreign->foreign_target)), compiler_check_types_CheckCString(StringLiteral("go:")), (size_t)(3ULL)) != 0;
+                    bool value_1484 = value_1483;
+                    if (value_1484 || zir_foreign_compiler_check_expr__contains_vec(c->module, (uint8_t*)(&((element_storage_45[0]).items)), 0) != 0) {
+                        Checker* value_1485 = c;
+                        ZirSourceSpan value_1486 = e->span;
+                        uint8_t* value_1487 = compiler_check_types_CheckCString(StringLiteral("slice casts require a foreign Go type without owned elements"));
+                        zir_foreign_compiler_check_expr__error(value_1485, value_1486, value_1487, (uint8_t*)e->name);
                     }
                     zir_foreign_compiler_check_expr__CompilerFree((void*)(element_storage_45));
                 }
-                bool value_1485 = destination != (ZirType*)(((void *)0)) && destination->is_enum != 0;
-                bool value_1486 = value_1485;
-                if (value_1486) {
-                    bool value_1487 = zir_foreign_compiler_check_expr__numeric(right) != 0;
-                    value_1486 = !value_1487;
-                }
-                bool value_1488 = value_1486;
+                bool value_1488 = destination != (ZirType*)(((void *)0)) && destination->is_enum != 0;
                 bool value_1489 = value_1488;
                 if (value_1489) {
-                    uint8_t* value_1490 = right;
-                    bool value_1491 = zir_foreign_compiler_check_expr__strcmp(value_1490, compiler_check_types_CheckCString(StringLiteral("bool"))) != 0;
-                    value_1489 = value_1491;
+                    bool value_1490 = zir_foreign_compiler_check_expr__numeric(right) != 0;
+                    value_1489 = !value_1490;
                 }
-                if (value_1489 && (source == (ZirType*)(((void *)0)) || !(source->is_enum != 0))) {
-                    Checker* value_1492 = c;
-                    ZirSourceSpan value_1493 = e->span;
-                    uint8_t* value_1494 = compiler_check_types_CheckCString(StringLiteral("enum casts require a numeric, bool, or enum value"));
-                    zir_foreign_compiler_check_expr__error(value_1492, value_1493, value_1494, (uint8_t*)e->name);
+                bool value_1491 = value_1489;
+                bool value_1492 = value_1491;
+                if (value_1492) {
+                    uint8_t* value_1493 = right;
+                    bool value_1494 = zir_foreign_compiler_check_expr__strcmp(value_1493, compiler_check_types_CheckCString(StringLiteral("bool"))) != 0;
+                    value_1492 = value_1494;
                 }
-                bool value_1495 = zir_foreign_compiler_check_expr__text_type(right) != 0;
-                bool value_1496 = value_1495 || zir_foreign_compiler_check_expr__text_type((uint8_t*)e->name) != 0;
-                if (value_1496 && zir_foreign_compiler_check_expr__strcmp(right, (uint8_t*)e->name) != 0) {
-                    Checker* value_1497 = c;
-                    ZirSourceSpan value_1498 = e->span;
-                    uint8_t* value_1499 = compiler_check_types_CheckCString(StringLiteral("string casts require an explicit conversion API"));
-                    zir_foreign_compiler_check_expr__error(value_1497, value_1498, value_1499, (uint8_t*)e->name);
+                if (value_1492 && (source == (ZirType*)(((void *)0)) || !(source->is_enum != 0))) {
+                    Checker* value_1495 = c;
+                    ZirSourceSpan value_1496 = e->span;
+                    uint8_t* value_1497 = compiler_check_types_CheckCString(StringLiteral("enum casts require a numeric, bool, or enum value"));
+                    zir_foreign_compiler_check_expr__error(value_1495, value_1496, value_1497, (uint8_t*)e->name);
+                }
+                bool value_1498 = zir_foreign_compiler_check_expr__text_type(right) != 0;
+                bool value_1499 = value_1498 || zir_foreign_compiler_check_expr__text_type((uint8_t*)e->name) != 0;
+                if (value_1499 && zir_foreign_compiler_check_expr__strcmp(right, (uint8_t*)e->name) != 0) {
+                    Checker* value_1500 = c;
+                    ZirSourceSpan value_1501 = e->span;
+                    uint8_t* value_1502 = compiler_check_types_CheckCString(StringLiteral("string casts require an explicit conversion API"));
+                    zir_foreign_compiler_check_expr__error(value_1500, value_1501, value_1502, (uint8_t*)e->name);
                 }
                 type = (uint8_t*)e->name;
                 goto zir_loop_break_4;
             } else if (check_choice_243 == ((ZirExprKind)(14))) {
                 uint8_t* third = private_check_expression_type(c, e->third);
-                uint8_t* value_1500 = left;
-                if (zir_foreign_compiler_check_expr__strcmp(value_1500, compiler_check_types_CheckCString(StringLiteral("bool"))) != 0) {
-                    Checker* value_1501 = c;
-                    ZirSourceSpan value_1502 = e->span;
-                    uint8_t* value_1503 = compiler_check_types_CheckCString(StringLiteral("conditional requires bool"));
-                    zir_foreign_compiler_check_expr__error(value_1501, value_1502, value_1503, left);
+                uint8_t* value_1503 = left;
+                if (zir_foreign_compiler_check_expr__strcmp(value_1503, compiler_check_types_CheckCString(StringLiteral("bool"))) != 0) {
+                    Checker* value_1504 = c;
+                    ZirSourceSpan value_1505 = e->span;
+                    uint8_t* value_1506 = compiler_check_types_CheckCString(StringLiteral("conditional requires bool"));
+                    zir_foreign_compiler_check_expr__error(value_1504, value_1505, value_1506, left);
                 }
-                bool value_1504 = zir_foreign_compiler_check_expr__compatible_checked(c, right, third) != 0;
-                bool value_1505 = !value_1504;
-                if (value_1505) {
-                    bool value_1506 = zir_foreign_compiler_check_expr__compatible_checked(c, third, right) != 0;
-                    value_1505 = !value_1506;
+                bool value_1507 = zir_foreign_compiler_check_expr__compatible_checked(c, right, third) != 0;
+                bool value_1508 = !value_1507;
+                if (value_1508) {
+                    bool value_1509 = zir_foreign_compiler_check_expr__compatible_checked(c, third, right) != 0;
+                    value_1508 = !value_1509;
                 }
-                if (value_1505) {
-                    Checker* value_1507 = c;
-                    ZirSourceSpan value_1508 = e->span;
-                    uint8_t* value_1509 = compiler_check_types_CheckCString(StringLiteral("conditional arms have different types"));
-                    zir_foreign_compiler_check_expr__error(value_1507, value_1508, value_1509, compiler_check_types_CheckCString(StringLiteral("")));
+                if (value_1508) {
+                    Checker* value_1510 = c;
+                    ZirSourceSpan value_1511 = e->span;
+                    uint8_t* value_1512 = compiler_check_types_CheckCString(StringLiteral("conditional arms have different types"));
+                    zir_foreign_compiler_check_expr__error(value_1510, value_1511, value_1512, compiler_check_types_CheckCString(StringLiteral("")));
                 }
-                uint8_t* value_1510 = right;
-                bool value_1511 = zir_foreign_compiler_check_expr__strcmp(value_1510, compiler_check_types_CheckCString(StringLiteral("integer"))) != 0;
-                bool value_1512 = !value_1511;
-                if (!value_1512) {
-                    uint8_t* value_1513 = right;
-                    bool value_1514 = zir_foreign_compiler_check_expr__strcmp(value_1513, compiler_check_types_CheckCString(StringLiteral("null"))) != 0;
-                    value_1512 = !value_1514;
+                uint8_t* value_1513 = right;
+                bool value_1514 = zir_foreign_compiler_check_expr__strcmp(value_1513, compiler_check_types_CheckCString(StringLiteral("integer"))) != 0;
+                bool value_1515 = !value_1514;
+                if (!value_1515) {
+                    uint8_t* value_1516 = right;
+                    bool value_1517 = zir_foreign_compiler_check_expr__strcmp(value_1516, compiler_check_types_CheckCString(StringLiteral("null"))) != 0;
+                    value_1515 = !value_1517;
                 }
-                uint8_t* value_1515 = (void *)0;
-                if (value_1512) {
-                    value_1515 = third;
+                uint8_t* value_1518 = (void *)0;
+                if (value_1515) {
+                    value_1518 = third;
                 } else {
-                    value_1515 = right;
+                    value_1518 = right;
                 }
-                type = value_1515;
+                type = value_1518;
                 goto zir_loop_break_4;
             } else {
-                uint8_t* value_1516 = (void *)0;
+                uint8_t* value_1519 = (void *)0;
                 if (((uint8_t*)e->text) != ((void *)0)) {
-                    value_1516 = (uint8_t*)e->text;
+                    value_1519 = (uint8_t*)e->text;
                 } else {
-                    uint8_t* value_1517 = compiler_check_types_CheckCString(StringLiteral(""));
-                    value_1516 = value_1517;
+                    uint8_t* value_1520 = compiler_check_types_CheckCString(StringLiteral(""));
+                    value_1519 = value_1520;
                 }
-                uint8_t* text = value_1516;
+                uint8_t* text = value_1519;
                 while (true) {
                     bool check_loop_262 = zir_foreign_compiler_check_expr__isspace((int32_t)(text[0])) != 0;
                     if (!check_loop_262) {
@@ -8566,16 +8750,16 @@ compiler_check_expr_expression_type_with_buffers(Checker* c, int32_t index, Expr
                     compiler_check_types_CheckPost6(&(text));
                 }
                 if ((int32_t)(((ZirExprKind)(e->kind))) == 0 && (int32_t)((int8_t)(text[0])) == 46 && (int32_t)((int8_t)(text[1])) == 91) {
-                    Checker* value_1518 = c;
-                    ZirSourceSpan value_1519 = e->span;
-                    String value_1520 = StringLiteral("array literal .[...] could not be read here: an untyped .[...] needs a declaration that names its array type, or write the element type, as in s32.[1, 2]; each element must be a complete expression");
-                    uint8_t* value_1521 = compiler_check_types_CheckCString(value_1520);
-                    zir_foreign_compiler_check_expr__error(value_1518, value_1519, value_1521, compiler_check_types_CheckCString(StringLiteral("")));
+                    Checker* value_1521 = c;
+                    ZirSourceSpan value_1522 = e->span;
+                    String value_1523 = StringLiteral("array literal .[...] could not be read here: an untyped .[...] needs a declaration that names its array type, or write the element type, as in s32.[1, 2]; each element must be a complete expression");
+                    uint8_t* value_1524 = compiler_check_types_CheckCString(value_1523);
+                    zir_foreign_compiler_check_expr__error(value_1521, value_1522, value_1524, compiler_check_types_CheckCString(StringLiteral("")));
                 } else {
-                    Checker* value_1522 = c;
-                    ZirSourceSpan value_1523 = e->span;
-                    uint8_t* value_1524 = compiler_check_types_CheckCString(StringLiteral("expression is not supported by language checking"));
-                    zir_foreign_compiler_check_expr__error(value_1522, value_1523, value_1524, (uint8_t*)e->text);
+                    Checker* value_1525 = c;
+                    ZirSourceSpan value_1526 = e->span;
+                    uint8_t* value_1527 = compiler_check_types_CheckCString(StringLiteral("expression is not supported by language checking"));
+                    zir_foreign_compiler_check_expr__error(value_1525, value_1526, value_1527, (uint8_t*)e->text);
                 }
                 goto zir_loop_break_4;
             }
@@ -8584,25 +8768,25 @@ compiler_check_expr_expression_type_with_buffers(Checker* c, int32_t index, Expr
         zir_loop_continue_4: ;
     }
     zir_loop_break_4: ;
-    uint8_t* value_1525 = zir_foreign_compiler_check_expr__ScalarType(type);
-    if (value_1525[0] != 0) {
+    uint8_t* value_1528 = zir_foreign_compiler_check_expr__ScalarType(type);
+    if (value_1528[0] != 0) {
         type = zir_foreign_compiler_check_expr__ScalarType(type);
     }
     e = (ZirExpr*)(((size_t)(c->fn->exprs) + ((size_t)(index) * sizeof(ZirExpr))));
     if (type != ((uint8_t*)e->type)) {
-        const char ** value_1526 = &(e->type);
-        uint8_t* value_1527 = zir_foreign_compiler_check_expr__KeepName(type);
-        (*value_1526) = (const char *)(value_1527);
+        const char ** value_1529 = &(e->type);
+        uint8_t* value_1530 = zir_foreign_compiler_check_expr__KeepName(type);
+        (*value_1529) = (const char *)(value_1530);
     }
-    const char ** value_1528 = &(e->type);
-    uint8_t* value_1529 = zir_foreign_compiler_check_expr__normalized_array(c->module, (uint8_t*)e->type);
-    (*value_1528) = (const char *)(value_1529);
-    bool value_1530 = (int32_t)(((ZirExprKind)(e->kind))) == 5 && !(e->text_owned != 0);
-    if (value_1530 && zir_foreign_compiler_check_expr__OwnedTextType(c->module, (uint8_t*)e->type) != 0) {
+    const char ** value_1531 = &(e->type);
+    uint8_t* value_1532 = zir_foreign_compiler_check_expr__normalized_array(c->module, (uint8_t*)e->type);
+    (*value_1531) = (const char *)(value_1532);
+    bool value_1533 = (int32_t)(((ZirExprKind)(e->kind))) == 5 && !(e->text_owned != 0);
+    if (value_1533 && zir_foreign_compiler_check_expr__OwnedTextType(c->module, (uint8_t*)e->type) != 0) {
         if (compiler_check_expr_text_owner_position(c, index) != 0) {
             if (!(c->inference_only != 0)) {
-                int32_t* value_1531 = &(e->text_owned);
-                (*value_1531) = 1;
+                int32_t* value_1534 = &(e->text_owned);
+                (*value_1534) = 1;
             }
         } else {
             if (c->inference_only != 0) {

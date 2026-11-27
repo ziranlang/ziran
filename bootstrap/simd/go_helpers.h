@@ -6,6 +6,26 @@
 #include "zir_string_types.h"
 #include <stdlib.h>
 #include "zir_slice.h"
+#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LaneFunctions
+#define ZIRAN_TYPE_FORWARD_LaneFunctions
+typedef struct LaneFunctions LaneFunctions;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Entry
+#define ZIRAN_TYPE_FORWARD_Entry
+typedef struct Entry Entry;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_7fa229285bfd385d
+#define ZIRAN_CONCRETE_FORWARD___type_7fa229285bfd385d
+typedef struct __type_7fa229285bfd385d __type_7fa229285bfd385d;
+#endif
 #include "model.h"
 #include "operations.h"
 #include "scalar.h"
@@ -15,20 +35,6 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
-#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
-typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
-#endif
-typedef struct LaneFunctions LaneFunctions;
-typedef struct Entry Entry;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_7fa229285bfd385d
-#define ZIRAN_CONCRETE_FORWARD___type_7fa229285bfd385d
-typedef struct __type_7fa229285bfd385d __type_7fa229285bfd385d;
 #endif
 #ifndef ZIRAN_CONCRETE___type_9f828aa1372cb21a
 #define ZIRAN_CONCRETE___type_9f828aa1372cb21a

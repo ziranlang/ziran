@@ -4,6 +4,194 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
+#ifndef ZIRAN_TYPE_FORWARD_HostKind
+#define ZIRAN_TYPE_FORWARD_HostKind
+typedef int32_t HostKind;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_HostValue
+#define ZIRAN_TYPE_FORWARD_HostValue
+typedef struct HostValue HostValue;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BundleStateValue
+#define ZIRAN_TYPE_FORWARD_BundleStateValue
+typedef struct BundleStateValue BundleStateValue;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BundleState
+#define ZIRAN_TYPE_FORWARD_BundleState
+typedef struct BundleState BundleState;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_StateBudget
+#define ZIRAN_TYPE_FORWARD_StateBudget
+typedef struct StateBudget StateBudget;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BundleComponent
+#define ZIRAN_TYPE_FORWARD_BundleComponent
+typedef struct BundleComponent BundleComponent;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BundleComponentHandle
+#define ZIRAN_TYPE_FORWARD_BundleComponentHandle
+typedef struct BundleComponentHandle BundleComponentHandle;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BindingKind
+#define ZIRAN_TYPE_FORWARD_BindingKind
+typedef int32_t BindingKind;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BindingPlan
+#define ZIRAN_TYPE_FORWARD_BindingPlan
+typedef struct BindingPlan BindingPlan;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ModuleExport
+#define ZIRAN_TYPE_FORWARD_ModuleExport
+typedef struct ModuleExport ModuleExport;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ModuleRequirement
+#define ZIRAN_TYPE_FORWARD_ModuleRequirement
+typedef struct ModuleRequirement ModuleRequirement;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ModuleImport
+#define ZIRAN_TYPE_FORWARD_ModuleImport
+typedef struct ModuleImport ModuleImport;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ImageMark
+#define ZIRAN_TYPE_FORWARD_ImageMark
+typedef int32_t ImageMark;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ModuleImage
+#define ZIRAN_TYPE_FORWARD_ModuleImage
+typedef struct ModuleImage ModuleImage;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ModuleService
+#define ZIRAN_TYPE_FORWARD_ModuleService
+typedef struct ModuleService ModuleService;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZxModuleImage
+#define ZIRAN_TYPE_FORWARD_ZxModuleImage
+typedef struct ZxModuleImage ZxModuleImage;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZxModuleLibraryGrant
+#define ZIRAN_TYPE_FORWARD_ZxModuleLibraryGrant
+typedef struct ZxModuleLibraryGrant ZxModuleLibraryGrant;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BundleInstanceOptions
+#define ZIRAN_TYPE_FORWARD_BundleInstanceOptions
+typedef struct BundleInstanceOptions BundleInstanceOptions;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZxModuleLoaderConfig
+#define ZIRAN_TYPE_FORWARD_ZxModuleLoaderConfig
+typedef struct ZxModuleLoaderConfig ZxModuleLoaderConfig;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ModuleFrame
+#define ZIRAN_TYPE_FORWARD_ModuleFrame
+typedef struct ModuleFrame ModuleFrame;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ModuleScope
+#define ZIRAN_TYPE_FORWARD_ModuleScope
+typedef struct ModuleScope ModuleScope;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BoundModuleHost
+#define ZIRAN_TYPE_FORWARD_BoundModuleHost
+typedef struct BoundModuleHost BoundModuleHost;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ModuleSlot
+#define ZIRAN_TYPE_FORWARD_ModuleSlot
+typedef struct ModuleSlot ModuleSlot;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZxModuleProgram
+#define ZIRAN_TYPE_FORWARD_ZxModuleProgram
+typedef struct ZxModuleProgram ZxModuleProgram;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZxModuleLoader
+#define ZIRAN_TYPE_FORWARD_ZxModuleLoader
+typedef struct ZxModuleLoader ZxModuleLoader;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirSourceSpan
+#define ZIRAN_TYPE_FORWARD_ZirSourceSpan
+typedef struct ZirSourceSpan ZirSourceSpan;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Sha256
+#define ZIRAN_TYPE_FORWARD_Sha256
+typedef struct Sha256 Sha256;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_StaticText
+#define ZIRAN_TYPE_FORWARD_StaticText
+typedef struct StaticText StaticText;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_HostField
+#define ZIRAN_TYPE_FORWARD_HostField
+typedef struct HostField HostField;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_HostBinding
+#define ZIRAN_TYPE_FORWARD_HostBinding
+typedef struct HostBinding HostBinding;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BundleCapabilityAbi
+#define ZIRAN_TYPE_FORWARD_BundleCapabilityAbi
+typedef struct BundleCapabilityAbi BundleCapabilityAbi;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_NativeBundleSlot
+#define ZIRAN_TYPE_FORWARD_NativeBundleSlot
+typedef struct NativeBundleSlot NativeBundleSlot;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Bundle
+#define ZIRAN_TYPE_FORWARD_Bundle
+typedef struct Bundle Bundle;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BundleImageOwner
+#define ZIRAN_TYPE_FORWARD_BundleImageOwner
+typedef struct BundleImageOwner BundleImageOwner;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BindingSet
+#define ZIRAN_TYPE_FORWARD_BindingSet
+typedef struct BindingSet BindingSet;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BundleInstance
+#define ZIRAN_TYPE_FORWARD_BundleInstance
+typedef struct BundleInstance BundleInstance;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZxRunControl
+#define ZIRAN_TYPE_FORWARD_ZxRunControl
+typedef struct ZxRunControl ZxRunControl;
+#endif
+#ifndef ZIRAN_CALLABLE_BundleStateMigrate
+#define ZIRAN_CALLABLE_BundleStateMigrate
+typedef int32_t (*BundleStateMigrate)(void*, BundleState*, BundleState*);
+#endif
+#ifndef ZIRAN_CALLABLE_BundleComponentVerify
+#define ZIRAN_CALLABLE_BundleComponentVerify
+typedef int32_t (*BundleComponentVerify)(void*, BundleInstance*);
+#endif
+#ifndef ZIRAN_CALLABLE_BundleImageRelease
+#define ZIRAN_CALLABLE_BundleImageRelease
+typedef void (*BundleImageRelease)(void*, uint8_t*, size_t);
+#endif
+#ifndef ZIRAN_CALLABLE_ZxModuleResolve
+#define ZIRAN_CALLABLE_ZxModuleResolve
+typedef int32_t (*ZxModuleResolve)(void*, uint8_t*, ZxModuleImage*);
+#endif
+#ifndef ZIRAN_CALLABLE_HostCall
+#define ZIRAN_CALLABLE_HostCall
+typedef int32_t (*HostCall)(void*, uint8_t*, uint8_t*, HostValue*, int32_t, HostValue*);
+#endif
+#ifndef ZIRAN_CALLABLE_BundleConsoleWrite
+#define ZIRAN_CALLABLE_BundleConsoleWrite
+typedef int32_t (*BundleConsoleWrite)(void*, int32_t, void*, size_t);
+#endif
+#ifndef ZIRAN_CALLABLE_BindingOrder
+#define ZIRAN_CALLABLE_BindingOrder
+typedef int32_t (*BindingOrder)(void*, void*);
+#endif
+#ifndef ZIRAN_CALLABLE_BundleReadAt
+#define ZIRAN_CALLABLE_BundleReadAt
+typedef size_t (*BundleReadAt)(void*, uint64_t, void*, size_t);
+#endif
+#ifndef ZIRAN_CALLABLE_BundleShrink
+#define ZIRAN_CALLABLE_BundleShrink
+typedef void* (*BundleShrink)(void*, size_t);
+#endif
+#ifndef ZIRAN_CALLABLE_FindBinding
+#define ZIRAN_CALLABLE_FindBinding
+typedef HostBinding* (*FindBinding)(void*, uint8_t*, uint8_t*);
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,53 +215,6 @@ extern "C" {
 #define RUN_ERROR 0
 #define RUN_OK 1
 #define RUN_CANCELLED 2
-typedef int32_t HostKind;
-typedef struct HostValue HostValue;
-typedef struct BundleStateValue BundleStateValue;
-typedef struct BundleState BundleState;
-typedef struct StateBudget StateBudget;
-typedef struct BundleComponent BundleComponent;
-typedef struct BundleComponentHandle BundleComponentHandle;
-typedef int32_t BindingKind;
-typedef struct BindingPlan BindingPlan;
-typedef struct ModuleExport ModuleExport;
-typedef struct ModuleRequirement ModuleRequirement;
-typedef struct ModuleImport ModuleImport;
-typedef int32_t ImageMark;
-typedef struct ModuleImage ModuleImage;
-typedef struct ModuleService ModuleService;
-typedef struct ZxModuleImage ZxModuleImage;
-typedef struct ZxModuleLibraryGrant ZxModuleLibraryGrant;
-typedef struct BundleInstanceOptions BundleInstanceOptions;
-typedef struct ZxModuleLoaderConfig ZxModuleLoaderConfig;
-typedef struct ModuleFrame ModuleFrame;
-typedef struct ModuleScope ModuleScope;
-typedef struct BoundModuleHost BoundModuleHost;
-typedef struct ModuleSlot ModuleSlot;
-typedef struct ZxModuleProgram ZxModuleProgram;
-typedef struct ZxModuleLoader ZxModuleLoader;
-typedef struct ZirSourceSpan ZirSourceSpan;
-typedef struct Sha256 Sha256;
-typedef struct StaticText StaticText;
-typedef struct HostField HostField;
-typedef struct HostBinding HostBinding;
-typedef struct BundleCapabilityAbi BundleCapabilityAbi;
-typedef struct NativeBundleSlot NativeBundleSlot;
-typedef struct Bundle Bundle;
-typedef struct BundleImageOwner BundleImageOwner;
-typedef struct BindingSet BindingSet;
-typedef struct BundleInstance BundleInstance;
-typedef struct ZxRunControl ZxRunControl;
-typedef int32_t (*BundleStateMigrate)(void*, BundleState*, BundleState*);
-typedef int32_t (*BundleComponentVerify)(void*, BundleInstance*);
-typedef void (*BundleImageRelease)(void*, uint8_t*, size_t);
-typedef int32_t (*ZxModuleResolve)(void*, uint8_t*, ZxModuleImage*);
-typedef int32_t (*HostCall)(void*, uint8_t*, uint8_t*, HostValue*, int32_t, HostValue*);
-typedef int32_t (*BundleConsoleWrite)(void*, int32_t, void*, size_t);
-typedef int32_t (*BindingOrder)(void*, void*);
-typedef size_t (*BundleReadAt)(void*, uint64_t, void*, size_t);
-typedef void* (*BundleShrink)(void*, size_t);
-typedef HostBinding* (*FindBinding)(void*, uint8_t*, uint8_t*);
 
 enum {
     HostKind_Void = 0,

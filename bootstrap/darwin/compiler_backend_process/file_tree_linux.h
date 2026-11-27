@@ -5,6 +5,44 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_StatRecord
+#define ZIRAN_TYPE_FORWARD_StatRecord
+typedef struct StatRecord StatRecord;
+#endif
+#endif
+#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_StatEntry
+#define ZIRAN_TYPE_FORWARD_StatEntry
+typedef struct StatEntry StatEntry;
+#endif
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PathKind
+#define ZIRAN_TYPE_FORWARD_PathKind
+typedef uint8_t PathKind;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PathInfo
+#define ZIRAN_TYPE_FORWARD_PathInfo
+typedef struct PathInfo PathInfo;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PathQueryResult
+#define ZIRAN_TYPE_FORWARD_PathQueryResult
+typedef struct PathQueryResult PathQueryResult;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
+#endif
+#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_StatAt
+#define ZIRAN_CALLABLE_StatAt
+typedef int32_t (*StatAt)(int32_t, uint8_t*, StatRecord*, int32_t);
+#endif
+#endif
 #include "c_string.h"
 #include "byte_text_linux.h"
 #include "sort.h"
@@ -34,26 +72,6 @@ extern "C" {
 #endif
 #ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
 #define zir_d_66b6aadc3ac72b85 4
-#endif
-#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
-typedef struct StatRecord StatRecord;
-#endif
-#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
-typedef struct StatEntry StatEntry;
-#endif
-typedef uint8_t PathKind;
-typedef struct PathInfo PathInfo;
-typedef struct PathQueryResult PathQueryResult;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
-#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
-typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
-#endif
-#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
-typedef int32_t (*StatAt)(int32_t, uint8_t*, StatRecord*, int32_t);
 #endif
 #ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
 

@@ -95,13 +95,7 @@ int32_t zir_foreign_file_linux__SyncRaw(int32_t fd) __asm__("_fsync");
 #else
 int32_t zir_foreign_file_linux__SyncRaw(int32_t fd) __asm__("fsync");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int32_t file_linux_OpenPath(uint8_t* path, int32_t flags, int32_t mode) ZIRAN_MAYBE_UNUSED;
 static FileHandle file_linux_OpenWithFlags(String path, int32_t flags) ZIRAN_MAYBE_UNUSED;
 
@@ -337,7 +331,7 @@ ReadAt(FileHandle file, Slice output, int64_t offset)
     if ((int64_t)(output).length == 0LL) {
         return 0LL;
     }
-    ptrdiff_t value_0 = zir_foreign_file_linux__ReadAtRaw(file.fd, &(((uint8_t *)output.data)[0]), (size_t)((int64_t)(output).length), offset);
+    ptrdiff_t value_0 = zir_foreign_file_linux__ReadAtRaw(file.fd, &(((uint8_t *)(output).data)[0]), (size_t)((int64_t)(output).length), offset);
     return (int64_t)(value_0);
 }
 
@@ -350,7 +344,7 @@ WriteAt(FileHandle file, Slice input, int64_t offset)
     if ((int64_t)(input).length == 0LL) {
         return 0LL;
     }
-    ptrdiff_t value_0 = zir_foreign_file_linux__WriteAtRaw(file.fd, &(((uint8_t *)input.data)[0]), (size_t)((int64_t)(input).length), offset);
+    ptrdiff_t value_0 = zir_foreign_file_linux__WriteAtRaw(file.fd, &(((uint8_t *)(input).data)[0]), (size_t)((int64_t)(input).length), offset);
     return (int64_t)(value_0);
 }
 
@@ -414,7 +408,7 @@ Read(FileHandle file, Slice output)
     if ((int64_t)(output).length == 0LL) {
         return 0LL;
     }
-    ptrdiff_t value_0 = zir_foreign_file_linux__ReadRaw(file.fd, &(((uint8_t *)output.data)[0]), (size_t)((int64_t)(output).length));
+    ptrdiff_t value_0 = zir_foreign_file_linux__ReadRaw(file.fd, &(((uint8_t *)(output).data)[0]), (size_t)((int64_t)(output).length));
     return (int64_t)(value_0);
 }
 
@@ -427,7 +421,7 @@ Write(FileHandle file, Slice input)
     if ((int64_t)(input).length == 0LL) {
         return 0LL;
     }
-    ptrdiff_t value_0 = zir_foreign_file_linux__WriteRaw(file.fd, &(((uint8_t *)input.data)[0]), (size_t)((int64_t)(input).length));
+    ptrdiff_t value_0 = zir_foreign_file_linux__WriteRaw(file.fd, &(((uint8_t *)(input).data)[0]), (size_t)((int64_t)(input).length));
     return (int64_t)(value_0);
 }
 

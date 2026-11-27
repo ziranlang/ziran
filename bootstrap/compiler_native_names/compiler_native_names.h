@@ -4,16 +4,25 @@
 
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_ZirTarget
+#define ZIRAN_TYPE_FORWARD_ZirTarget
+typedef int32_t ZirTarget;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_TargetName
+#define ZIRAN_TYPE_FORWARD_TargetName
+typedef struct TargetName TargetName;
+#endif
+#ifdef ZIRAN_COMPILER_NATIVE_NAMES_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_StaticText
+#define ZIRAN_TYPE_FORWARD_StaticText
+typedef struct StaticText StaticText;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_services.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-typedef int32_t ZirTarget;
-typedef struct TargetName TargetName;
-#ifdef ZIRAN_COMPILER_NATIVE_NAMES_H_PRIVATE
-typedef struct StaticText StaticText;
 #endif
 
 enum {

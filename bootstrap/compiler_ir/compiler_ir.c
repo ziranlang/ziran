@@ -41,7 +41,7 @@ String
 compiler_ir_BufferText(Slice buffer)
 {
     int64_t length = 0LL;
-    while (length < (int64_t)(buffer).length && ((uint8_t *)buffer.data)[length] != 0) {
+    while (length < (int64_t)(buffer).length && ((uint8_t *)(buffer).data)[length] != 0) {
         length = (int64_t)((uint64_t)length + UINT64_C(1));
     }
     Slice value_0 = buffer;
@@ -65,7 +65,7 @@ compiler_ir_CopyText(Slice output, String text)
         int64_t range_last_8 = (int64_t)((uint64_t)length - UINT64_C(1));
         int64_t i = range_first_8;
         if (i <= range_last_8) for (;;) {
-            uint8_t* value_0 = &(((uint8_t *)output.data)[i]);
+            uint8_t* value_0 = &(((uint8_t *)(output).data)[i]);
             (*value_0) = (uint8_t)text.data[i];
             if ((uint8_t)text.data[i] == 0) {
                 clean = false;
@@ -76,7 +76,7 @@ compiler_ir_CopyText(Slice output, String text)
             i = (int64_t)((uint64_t)i + UINT64_C(1));
         }
     }
-    uint8_t* value_1 = &(((uint8_t *)output.data)[length]);
+    uint8_t* value_1 = &(((uint8_t *)(output).data)[length]);
     (*value_1) = 0;
     return clean;
 }

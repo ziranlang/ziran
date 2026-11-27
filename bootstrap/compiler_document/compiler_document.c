@@ -108,13 +108,7 @@ void* zir_foreign_compiler_document__CompilerStandardError(void) __asm__("_Compi
 #else
 void* zir_foreign_compiler_document__CompilerStandardError(void) __asm__("CompilerStandardError");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static void compiler_document_free_documents(void* value) ZIRAN_MAYBE_UNUSED;
 static DocumentStore* compiler_document_documents(void) ZIRAN_MAYBE_UNUSED;
 static ZirDocument* compiler_document_find_document(uint8_t* path) ZIRAN_MAYBE_UNUSED;

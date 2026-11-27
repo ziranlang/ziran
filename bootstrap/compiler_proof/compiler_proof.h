@@ -5,6 +5,58 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Spelled
+#define ZIRAN_TYPE_FORWARD_Spelled
+typedef struct Spelled Spelled;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Long
+#define ZIRAN_TYPE_FORWARD_Long
+typedef struct Long Long;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Signature
+#define ZIRAN_TYPE_FORWARD_Signature
+typedef struct Signature Signature;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Binding
+#define ZIRAN_TYPE_FORWARD_Binding
+typedef struct Binding Binding;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Environment
+#define ZIRAN_TYPE_FORWARD_Environment
+typedef struct Environment Environment;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Continuation
+#define ZIRAN_TYPE_FORWARD_Continuation
+typedef struct Continuation Continuation;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Unfolds
+#define ZIRAN_TYPE_FORWARD_Unfolds
+typedef struct Unfolds Unfolds;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Context
+#define ZIRAN_TYPE_FORWARD_Context
+typedef struct Context Context;
+#endif
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
+#endif
 #include "compiler_ir.h"
 #include "compiler_proof_kernel.h"
 #include "compiler_services.h"
@@ -20,34 +72,6 @@ extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
 #define TextMax 4096
-#endif
-#ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
-typedef struct Spelled Spelled;
-#endif
-#ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
-typedef struct Long Long;
-#endif
-#ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
-typedef struct Signature Signature;
-#endif
-#ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
-typedef struct Binding Binding;
-#endif
-#ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
-typedef struct Environment Environment;
-#endif
-#ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
-typedef struct Continuation Continuation;
-#endif
-#ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
-typedef struct Unfolds Unfolds;
-#endif
-#ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
-typedef struct Context Context;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
 #ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
 

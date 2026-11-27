@@ -243,6 +243,18 @@ HostProviderMatches :: (module: *IR.ZirModule, imported: *IR.ZirImport,
     return matches
 }
 
+// A checked caller can project a foreign declaration with locally qualified
+// types. The authored declaration's source location identifies every projection.
+SameHostDeclaration :: (left_owner: *IR.ZirModule, left: *IR.ZirImport,
+                        right_owner: *IR.ZirModule, right: *IR.ZirImport) -> bool {
+    left_module := ifx left.declaration_module[0] != 0 then *left.declaration_module[0] else *left_owner.name[0]
+    right_module := ifx right.declaration_module[0] != 0 then *right.declaration_module[0] else *right_owner.name[0]
+    return IsHostCapability(left) && IsHostCapability(right) &&
+        Same(left_module, right_module) &&
+        left.span.line == right.span.line && left.span.column == right.span.column &&
+        Same(SpanPath(left.span), SpanPath(right.span))
+}
+
 // Bind one declared host capability to an exported Ziran implementation.
 #program_export
 BindHostProvider :: (program: *IR.ZirProgram, spec: *u8) -> s32 {
@@ -314,7 +326,23 @@ BindHostProvider :: (program: *IR.ZirProgram, spec: *u8) -> s32 {
         return 0
     }
     if !HostProviderMatches(capability_owner, matched, implementation_owner, implementation) { return 0 }
-    BindImport(matched, *provider_module[0], *provider_function[0])
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        for i: 0..module.import_count - 1 {
+            imported := ImportAt(module, i)
+            if SameHostDeclaration(module, imported, capability_owner, matched) &&
+               !HostProviderMatches(module, imported, implementation_owner, implementation) { return 0 }
+        }
+    }
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        for i: 0..module.import_count - 1 {
+            imported := ImportAt(module, i)
+            if SameHostDeclaration(module, imported, capability_owner, matched) {
+                BindImport(imported, *provider_module[0], *provider_function[0])
+            }
+        }
+    }
     return 1
 }
 
@@ -339,8 +367,8 @@ BoundTwice :: (program: *IR.ZirProgram, matched: *IR.ZirImport, capability: *u8,
 
 // Binds every host capability no --bind has claimed to the exported Ziran
 // function of the same name in the provider module, as a C program links a
-// host's exported symbols by name. One Ziran host module, such as Kryon's
-// pixmap backend, then serves every target.
+// host's exported symbols by name. One Ziran host module then serves every
+// target, including checked projections of imported capabilities.
 #program_export
 BindHostModule :: (program: *IR.ZirProgram, spec: *u8) -> s32 {
     provider_module: [IR.ZIR_NAME_MAX]u8
@@ -364,9 +392,10 @@ BindHostModule :: (program: *IR.ZirProgram, spec: *u8) -> s32 {
         for i: 0..module.import_count - 1 {
             imported := ImportAt(module, i)
             if !IsHostCapability(imported) || BoundToZiran(*imported.target[0]) { continue }
+            symbol := ifx imported.extern_symbol[0] != 0 then *imported.extern_symbol[0] else *imported.name[0]
             for f: 0..provider.function_count - 1 {
                 function := FunctionAt(provider, f)
-                if IR.HostProviderVisible(function) && Same(*function.name[0], *imported.name[0]) {
+                if IR.HostProviderVisible(function) && Same(*function.name[0], symbol) {
                     if !HostProviderMatches(module, imported, provider, function) { return 0 }
                     BindImport(imported, *provider_module[0], *function.name[0])
                     break

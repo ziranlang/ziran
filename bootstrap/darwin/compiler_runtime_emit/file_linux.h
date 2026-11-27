@@ -5,29 +5,56 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifdef ZIRAN_FILE_LINUX_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_DirectoryMetadata
+#define ZIRAN_TYPE_FORWARD_DirectoryMetadata
+typedef struct DirectoryMetadata DirectoryMetadata;
+#endif
+#endif
+#ifdef ZIRAN_FILE_LINUX_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_DarwinDirectory
+#define ZIRAN_TYPE_FORWARD_DarwinDirectory
+typedef struct DarwinDirectory DarwinDirectory;
+#endif
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_FileHandle
+#define ZIRAN_TYPE_FORWARD_FileHandle
+typedef struct FileHandle FileHandle;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_DirectoryCursor
+#define ZIRAN_TYPE_FORWARD_DirectoryCursor
+typedef struct DirectoryCursor DirectoryCursor;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_DirectoryKind
+#define ZIRAN_TYPE_FORWARD_DirectoryKind
+typedef uint8_t DirectoryKind;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_DirectoryEntry
+#define ZIRAN_TYPE_FORWARD_DirectoryEntry
+typedef struct DirectoryEntry DirectoryEntry;
+#endif
+#ifdef ZIRAN_FILE_LINUX_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_DarwinOpenDirectory
+#define ZIRAN_CALLABLE_DarwinOpenDirectory
+typedef void* (*DarwinOpenDirectory)(uint8_t*);
+#endif
+#endif
+#ifdef ZIRAN_FILE_LINUX_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_DarwinReadDirectory
+#define ZIRAN_CALLABLE_DarwinReadDirectory
+typedef DirectoryMetadata* (*DarwinReadDirectory)(void*);
+#endif
+#endif
+#ifdef ZIRAN_FILE_LINUX_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_DarwinCloseDirectory
+#define ZIRAN_CALLABLE_DarwinCloseDirectory
+typedef int32_t (*DarwinCloseDirectory)(void*);
+#endif
+#endif
 #include "c_string.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-#ifdef ZIRAN_FILE_LINUX_H_PRIVATE
-typedef struct DirectoryMetadata DirectoryMetadata;
-#endif
-#ifdef ZIRAN_FILE_LINUX_H_PRIVATE
-typedef struct DarwinDirectory DarwinDirectory;
-#endif
-typedef struct FileHandle FileHandle;
-typedef struct DirectoryCursor DirectoryCursor;
-typedef uint8_t DirectoryKind;
-typedef struct DirectoryEntry DirectoryEntry;
-#ifdef ZIRAN_FILE_LINUX_H_PRIVATE
-typedef void* (*DarwinOpenDirectory)(uint8_t*);
-#endif
-#ifdef ZIRAN_FILE_LINUX_H_PRIVATE
-typedef DirectoryMetadata* (*DarwinReadDirectory)(void*);
-#endif
-#ifdef ZIRAN_FILE_LINUX_H_PRIVATE
-typedef int32_t (*DarwinCloseDirectory)(void*);
 #endif
 #ifdef ZIRAN_FILE_LINUX_H_PRIVATE
 

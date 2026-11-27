@@ -4,6 +4,34 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
+#ifndef ZIRAN_TYPE_FORWARD_LoopKind
+#define ZIRAN_TYPE_FORWARD_LoopKind
+typedef int32_t LoopKind;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LoopHeader
+#define ZIRAN_TYPE_FORWARD_LoopHeader
+typedef struct LoopHeader LoopHeader;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_NamedWhile
+#define ZIRAN_TYPE_FORWARD_NamedWhile
+typedef struct NamedWhile NamedWhile;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LoopControl
+#define ZIRAN_TYPE_FORWARD_LoopControl
+typedef struct LoopControl LoopControl;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ControlError
+#define ZIRAN_TYPE_FORWARD_ControlError
+typedef int32_t ControlError;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ControlLine
+#define ZIRAN_TYPE_FORWARD_ControlLine
+typedef struct ControlLine ControlLine;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CompileHeader
+#define ZIRAN_TYPE_FORWARD_CompileHeader
+typedef struct CompileHeader CompileHeader;
+#endif
 #include "compiler_scan.h"
 #include "compiler_source.h"
 #include "compiler_text.h"
@@ -11,13 +39,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef int32_t LoopKind;
-typedef struct LoopHeader LoopHeader;
-typedef struct NamedWhile NamedWhile;
-typedef struct LoopControl LoopControl;
-typedef int32_t ControlError;
-typedef struct ControlLine ControlLine;
-typedef struct CompileHeader CompileHeader;
 
 enum {
     LoopKind_Invalid = 0,

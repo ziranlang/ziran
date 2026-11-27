@@ -7,13 +7,7 @@
 #undef ZIRAN_COMPILER_LINK_H_PRIVATE
 #include "vec.h"
 #include "vec.h"
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static bool compiler_link_Fail(ZirSourceSpan span, String code, String message, String subject, String tail) ZIRAN_MAYBE_UNUSED;
 static String compiler_link_Path(ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
 static String compiler_link_Numbered(Slice output, String prefix, int32_t serial) ZIRAN_MAYBE_UNUSED;
@@ -212,13 +206,13 @@ compiler_link_Numbered(Slice output, String prefix, int32_t serial)
     int64_t at = 0LL;
     for (int64_t it_index = 0LL; it_index < (int64_t)(prefix).length; it_index++) {
         uint8_t byte = (uint8_t)prefix.data[it_index];
-        uint8_t* value_1 = &(((uint8_t *)output.data)[at]);
+        uint8_t* value_1 = &(((uint8_t *)(output).data)[at]);
         (*value_1) = byte;
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
     while (count > 0LL) {
         count = (int64_t)((uint64_t)count - UINT64_C(1));
-        uint8_t* value_2 = &(((uint8_t *)output.data)[at]);
+        uint8_t* value_2 = &(((uint8_t *)(output).data)[at]);
         (*value_2) = (digits)[count];
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
@@ -691,7 +685,7 @@ compiler_link_Taken(ZirModule* module, Slice renames, String name)
         }
     }
     for (int64_t it_index = 0LL; it_index < (int64_t)(renames).length; it_index++) {
-        Rename rename = ((Rename *)renames.data)[it_index];
+        Rename rename = ((Rename *)(renames).data)[it_index];
         Slice value_5 = {rename.internal, 32};
         String value_6 = compiler_ir_BufferText(value_5);
         if (StringEqual(value_6, name)) {
@@ -1005,7 +999,7 @@ compiler_link_RenameCalls(ZirModule* module, Slice renames)
                         continue;
                     }
                     for (int64_t it_index = 0LL; it_index < (int64_t)(renames).length; it_index++) {
-                        Rename rename = ((Rename *)renames.data)[it_index];
+                        Rename rename = ((Rename *)(renames).data)[it_index];
                         if (target == &(module->functions[rename.index])) {
                             const char ** value_10 = &(expression->name);
                             Slice value_11 = {rename.internal, 32};

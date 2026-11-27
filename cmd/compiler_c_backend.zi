@@ -422,10 +422,15 @@ PruneInlineText :: (stem: *u8, guard: *u8, vector_operations: s32,
 
 #scope_file
 
-BoundProviderCName :: (imp: *IR.ZirImport, dst: *u8, dst_size: usize) -> bool {
-    if imp.extern_kind != .HOST || strncmp(*imp.target[0], CStr("ziran:"), 6) != 0 ||
-       imp.extern_symbol[0] == 0 {
+HostCName :: (imp: *IR.ZirImport, dst: *u8, dst_size: usize) -> bool {
+    if imp.extern_kind != .HOST || imp.extern_symbol[0] == 0 {
         return false
+    }
+    // Imported capabilities have a local checked name. An unbound native
+    // host implements the original declaration's symbol, not that local name.
+    if strncmp(*imp.target[0], CStr("ziran:"), 6) != 0 {
+        copy_text(dst, dst_size, *imp.extern_symbol[0])
+        return true
     }
     // Saved modules can be lowered as separate programs. The shared table
     // carries the provider's actual C name across those program boundaries.
@@ -478,7 +483,7 @@ ResolveModuleFn :: (m: *IR.ZirModule, ident: *u8, len: usize, dst: *u8, dst_size
     for i: cast(s32)0..m.import_count - 1 {
         foreign := *m.imports[i]
         if foreign.kind == .EXTERN && strcmp(*foreign.name[0], *name[0]) == 0 &&
-           BoundProviderCName(foreign, dst, dst_size) {
+           HostCName(foreign, dst, dst_size) {
             return strlen(dst)
         }
     }
@@ -1302,7 +1307,7 @@ EmitExternPrototype :: (c: *void, m: *IR.ZirModule, imp: *IR.ZirImport) {
     return_type: [LOWER_NAME_MAX]u8
     symbol: [LOWER_NAME_MAX]u8
     provider: [LOWER_NAME_MAX]u8
-    cname := ifx BoundProviderCName(imp, *provider[0], LOWER_NAME_MAX) then *provider[0] else *imp.name[0]
+    cname := ifx HostCName(imp, *provider[0], LOWER_NAME_MAX) then *provider[0] else *imp.name[0]
     ExtractExternSignature(imp, *ret[0], LOWER_NAME_MAX, *buffers.cargs[0], LOWER_TEXT_MAX)
     StripAliasType(m, *ret[0], *return_type[0], LOWER_NAME_MAX)
     copy_text(*ret[0], LOWER_NAME_MAX, *return_type[0])
@@ -1331,7 +1336,7 @@ ExternPrototypeNames :: (m: *IR.ZirModule, imp: *IR.ZirImport, names: *u8, size:
     if CExternSymbol(imp, *symbol[0], LOWER_NAME_MAX) {
         NativeCForeignName(m, imp, *local[0], LOWER_NAME_MAX)
         snprintf(names, size, CStr("%s"), *local[0])
-    } else if BoundProviderCName(imp, *local[0], LOWER_NAME_MAX) {
+    } else if HostCName(imp, *local[0], LOWER_NAME_MAX) {
         snprintf(names, size, CStr("%s"), *local[0])
     } else {
         snprintf(names, size, CStr("%s"), *imp.name[0])
@@ -2050,6 +2055,12 @@ EmitHeaderInlines :: (h: *void, m: *IR.ZirModule, restab: *ZirCModuleSyms, resta
         ArrayAbiArgs(fn, *buffers.abi_args[0], IR.ZIR_TEXT_MAX)
         ConvertArgs(m, fn, *buffers.abi_args[0], *buffers.cargs[0], LOWER_TEXT_MAX, 0)
         StripAliasType(m, *fn.return_type[0], *cret[0], LOWER_NAME_MAX)
+        // A cyclic include can provide a type's name without its definition.
+        // The body may access that type through a parameter without spelling
+        // its name, so apply the same availability check to the signature.
+        if !InlineTextOk(*buffers.cargs[0], *names, true) || !InlineTextOk(*cret[0], *names, true) {
+            continue
+        }
         scratch: TextStream
         scratch_text: *u8 = null
         scratch_size: usize = 0
@@ -2154,6 +2165,89 @@ HeaderFields :: (h: *void, m: *IR.ZirModule, ty: *IR.ZirType, buffers: *LowerMod
     }
 }
 
+// A header must name its interface types before following module includes:
+// mutually importing modules can mention each other's records and callables
+// in prototypes without requiring either record's complete definition.
+HeaderPrelude :: struct {
+    types: **IR.ZirType
+    count: s32
+}
+
+HeaderPreludeSeen :: (prelude: *HeaderPrelude, type: *IR.ZirType) -> bool {
+    for i: cast(s32)0..prelude.count - 1 {
+        if prelude.types[i] == type { return true }
+    }
+    types := cast(**IR.ZirType)realloc(cast(*void)prelude.types,
+        cast(usize)(prelude.count + 1) * size_of(*IR.ZirType))
+    if types == null { DiagnosticOutOfMemory(); exit(1) }
+    prelude.types = types
+    prelude.types[prelude.count] = type
+    prelude.count += 1
+    return false
+}
+
+HeaderSignaturePrelude :: (h: *void, m: *IR.ZirModule, source: *u8,
+                          hidden: bool, guard: *u8, prelude: *HeaderPrelude) {
+    if source == null || source[0] == 0 { return }
+    base: [IR.ZIR_NAME_MAX]u8
+    copy_text(*base[0], IR.ZIR_NAME_MAX, source)
+    for depth: cast(s32)0..63 {
+        element: [IR.ZIR_NAME_MAX]u8
+        if ArrayElementType(*base[0], *element[0], IR.ZIR_NAME_MAX, null) != 0 ||
+           SliceElementType(*base[0], *element[0], IR.ZIR_NAME_MAX) != 0 {
+            copy_text(*base[0], IR.ZIR_NAME_MAX, *element[0])
+        } else if base[0] == #char "*" {
+            memmove(cast(*void)*base[0], cast(*void)*base[1], strlen(*base[0]))
+        } else { break }
+    }
+    owner: *IR.ZirModule = null
+    type := CFindType(m, *base[0], *owner)
+    if type != null {
+        HeaderTypePrelude(h, ifx owner != null then owner else m, type, hidden, guard, prelude)
+    }
+}
+
+HeaderTypePrelude :: (h: *void, m: *IR.ZirModule, type: *IR.ZirType,
+                     hidden: bool, guard: *u8, prelude: *HeaderPrelude) {
+    if type.is_extern != 0 || type.is_record_template != 0 || HeaderPreludeSeen(prelude, type) { return }
+    native: [LOWER_NAME_MAX * 2]u8
+    NativeTypeName(m, type, *native[0], LOWER_NAME_MAX * 2)
+    if type.is_procedure_type != 0 {
+        // Procedure values contain a call pointer. Its record parameters and
+        // return type may remain incomplete, but other callable typedefs must
+        // already exist, including ones owned by an imported module.
+        HeaderSignaturePrelude(h, m, *type.procedure_return_type[0], hidden, guard, prelude)
+        parameters := ParametersOf(*type.body[0])
+        for i: cast(s32)0..parameters.count - 1 {
+            HeaderSignaturePrelude(h, m, parameters.items[i].type, hidden, guard, prelude)
+        }
+        ResolveSlotType(cast(*void)m, *type.name[0], *native[0], LOWER_NAME_MAX * 2)
+        HeaderDeclarationOpen(h, PRUNE_DECLARATION, *native[0], hidden, guard)
+        fprintf(h, CStr("#ifndef ZIRAN_CALLABLE_%s\n#define ZIRAN_CALLABLE_%s\n"), *native[0], *native[0])
+        EmitSlotType(h, type, .ZIR_C, ResolveSlotType, cast(*void)m)
+    } else {
+        HeaderDeclarationOpen(h, PRUNE_DECLARATION, *native[0], hidden, guard)
+        prefix := ifx type.is_synthetic_application != 0 then CStr("ZIRAN_CONCRETE_FORWARD_") else CStr("ZIRAN_TYPE_FORWARD_")
+        fprintf(h, CStr("#ifndef %s%s\n#define %s%s\n"), prefix, *native[0], prefix, *native[0])
+        if type.is_enum != 0 {
+            backing := EnumStorageType(*type.enum_backing[0])
+            if backing == null {
+                Diagnostic(type.span, CStr("zir_c.enum"), CStr("invalid enum backing type"))
+                exit(1)
+            }
+            fprintf(h, CStr("typedef %s %s;\n"), backing, *native[0])
+        } else {
+            kw := ifx type.is_union != 0 then CStr("union") else CStr("struct")
+            fprintf(h, CStr("typedef %s %s %s;\n"), kw, *native[0], *native[0])
+            if type.is_abi_incomplete != 0 {
+                fprintf(h, CStr("#pragma ziran abi_incomplete %s\n"), *native[0])
+            }
+        }
+    }
+    fputs(CStr("#endif\n"), h)
+    HeaderDeclarationClose(h, hidden)
+}
+
 OwnedText :: (text: *u8) -> *u8 {
     size := strlen(text) + 1
     copy := cast(*u8)AllocateOrExit(size)
@@ -2231,6 +2325,26 @@ LowerModuleWithBuffers :: (m: *IR.ZirModule, restab: *ZirCModuleSyms, restab_cou
         if pruned { PruneMark(h, PRUNE_HELPER, null) }
         fputs(CStr("#include \"ziran_simd_types.h\"\n"), h)
     }
+    visible := HeaderVisibleTypes(m)
+    prelude: HeaderPrelude
+    for i: cast(s32)0..m.type_count - 1 {
+        type := *m.types[i]
+        if type.is_procedure_type == 0 {
+            HeaderTypePrelude(h, m, type, visible[i] == 0, *buffers.guard[0], *prelude)
+        }
+    }
+    // Shared dependencies must first inherit their public use, before a
+    // private callable can memoize the same dependency behind a private guard.
+    for pass: cast(s32)0..1 {
+        for i: cast(s32)0..m.type_count - 1 {
+            type := *m.types[i]
+            hidden := visible[i] == 0
+            if type.is_procedure_type != 0 && hidden == (pass != 0) {
+                HeaderTypePrelude(h, m, type, hidden, *buffers.guard[0], *prelude)
+            }
+        }
+    }
+    free(cast(*void)prelude.types)
     uses := g_header_table.nodes[HeaderNodeOf(m)].uses
     if pruned { PruneMark(h, PRUNE_MODULES, null) }
     if !pruned {
@@ -2278,43 +2392,6 @@ LowerModuleWithBuffers :: (m: *IR.ZirModule, restab: *ZirCModuleSyms, restab_cou
         }
         fprintf(h, CStr("#define %s %s\n"), *name[0], *buffers.value[0])
         HeaderDeclarationClose(h, d.is_public == 0)
-    }
-    visible := HeaderVisibleTypes(m)
-    for i: cast(s32)0..m.type_count - 1 {
-        ty := *m.types[i]
-        native: [LOWER_NAME_MAX * 2]u8
-        NativeTypeName(m, ty, *native[0], LOWER_NAME_MAX * 2)
-        if ty.is_extern == 0 && ty.is_record_template == 0 && ty.is_procedure_type == 0 && ty.is_enum == 0 {
-            HeaderDeclarationOpen(h, PRUNE_DECLARATION, *native[0], visible[i] == 0, *buffers.guard[0])
-            if ty.is_synthetic_application != 0 {
-                fprintf(h, CStr("#ifndef ZIRAN_CONCRETE_FORWARD_%s\n#define ZIRAN_CONCRETE_FORWARD_%s\n"), *native[0], *native[0])
-            }
-            kw := ifx ty.is_union != 0 then CStr("union") else CStr("struct")
-            fprintf(h, CStr("typedef %s %s %s;\n"), kw, *native[0], *native[0])
-            if ty.is_abi_incomplete != 0 {
-                fprintf(h, CStr("#pragma ziran abi_incomplete %s\n"), *native[0])
-            }
-            if ty.is_synthetic_application != 0 { fputs(CStr("#endif\n"), h) }
-            HeaderDeclarationClose(h, visible[i] == 0)
-        }
-        if ty.is_enum != 0 {
-            backing := EnumStorageType(*ty.enum_backing[0])
-            if backing == null {
-                Diagnostic(ty.span, CStr("zir_c.enum"), CStr("invalid enum backing type"))
-                exit(1)
-            }
-            HeaderDeclarationOpen(h, PRUNE_DECLARATION, *native[0], false, *buffers.guard[0])
-            fprintf(h, CStr("typedef %s %s;\n"), backing, *native[0])
-        }
-    }
-    for i: cast(s32)0..m.type_count - 1 {
-        slot := *m.types[i]
-        if slot.is_procedure_type == 0 { continue }
-        slot_name: [LOWER_NAME_MAX * 2]u8
-        ResolveSlotType(cast(*void)m, *slot.name[0], *slot_name[0], LOWER_NAME_MAX * 2)
-        HeaderDeclarationOpen(h, PRUNE_DECLARATION, *slot_name[0], visible[i] == 0, *buffers.guard[0])
-        EmitSlotType(h, slot, .ZIR_C, ResolveSlotType, cast(*void)m)
-        HeaderDeclarationClose(h, visible[i] == 0)
     }
     for i: cast(s32)0..m.type_count - 1 {
         ty := *m.types[i]

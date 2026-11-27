@@ -32,6 +32,13 @@ Exported native globals retain their declaration's record and callable types,
 including pointers, arrays and generic storage, across different import aliases.
 Reading or updating that storage uses the same native ownership checks.
 
+Exported native foreign procedures use the same checked calls as Ziran actions.
+Namespace imports, named aliases and native re-exports preserve their signatures,
+ownership annotations and external ABI. Host capabilities retain the declaration
+module's identity and normal `--bind`/`--bind-host` behavior through saved IR.
+For a C build with a native host, an unbound capability calls the original
+declaration's linker symbol; importing it does not rename the native ABI.
+
 ```tsx
 import * as Model from "model";
 import { Half } from "arithmetic";

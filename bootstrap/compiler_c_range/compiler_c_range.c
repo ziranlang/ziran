@@ -5,13 +5,7 @@
 #define ZIRAN_COMPILER_C_RANGE_H_PRIVATE 1
 #include "compiler_c_range.h"
 #undef ZIRAN_COMPILER_C_RANGE_H_PRIVATE
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static RangeFacts* compiler_c_range_FactsFor(RangeFacts* f, ZirFunction* fn, ZirModule* module) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_range_CallersProve(RangeFacts* f, ZirFunction* fn, ZirModule* module, bool c_target, int32_t kind, int32_t index, int32_t base, int64_t n) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_range_InRangeHere(RangeFacts* facts, ZirFunction* fn, ZirModule* module, int32_t index, int64_t count) ZIRAN_MAYBE_UNUSED;

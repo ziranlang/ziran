@@ -5,6 +5,46 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_FieldUse
+#define ZIRAN_TYPE_FORWARD_FieldUse
+typedef struct FieldUse FieldUse;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_FieldUses
+#define ZIRAN_TYPE_FORWARD_FieldUses
+typedef struct FieldUses FieldUses;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_UnwrittenSlot
+#define ZIRAN_TYPE_FORWARD_UnwrittenSlot
+typedef struct UnwrittenSlot UnwrittenSlot;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_GlobalUses
+#define ZIRAN_TYPE_FORWARD_GlobalUses
+typedef struct GlobalUses GlobalUses;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LinkState
+#define ZIRAN_TYPE_FORWARD_LinkState
+typedef struct LinkState LinkState;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Parameter
+#define ZIRAN_TYPE_FORWARD_Parameter
+typedef struct Parameter Parameter;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Parameters
+#define ZIRAN_TYPE_FORWARD_Parameters
+typedef struct Parameters Parameters;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_StaticText
+#define ZIRAN_TYPE_FORWARD_StaticText
+typedef struct StaticText StaticText;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_fc36affa4d0cd14e
+#define ZIRAN_CONCRETE_FORWARD___type_fc36affa4d0cd14e
+typedef struct __type_fc36affa4d0cd14e __type_fc36affa4d0cd14e;
+#endif
+#ifndef ZIRAN_CALLABLE_Order
+#define ZIRAN_CALLABLE_Order
+typedef int32_t (*Order)(void*, void*);
+#endif
 #include "compiler_ir.h"
 #include "vec.h"
 
@@ -13,19 +53,6 @@ extern "C" {
 #endif
 #define LIVE_NESTING_MAX 128
 #define BUILTIN_CALL_COUNT 18
-typedef struct FieldUse FieldUse;
-typedef struct FieldUses FieldUses;
-typedef struct UnwrittenSlot UnwrittenSlot;
-typedef struct GlobalUses GlobalUses;
-typedef struct LinkState LinkState;
-typedef struct Parameter Parameter;
-typedef struct Parameters Parameters;
-typedef struct StaticText StaticText;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_fc36affa4d0cd14e
-#define ZIRAN_CONCRETE_FORWARD___type_fc36affa4d0cd14e
-typedef struct __type_fc36affa4d0cd14e __type_fc36affa4d0cd14e;
-#endif
-typedef int32_t (*Order)(void*, void*);
 
 struct FieldUse {
     ZirType* type;
@@ -510,6 +537,7 @@ bool compiler_zx_link_ResolveBindingModule(ZirProgram* program, uint8_t* module)
 int32_t ResolveProgramModule(ZirProgram* program, uint8_t* module);
 void compiler_zx_link_BindImport(ZirImport* matched, uint8_t* provider_module, uint8_t* function);
 bool compiler_zx_link_HostProviderMatches(ZirModule* module, ZirImport* imported, ZirModule* provider, ZirFunction* function);
+bool compiler_zx_link_SameHostDeclaration(ZirModule* left_owner, ZirImport* left, ZirModule* right_owner, ZirImport* right);
 int32_t BindHostProvider(ZirProgram* program, uint8_t* spec);
 uint8_t* compiler_zx_link_ModuleFile(ZirProgram* program, uint8_t* name);
 void compiler_zx_link_BoundTwice(ZirProgram* program, ZirImport* matched, uint8_t* capability, uint8_t* module, uint8_t* function);
@@ -745,7 +773,7 @@ compiler_zx_link_MarkSlotDestination_ziran_inline(ZirModule* module, ZirFunction
     ZirExpr* expression = value_0;
     int64_t index = compiler_zx_link_SlotReference(module, expression, slots);
     if (index >= 0LL) {
-        bool* value_2 = &((((UnwrittenSlot *)slots.data)[index]).mutable);
+        bool* value_2 = &((((UnwrittenSlot *)(slots).data)[index]).mutable);
         (*value_2) = true;
     }
     compiler_zx_link_MarkSlotDestination(module, function, expression->left, slots, (int32_t)((uint32_t)depth + 1u));

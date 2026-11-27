@@ -3,84 +3,308 @@
 #define ZIRAN_COMPILER_PARSE_TYPES_H
 
 #include "zir_string_types.h"
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray8192_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray8192_u8
+typedef struct ParserArray8192_u8 ParserArray8192_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CanonicalEnumValuesBuffers
+#define ZIRAN_TYPE_FORWARD_CanonicalEnumValuesBuffers
+typedef struct CanonicalEnumValuesBuffers CanonicalEnumValuesBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CompileParseContext
+#define ZIRAN_TYPE_FORWARD_CompileParseContext
+typedef struct CompileParseContext CompileParseContext;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray128_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray128_u8
+typedef struct ParserArray128_u8 ParserArray128_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray64_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray64_u8
+typedef struct ParserArray64_u8 ParserArray64_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CompileValue
+#define ZIRAN_TYPE_FORWARD_CompileValue
+typedef struct CompileValue CompileValue;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray1024_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray1024_u8
+typedef struct ParserArray1024_u8 ParserArray1024_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_DeferredLine
+#define ZIRAN_TYPE_FORWARD_DeferredLine
+typedef struct DeferredLine DeferredLine;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_DeferredLines
+#define ZIRAN_TYPE_FORWARD_DeferredLines
+typedef struct DeferredLines DeferredLines;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray16384_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray16384_u8
+typedef struct ParserArray16384_u8 ParserArray16384_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray24576_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray24576_u8
+typedef struct ParserArray24576_u8 ParserArray24576_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirCondFrame
+#define ZIRAN_TYPE_FORWARD_ZirCondFrame
+typedef struct ZirCondFrame ZirCondFrame;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray8_ZirCondFrame
+#define ZIRAN_TYPE_FORWARD_ParserArray8_ZirCondFrame
+typedef struct ParserArray8_ZirCondFrame ParserArray8_ZirCondFrame;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_DiscoverConditionalTypeBuffers
+#define ZIRAN_TYPE_FORWARD_DiscoverConditionalTypeBuffers
+typedef struct DiscoverConditionalTypeBuffers DiscoverConditionalTypeBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray2048_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray2048_u8
+typedef struct ParserArray2048_u8 ParserArray2048_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_DiscoverFileScopeBuffers
+#define ZIRAN_TYPE_FORWARD_DiscoverFileScopeBuffers
+typedef struct DiscoverFileScopeBuffers DiscoverFileScopeBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray4096_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray4096_u8
+typedef struct ParserArray4096_u8 ParserArray4096_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_DiscoverFunctionHeaderBuffers
+#define ZIRAN_TYPE_FORWARD_DiscoverFunctionHeaderBuffers
+typedef struct DiscoverFunctionHeaderBuffers DiscoverFunctionHeaderBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_DiscoverNamedTypeBuffers
+#define ZIRAN_TYPE_FORWARD_DiscoverNamedTypeBuffers
+typedef struct DiscoverNamedTypeBuffers DiscoverNamedTypeBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ImportResolver
+#define ZIRAN_TYPE_FORWARD_ImportResolver
+typedef struct ImportResolver ImportResolver;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LoadFrame
+#define ZIRAN_TYPE_FORWARD_LoadFrame
+typedef struct LoadFrame LoadFrame;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LowerCompileIfxValueBuffers
+#define ZIRAN_TYPE_FORWARD_LowerCompileIfxValueBuffers
+typedef struct LowerCompileIfxValueBuffers LowerCompileIfxValueBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LowerEnumValuesBuffers
+#define ZIRAN_TYPE_FORWARD_LowerEnumValuesBuffers
+typedef struct LowerEnumValuesBuffers LowerEnumValuesBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LowerSizeOfValueBuffers
+#define ZIRAN_TYPE_FORWARD_LowerSizeOfValueBuffers
+typedef struct LowerSizeOfValueBuffers LowerSizeOfValueBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray4100_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray4100_u8
+typedef struct ParserArray4100_u8 ParserArray4100_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_NormalizeJaiSourceTokensBuffers
+#define ZIRAN_TYPE_FORWARD_NormalizeJaiSourceTokensBuffers
+typedef struct NormalizeJaiSourceTokensBuffers NormalizeJaiSourceTokensBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParseCompileCheckBuffers
+#define ZIRAN_TYPE_FORWARD_ParseCompileCheckBuffers
+typedef struct ParseCompileCheckBuffers ParseCompileCheckBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray16_ParserArray128_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray16_ParserArray128_u8
+typedef struct ParserArray16_ParserArray128_u8 ParserArray16_ParserArray128_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray32768_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray32768_u8
+typedef struct ParserArray32768_u8 ParserArray32768_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray16_ParserArray32768_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray16_ParserArray32768_u8
+typedef struct ParserArray16_ParserArray32768_u8 ParserArray16_ParserArray32768_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray32_ParserArray128_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray32_ParserArray128_u8
+typedef struct ParserArray32_ParserArray128_u8 ParserArray32_ParserArray128_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray32_ParserArray1024_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray32_ParserArray1024_u8
+typedef struct ParserArray32_ParserArray1024_u8 ParserArray32_ParserArray1024_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray32_LoadFrame
+#define ZIRAN_TYPE_FORWARD_ParserArray32_LoadFrame
+typedef struct ParserArray32_LoadFrame ParserArray32_LoadFrame;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray16_ParserArray4096_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray16_ParserArray4096_u8
+typedef struct ParserArray16_ParserArray4096_u8 ParserArray16_ParserArray4096_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray64_ParserArray4096_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray64_ParserArray4096_u8
+typedef struct ParserArray64_ParserArray4096_u8 ParserArray64_ParserArray4096_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParseSourceBuffers
+#define ZIRAN_TYPE_FORWARD_ParseSourceBuffers
+typedef struct ParseSourceBuffers ParseSourceBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserAnonymous4
+#define ZIRAN_TYPE_FORWARD_ParserAnonymous4
+typedef struct ParserAnonymous4 ParserAnonymous4;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserAnonymous5
+#define ZIRAN_TYPE_FORWARD_ParserAnonymous5
+typedef struct ParserAnonymous5 ParserAnonymous5;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ReadLoweredSourceBuffers
+#define ZIRAN_TYPE_FORWARD_ReadLoweredSourceBuffers
+typedef struct ReadLoweredSourceBuffers ReadLoweredSourceBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ReplaceCompileIfxBuffers
+#define ZIRAN_TYPE_FORWARD_ReplaceCompileIfxBuffers
+typedef struct ReplaceCompileIfxBuffers ReplaceCompileIfxBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ReplaceSizeOfBuffers
+#define ZIRAN_TYPE_FORWARD_ReplaceSizeOfBuffers
+typedef struct ReplaceSizeOfBuffers ReplaceSizeOfBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_SourceBuffer
+#define ZIRAN_TYPE_FORWARD_SourceBuffer
+typedef struct SourceBuffer SourceBuffer;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirConst
+#define ZIRAN_TYPE_FORWARD_ZirConst
+typedef struct ZirConst ZirConst;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirConsts
+#define ZIRAN_TYPE_FORWARD_ZirConsts
+typedef struct ZirConsts ZirConsts;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirDeferredType
+#define ZIRAN_TYPE_FORWARD_ZirDeferredType
+typedef struct ZirDeferredType ZirDeferredType;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirDeferredTypes
+#define ZIRAN_TYPE_FORWARD_ZirDeferredTypes
+typedef struct ZirDeferredTypes ZirDeferredTypes;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirDiscoveredFiles
+#define ZIRAN_TYPE_FORWARD_ZirDiscoveredFiles
+typedef struct ZirDiscoveredFiles ZirDiscoveredFiles;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirFunctions
+#define ZIRAN_TYPE_FORWARD_ZirFunctions
+typedef struct ZirFunctions ZirFunctions;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirGlobals
+#define ZIRAN_TYPE_FORWARD_ZirGlobals
+typedef struct ZirGlobals ZirGlobals;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirImports
+#define ZIRAN_TYPE_FORWARD_ZirImports
+typedef struct ZirImports ZirImports;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirInsert
+#define ZIRAN_TYPE_FORWARD_ZirInsert
+typedef struct ZirInsert ZirInsert;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirInserts
+#define ZIRAN_TYPE_FORWARD_ZirInserts
+typedef struct ZirInserts ZirInserts;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirTypes
+#define ZIRAN_TYPE_FORWARD_ZirTypes
+typedef struct ZirTypes ZirTypes;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirUsings
+#define ZIRAN_TYPE_FORWARD_ZirUsings
+typedef struct ZirUsings ZirUsings;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray2_ParserAnonymous4
+#define ZIRAN_TYPE_FORWARD_ParserArray2_ParserAnonymous4
+typedef struct ParserArray2_ParserAnonymous4 ParserArray2_ParserAnonymous4;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray8__u8
+#define ZIRAN_TYPE_FORWARD_ParserArray8__u8
+typedef struct ParserArray8__u8 ParserArray8__u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray4_ParserAnonymous5
+#define ZIRAN_TYPE_FORWARD_ParserArray4_ParserAnonymous5
+typedef struct ParserArray4_ParserAnonymous5 ParserArray4_ParserAnonymous5;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray4_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray4_u8
+typedef struct ParserArray4_u8 ParserArray4_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray160_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray160_u8
+typedef struct ParserArray160_u8 ParserArray160_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray3__ZirConsts
+#define ZIRAN_TYPE_FORWARD_ParserArray3__ZirConsts
+typedef struct ParserArray3__ZirConsts ParserArray3__ZirConsts;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray1056_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray1056_u8
+typedef struct ParserArray1056_u8 ParserArray1056_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray2_ParserArray128_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray2_ParserArray128_u8
+typedef struct ParserArray2_ParserArray128_u8 ParserArray2_ParserArray128_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray8_s32
+#define ZIRAN_TYPE_FORWARD_ParserArray8_s32
+typedef struct ParserArray8_s32 ParserArray8_s32;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray64_s32
+#define ZIRAN_TYPE_FORWARD_ParserArray64_s32
+typedef struct ParserArray64_s32 ParserArray64_s32;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray32_s32
+#define ZIRAN_TYPE_FORWARD_ParserArray32_s32
+typedef struct ParserArray32_s32 ParserArray32_s32;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray16_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray16_u8
+typedef struct ParserArray16_u8 ParserArray16_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray3_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray3_u8
+typedef struct ParserArray3_u8 ParserArray3_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray22_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray22_u8
+typedef struct ParserArray22_u8 ParserArray22_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray19_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray19_u8
+typedef struct ParserArray19_u8 ParserArray19_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserText
+#define ZIRAN_TYPE_FORWARD_ParserText
+typedef struct ParserText ParserText;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirProgram
+#define ZIRAN_TYPE_FORWARD_ZirProgram
+typedef struct ZirProgram ZirProgram;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirModule
+#define ZIRAN_TYPE_FORWARD_ZirModule
+typedef struct ZirModule ZirModule;
+#endif
+#ifndef ZIRAN_CALLABLE_ZirCompileImportResolver
+#define ZIRAN_CALLABLE_ZirCompileImportResolver
+typedef int32_t (*ZirCompileImportResolver)(void*, ZirProgram*, ZirModule*, uint8_t*, uint8_t*, uint8_t*);
+#endif
+#ifdef ZIRAN_COMPILER_PARSE_TYPES_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_Destroy
+#define ZIRAN_CALLABLE_Destroy
+typedef void (*Destroy)(void*);
+#endif
+#endif
 #include "compiler_ir.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-typedef struct ParserArray8192_u8 ParserArray8192_u8;
-typedef struct CanonicalEnumValuesBuffers CanonicalEnumValuesBuffers;
-typedef struct CompileParseContext CompileParseContext;
-typedef struct ParserArray128_u8 ParserArray128_u8;
-typedef struct ParserArray64_u8 ParserArray64_u8;
-typedef struct CompileValue CompileValue;
-typedef struct ParserArray1024_u8 ParserArray1024_u8;
-typedef struct DeferredLine DeferredLine;
-typedef struct DeferredLines DeferredLines;
-typedef struct ParserArray16384_u8 ParserArray16384_u8;
-typedef struct ParserArray24576_u8 ParserArray24576_u8;
-typedef struct ZirCondFrame ZirCondFrame;
-typedef struct ParserArray8_ZirCondFrame ParserArray8_ZirCondFrame;
-typedef struct DiscoverConditionalTypeBuffers DiscoverConditionalTypeBuffers;
-typedef struct ParserArray2048_u8 ParserArray2048_u8;
-typedef struct DiscoverFileScopeBuffers DiscoverFileScopeBuffers;
-typedef struct ParserArray4096_u8 ParserArray4096_u8;
-typedef struct DiscoverFunctionHeaderBuffers DiscoverFunctionHeaderBuffers;
-typedef struct DiscoverNamedTypeBuffers DiscoverNamedTypeBuffers;
-typedef struct ImportResolver ImportResolver;
-typedef struct LoadFrame LoadFrame;
-typedef struct LowerCompileIfxValueBuffers LowerCompileIfxValueBuffers;
-typedef struct LowerEnumValuesBuffers LowerEnumValuesBuffers;
-typedef struct LowerSizeOfValueBuffers LowerSizeOfValueBuffers;
-typedef struct ParserArray4100_u8 ParserArray4100_u8;
-typedef struct NormalizeJaiSourceTokensBuffers NormalizeJaiSourceTokensBuffers;
-typedef struct ParseCompileCheckBuffers ParseCompileCheckBuffers;
-typedef struct ParserArray16_ParserArray128_u8 ParserArray16_ParserArray128_u8;
-typedef struct ParserArray32768_u8 ParserArray32768_u8;
-typedef struct ParserArray16_ParserArray32768_u8 ParserArray16_ParserArray32768_u8;
-typedef struct ParserArray32_ParserArray128_u8 ParserArray32_ParserArray128_u8;
-typedef struct ParserArray32_ParserArray1024_u8 ParserArray32_ParserArray1024_u8;
-typedef struct ParserArray32_LoadFrame ParserArray32_LoadFrame;
-typedef struct ParserArray16_ParserArray4096_u8 ParserArray16_ParserArray4096_u8;
-typedef struct ParserArray64_ParserArray4096_u8 ParserArray64_ParserArray4096_u8;
-typedef struct ParseSourceBuffers ParseSourceBuffers;
-typedef struct ParserAnonymous4 ParserAnonymous4;
-typedef struct ParserAnonymous5 ParserAnonymous5;
-typedef struct ReadLoweredSourceBuffers ReadLoweredSourceBuffers;
-typedef struct ReplaceCompileIfxBuffers ReplaceCompileIfxBuffers;
-typedef struct ReplaceSizeOfBuffers ReplaceSizeOfBuffers;
-typedef struct SourceBuffer SourceBuffer;
-typedef struct ZirConst ZirConst;
-typedef struct ZirConsts ZirConsts;
-typedef struct ZirDeferredType ZirDeferredType;
-typedef struct ZirDeferredTypes ZirDeferredTypes;
-typedef struct ZirDiscoveredFiles ZirDiscoveredFiles;
-typedef struct ZirFunctions ZirFunctions;
-typedef struct ZirGlobals ZirGlobals;
-typedef struct ZirImports ZirImports;
-typedef struct ZirInsert ZirInsert;
-typedef struct ZirInserts ZirInserts;
-typedef struct ZirTypes ZirTypes;
-typedef struct ZirUsings ZirUsings;
-typedef struct ParserArray2_ParserAnonymous4 ParserArray2_ParserAnonymous4;
-typedef struct ParserArray8__u8 ParserArray8__u8;
-typedef struct ParserArray4_ParserAnonymous5 ParserArray4_ParserAnonymous5;
-typedef struct ParserArray4_u8 ParserArray4_u8;
-typedef struct ParserArray160_u8 ParserArray160_u8;
-typedef struct ParserArray3__ZirConsts ParserArray3__ZirConsts;
-typedef struct ParserArray1056_u8 ParserArray1056_u8;
-typedef struct ParserArray2_ParserArray128_u8 ParserArray2_ParserArray128_u8;
-typedef struct ParserArray8_s32 ParserArray8_s32;
-typedef struct ParserArray64_s32 ParserArray64_s32;
-typedef struct ParserArray32_s32 ParserArray32_s32;
-typedef struct ParserArray16_u8 ParserArray16_u8;
-typedef struct ParserArray3_u8 ParserArray3_u8;
-typedef struct ParserArray22_u8 ParserArray22_u8;
-typedef struct ParserArray19_u8 ParserArray19_u8;
-typedef struct ParserText ParserText;
-typedef int32_t (*ZirCompileImportResolver)(void*, ZirProgram*, ZirModule*, uint8_t*, uint8_t*, uint8_t*);
-#ifdef ZIRAN_COMPILER_PARSE_TYPES_H_PRIVATE
-typedef void (*Destroy)(void*);
 #endif
 
 struct ParserArray8192_u8 {

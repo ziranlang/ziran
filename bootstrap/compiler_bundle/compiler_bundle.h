@@ -5,6 +5,75 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_Asset
+#define ZIRAN_TYPE_FORWARD_Asset
+typedef struct Asset Asset;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZxAsset
+#define ZIRAN_TYPE_FORWARD_ZxAsset
+typedef struct ZxAsset ZxAsset;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZxAssets
+#define ZIRAN_TYPE_FORWARD_ZxAssets
+typedef struct ZxAssets ZxAssets;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ExecutableProblem
+#define ZIRAN_TYPE_FORWARD_ExecutableProblem
+typedef int32_t ExecutableProblem;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ExecutableAttachment
+#define ZIRAN_TYPE_FORWARD_ExecutableAttachment
+typedef struct ExecutableAttachment ExecutableAttachment;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ExecutableHeader
+#define ZIRAN_TYPE_FORWARD_ExecutableHeader
+typedef struct ExecutableHeader ExecutableHeader;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ExecutableResult
+#define ZIRAN_TYPE_FORWARD_ExecutableResult
+typedef struct ExecutableResult ExecutableResult;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ExecutableLayout
+#define ZIRAN_TYPE_FORWARD_ExecutableLayout
+typedef struct ExecutableLayout ExecutableLayout;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ExecutableReadSource
+#define ZIRAN_TYPE_FORWARD_ExecutableReadSource
+typedef struct ExecutableReadSource ExecutableReadSource;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ExecutableRange
+#define ZIRAN_TYPE_FORWARD_ExecutableRange
+typedef struct ExecutableRange ExecutableRange;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ExecutableFraming
+#define ZIRAN_TYPE_FORWARD_ExecutableFraming
+typedef struct ExecutableFraming ExecutableFraming;
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Codec
+#define ZIRAN_TYPE_FORWARD_Codec
+typedef struct Codec Codec;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ExecutableWriter
+#define ZIRAN_TYPE_FORWARD_ExecutableWriter
+typedef struct ExecutableWriter ExecutableWriter;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ExecutableCursor
+#define ZIRAN_TYPE_FORWARD_ExecutableCursor
+typedef struct ExecutableCursor ExecutableCursor;
+#endif
+#endif
+#ifndef ZIRAN_CALLABLE_ExecutableWindow
+#define ZIRAN_CALLABLE_ExecutableWindow
+typedef struct ExecutableWindow {
+    void *context;
+    String (*call)(void *, void*, int64_t);
+} ExecutableWindow;
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -90,30 +159,6 @@ extern "C" {
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 #define ExecutableIdentitySize 32
 #endif
-typedef struct Asset Asset;
-typedef struct ZxAsset ZxAsset;
-typedef struct ZxAssets ZxAssets;
-typedef int32_t ExecutableProblem;
-typedef struct ExecutableAttachment ExecutableAttachment;
-typedef struct ExecutableHeader ExecutableHeader;
-typedef struct ExecutableResult ExecutableResult;
-typedef struct ExecutableLayout ExecutableLayout;
-typedef struct ExecutableReadSource ExecutableReadSource;
-typedef struct ExecutableRange ExecutableRange;
-typedef struct ExecutableFraming ExecutableFraming;
-#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
-typedef struct Codec Codec;
-#endif
-#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
-typedef struct ExecutableWriter ExecutableWriter;
-#endif
-#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
-typedef struct ExecutableCursor ExecutableCursor;
-#endif
-typedef struct ExecutableWindow {
-    void *context;
-    String (*call)(void *, void*, int64_t);
-} ExecutableWindow;
 
 struct Asset {
     String name;

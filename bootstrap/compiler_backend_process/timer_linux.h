@@ -5,12 +5,15 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#ifndef ZIRAN_TYPE_FORWARD_timer_linux_ClockValue
+#define ZIRAN_TYPE_FORWARD_timer_linux_ClockValue
+typedef struct timer_linux_ClockValue timer_linux_ClockValue;
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #define MONOTONIC_CLOCK 1
-typedef struct timer_linux_ClockValue timer_linux_ClockValue;
 
 struct timer_linux_ClockValue {
     ptrdiff_t seconds;

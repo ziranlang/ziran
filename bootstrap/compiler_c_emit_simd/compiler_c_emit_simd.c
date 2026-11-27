@@ -127,13 +127,7 @@ int32_t zir_foreign_compiler_c_emit_simd__emit_constant_array_read(Emitter* e, i
 #else
 int32_t zir_foreign_compiler_c_emit_simd__emit_constant_array_read(Emitter* e, int32_t index, uint8_t* out, size_t size) __asm__("zir_emit_emit_constant_array_read");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_c_emit_simd_CStr(String s) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_c_emit_simd_PtrAdd(uint8_t* base, size_t offset) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_c_emit_simd_CheckFormat(int32_t n, size_t size) ZIRAN_MAYBE_UNUSED;

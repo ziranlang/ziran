@@ -759,13 +759,7 @@ int32_t zir_foreign_compiler_parse_source__isspace(int32_t character) __asm__("_
 #else
 int32_t zir_foreign_compiler_parse_source__isspace(int32_t character) __asm__("isspace");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static bool compiler_parse_source_record_count(int32_t* destination, int32_t count) ZIRAN_MAYBE_UNUSED;
 static void compiler_parse_source_mark_checks(ZirFunction* fn, int32_t first, int32_t checks) ZIRAN_MAYBE_UNUSED;
 static void compiler_parse_source_reserve_source_text(uint8_t** text, size_t* capacity, size_t needed, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;

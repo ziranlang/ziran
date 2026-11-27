@@ -329,13 +329,7 @@ int32_t zir_foreign_compiler_c_emit_expr__MemberPath(ZirFunction* fn, int32_t in
 #else
 int32_t zir_foreign_compiler_c_emit_expr__MemberPath(ZirFunction* fn, int32_t index) __asm__("zir_emit_member_path");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_c_emit_expr_CStr(String s) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_c_emit_expr_PtrAdd(uint8_t* base, size_t offset) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_c_emit_expr_CheckFormat(int32_t n, size_t size) ZIRAN_MAYBE_UNUSED;

@@ -4,24 +4,36 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#ifdef ZIRAN_COMPILER_GO_SIMD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_GoSimdText
+#define ZIRAN_TYPE_FORWARD_GoSimdText
+typedef struct GoSimdText GoSimdText;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_SIMD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_go_simd_StaticText
+#define ZIRAN_TYPE_FORWARD_compiler_go_simd_StaticText
+typedef struct compiler_go_simd_StaticText compiler_go_simd_StaticText;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_SIMD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_GoHelper
+#define ZIRAN_TYPE_FORWARD_GoHelper
+typedef struct GoHelper GoHelper;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_SIMD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_GoValue
+#define ZIRAN_TYPE_FORWARD_GoValue
+typedef struct GoValue GoValue;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_native_names.h"
 #include "compiler_simd_metadata.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-#ifdef ZIRAN_COMPILER_GO_SIMD_H_PRIVATE
-typedef struct GoSimdText GoSimdText;
-#endif
-#ifdef ZIRAN_COMPILER_GO_SIMD_H_PRIVATE
-typedef struct compiler_go_simd_StaticText compiler_go_simd_StaticText;
-#endif
-#ifdef ZIRAN_COMPILER_GO_SIMD_H_PRIVATE
-typedef struct GoHelper GoHelper;
-#endif
-#ifdef ZIRAN_COMPILER_GO_SIMD_H_PRIVATE
-typedef struct GoValue GoValue;
 #endif
 #ifdef ZIRAN_COMPILER_GO_SIMD_H_PRIVATE
 

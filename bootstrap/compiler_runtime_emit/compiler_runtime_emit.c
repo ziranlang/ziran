@@ -61,13 +61,7 @@ void zir_foreign_compiler_runtime_emit__FreeRaw(void* memory) __asm__("_free");
 #else
 void zir_foreign_compiler_runtime_emit__FreeRaw(void* memory) __asm__("free");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static void compiler_runtime_emit_ReleaseOwnedText(String value) ZIRAN_MAYBE_UNUSED;
 static String compiler_runtime_emit_CText(uint8_t* value) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_runtime_emit_CPointer(String value) ZIRAN_MAYBE_UNUSED;
@@ -100,7 +94,7 @@ compiler_runtime_emit_RecordPath(String path)
         int64_t loop_cursor_3 = 0LL;
         while (loop_cursor_3 < loop_count_3) {
             int64_t loop_index_3 = loop_cursor_3;
-            String existing = ((String *)loop_view_3.data)[loop_index_3];
+            String existing = ((String *)(loop_view_3).data)[loop_index_3];
             if (StringEqual(existing, path)) {
                 return true;
             }

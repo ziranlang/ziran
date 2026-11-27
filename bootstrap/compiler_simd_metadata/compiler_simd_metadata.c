@@ -118,13 +118,7 @@ void zir_foreign_compiler_simd_metadata__ZirSimdInitialize(SimdInitializer initi
 #else
 void zir_foreign_compiler_simd_metadata__ZirSimdInitialize(SimdInitializer initialize) __asm__("ZirSimdInitialize");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_simd_metadata_CStr(String s) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_simd_metadata_PtrAdd(uint8_t* base, size_t offset) ZIRAN_MAYBE_UNUSED;
 static void compiler_simd_metadata_SetOp(int32_t idx, int32_t id, String name, String snake, String checked, SimdShape shape, uint32_t lanes, int32_t typed) ZIRAN_MAYBE_UNUSED;

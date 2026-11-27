@@ -4,93 +4,192 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_GoEnumStorage
+#define ZIRAN_TYPE_FORWARD_GoEnumStorage
+typedef struct GoEnumStorage GoEnumStorage;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZirGoLocalName
+#define ZIRAN_TYPE_FORWARD_ZirGoLocalName
+typedef struct ZirGoLocalName ZirGoLocalName;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZirGoGlobalFunction
+#define ZIRAN_TYPE_FORWARD_ZirGoGlobalFunction
+typedef struct ZirGoGlobalFunction ZirGoGlobalFunction;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_GoTestModules
+#define ZIRAN_TYPE_FORWARD_GoTestModules
+typedef struct GoTestModules GoTestModules;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZirGoExtern
+#define ZIRAN_TYPE_FORWARD_ZirGoExtern
+typedef struct ZirGoExtern ZirGoExtern;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZirGoEnumMember
+#define ZIRAN_TYPE_FORWARD_ZirGoEnumMember
+typedef struct ZirGoEnumMember ZirGoEnumMember;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZirGoEnum
+#define ZIRAN_TYPE_FORWARD_ZirGoEnum
+typedef struct ZirGoEnum ZirGoEnum;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParseExternImportBuffers
+#define ZIRAN_TYPE_FORWARD_ParseExternImportBuffers
+typedef struct ParseExternImportBuffers ParseExternImportBuffers;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParseEnumBuffers
+#define ZIRAN_TYPE_FORWARD_ParseEnumBuffers
+typedef struct ParseEnumBuffers ParseEnumBuffers;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_TxGroupBuffers
+#define ZIRAN_TYPE_FORWARD_TxGroupBuffers
+typedef struct TxGroupBuffers TxGroupBuffers;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_TxExprBuffers
+#define ZIRAN_TYPE_FORWARD_TxExprBuffers
+typedef struct TxExprBuffers TxExprBuffers;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_GoBodySymbols
+#define ZIRAN_TYPE_FORWARD_GoBodySymbols
+typedef struct GoBodySymbols GoBodySymbols;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_LowerFunctionBuffers
+#define ZIRAN_TYPE_FORWARD_LowerFunctionBuffers
+typedef struct LowerFunctionBuffers LowerFunctionBuffers;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_GoCScalar
+#define ZIRAN_TYPE_FORWARD_GoCScalar
+typedef struct GoCScalar GoCScalar;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_GoCHeaders
+#define ZIRAN_TYPE_FORWARD_GoCHeaders
+typedef struct GoCHeaders GoCHeaders;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_GoLowerBuffers
+#define ZIRAN_TYPE_FORWARD_GoLowerBuffers
+typedef struct GoLowerBuffers GoLowerBuffers;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_go_backend_TextStream
+#define ZIRAN_TYPE_FORWARD_compiler_go_backend_TextStream
+typedef struct compiler_go_backend_TextStream compiler_go_backend_TextStream;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_go_backend_ZirParameter
+#define ZIRAN_TYPE_FORWARD_compiler_go_backend_ZirParameter
+typedef struct compiler_go_backend_ZirParameter compiler_go_backend_ZirParameter;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_go_backend_ZirParameters
+#define ZIRAN_TYPE_FORWARD_compiler_go_backend_ZirParameters
+typedef struct compiler_go_backend_ZirParameters compiler_go_backend_ZirParameters;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_go_backend_StaticText
+#define ZIRAN_TYPE_FORWARD_compiler_go_backend_StaticText
+typedef struct compiler_go_backend_StaticText compiler_go_backend_StaticText;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_GoLowerState
+#define ZIRAN_TYPE_FORWARD_GoLowerState
+typedef struct GoLowerState GoLowerState;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_GlobalRewrite
+#define ZIRAN_TYPE_FORWARD_GlobalRewrite
+typedef struct GlobalRewrite GlobalRewrite;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_GoDestroyBuffer
+#define ZIRAN_CALLABLE_GoDestroyBuffer
+typedef void (*GoDestroyBuffer)(void*);
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_GoResolveTarget
+#define ZIRAN_CALLABLE_GoResolveTarget
+typedef void (*GoResolveTarget)(void*, uint8_t*, uint8_t*, size_t);
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZirModule
+#define ZIRAN_TYPE_FORWARD_ZirModule
+typedef struct ZirModule ZirModule;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZirFunction
+#define ZIRAN_TYPE_FORWARD_ZirFunction
+typedef struct ZirFunction ZirFunction;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_GoAssemblyBlockEmitter
+#define ZIRAN_CALLABLE_GoAssemblyBlockEmitter
+typedef int32_t (*GoAssemblyBlockEmitter)(void*, ZirModule*, ZirFunction*, int32_t, void*);
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_GoGlobalRewrite
+#define ZIRAN_CALLABLE_GoGlobalRewrite
+typedef int32_t (*GoGlobalRewrite)(ZirModule*, uint8_t*, uint8_t*, size_t, void*);
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZirType
+#define ZIRAN_TYPE_FORWARD_ZirType
+typedef struct ZirType ZirType;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_GoGlobalFieldRewrite
+#define ZIRAN_CALLABLE_GoGlobalFieldRewrite
+typedef void (*GoGlobalFieldRewrite)(ZirType*, uint8_t*, uint8_t*, size_t, void*);
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_native_names.h"
 #include "compiler_go_asm.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct GoEnumStorage GoEnumStorage;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct ZirGoLocalName ZirGoLocalName;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct ZirGoGlobalFunction ZirGoGlobalFunction;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct GoTestModules GoTestModules;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct ZirGoExtern ZirGoExtern;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct ZirGoEnumMember ZirGoEnumMember;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct ZirGoEnum ZirGoEnum;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct ParseExternImportBuffers ParseExternImportBuffers;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct ParseEnumBuffers ParseEnumBuffers;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct TxGroupBuffers TxGroupBuffers;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct TxExprBuffers TxExprBuffers;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct GoBodySymbols GoBodySymbols;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct LowerFunctionBuffers LowerFunctionBuffers;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct GoCScalar GoCScalar;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct GoCHeaders GoCHeaders;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct GoLowerBuffers GoLowerBuffers;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct compiler_go_backend_TextStream compiler_go_backend_TextStream;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct compiler_go_backend_ZirParameter compiler_go_backend_ZirParameter;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct compiler_go_backend_ZirParameters compiler_go_backend_ZirParameters;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct compiler_go_backend_StaticText compiler_go_backend_StaticText;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct GoLowerState GoLowerState;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef struct GlobalRewrite GlobalRewrite;
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef void (*GoDestroyBuffer)(void*);
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef void (*GoResolveTarget)(void*, uint8_t*, uint8_t*, size_t);
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef int32_t (*GoAssemblyBlockEmitter)(void*, ZirModule*, ZirFunction*, int32_t, void*);
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef int32_t (*GoGlobalRewrite)(ZirModule*, uint8_t*, uint8_t*, size_t, void*);
-#endif
-#ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
-typedef void (*GoGlobalFieldRewrite)(ZirType*, uint8_t*, uint8_t*, size_t, void*);
 #endif
 #ifdef ZIRAN_COMPILER_GO_BACKEND_H_PRIVATE
 

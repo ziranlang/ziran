@@ -210,13 +210,7 @@ int32_t zir_foreign_compiler_parse_eval__isspace(int32_t character) __asm__("_is
 #else
 int32_t zir_foreign_compiler_parse_eval__isspace(int32_t character) __asm__("isspace");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static void compiler_parse_eval_expand_compile_text_depth(CompileText* out, ZirConsts* consts, uint8_t* src, uint8_t* lookup_path, int32_t depth, ZirConst** active) ZIRAN_MAYBE_UNUSED;
 static ZirDefine* compiler_parse_eval_find_imported_define(ZirModule* module, uint8_t* lookup_path, uint8_t* name, size_t length, ZirModule** owner_out) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_parse_eval_compile_compound_member_with_buffers_in_state(EvaluationState* evaluation, CompileValue* compound, uint8_t* member, ZirModule* module, uint8_t* path, int32_t depth, int32_t* fuel, CompileValue* result, CompileCompoundMemberBuffers* buffers) ZIRAN_MAYBE_UNUSED;

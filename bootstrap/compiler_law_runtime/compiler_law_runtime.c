@@ -260,13 +260,7 @@ int32_t zir_foreign_compiler_law_runtime__isspace(int32_t byte) __asm__("_isspac
 #else
 int32_t zir_foreign_compiler_law_runtime__isspace(int32_t byte) __asm__("isspace");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int32_t compiler_law_runtime_ParserPost0(int32_t* p) ZIRAN_MAYBE_UNUSED;
 static size_t compiler_law_runtime_ParserSet1(size_t* p, size_t value) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_law_runtime_ParserSet2(int32_t* p, int32_t value) ZIRAN_MAYBE_UNUSED;

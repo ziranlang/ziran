@@ -5,18 +5,14 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
-#include "model.h"
-#include "arithmetic.h"
-#include "emit.h"
-#include "sort.h"
-#include "text_tools.h"
-#include "vec.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#ifndef ZIRAN_TYPE_FORWARD_Alias
+#define ZIRAN_TYPE_FORWARD_Alias
 typedef struct Alias Alias;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_NativeName
+#define ZIRAN_TYPE_FORWARD_NativeName
 typedef struct NativeName NativeName;
+#endif
 #ifndef ZIRAN_CONCRETE_FORWARD___type_369bb27e9de8ac5e
 #define ZIRAN_CONCRETE_FORWARD___type_369bb27e9de8ac5e
 typedef struct __type_369bb27e9de8ac5e __type_369bb27e9de8ac5e;
@@ -36,6 +32,16 @@ typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
 #ifndef ZIRAN_CONCRETE_FORWARD___type_168d4645c4544df6
 #define ZIRAN_CONCRETE_FORWARD___type_168d4645c4544df6
 typedef struct __type_168d4645c4544df6 __type_168d4645c4544df6;
+#endif
+#include "model.h"
+#include "arithmetic.h"
+#include "emit.h"
+#include "sort.h"
+#include "text_tools.h"
+#include "vec.h"
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 struct Alias {

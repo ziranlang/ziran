@@ -4,6 +4,34 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#ifndef ZIRAN_TYPE_FORWARD_SimdShape
+#define ZIRAN_TYPE_FORWARD_SimdShape
+typedef int32_t SimdShape;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_SimdVector
+#define ZIRAN_TYPE_FORWARD_SimdVector
+typedef struct SimdVector SimdVector;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_SimdOp
+#define ZIRAN_TYPE_FORWARD_SimdOp
+typedef struct SimdOp SimdOp;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_SimdOperand
+#define ZIRAN_TYPE_FORWARD_SimdOperand
+typedef struct SimdOperand SimdOperand;
+#endif
+#ifdef ZIRAN_COMPILER_SIMD_METADATA_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_StaticText
+#define ZIRAN_TYPE_FORWARD_StaticText
+typedef struct StaticText StaticText;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_SIMD_METADATA_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_SimdInitializer
+#define ZIRAN_CALLABLE_SimdInitializer
+typedef void (*SimdInitializer)(void);
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_runtime_emit.h"
 
@@ -140,16 +168,6 @@ extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_SIMD_METADATA_H_PRIVATE
 #define OP_COUNT 68
-#endif
-typedef int32_t SimdShape;
-typedef struct SimdVector SimdVector;
-typedef struct SimdOp SimdOp;
-typedef struct SimdOperand SimdOperand;
-#ifdef ZIRAN_COMPILER_SIMD_METADATA_H_PRIVATE
-typedef struct StaticText StaticText;
-#endif
-#ifdef ZIRAN_COMPILER_SIMD_METADATA_H_PRIVATE
-typedef void (*SimdInitializer)(void);
 #endif
 
 enum {

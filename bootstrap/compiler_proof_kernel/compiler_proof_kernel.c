@@ -21,13 +21,7 @@ static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {
 #endif
 #include "vec.h"
 #include "vec.h"
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static bool compiler_proof_kernel_Spend(ProofKernel* k) ZIRAN_MAYBE_UNUSED;
 static uint64_t compiler_proof_kernel_Mask(uint32_t width) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_proof_kernel_Compare(uint64_t a, uint64_t b, ProofType type) ZIRAN_MAYBE_UNUSED;

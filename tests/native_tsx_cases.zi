@@ -13,6 +13,7 @@ TSX_DOMAIN :: #string ZI
 #load "private_b.zi";
 using Vectors :: #import "std/vec"
 using Callables :: #import "std/callable"
+Composition :: #import "scope_component";
 Model :: struct { value: float64; id: u64; }
 Box :: struct($T: Type) { value: T; }
 InspectBox :: (box: Box($T)) -> T { return box.value }
@@ -28,6 +29,7 @@ WithDefaults :: (value: s32, extra: s32 = DefaultValue(), location: Source_Code_
     return value + extra
 }
 Snapshot :: () -> Model { return .{value = 42, id = 18446744073709551615} }
+CompositionValue :: () -> float64 { return Composition.Inspect(Snapshot()) }
 BorrowModel :: (model: *Model) { model.value += 1 }
 ModelAction :: #type (model: *Model) -> float64;
 HandlerHolder :: struct { action: ModelAction; }
@@ -97,7 +99,13 @@ export function Read(props: WidgetProps<DomainTypes.Model>): number { return pro
 TS
 
 TSX_FACADE :: "using Export :: #import \"generic_widget\";\n"
-TSX_SCOPE :: "import { Scoped } from \"std/callable\";\nexport interface ScopeProps { children: Scoped<() => void>; }\nexport function Scope(props: ScopeProps): void { props.children(); }\n"
+TSX_SCOPE :: #string TSX
+import { Scoped } from "std/callable";
+import * as Domain from "domain";
+export interface ScopeProps { children: Scoped<() => void>; }
+export function Scope(props: ScopeProps): void { props.children(); }
+export function Inspect(model: Domain.Model): number { return model.value; }
+TSX
 TSX_GENERIC_SUPPORT :: "Step :: (value: s32) -> s32 { return value }\n"
 TSX_GENERIC_WIDGET :: #string ZI
 Support :: #import "generic_support";
@@ -163,6 +171,7 @@ export function main(): s32 {
     const genericFrame: GenericFrame = {slot: s32(40)};
     if (Facade.Draw(genericFrame, {value: s32(1)}) !== s32(42)) { return s32(25); }
     const snapshot: Domain.Model = Domain.Snapshot();
+    if (Domain.CompositionValue() !== snapshot.value) { return s32(44); }
     GlobalState.model = snapshot;
     GlobalState.models[s32(0)] = GlobalState.model;
     GlobalState.model_ptr = &GlobalState.model;
@@ -214,6 +223,8 @@ export function main(): s32 {
     const view: number[] = values[:];
     const middle: number[] = values[s32(1):s32(3)];
     if (view.count !== s64(4) || middle.count !== s64(2) || middle[s32(0)] !== 2) { return s32(33); }
+    const readView: Scoped<Domain.Action> = (value: number): number => view[s32(value)] + middle[s32(0)];
+    if (Domain.InvokeScoped(readView, 1) !== 4) { return s32(42); }
     total = 0;
     for (const value of values) {
         if (value === 2) { continue; }
@@ -278,6 +289,8 @@ export function main(): s32 {
         <Deferred><Marker value={s32(4)}/></Deferred>
     </Deferred></Scope>;
     if (deferredTrace !== s32(121433)) { return s32(31); }
+    <Scope children={(): void => { Domain.MarkRecord(s64(7)); }}/>;
+    if (Domain.SeenRecord() !== s64(7)) { return s32(43); }
     Domain.Report();
     return s32(Divide(value) - 21);
 }
@@ -304,6 +317,28 @@ TsxApplication :: () -> string {
     return CheckConcat(loops, TextDetach(TextReplace(TSX_APP, "    const snapshot:", CheckConcat(callbacks, "    const snapshot:"))))
 }
 
+// Full library headers must compile in isolation, including the native/TSX
+// import cycle above. Entry pruning alone can hide incomplete inline bodies.
+TsxHeaders :: (test: *NativeTest, source: string, root: string, label: string) -> bool {
+    output := CheckPath(test.work, CheckConcat(label, "-headers"))
+    domain := CheckPath(root, ifx TextHasSuffix(source, ".zir") then "domain.zir" else "domain.zi")
+    emit := string.[CheckPath(PathParent(test.ziran), "zi2c"), "--no-main", "--root", root, "-o", output, domain]
+    unused NativeRun(test, emit[:])
+    headers := NativeFiles(output, ".h")
+    for header: headers {
+        probe := CheckPath(output, "header_probe.c")
+        if !NativeWrite(test, probe, CheckConcat("#include \"", CheckConcat(PathName(header), "\"\nint header_probe;\n"))) { return false }
+        command: Vec(string)
+        if !NativeWords(NativeCompiler(), *command) { return false }
+        flags := string.["-std=c99", "-pedantic-errors", "-fsyntax-only",
+            CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", output), probe]
+        for flag: flags { VecPush(command, flag) }
+        unused NativeRun(test, command[:])
+        if test.failed { return false }
+    }
+    return !test.failed && NativeAssert(test, headers.count > 0, "missing native TSX library headers")
+}
+
 TsxTargets :: (test: *NativeTest, source: string, root: string, label: string) -> bool {
     expected := "native TSX passed\n"
     targets := string.["c", "go"]
@@ -326,6 +361,7 @@ TsxTargets :: (test: *NativeTest, source: string, root: string, label: string) -
         }
         if !NativeExpect(test, run[:], expected) { return false }
     }
+    if !TsxHeaders(test, source, root, label) { return false }
     bundle := CheckPath(test.work, CheckConcat(label, ".zx"))
     build := string.[test.ziran, "bundle", "--entry", "native_app:main", "--root", root, "-o", bundle, source]
     unused NativeRun(test, build[:])

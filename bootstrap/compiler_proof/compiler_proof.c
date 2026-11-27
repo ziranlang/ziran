@@ -74,13 +74,7 @@ void zir_foreign_compiler_proof__free(uint8_t* data) __asm__("_free");
 #else
 void zir_foreign_compiler_proof__free(uint8_t* data) __asm__("free");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static Spelled compiler_proof_C(String text) ZIRAN_MAYBE_UNUSED;
 static Long compiler_proof_CLong(String text) ZIRAN_MAYBE_UNUSED;
 static bool compiler_proof_Report(ZirSourceSpan span, String code, String message, String name, String tail) ZIRAN_MAYBE_UNUSED;
@@ -588,7 +582,7 @@ compiler_proof_CallName(ZirFunction* fn, ZirExpr* call, Slice out)
         return false;
     }
     compiler_ir_CopyText(out, alias);
-    uint8_t* value_11 = &(((uint8_t *)out.data)[(int64_t)(alias).length]);
+    uint8_t* value_11 = &(((uint8_t *)(out).data)[(int64_t)(alias).length]);
     (*value_11) = 46;
     Slice value_12 = out;
     Slice value_13 = SliceRangeAt(value_12, (int64_t)((int64_t)((uint64_t)((int64_t)(alias).length) + UINT64_C(1))), (int64_t)(int64_t)(out).length, sizeof(uint8_t));
@@ -740,11 +734,11 @@ compiler_proof_FunctionValue(Context* c, ZirModule* m, ZirFunction* fn, Slice ar
                 value_33 = -1;
             }
             int32_t type = value_33;
-            bool value_35 = ok && ((int32_t *)args.data)[i] >= 0 && type >= 0;
+            bool value_35 = ok && ((int32_t *)(args).data)[i] >= 0 && type >= 0;
             bool value_36 = value_35;
             if (value_36) {
                 Context* value_37 = c;
-                int32_t value_38 = ((int32_t *)args.data)[i];
+                int32_t value_38 = ((int32_t *)(args).data)[i];
                 int32_t value_39 = 0;
                 {
                     Context* c = value_37;
@@ -759,7 +753,7 @@ compiler_proof_FunctionValue(Context* c, ZirModule* m, ZirFunction* fn, Slice ar
                 Context* value_43 = c;
                 Environment* value_44 = &(env);
                 String value_45 = (p.names)[i];
-                int32_t value_46 = ((int32_t *)args.data)[i];
+                int32_t value_46 = ((int32_t *)(args).data)[i];
                 bool value_47 = false;
                 {
                     Context* c = value_43;
@@ -2474,13 +2468,13 @@ compiler_proof_GraphVisit(ZirFunction* fn, int32_t at, Slice seen, int32_t depth
         int32_t at = value_1;
         value_2 = at >= 0 && at < fn->expr_count;
     }
-    if (!value_2 || depth > 64 || ((uint8_t *)seen.data)[at] == 1) {
+    if (!value_2 || depth > 64 || ((uint8_t *)(seen).data)[at] == 1) {
         return false;
     }
-    if (((uint8_t *)seen.data)[at] == 2) {
+    if (((uint8_t *)(seen).data)[at] == 2) {
         return true;
     }
-    uint8_t* value_4 = &(((uint8_t *)seen.data)[at]);
+    uint8_t* value_4 = &(((uint8_t *)(seen).data)[at]);
     (*value_4) = 1;
     ZirExpr* e = &(fn->exprs[at]);
     bool value_5 = compiler_proof_GraphVisit(fn, e->left, seen, (int32_t)((uint32_t)depth + 1u));
@@ -2507,7 +2501,7 @@ compiler_proof_GraphVisit(ZirFunction* fn, int32_t at, Slice seen, int32_t depth
     if (value_12) {
         return false;
     }
-    uint8_t* value_14 = &(((uint8_t *)seen.data)[at]);
+    uint8_t* value_14 = &(((uint8_t *)(seen).data)[at]);
     (*value_14) = 2;
     return true;
 }
@@ -3187,11 +3181,11 @@ compiler_proof_Theorem(Context* c, ZirModule* m, ZirLaw* law, Slice args, int32_
                 value_28 = -1;
             }
             int32_t type = value_28;
-            bool value_30 = ok && ((int32_t *)args.data)[i] >= 0 && type >= 0;
+            bool value_30 = ok && ((int32_t *)(args).data)[i] >= 0 && type >= 0;
             bool value_31 = value_30;
             if (value_31) {
                 Context* value_32 = c;
-                int32_t value_33 = ((int32_t *)args.data)[i];
+                int32_t value_33 = ((int32_t *)(args).data)[i];
                 int32_t value_34 = 0;
                 {
                     Context* c = value_32;
@@ -3206,7 +3200,7 @@ compiler_proof_Theorem(Context* c, ZirModule* m, ZirLaw* law, Slice args, int32_
                 Context* value_38 = c;
                 Environment* value_39 = &(env);
                 String value_40 = (params.names)[i];
-                int32_t value_41 = ((int32_t *)args.data)[i];
+                int32_t value_41 = ((int32_t *)(args).data)[i];
                 bool value_42 = false;
                 {
                     Context* c = value_38;

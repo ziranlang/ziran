@@ -14,13 +14,7 @@ static inline uint64_t ZiDivU64(uint64_t a, uint64_t b) {
 }
 #endif
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t compiler_text_Byte(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_text_AfterQuote(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_text_EscapeByte(uint8_t byte, bool c_string, Slice output) ZIRAN_MAYBE_UNUSED;
@@ -283,7 +277,7 @@ compiler_text_CamelIdentifier(String source, Slice output)
             if (upper && byte >= 97 && byte <= 122) {
                 byte = (uint8_t)((uint32_t)byte - 32u);
             }
-            uint8_t* value_0 = &(((uint8_t *)output.data)[used]);
+            uint8_t* value_0 = &(((uint8_t *)(output).data)[used]);
             (*value_0) = byte;
             used = (int64_t)((uint64_t)used + UINT64_C(1));
             upper = false;
@@ -292,22 +286,22 @@ compiler_text_CamelIdentifier(String source, Slice output)
         }
     }
     if (used == 0LL && (int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
-        uint8_t* value_1 = &(((uint8_t *)output.data)[used]);
+        uint8_t* value_1 = &(((uint8_t *)(output).data)[used]);
         (*value_1) = 88;
         used = (int64_t)((uint64_t)used + UINT64_C(1));
     }
-    if (used > 0LL && ((uint8_t *)output.data)[0] >= 48 && ((uint8_t *)output.data)[0] <= 57 && (int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
+    if (used > 0LL && ((uint8_t *)(output).data)[0] >= 48 && ((uint8_t *)(output).data)[0] <= 57 && (int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
         int64_t index = used;
         while (index > 0LL) {
-            uint8_t* value_2 = &(((uint8_t *)output.data)[index]);
-            (*value_2) = ((uint8_t *)output.data)[((int64_t)((uint64_t)index - UINT64_C(1)))];
+            uint8_t* value_2 = &(((uint8_t *)(output).data)[index]);
+            (*value_2) = ((uint8_t *)(output).data)[((int64_t)((uint64_t)index - UINT64_C(1)))];
             index = (int64_t)((uint64_t)index - UINT64_C(1));
         }
-        uint8_t* value_3 = &(((uint8_t *)output.data)[0]);
+        uint8_t* value_3 = &(((uint8_t *)(output).data)[0]);
         (*value_3) = 77;
         used = (int64_t)((uint64_t)used + UINT64_C(1));
     }
-    uint8_t* value_4 = &(((uint8_t *)output.data)[used]);
+    uint8_t* value_4 = &(((uint8_t *)(output).data)[used]);
     (*value_4) = 0;
     return used;
 }
@@ -343,7 +337,7 @@ compiler_text_GoFieldIdentifier(String source, Slice output)
         int64_t range_last_26 = (int64_t)((uint64_t)used - UINT64_C(1));
         int64_t index = range_first_26;
         if (index <= range_last_26) for (;;) {
-            uint8_t* value_2 = &(((uint8_t *)output.data)[index]);
+            uint8_t* value_2 = &(((uint8_t *)(output).data)[index]);
             (*value_2) = (uint8_t)replacement.data[index];
             if (index == range_last_26) {
                 break;
@@ -375,7 +369,7 @@ compiler_text_EscapeCString(String source, Slice output)
             int64_t index = range_first_10;
             if (index <= range_last_10) for (;;) {
                 if ((int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
-                    uint8_t* value_1 = &(((uint8_t *)output.data)[used]);
+                    uint8_t* value_1 = &(((uint8_t *)(output).data)[used]);
                     (*value_1) = (escaped)[index];
                     used = (int64_t)((uint64_t)used + UINT64_C(1));
                 }
@@ -386,7 +380,7 @@ compiler_text_EscapeCString(String source, Slice output)
             }
         }
     }
-    uint8_t* value_2 = &(((uint8_t *)output.data)[used]);
+    uint8_t* value_2 = &(((uint8_t *)(output).data)[used]);
     (*value_2) = 0;
     return used;
 }
@@ -641,7 +635,7 @@ compiler_text_DecodeString(String source, Slice output)
                 if (used >= (int64_t)(output).length) {
                     return (DecodedLiteral){.valid = false, .count = 0LL};
                 }
-                uint8_t* value_13 = &(((uint8_t *)output.data)[used]);
+                uint8_t* value_13 = &(((uint8_t *)(output).data)[used]);
                 (*value_13) = byte;
                 used = (int64_t)((uint64_t)used + UINT64_C(1));
                 if (index == range_last_82) {
@@ -667,9 +661,9 @@ compiler_text_NextPrintPiece(Slice bytes, int64_t at, Slice output)
     if (at == (int64_t)(bytes).length) {
         return (FormatStep){.valid = true, .argument = false, .present = false, .next = at};
     }
-    if (((uint8_t *)bytes.data)[at] == 37 && ((int64_t)((uint64_t)at + UINT64_C(1)) >= (int64_t)(bytes).length || ((uint8_t *)bytes.data)[((int64_t)((uint64_t)at + UINT64_C(1)))] != 37)) {
+    if (((uint8_t *)(bytes).data)[at] == 37 && ((int64_t)((uint64_t)at + UINT64_C(1)) >= (int64_t)(bytes).length || ((uint8_t *)(bytes).data)[((int64_t)((uint64_t)at + UINT64_C(1)))] != 37)) {
         if ((int64_t)(output).length > 0LL) {
-            uint8_t* value_0 = &(((uint8_t *)output.data)[0]);
+            uint8_t* value_0 = &(((uint8_t *)(output).data)[0]);
             (*value_0) = 0;
         }
         return (FormatStep){.valid = true, .argument = true, .present = true, .next = (int64_t)((uint64_t)at + UINT64_C(1))};
@@ -677,13 +671,13 @@ compiler_text_NextPrintPiece(Slice bytes, int64_t at, Slice output)
     if ((int64_t)(output).length < 3LL) {
         return (FormatStep){.valid = false, .argument = false, .present = false, .next = at};
     }
-    uint8_t* value_1 = &(((uint8_t *)output.data)[0]);
+    uint8_t* value_1 = &(((uint8_t *)(output).data)[0]);
     (*value_1) = 34;
     int64_t used = 1LL;
     while (at < (int64_t)(bytes).length) {
-        uint8_t byte = ((uint8_t *)bytes.data)[at];
+        uint8_t byte = ((uint8_t *)(bytes).data)[at];
         if (byte == 37) {
-            if ((int64_t)((uint64_t)at + UINT64_C(1)) >= (int64_t)(bytes).length || ((uint8_t *)bytes.data)[((int64_t)((uint64_t)at + UINT64_C(1)))] != 37) {
+            if ((int64_t)((uint64_t)at + UINT64_C(1)) >= (int64_t)(bytes).length || ((uint8_t *)(bytes).data)[((int64_t)((uint64_t)at + UINT64_C(1)))] != 37) {
                 break;
             }
             at = (int64_t)((uint64_t)at + UINT64_C(1));
@@ -699,7 +693,7 @@ compiler_text_NextPrintPiece(Slice bytes, int64_t at, Slice output)
             int64_t range_last_30 = (int64_t)((uint64_t)count - UINT64_C(1));
             int64_t index = range_first_30;
             if (index <= range_last_30) for (;;) {
-                uint8_t* value_3 = &(((uint8_t *)output.data)[used]);
+                uint8_t* value_3 = &(((uint8_t *)(output).data)[used]);
                 (*value_3) = (escaped)[index];
                 used = (int64_t)((uint64_t)used + UINT64_C(1));
                 if (index == range_last_30) {
@@ -710,9 +704,9 @@ compiler_text_NextPrintPiece(Slice bytes, int64_t at, Slice output)
         }
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
-    uint8_t* value_4 = &(((uint8_t *)output.data)[used]);
+    uint8_t* value_4 = &(((uint8_t *)(output).data)[used]);
     (*value_4) = 34;
-    uint8_t* value_5 = &(((uint8_t *)output.data)[((int64_t)((uint64_t)used + UINT64_C(1)))]);
+    uint8_t* value_5 = &(((uint8_t *)(output).data)[((int64_t)((uint64_t)used + UINT64_C(1)))]);
     (*value_5) = 0;
     return (FormatStep){.valid = true, .argument = false, .present = true, .next = at};
 }
@@ -796,39 +790,39 @@ compiler_text_AfterQuote(String source, int64_t at)
 static int64_t
 compiler_text_EscapeByte(uint8_t byte, bool c_string, Slice output)
 {
-    uint8_t* value_0 = &(((uint8_t *)output.data)[0]);
+    uint8_t* value_0 = &(((uint8_t *)(output).data)[0]);
     (*value_0) = 92;
     if (byte == 34 || byte == 92) {
-        uint8_t* value_1 = &(((uint8_t *)output.data)[1]);
+        uint8_t* value_1 = &(((uint8_t *)(output).data)[1]);
         (*value_1) = byte;
         return 2LL;
     }
     if (byte == 10) {
-        uint8_t* value_2 = &(((uint8_t *)output.data)[1]);
+        uint8_t* value_2 = &(((uint8_t *)(output).data)[1]);
         (*value_2) = 110;
         return 2LL;
     }
     if (byte == 9) {
-        uint8_t* value_3 = &(((uint8_t *)output.data)[1]);
+        uint8_t* value_3 = &(((uint8_t *)(output).data)[1]);
         (*value_3) = 116;
         return 2LL;
     }
     if (byte == 13 && c_string) {
-        uint8_t* value_4 = &(((uint8_t *)output.data)[1]);
+        uint8_t* value_4 = &(((uint8_t *)(output).data)[1]);
         (*value_4) = 114;
         return 2LL;
     }
     if (byte < 32 || byte == 127) {
         String hex = StringLiteral("0123456789abcdef");
-        uint8_t* value_5 = &(((uint8_t *)output.data)[1]);
+        uint8_t* value_5 = &(((uint8_t *)(output).data)[1]);
         (*value_5) = 120;
-        uint8_t* value_6 = &(((uint8_t *)output.data)[2]);
+        uint8_t* value_6 = &(((uint8_t *)(output).data)[2]);
         (*value_6) = (uint8_t)hex.data[((uint8_t)(byte >> 4))];
-        uint8_t* value_7 = &(((uint8_t *)output.data)[3]);
+        uint8_t* value_7 = &(((uint8_t *)(output).data)[3]);
         (*value_7) = (uint8_t)hex.data[((uint8_t)((uint32_t)byte & 15u))];
         return 4LL;
     }
-    uint8_t* value_8 = &(((uint8_t *)output.data)[0]);
+    uint8_t* value_8 = &(((uint8_t *)(output).data)[0]);
     (*value_8) = byte;
     return 1LL;
 }

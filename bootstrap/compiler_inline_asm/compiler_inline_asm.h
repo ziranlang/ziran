@@ -5,6 +5,58 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include <stdlib.h>
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyOutputs
+#define ZIRAN_TYPE_FORWARD_AssemblyOutputs
+typedef struct AssemblyOutputs AssemblyOutputs;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_RegisterSet
+#define ZIRAN_TYPE_FORWARD_RegisterSet
+typedef struct RegisterSet RegisterSet;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BlockBinding
+#define ZIRAN_TYPE_FORWARD_BlockBinding
+typedef struct BlockBinding BlockBinding;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BlockBindings
+#define ZIRAN_TYPE_FORWARD_BlockBindings
+typedef struct BlockBindings BlockBindings;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Parameter
+#define ZIRAN_TYPE_FORWARD_Parameter
+typedef struct Parameter Parameter;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Parameters
+#define ZIRAN_TYPE_FORWARD_Parameters
+typedef struct Parameters Parameters;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_compiler_inline_asm_StaticText
+#define ZIRAN_TYPE_FORWARD_compiler_inline_asm_StaticText
+typedef struct compiler_inline_asm_StaticText compiler_inline_asm_StaticText;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyOperand
+#define ZIRAN_TYPE_FORWARD_AssemblyOperand
+typedef struct AssemblyOperand AssemblyOperand;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyVariant
+#define ZIRAN_TYPE_FORWARD_AssemblyVariant
+typedef struct AssemblyVariant AssemblyVariant;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Assembly
+#define ZIRAN_TYPE_FORWARD_Assembly
+typedef struct Assembly Assembly;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyText
+#define ZIRAN_TYPE_FORWARD_AssemblyText
+typedef struct AssemblyText AssemblyText;
+#endif
+#ifndef ZIRAN_CALLABLE_AssemblyBinding
+#define ZIRAN_CALLABLE_AssemblyBinding
+typedef uint8_t* (*AssemblyBinding)(void*, uint8_t*);
+#endif
+#ifndef ZIRAN_CALLABLE_AssemblyOperandResolver
+#define ZIRAN_CALLABLE_AssemblyOperandResolver
+typedef void (*AssemblyOperandResolver)(void*, int32_t, uint8_t*, size_t);
+#endif
 #include "compiler_ir.h"
 #include "compiler_native_names.h"
 
@@ -27,19 +79,6 @@ extern "C" {
 #define ARCHITECTURE_COUNT 11
 #define CPU_FEATURE_COUNT 21
 #define FEATURE_X86_COUNT 14
-typedef struct AssemblyOutputs AssemblyOutputs;
-typedef struct RegisterSet RegisterSet;
-typedef struct BlockBinding BlockBinding;
-typedef struct BlockBindings BlockBindings;
-typedef struct Parameter Parameter;
-typedef struct Parameters Parameters;
-typedef struct compiler_inline_asm_StaticText compiler_inline_asm_StaticText;
-typedef struct AssemblyOperand AssemblyOperand;
-typedef struct AssemblyVariant AssemblyVariant;
-typedef struct Assembly Assembly;
-typedef struct AssemblyText AssemblyText;
-typedef uint8_t* (*AssemblyBinding)(void*, uint8_t*);
-typedef void (*AssemblyOperandResolver)(void*, int32_t, uint8_t*, size_t);
 
 struct AssemblyOutputs {
     uint8_t names[30][132];

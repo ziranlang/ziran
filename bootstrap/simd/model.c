@@ -388,7 +388,7 @@ bool
 model_WideParameters(Slice parameters)
 {
     for (int64_t it_index = 0LL; it_index < (int64_t)(parameters).length; it_index++) {
-        Parameter parameter = ((Parameter *)parameters.data)[it_index];
+        Parameter parameter = ((Parameter *)(parameters).data)[it_index];
         if (model_WideParameter(parameter)) {
             return true;
         }
@@ -406,7 +406,7 @@ model_ParameterList(Slice parameters, bool pointers)
         int64_t range_last_1 = (int64_t)((uint64_t)((int64_t)(parameters).length) - UINT64_C(1));
         int64_t i = range_first_1;
         if (i <= range_last_1) for (;;) {
-            Parameter parameter = ((Parameter *)parameters.data)[i];
+            Parameter parameter = ((Parameter *)(parameters).data)[i];
             if (i > 0LL) {
                 bool value_1 = false;
                 if ((StringLiteral(", ")).length == 0) {

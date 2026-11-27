@@ -3,6 +3,10 @@
 #define ZIRAN_WIDEN_H
 
 #include "zir_string_types.h"
+#ifndef ZIRAN_CONCRETE_FORWARD___type_e265f79c93ee1c4a
+#define ZIRAN_CONCRETE_FORWARD___type_e265f79c93ee1c4a
+typedef struct __type_e265f79c93ee1c4a __type_e265f79c93ee1c4a;
+#endif
 #include "model.h"
 #include "arithmetic.h"
 #include "text_tools.h"
@@ -10,10 +14,6 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_e265f79c93ee1c4a
-#define ZIRAN_CONCRETE_FORWARD___type_e265f79c93ee1c4a
-typedef struct __type_e265f79c93ee1c4a __type_e265f79c93ee1c4a;
 #endif
 #ifndef ZIRAN_CONCRETE___type_e265f79c93ee1c4a
 #define ZIRAN_CONCRETE___type_e265f79c93ee1c4a

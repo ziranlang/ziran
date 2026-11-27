@@ -52,13 +52,7 @@ static inline uint64_t ZiShrU64(uint64_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static bool compiler_bundle_Fits(String text, bool empty, int64_t limit) ZIRAN_MAYBE_UNUSED;
 static bool compiler_bundle_Before(String left, String right) ZIRAN_MAYBE_UNUSED;
 static void compiler_bundle_Fail(Codec* codec, bool ended) ZIRAN_MAYBE_UNUSED;
@@ -164,13 +158,13 @@ compiler_bundle_Word(Codec* codec, uint32_t value)
         return (uint32_t)((uint32_t)value_8 | ((uint32_t)((uint8_t)codec->input.data[((int64_t)((uint64_t)at + UINT64_C(3)))]) << 24));
     }
     if (codec->write) {
-        uint8_t* value_9 = &(((uint8_t *)codec->output.data)[at]);
+        uint8_t* value_9 = &(((uint8_t *)(codec->output).data)[at]);
         (*value_9) = (uint8_t)(((uint32_t)((uint32_t)value & 255u)));
-        uint8_t* value_10 = &(((uint8_t *)codec->output.data)[((int64_t)((uint64_t)at + UINT64_C(1)))]);
+        uint8_t* value_10 = &(((uint8_t *)(codec->output).data)[((int64_t)((uint64_t)at + UINT64_C(1)))]);
         (*value_10) = (uint8_t)(((uint32_t)((uint32_t)((value >> 8)) & 255u)));
-        uint8_t* value_11 = &(((uint8_t *)codec->output.data)[((int64_t)((uint64_t)at + UINT64_C(2)))]);
+        uint8_t* value_11 = &(((uint8_t *)(codec->output).data)[((int64_t)((uint64_t)at + UINT64_C(2)))]);
         (*value_11) = (uint8_t)(((uint32_t)((uint32_t)((value >> 16)) & 255u)));
-        uint8_t* value_12 = &(((uint8_t *)codec->output.data)[((int64_t)((uint64_t)at + UINT64_C(3)))]);
+        uint8_t* value_12 = &(((uint8_t *)(codec->output).data)[((int64_t)((uint64_t)at + UINT64_C(3)))]);
         (*value_12) = (uint8_t)((value >> 24));
     }
     return value;
@@ -281,7 +275,7 @@ compiler_bundle_Bytes(Codec* codec, String text, int64_t limit)
             int64_t range_last_16 = (int64_t)((uint64_t)length - UINT64_C(1));
             int64_t index = range_first_16;
             if (index <= range_last_16) for (;;) {
-                uint8_t* value_21 = &(((uint8_t *)codec->output.data)[((int64_t)((uint64_t)at + (uint64_t)index))]);
+                uint8_t* value_21 = &(((uint8_t *)(codec->output).data)[((int64_t)((uint64_t)at + (uint64_t)index))]);
                 (*value_21) = (uint8_t)text.data[index];
                 if (index == range_last_16) {
                     break;
@@ -357,7 +351,7 @@ compiler_bundle_Assets(Codec* codec, Slice assets)
     while (codec->valid && index < count) {
         Asset asset = {0};
         if (index < (int64_t)(assets).length) {
-            asset = ((Asset *)assets.data)[index];
+            asset = ((Asset *)(assets).data)[index];
         }
         Codec* value_9 = codec;
         String value_10 = asset.name;
@@ -420,7 +414,7 @@ compiler_bundle_Assets(Codec* codec, Slice assets)
         }
         String data = compiler_bundle_Bytes(codec, asset.data, 4294967296LL);
         if (codec->reading && index < (int64_t)(assets).length) {
-            Asset* value_30 = &(((Asset *)assets.data)[index]);
+            Asset* value_30 = &(((Asset *)(assets).data)[index]);
             (*value_30) = (Asset){.name = name, .data = data};
         }
         previous = name;
@@ -548,7 +542,7 @@ compiler_bundle_ExecutableU8(ExecutableWriter* writer, uint8_t value)
         value_14 = (value_15 != 0LL);
     }
     if (value_14) {
-        uint8_t* value_16 = &(((uint8_t *)writer->output.data)[at]);
+        uint8_t* value_16 = &(((uint8_t *)(writer->output).data)[at]);
         (*value_16) = value;
     }
 }
@@ -611,7 +605,7 @@ compiler_bundle_ExecutableU32(ExecutableWriter* writer, uint32_t value)
                 value_17 = (value_18 != 0LL);
             }
             if (value_17) {
-                uint8_t* value_19 = &(((uint8_t *)writer->output.data)[at]);
+                uint8_t* value_19 = &(((uint8_t *)(writer->output).data)[at]);
                 (*value_19) = value;
             }
         }
@@ -676,7 +670,7 @@ compiler_bundle_ExecutableU64(ExecutableWriter* writer, uint64_t value)
                 value_17 = (value_18 != 0LL);
             }
             if (value_17) {
-                uint8_t* value_19 = &(((uint8_t *)writer->output.data)[at]);
+                uint8_t* value_19 = &(((uint8_t *)(writer->output).data)[at]);
                 (*value_19) = value;
             }
         }
@@ -741,7 +735,7 @@ compiler_bundle_ExecutableRaw(ExecutableWriter* writer, String value)
                 value_16 = (value_17 != 0LL);
             }
             if (value_16) {
-                uint8_t* value_18 = &(((uint8_t *)writer->output.data)[at]);
+                uint8_t* value_18 = &(((uint8_t *)(writer->output).data)[at]);
                 (*value_18) = value;
             }
         }
@@ -827,7 +821,7 @@ compiler_bundle_ExecutablePad(ExecutableWriter* writer, int64_t alignment)
                 value_23 = (value_24 != 0LL);
             }
             if (value_23) {
-                uint8_t* value_25 = &(((uint8_t *)writer->output.data)[at]);
+                uint8_t* value_25 = &(((uint8_t *)(writer->output).data)[at]);
                 (*value_25) = value;
             }
         }
@@ -899,7 +893,7 @@ compiler_bundle_ExecutableSectionSize(ExecutableHeader header, int64_t index, in
         }
         index = (int64_t)((uint64_t)index - UINT64_C(1));
     }
-    return (int64_t)((((ExecutableAttachment *)header.attachments.data)[index]).data).length;
+    return (int64_t)((((ExecutableAttachment *)(header.attachments).data)[index]).data).length;
 }
 
 static uint32_t
@@ -939,7 +933,7 @@ compiler_bundle_ExecutableSectionKind(ExecutableHeader header, int64_t index)
         }
         index = (int64_t)((uint64_t)index - UINT64_C(1));
     }
-    return (((ExecutableAttachment *)header.attachments.data)[index]).kind;
+    return (((ExecutableAttachment *)(header.attachments).data)[index]).kind;
 }
 
 static void
@@ -1011,7 +1005,7 @@ compiler_bundle_ExecutablePayload(ExecutableWriter* writer, ExecutableHeader hea
         }
         index = (int64_t)((uint64_t)index - UINT64_C(1));
     }
-    compiler_bundle_ExecutableRaw(writer, (((ExecutableAttachment *)header.attachments.data)[index]).data);
+    compiler_bundle_ExecutableRaw(writer, (((ExecutableAttachment *)(header.attachments).data)[index]).data);
 }
 
 static ExecutableProblem
@@ -1045,7 +1039,7 @@ compiler_bundle_ExecutableValidateHeader(ExecutableHeader header)
         int64_t loop_cursor_20 = 0LL;
         while (loop_cursor_20 < loop_count_20) {
             int64_t loop_index_20 = loop_cursor_20;
-            ExecutableAttachment attachment = ((ExecutableAttachment *)loop_view_20.data)[loop_index_20];
+            ExecutableAttachment attachment = ((ExecutableAttachment *)(loop_view_20).data)[loop_index_20];
             ExecutableAttachment value_2 = attachment;
             uint32_t value_3 = previous;
             bool value_4 = false;

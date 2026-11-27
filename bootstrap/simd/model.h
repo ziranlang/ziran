@@ -5,6 +5,38 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_VectorType
+#define ZIRAN_TYPE_FORWARD_VectorType
+typedef struct VectorType VectorType;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Parameter
+#define ZIRAN_TYPE_FORWARD_Parameter
+typedef struct Parameter Parameter;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Branch
+#define ZIRAN_TYPE_FORWARD_Branch
+typedef struct Branch Branch;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_9321dcf64a5a2195
+#define ZIRAN_CONCRETE_FORWARD___type_9321dcf64a5a2195
+typedef struct __type_9321dcf64a5a2195 __type_9321dcf64a5a2195;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_e265f79c93ee1c4a
+#define ZIRAN_CONCRETE_FORWARD___type_e265f79c93ee1c4a
+typedef struct __type_e265f79c93ee1c4a __type_e265f79c93ee1c4a;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Helper
+#define ZIRAN_TYPE_FORWARD_Helper
+typedef struct Helper Helper;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_a304a0dc8230c4a1
+#define ZIRAN_CONCRETE_FORWARD___type_a304a0dc8230c4a1
+typedef struct __type_a304a0dc8230c4a1 __type_a304a0dc8230c4a1;
+#endif
 #include "text_tools.h"
 #include "number_text.h"
 #include "vec.h"
@@ -20,26 +52,6 @@ extern "C" {
 #define A64 "ZI_NEON && ZI_A64"
 #define Wasm "ZI_WASM"
 #define SplitABI "ZI_VEC && ZI_X86 && ZI_TIER < 4"
-typedef struct VectorType VectorType;
-typedef struct Parameter Parameter;
-typedef struct Branch Branch;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_9321dcf64a5a2195
-#define ZIRAN_CONCRETE_FORWARD___type_9321dcf64a5a2195
-typedef struct __type_9321dcf64a5a2195 __type_9321dcf64a5a2195;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_e265f79c93ee1c4a
-#define ZIRAN_CONCRETE_FORWARD___type_e265f79c93ee1c4a
-typedef struct __type_e265f79c93ee1c4a __type_e265f79c93ee1c4a;
-#endif
-typedef struct Helper Helper;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_a304a0dc8230c4a1
-#define ZIRAN_CONCRETE_FORWARD___type_a304a0dc8230c4a1
-typedef struct __type_a304a0dc8230c4a1 __type_a304a0dc8230c4a1;
-#endif
 
 struct VectorType {
     int32_t lane;
@@ -239,7 +251,7 @@ static inline bool
 model_WideParameters_ziran_inline(Slice parameters)
 {
     for (int64_t it_index = 0LL; it_index < (int64_t)(parameters).length; it_index++) {
-        Parameter parameter = ((Parameter *)parameters.data)[it_index];
+        Parameter parameter = ((Parameter *)(parameters).data)[it_index];
         if (model_WideParameter(parameter)) {
             return true;
         }

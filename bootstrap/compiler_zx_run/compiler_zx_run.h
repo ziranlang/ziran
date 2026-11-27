@@ -4,6 +4,82 @@
 
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParameterCount
+#define ZIRAN_TYPE_FORWARD_ParameterCount
+typedef struct ParameterCount ParameterCount;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Sha256
+#define ZIRAN_TYPE_FORWARD_Sha256
+typedef struct Sha256 Sha256;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZxConsole
+#define ZIRAN_TYPE_FORWARD_ZxConsole
+typedef struct ZxConsole ZxConsole;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_BundleInstanceOptions
+#define ZIRAN_TYPE_FORWARD_BundleInstanceOptions
+typedef struct BundleInstanceOptions BundleInstanceOptions;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZxModuleImage
+#define ZIRAN_TYPE_FORWARD_ZxModuleImage
+typedef struct ZxModuleImage ZxModuleImage;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZxModuleLoaderConfig
+#define ZIRAN_TYPE_FORWARD_ZxModuleLoaderConfig
+typedef struct ZxModuleLoaderConfig ZxModuleLoaderConfig;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_StaticText
+#define ZIRAN_TYPE_FORWARD_StaticText
+typedef struct StaticText StaticText;
+#endif
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZxRunModuleImage
+#define ZIRAN_TYPE_FORWARD_ZxRunModuleImage
+typedef struct ZxRunModuleImage ZxRunModuleImage;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZxImportRoot
+#define ZIRAN_TYPE_FORWARD_ZxImportRoot
+typedef struct ZxImportRoot ZxImportRoot;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZxModuleBuild
+#define ZIRAN_TYPE_FORWARD_ZxModuleBuild
+typedef struct ZxModuleBuild ZxModuleBuild;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZxLowerOwner
+#define ZIRAN_TYPE_FORWARD_ZxLowerOwner
+typedef struct ZxLowerOwner ZxLowerOwner;
+#endif
+#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ImageMap
+#define ZIRAN_TYPE_FORWARD_ImageMap
+typedef struct ImageMap ImageMap;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_ImageRelease
+#define ZIRAN_CALLABLE_ImageRelease
+typedef void (*ImageRelease)(void*, uint8_t*, size_t);
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_ZxModuleResolve
+#define ZIRAN_CALLABLE_ZxModuleResolve
+typedef int32_t (*ZxModuleResolve)(void*, uint8_t*, ZxModuleImage*);
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_lowered_ir.h"
 #include "compiler_exec.h"
@@ -27,40 +103,6 @@ extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
 #define IMAGE_LIMIT 268435456
-#endif
-#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
-typedef struct ParameterCount ParameterCount;
-#endif
-#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
-typedef struct Sha256 Sha256;
-#endif
-#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
-typedef struct ZxConsole ZxConsole;
-#endif
-#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
-typedef struct BundleInstanceOptions BundleInstanceOptions;
-#endif
-#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
-typedef struct ZxModuleImage ZxModuleImage;
-#endif
-#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
-typedef struct ZxModuleLoaderConfig ZxModuleLoaderConfig;
-#endif
-#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
-typedef struct StaticText StaticText;
-#endif
-typedef struct ZxRunModuleImage ZxRunModuleImage;
-typedef struct ZxImportRoot ZxImportRoot;
-typedef struct ZxModuleBuild ZxModuleBuild;
-typedef struct ZxLowerOwner ZxLowerOwner;
-#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
-typedef struct ImageMap ImageMap;
-#endif
-#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
-typedef void (*ImageRelease)(void*, uint8_t*, size_t);
-#endif
-#ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
-typedef int32_t (*ZxModuleResolve)(void*, uint8_t*, ZxModuleImage*);
 #endif
 #ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE
 

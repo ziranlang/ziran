@@ -58,13 +58,7 @@ uint8_t* zir_foreign_compiler_overlay__S15WindowsFullPath(uint8_t* path) __asm__
 #else
 uint8_t* zir_foreign_compiler_overlay__S15WindowsFullPath(uint8_t* path) __asm__("S15WindowsFullPath");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int32_t compiler_overlay_within(uint8_t* path, uint8_t* root) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_overlay_canonical_path(uint8_t* path) ZIRAN_MAYBE_UNUSED;
 

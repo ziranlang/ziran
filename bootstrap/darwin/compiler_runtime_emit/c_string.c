@@ -16,11 +16,11 @@ CopyCString(String value, Slice output)
         if (byte == 0) {
             return false;
         }
-        uint8_t* value_0 = &(((uint8_t *)output.data)[index]);
+        uint8_t* value_0 = &(((uint8_t *)(output).data)[index]);
         (*value_0) = byte;
         index = (int32_t)((uint32_t)index + 1u);
     }
-    uint8_t* value_1 = &(((uint8_t *)output.data)[length]);
+    uint8_t* value_1 = &(((uint8_t *)(output).data)[length]);
     (*value_1) = 0;
     return true;
 }

@@ -130,9 +130,9 @@ int32_t zir_foreign_compiler_check_statement__ResolveFunctionAt(ZirModule* modul
 int32_t zir_foreign_compiler_check_statement__ResolveFunctionAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirFunction** function) __asm__("ResolveFunctionAt");
 #endif
 #ifdef __APPLE__
-int32_t zir_foreign_compiler_check_statement__ResolveQualifiedHostImportAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirImport** declaration) __asm__("_ResolveQualifiedHostImportAt");
+int32_t zir_foreign_compiler_check_statement__ResolveForeignImportAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirImport** declaration) __asm__("_ResolveForeignImportAt");
 #else
-int32_t zir_foreign_compiler_check_statement__ResolveQualifiedHostImportAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirImport** declaration) __asm__("ResolveQualifiedHostImportAt");
+int32_t zir_foreign_compiler_check_statement__ResolveForeignImportAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirImport** declaration) __asm__("ResolveForeignImportAt");
 #endif
 #ifdef __APPLE__
 uint8_t* zir_foreign_compiler_check_statement__ScalarType(uint8_t* type) __asm__("_ScalarType");
@@ -354,13 +354,7 @@ int32_t zir_foreign_compiler_check_statement__widens_losslessly(uint8_t* to, uin
 #else
 int32_t zir_foreign_compiler_check_statement__widens_losslessly(uint8_t* to, uint8_t* from) __asm__("private_check_widens_losslessly");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int32_t compiler_check_statement_record_declaration_error(ZirType* record, uint8_t* message, uint8_t* field) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_statement_declared_application_valid_with_buffers(ZirModule* module, uint8_t* text, int32_t depth, DeclaredApplicationValidBuffers* buffers) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_statement_declared_application_valid(ZirModule* module, uint8_t* text, int32_t depth) ZIRAN_MAYBE_UNUSED;
@@ -4352,7 +4346,7 @@ compiler_check_statement_call_must_use(Checker* c, ZirExpr* call)
     ZirImport* qualified_host = (void *)0;
     ZirModule* value_7 = c->module;
     uint8_t* value_8 = (uint8_t*)call->name;
-    bool value_9 = zir_foreign_compiler_check_statement__ResolveQualifiedHostImportAt(value_7, value_8, zir_foreign_compiler_check_statement__SpanPath(call->span), &(owner), &(qualified_host)) == 1;
+    bool value_9 = zir_foreign_compiler_check_statement__ResolveForeignImportAt(value_7, value_8, zir_foreign_compiler_check_statement__SpanPath(call->span), &(owner), &(qualified_host)) == 1;
     int32_t value_10 = 0;
     if (value_9 && qualified_host->must_use != 0) {
         value_10 = 1;

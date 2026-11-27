@@ -228,7 +228,7 @@ C
         which=$((which + 1))
     done
     sed -n '/^app_Proven(/,/^}/p' "$output/app.c" > "$work/proven.c"
-    grep -q 'view.data)\[i\]' "$work/proven.c"
+    grep -Fq '(view).data)[i]' "$work/proven.c"
     grep -q '(uint8_t)text.data\[i\]' "$work/proven.c"
     if grep -q 'ZIRAN_INDEX\|SliceIndex' "$work/proven.c"; then
         echo 'a proven index kept its bounds check' >&2

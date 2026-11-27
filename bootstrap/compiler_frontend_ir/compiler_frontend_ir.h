@@ -5,6 +5,234 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "zir_slice.h"
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CompilerScope
+#define ZIRAN_TYPE_FORWARD_CompilerScope
+typedef struct CompilerScope CompilerScope;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_DefineOnce
+#define ZIRAN_TYPE_FORWARD_DefineOnce
+typedef struct DefineOnce DefineOnce;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray64_DefineOnce
+#define ZIRAN_TYPE_FORWARD_CoreArray64_DefineOnce
+typedef struct CoreArray64_DefineOnce CoreArray64_DefineOnce;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_DefineOnces
+#define ZIRAN_TYPE_FORWARD_DefineOnces
+typedef struct DefineOnces DefineOnces;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_DefineVisit
+#define ZIRAN_TYPE_FORWARD_DefineVisit
+typedef struct DefineVisit DefineVisit;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray96_DefineVisit
+#define ZIRAN_TYPE_FORWARD_CoreArray96_DefineVisit
+typedef struct CoreArray96_DefineVisit CoreArray96_DefineVisit;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_DefineVisits
+#define ZIRAN_TYPE_FORWARD_DefineVisits
+typedef struct DefineVisits DefineVisits;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_EnumSnapshots
+#define ZIRAN_TYPE_FORWARD_EnumSnapshots
+typedef struct EnumSnapshots EnumSnapshots;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_EnumValues
+#define ZIRAN_TYPE_FORWARD_EnumValues
+typedef struct EnumValues EnumValues;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_FieldSnapshots
+#define ZIRAN_TYPE_FORWARD_FieldSnapshots
+typedef struct FieldSnapshots FieldSnapshots;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_GeneratedOutputs
+#define ZIRAN_TYPE_FORWARD_GeneratedOutputs
+typedef struct GeneratedOutputs GeneratedOutputs;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ModuleFrame
+#define ZIRAN_TYPE_FORWARD_ModuleFrame
+typedef struct ModuleFrame ModuleFrame;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray64__IR_ZirModule
+#define ZIRAN_TYPE_FORWARD_CoreArray64__IR_ZirModule
+typedef struct CoreArray64__IR_ZirModule CoreArray64__IR_ZirModule;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ModuleVisits
+#define ZIRAN_TYPE_FORWARD_ModuleVisits
+typedef struct ModuleVisits ModuleVisits;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_RecordFields
+#define ZIRAN_TYPE_FORWARD_RecordFields
+typedef struct RecordFields RecordFields;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray8192_u8
+#define ZIRAN_TYPE_FORWARD_CoreArray8192_u8
+typedef struct CoreArray8192_u8 CoreArray8192_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_SameFileBytesBuffers
+#define ZIRAN_TYPE_FORWARD_SameFileBytesBuffers
+typedef struct SameFileBytesBuffers SameFileBytesBuffers;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_SymbolLookup
+#define ZIRAN_TYPE_FORWARD_SymbolLookup
+typedef struct SymbolLookup SymbolLookup;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_SymbolLookups
+#define ZIRAN_TYPE_FORWARD_SymbolLookups
+typedef struct SymbolLookups SymbolLookups;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_SymbolVisit
+#define ZIRAN_TYPE_FORWARD_SymbolVisit
+typedef struct SymbolVisit SymbolVisit;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray64_SymbolVisit
+#define ZIRAN_TYPE_FORWARD_CoreArray64_SymbolVisit
+typedef struct CoreArray64_SymbolVisit CoreArray64_SymbolVisit;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_SymbolVisits
+#define ZIRAN_TYPE_FORWARD_SymbolVisits
+typedef struct SymbolVisits SymbolVisits;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray32__IR_ZirModule
+#define ZIRAN_TYPE_FORWARD_CoreArray32__IR_ZirModule
+typedef struct CoreArray32__IR_ZirModule CoreArray32__IR_ZirModule;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_TypeSearch
+#define ZIRAN_TYPE_FORWARD_TypeSearch
+typedef struct TypeSearch TypeSearch;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_frontend_ir_ZirVector
+#define ZIRAN_TYPE_FORWARD_compiler_frontend_ir_ZirVector
+typedef struct compiler_frontend_ir_ZirVector compiler_frontend_ir_ZirVector;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray128_u8
+#define ZIRAN_TYPE_FORWARD_CoreArray128_u8
+typedef struct CoreArray128_u8 CoreArray128_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray16_ModuleFrame
+#define ZIRAN_TYPE_FORWARD_CoreArray16_ModuleFrame
+typedef struct CoreArray16_ModuleFrame CoreArray16_ModuleFrame;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray1024_u8
+#define ZIRAN_TYPE_FORWARD_CoreArray1024_u8
+typedef struct CoreArray1024_u8 CoreArray1024_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray4096_u8
+#define ZIRAN_TYPE_FORWARD_CoreArray4096_u8
+typedef struct CoreArray4096_u8 CoreArray4096_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray3__u8
+#define ZIRAN_TYPE_FORWARD_CoreArray3__u8
+typedef struct CoreArray3__u8 CoreArray3__u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray2_u32
+#define ZIRAN_TYPE_FORWARD_CoreArray2_u32
+typedef struct CoreArray2_u32 CoreArray2_u32;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray16_u8
+#define ZIRAN_TYPE_FORWARD_CoreArray16_u8
+typedef struct CoreArray16_u8 CoreArray16_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray256_u8
+#define ZIRAN_TYPE_FORWARD_CoreArray256_u8
+typedef struct CoreArray256_u8 CoreArray256_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray16_CoreArray128_u8
+#define ZIRAN_TYPE_FORWARD_CoreArray16_CoreArray128_u8
+typedef struct CoreArray16_CoreArray128_u8 CoreArray16_CoreArray128_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray512_u8
+#define ZIRAN_TYPE_FORWARD_CoreArray512_u8
+typedef struct CoreArray512_u8 CoreArray512_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreSliceStorage
+#define ZIRAN_TYPE_FORWARD_CoreSliceStorage
+typedef struct CoreSliceStorage CoreSliceStorage;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ForeignVisit
+#define ZIRAN_TYPE_FORWARD_ForeignVisit
+typedef struct ForeignVisit ForeignVisit;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_CoreCallback0
+#define ZIRAN_CALLABLE_CoreCallback0
+typedef void (*CoreCallback0)(void*);
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_parse_types.h"
 #include "compiler_check_types.h"
@@ -14,117 +242,6 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CompilerScope CompilerScope;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct DefineOnce DefineOnce;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CoreArray64_DefineOnce CoreArray64_DefineOnce;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct DefineOnces DefineOnces;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct DefineVisit DefineVisit;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CoreArray96_DefineVisit CoreArray96_DefineVisit;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct DefineVisits DefineVisits;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct EnumSnapshots EnumSnapshots;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct EnumValues EnumValues;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct FieldSnapshots FieldSnapshots;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct GeneratedOutputs GeneratedOutputs;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct ModuleFrame ModuleFrame;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CoreArray64__IR_ZirModule CoreArray64__IR_ZirModule;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct ModuleVisits ModuleVisits;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct RecordFields RecordFields;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CoreArray8192_u8 CoreArray8192_u8;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct SameFileBytesBuffers SameFileBytesBuffers;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct SymbolLookup SymbolLookup;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct SymbolLookups SymbolLookups;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct SymbolVisit SymbolVisit;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CoreArray64_SymbolVisit CoreArray64_SymbolVisit;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct SymbolVisits SymbolVisits;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CoreArray32__IR_ZirModule CoreArray32__IR_ZirModule;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct TypeSearch TypeSearch;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct compiler_frontend_ir_ZirVector compiler_frontend_ir_ZirVector;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CoreArray128_u8 CoreArray128_u8;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CoreArray16_ModuleFrame CoreArray16_ModuleFrame;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CoreArray1024_u8 CoreArray1024_u8;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CoreArray4096_u8 CoreArray4096_u8;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CoreArray3__u8 CoreArray3__u8;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CoreArray2_u32 CoreArray2_u32;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CoreArray16_u8 CoreArray16_u8;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CoreArray256_u8 CoreArray256_u8;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CoreArray16_CoreArray128_u8 CoreArray16_CoreArray128_u8;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CoreArray512_u8 CoreArray512_u8;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef struct CoreSliceStorage CoreSliceStorage;
-#endif
-#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
-typedef void (*CoreCallback0)(void*);
 #endif
 #ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
 
@@ -417,6 +534,14 @@ struct CoreSliceStorage {
     int64_t count;
 };
 #endif
+#ifdef ZIRAN_COMPILER_FRONTEND_IR_H_PRIVATE
+
+struct ForeignVisit {
+    ZirModule* module;
+    uint8_t* name;
+    struct ForeignVisit* next;
+};
+#endif
 ZirType* BuiltinType(uint8_t* name);
 int32_t MapTypeParts(ZirModule* module, uint8_t* name, uint8_t* key, size_t key_size, uint8_t* value, size_t value_size);
 int32_t MapKeyComparable(ZirModule* module, uint8_t* type, int32_t depth);
@@ -426,7 +551,7 @@ int32_t StandardScopedName(uint8_t* leaf, uint8_t* out, size_t size);
 int32_t StandardModuleName(uint8_t* name, uint8_t* leaf);
 int32_t OwnedTextType(ZirModule* module, uint8_t* name);
 int32_t ResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** function);
-int32_t ResolveQualifiedHostImportAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirImport** declaration);
+int32_t ResolveForeignImportAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirImport** declaration);
 int32_t ResolveGlobalAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirGlobal** global);
 int32_t ResolveGlobal(ZirModule* module, uint8_t* name, ZirModule** owner, ZirGlobal** global);
 void SymbolLookupsChanged(void);

@@ -6040,9 +6040,9 @@ ExpressionFor :: (program: *AssemblyProgram, function: *AssemblyFunction,
 
 ResolveFunctionAt :: (module: *IR.ZirModule, name: *u8, path: *u8, owner: **IR.ZirModule,
                       callee: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunctionAt";
-ResolveQualifiedHostImportAt :: (module: *IR.ZirModule, name: *u8, path: *u8,
+ResolveForeignImportAt :: (module: *IR.ZirModule, name: *u8, path: *u8,
                                  owner: **IR.ZirModule,
-                                 declaration: **IR.ZirImport) -> s32 #foreign compiler "ResolveQualifiedHostImportAt";
+                                 declaration: **IR.ZirImport) -> s32 #foreign compiler "ResolveForeignImportAt";
 
 ExpressionValue :: (program: *AssemblyProgram, function: *AssemblyFunction,
                     root: s32, depth: s32) -> s32 {
@@ -7387,12 +7387,13 @@ Function :: (program: *AssemblyProgram, module: *IR.ZirModule,
 }
 
 // A `#foreign host_api` declaration is a checked module import, not a
-// function. Its signature-only function record is created once per import.
+// function. Its signature-only record is shared by checked projections of
+// the same authored declaration, whose capability owner remains canonical.
 HostFunction :: (program: *AssemblyProgram, module: *IR.ZirModule, asked: *u8,
                  span: IR.ZirSourceSpan) -> s32 {
     import: *IR.ZirImport = null
     owner: *IR.ZirModule = null
-    if ResolveQualifiedHostImportAt(module, asked, SVC.SpanPath(span), *owner, *import) < 0 {
+    if ResolveForeignImportAt(module, asked, SVC.SpanPath(span), *owner, *import) < 0 {
         return Fail(program, span, "ambiguous imported host capability")
     }
     if owner == null { owner = module }
@@ -7406,10 +7407,19 @@ HostFunction :: (program: *AssemblyProgram, module: *IR.ZirModule, asked: *u8,
         }
         index += 1
     }
-    if import == null { return -1 }
+    if import == null || import.extern_kind != .HOST { return -1 }
+    capability_module := ifx import.declaration_module[0] != 0 then *import.declaration_module[0] else *owner.name[0]
     index = 0
     while index < program.functions.count {
-        if program.functions.data[index].import == import { return index }
+        previous := program.functions.data[index]
+        previous_import := previous.import
+        if previous_import == import { return index }
+        if previous_import != null && previous_import.span.line == import.span.line &&
+           previous_import.span.column == import.span.column &&
+           IR.CText(SVC.SpanPath(previous_import.span)) == IR.CText(SVC.SpanPath(import.span)) {
+            previous_module := ifx previous_import.declaration_module[0] != 0 then *previous_import.declaration_module[0] else *previous.module.name[0]
+            if IR.CText(previous_module) == IR.CText(capability_module) { return index }
+        }
         index += 1
     }
     if memcmp(cast(*void)*import.target[0], cast(*void)SVC.Keep("ziran:"), 6) == 0 {
@@ -7472,6 +7482,7 @@ HostFunction :: (program: *AssemblyProgram, module: *IR.ZirModule, asked: *u8,
     identity := Function(program, owner, signature)
     if identity >= 0 {
         program.functions.data[identity].import = import
+        program.functions.data[identity].result.module = Name(program, *program.modules, capability_module)
     }
     return identity
 }

@@ -25,7 +25,7 @@ entries_Entries(void)
         int64_t loop_cursor_3 = 0LL;
         while (loop_cursor_3 < loop_count_3) {
             int64_t loop_index_3 = loop_cursor_3;
-            String op = ((String *)loop_view_3.data)[loop_index_3];
+            String op = ((String *)(loop_view_3).data)[loop_index_3];
             int64_t it_index = loop_index_3;
             {
                 Slice value_4 = {(types).data, (types).count};
@@ -34,7 +34,7 @@ entries_Entries(void)
                 int64_t loop_cursor_4 = 0LL;
                 while (loop_cursor_4 < loop_count_4) {
                     int64_t loop_index_4 = loop_cursor_4;
-                    VectorType t = ((VectorType *)loop_view_4.data)[loop_index_4];
+                    VectorType t = ((VectorType *)(loop_view_4).data)[loop_index_4];
                     int64_t it_index = loop_index_4;
                     if (StringEqual(op, StringLiteral("narrow"))) {
                         if (t.is_float || t.bits == 8) {

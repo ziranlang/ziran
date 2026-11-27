@@ -5,6 +5,10 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
+#endif
 #include "model.h"
 #include "common.h"
 #include "emit.h"
@@ -18,10 +22,6 @@
 extern "C" {
 #endif
 #define VecDetection "/* Native vectors need __builtin_shufflevector: Clang, or GCC 12 and later. */\n#if !defined(ZIRAN_SIMD_SCALAR) && \\\n    (defined(__clang__) || (defined(__GNUC__) && __GNUC__ >= 12)) && \\\n    defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__\n#define ZI_VEC 1\n#else\n#define ZI_VEC 0\n#endif\n"
-#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
-#endif
 #ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
 #define ZIRAN_CONCRETE___type_131eebaaeb761e42
 

@@ -4,11 +4,6 @@
 
 #include <stdbool.h>
 #include "zir_string.h"
-#include "vec.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 #ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
 #define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
 typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
@@ -24,6 +19,11 @@ typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #ifndef ZIRAN_CONCRETE_FORWARD___type_7a2629767503dccc
 #define ZIRAN_CONCRETE_FORWARD___type_7a2629767503dccc
 typedef struct __type_7a2629767503dccc __type_7a2629767503dccc;
+#endif
+#include "vec.h"
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 #ifndef ZIRAN_CONCRETE___type_9f828aa1372cb21a
 #define ZIRAN_CONCRETE___type_9f828aa1372cb21a

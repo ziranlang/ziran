@@ -5,6 +5,74 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_LirTypeKind
+#define ZIRAN_TYPE_FORWARD_LirTypeKind
+typedef int32_t LirTypeKind;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LirType
+#define ZIRAN_TYPE_FORWARD_LirType
+typedef struct LirType LirType;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LirCalling
+#define ZIRAN_TYPE_FORWARD_LirCalling
+typedef int32_t LirCalling;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LirOp
+#define ZIRAN_TYPE_FORWARD_LirOp
+typedef uint8_t LirOp;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LirEdge
+#define ZIRAN_TYPE_FORWARD_LirEdge
+typedef struct LirEdge LirEdge;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LirInstruction
+#define ZIRAN_TYPE_FORWARD_LirInstruction
+typedef struct LirInstruction LirInstruction;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LirBlock
+#define ZIRAN_TYPE_FORWARD_LirBlock
+typedef struct LirBlock LirBlock;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LirAssemblyOperand
+#define ZIRAN_TYPE_FORWARD_LirAssemblyOperand
+typedef struct LirAssemblyOperand LirAssemblyOperand;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LirAssemblyVariant
+#define ZIRAN_TYPE_FORWARD_LirAssemblyVariant
+typedef struct LirAssemblyVariant LirAssemblyVariant;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LirFunction
+#define ZIRAN_TYPE_FORWARD_LirFunction
+typedef struct LirFunction LirFunction;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LirConstant
+#define ZIRAN_TYPE_FORWARD_LirConstant
+typedef struct LirConstant LirConstant;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LirGlobal
+#define ZIRAN_TYPE_FORWARD_LirGlobal
+typedef struct LirGlobal LirGlobal;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LirOrigin
+#define ZIRAN_TYPE_FORWARD_LirOrigin
+typedef struct LirOrigin LirOrigin;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LirProgram
+#define ZIRAN_TYPE_FORWARD_LirProgram
+typedef struct LirProgram LirProgram;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LirProblem
+#define ZIRAN_TYPE_FORWARD_LirProblem
+typedef int32_t LirProblem;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LirDiagnostic
+#define ZIRAN_TYPE_FORWARD_LirDiagnostic
+typedef struct LirDiagnostic LirDiagnostic;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LirLimits
+#define ZIRAN_TYPE_FORWARD_LirLimits
+typedef struct LirLimits LirLimits;
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,23 +82,6 @@ extern "C" {
 #define LirAssemblyVariantLimit 30
 #define LirAssemblyOperandLimit 30
 #define LirAssemblyTextLimit 4096
-typedef int32_t LirTypeKind;
-typedef struct LirType LirType;
-typedef int32_t LirCalling;
-typedef uint8_t LirOp;
-typedef struct LirEdge LirEdge;
-typedef struct LirInstruction LirInstruction;
-typedef struct LirBlock LirBlock;
-typedef struct LirAssemblyOperand LirAssemblyOperand;
-typedef struct LirAssemblyVariant LirAssemblyVariant;
-typedef struct LirFunction LirFunction;
-typedef struct LirConstant LirConstant;
-typedef struct LirGlobal LirGlobal;
-typedef struct LirOrigin LirOrigin;
-typedef struct LirProgram LirProgram;
-typedef int32_t LirProblem;
-typedef struct LirDiagnostic LirDiagnostic;
-typedef struct LirLimits LirLimits;
 
 enum {
     LirTypeKind_Invalid = 0,
@@ -281,8 +332,8 @@ static inline bool
 compiler_lowered_ir_LirAssemblyGateAddressed_ziran_inline(Slice variants, int64_t operand)
 {
     for (int64_t it_index = 0LL; it_index < (int64_t)(variants).length; it_index++) {
-        LirAssemblyVariant variant = ((LirAssemblyVariant *)variants.data)[it_index];
-        if (operand < (int64_t)(variant.operands).length && compiler_lowered_ir_LirAssemblyUsesMemory((((LirAssemblyOperand *)variant.operands.data)[operand]).constraint)) {
+        LirAssemblyVariant variant = ((LirAssemblyVariant *)(variants).data)[it_index];
+        if (operand < (int64_t)(variant.operands).length && compiler_lowered_ir_LirAssemblyUsesMemory((((LirAssemblyOperand *)(variant.operands).data)[operand]).constraint)) {
             return true;
         }
     }

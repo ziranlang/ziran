@@ -107,13 +107,7 @@ int32_t* zir_foreign_process_run_linux__ErrnoRaw(void) __asm__("___error");
 #else
 int32_t* zir_foreign_process_run_linux__ErrnoRaw(void) __asm__("__error");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int32_t process_run_linux_Pipe2Raw(int32_t* fds, int32_t flags) ZIRAN_MAYBE_UNUSED;
 static int64_t process_run_linux_Put(Prepared* prepared, String text) ZIRAN_MAYBE_UNUSED;
 static bool process_run_linux_Prepare(ProcessOptions options, Prepared* prepared) ZIRAN_MAYBE_UNUSED;
@@ -185,7 +179,7 @@ process_run_linux_Prepare(ProcessOptions options, Prepared* prepared)
     (*value_3) = -1LL;
     bool value_4 = (int64_t)(options.arguments).length == 0LL;
     if (!value_4) {
-        int64_t value_5 = (int64_t)(((String *)options.arguments.data)[0]).length;
+        int64_t value_5 = (int64_t)(((String *)(options.arguments).data)[0]).length;
         value_4 = (value_5 == 0LL);
     }
     if (value_4) {
@@ -198,7 +192,7 @@ process_run_linux_Prepare(ProcessOptions options, Prepared* prepared)
         int64_t loop_cursor_7 = 0LL;
         while (loop_cursor_7 < loop_count_7) {
             int64_t loop_index_7 = loop_cursor_7;
-            String it = ((String *)loop_view_7.data)[loop_index_7];
+            String it = ((String *)(loop_view_7).data)[loop_index_7];
             int64_t at = process_run_linux_Put(prepared, it);
             if (at < 0LL) {
                 return false;
@@ -222,7 +216,7 @@ process_run_linux_Prepare(ProcessOptions options, Prepared* prepared)
         int64_t loop_cursor_14 = 0LL;
         while (loop_cursor_14 < loop_count_14) {
             int64_t loop_index_14 = loop_cursor_14;
-            String it = ((String *)loop_view_14.data)[loop_index_14];
+            String it = ((String *)(loop_view_14).data)[loop_index_14];
             int64_t equals = -1LL;
             int64_t index = 0LL;
             while (index < (int64_t)(it).length && equals < 0LL) {

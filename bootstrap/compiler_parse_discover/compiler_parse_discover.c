@@ -449,13 +449,7 @@ int32_t zir_foreign_compiler_parse_discover__isxdigit(int32_t character) __asm__
 #else
 int32_t zir_foreign_compiler_parse_discover__isxdigit(int32_t character) __asm__("isxdigit");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static size_t compiler_parse_discover_type_text_length(uint8_t* text) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_parse_discover_normalize_jai_source_tokens_with_buffers(uint8_t* line, uint8_t* path, uint8_t* physical_path, int32_t line_no, int32_t in_string, NormalizeJaiSourceTokensBuffers* buffers, int32_t* uses_resizable_arrays) ZIRAN_MAYBE_UNUSED;
 static String compiler_parse_discover_ForeignWordHint(String word) ZIRAN_MAYBE_UNUSED;

@@ -4,6 +4,22 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
+#ifndef ZIRAN_TYPE_FORWARD_StaticText
+#define ZIRAN_TYPE_FORWARD_StaticText
+typedef struct StaticText StaticText;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_EditPart
+#define ZIRAN_TYPE_FORWARD_EditPart
+typedef struct EditPart EditPart;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Edit
+#define ZIRAN_TYPE_FORWARD_Edit
+typedef struct Edit Edit;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_TokenPair
+#define ZIRAN_TYPE_FORWARD_TokenPair
+typedef struct TokenPair TokenPair;
+#endif
 #include "compiler_ir.h"
 #include "compiler_check_types.h"
 
@@ -19,10 +35,6 @@ extern "C" {
 #define TOKEN_DIRECTIVE 6
 #define TOKEN_OPERATOR 7
 #define TOKEN_PUNCT 8
-typedef struct StaticText StaticText;
-typedef struct EditPart EditPart;
-typedef struct Edit Edit;
-typedef struct TokenPair TokenPair;
 
 struct StaticText {
     uint8_t* data;

@@ -4,6 +4,56 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#ifndef ZIRAN_TYPE_FORWARD_ProofOp
+#define ZIRAN_TYPE_FORWARD_ProofOp
+typedef int32_t ProofOp;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ProofType
+#define ZIRAN_TYPE_FORWARD_ProofType
+typedef struct ProofType ProofType;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ProofTerm
+#define ZIRAN_TYPE_FORWARD_ProofTerm
+typedef struct ProofTerm ProofTerm;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ProofFact
+#define ZIRAN_TYPE_FORWARD_ProofFact
+typedef struct ProofFact ProofFact;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ProofKernel
+#define ZIRAN_TYPE_FORWARD_ProofKernel
+typedef struct ProofKernel ProofKernel;
+#endif
+#ifdef ZIRAN_COMPILER_PROOF_KERNEL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Monomial
+#define ZIRAN_TYPE_FORWARD_Monomial
+typedef struct Monomial Monomial;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PROOF_KERNEL_H_PRIVATE
+#ifndef ZIRAN_CONCRETE_FORWARD___type_f9bbd1fa46d0a544
+#define ZIRAN_CONCRETE_FORWARD___type_f9bbd1fa46d0a544
+typedef struct __type_f9bbd1fa46d0a544 __type_f9bbd1fa46d0a544;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PROOF_KERNEL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Polynomial
+#define ZIRAN_TYPE_FORWARD_Polynomial
+typedef struct Polynomial Polynomial;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PROOF_KERNEL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Order
+#define ZIRAN_TYPE_FORWARD_Order
+typedef struct Order Order;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PROOF_KERNEL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_OrderResult
+#define ZIRAN_TYPE_FORWARD_OrderResult
+typedef struct OrderResult OrderResult;
+#endif
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,29 +65,6 @@ extern "C" {
 #define ProofTypes 32
 #ifdef ZIRAN_COMPILER_PROOF_KERNEL_H_PRIVATE
 #define OrderTerms 64
-#endif
-typedef int32_t ProofOp;
-typedef struct ProofType ProofType;
-typedef struct ProofTerm ProofTerm;
-typedef struct ProofFact ProofFact;
-typedef struct ProofKernel ProofKernel;
-#ifdef ZIRAN_COMPILER_PROOF_KERNEL_H_PRIVATE
-typedef struct Monomial Monomial;
-#endif
-#ifdef ZIRAN_COMPILER_PROOF_KERNEL_H_PRIVATE
-#ifndef ZIRAN_CONCRETE_FORWARD___type_f9bbd1fa46d0a544
-#define ZIRAN_CONCRETE_FORWARD___type_f9bbd1fa46d0a544
-typedef struct __type_f9bbd1fa46d0a544 __type_f9bbd1fa46d0a544;
-#endif
-#endif
-#ifdef ZIRAN_COMPILER_PROOF_KERNEL_H_PRIVATE
-typedef struct Polynomial Polynomial;
-#endif
-#ifdef ZIRAN_COMPILER_PROOF_KERNEL_H_PRIVATE
-typedef struct Order Order;
-#endif
-#ifdef ZIRAN_COMPILER_PROOF_KERNEL_H_PRIVATE
-typedef struct OrderResult OrderResult;
 #endif
 
 enum {

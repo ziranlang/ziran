@@ -5,6 +5,42 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifdef ZIRAN_COMPILER_LINK_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Kind
+#define ZIRAN_TYPE_FORWARD_Kind
+typedef int32_t Kind;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LINK_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Entry
+#define ZIRAN_TYPE_FORWARD_Entry
+typedef struct Entry Entry;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LINK_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Rename
+#define ZIRAN_TYPE_FORWARD_Rename
+typedef struct Rename Rename;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LINK_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Edit
+#define ZIRAN_TYPE_FORWARD_Edit
+typedef struct Edit Edit;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LINK_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Kept
+#define ZIRAN_TYPE_FORWARD_Kept
+typedef int32_t Kept;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LINK_H_PRIVATE
+#ifndef ZIRAN_CONCRETE_FORWARD___type_a41e6f41ab808f06
+#define ZIRAN_CONCRETE_FORWARD___type_a41e6f41ab808f06
+typedef struct __type_a41e6f41ab808f06 __type_a41e6f41ab808f06;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_scan.h"
 #include "compiler_services.h"
@@ -18,23 +54,6 @@ extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_LINK_H_PRIVATE
 #define OpenSignature "internal-open"
-#endif
-typedef int32_t Kind;
-#ifdef ZIRAN_COMPILER_LINK_H_PRIVATE
-typedef struct Entry Entry;
-#endif
-#ifdef ZIRAN_COMPILER_LINK_H_PRIVATE
-typedef struct Rename Rename;
-#endif
-#ifdef ZIRAN_COMPILER_LINK_H_PRIVATE
-typedef struct Edit Edit;
-#endif
-typedef int32_t Kept;
-#ifdef ZIRAN_COMPILER_LINK_H_PRIVATE
-#ifndef ZIRAN_CONCRETE_FORWARD___type_a41e6f41ab808f06
-#define ZIRAN_CONCRETE_FORWARD___type_a41e6f41ab808f06
-typedef struct __type_a41e6f41ab808f06 __type_a41e6f41ab808f06;
-#endif
 #endif
 #ifdef ZIRAN_COMPILER_LINK_H_PRIVATE
 

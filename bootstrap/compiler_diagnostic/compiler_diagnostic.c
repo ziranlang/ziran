@@ -155,13 +155,7 @@ void zir_foreign_compiler_diagnostic__S15PlatformDiagnosticLog(int32_t warning, 
 #else
 void zir_foreign_compiler_diagnostic__S15PlatformDiagnosticLog(int32_t warning, uint8_t* path, int32_t line, int32_t column, uint8_t* message, uint8_t* code) __asm__("S15PlatformDiagnosticLog");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int32_t compiler_diagnostic_collector_room(size_t need) ZIRAN_MAYBE_UNUSED;
 static size_t compiler_diagnostic_utf8_length(uint8_t* at) ZIRAN_MAYBE_UNUSED;
 static void compiler_diagnostic_put(JsonBuffer* out, uint8_t* text) ZIRAN_MAYBE_UNUSED;

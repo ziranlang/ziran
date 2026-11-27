@@ -80,13 +80,7 @@ int32_t zir_foreign_compiler_c_range_fill__CTypeNextFieldShared(ZirType* record,
 #else
 int32_t zir_foreign_compiler_c_range_fill__CTypeNextFieldShared(ZirType* record, size_t* offset, ZirTypeField** field) __asm__("TypeNextFieldShared");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static ZirType* compiler_c_range_fill_FillRecord(Fill* w, uint8_t* type) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_c_range_fill_FillSlots(Fill* w, uint8_t* spelled, int32_t depth) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_range_fill_FillMentions(Fill* w, int32_t root) ZIRAN_MAYBE_UNUSED;

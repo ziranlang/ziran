@@ -3,6 +3,12 @@
 #define ZIRAN_COMPILER_DIAGNOSTIC_H
 
 #include <stdint.h>
+#ifdef ZIRAN_COMPILER_DIAGNOSTIC_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_SourceLine
+#define ZIRAN_TYPE_FORWARD_SourceLine
+typedef struct SourceLine SourceLine;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_context_types.h"
 #include "compiler_parse_types.h"
@@ -12,9 +18,6 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-#ifdef ZIRAN_COMPILER_DIAGNOSTIC_H_PRIVATE
-typedef struct SourceLine SourceLine;
 #endif
 #ifdef ZIRAN_COMPILER_DIAGNOSTIC_H_PRIVATE
 

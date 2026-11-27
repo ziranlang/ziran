@@ -6,6 +6,10 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "zir_slice.h"
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
+#endif
 #include "compiler_ir.h"
 #include "compiler_check_types.h"
 #include "compiler_services.h"
@@ -13,10 +17,6 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
 #ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
 #define ZIRAN_CONCRETE___type_131eebaaeb761e42

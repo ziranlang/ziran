@@ -5,30 +5,54 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_BodyMemoSlot
+#define ZIRAN_TYPE_FORWARD_BodyMemoSlot
+typedef struct BodyMemoSlot BodyMemoSlot;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BodyMemo
+#define ZIRAN_TYPE_FORWARD_BodyMemo
+typedef struct BodyMemo BodyMemo;
+#endif
+#ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_BodySupport
+#define ZIRAN_TYPE_FORWARD_BodySupport
+typedef struct BodySupport BodySupport;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Parameter
+#define ZIRAN_TYPE_FORWARD_Parameter
+typedef struct Parameter Parameter;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Parameters
+#define ZIRAN_TYPE_FORWARD_Parameters
+typedef struct Parameters Parameters;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_portable_body_StaticText
+#define ZIRAN_TYPE_FORWARD_compiler_portable_body_StaticText
+typedef struct compiler_portable_body_StaticText compiler_portable_body_StaticText;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_TypePath
+#define ZIRAN_TYPE_FORWARD_TypePath
+typedef struct TypePath TypePath;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_DestroyScratch
+#define ZIRAN_CALLABLE_DestroyScratch
+typedef void (*DestroyScratch)(void*);
+#endif
+#endif
 #include "compiler_ir.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-typedef struct BodyMemoSlot BodyMemoSlot;
-typedef struct BodyMemo BodyMemo;
-#ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
-typedef struct BodySupport BodySupport;
-#endif
-#ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
-typedef struct Parameter Parameter;
-#endif
-#ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
-typedef struct Parameters Parameters;
-#endif
-#ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
-typedef struct compiler_portable_body_StaticText compiler_portable_body_StaticText;
-#endif
-#ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
-typedef struct TypePath TypePath;
-#endif
-#ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
-typedef void (*DestroyScratch)(void*);
 #endif
 
 struct BodyMemoSlot {

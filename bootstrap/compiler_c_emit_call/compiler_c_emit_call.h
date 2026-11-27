@@ -4,6 +4,50 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#ifdef ZIRAN_COMPILER_C_EMIT_CALL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_PrintPiece
+#define ZIRAN_TYPE_FORWARD_PrintPiece
+typedef struct PrintPiece PrintPiece;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_CALL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_c_emit_call_StaticText
+#define ZIRAN_TYPE_FORWARD_compiler_c_emit_call_StaticText
+typedef struct compiler_c_emit_call_StaticText compiler_c_emit_call_StaticText;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_CALL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_GlobalLiteralEmit
+#define ZIRAN_TYPE_FORWARD_GlobalLiteralEmit
+typedef struct GlobalLiteralEmit GlobalLiteralEmit;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_CALL_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_PrintRun
+#define ZIRAN_TYPE_FORWARD_PrintRun
+typedef struct PrintRun PrintRun;
+#endif
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirModule
+#define ZIRAN_TYPE_FORWARD_ZirModule
+typedef struct ZirModule ZirModule;
+#endif
+#ifndef ZIRAN_CALLABLE_ZirGlobalScalarRewrite
+#define ZIRAN_CALLABLE_ZirGlobalScalarRewrite
+typedef int32_t (*ZirGlobalScalarRewrite)(ZirModule*, uint8_t*, uint8_t*, size_t, void*);
+#endif
+#ifndef ZIRAN_CALLABLE_ZirGlobalTypeRewrite
+#define ZIRAN_CALLABLE_ZirGlobalTypeRewrite
+typedef int32_t (*ZirGlobalTypeRewrite)(ZirModule*, uint8_t*, uint8_t*, size_t, void*);
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirType
+#define ZIRAN_TYPE_FORWARD_ZirType
+typedef struct ZirType ZirType;
+#endif
+#ifndef ZIRAN_CALLABLE_ZirGlobalFieldRewrite
+#define ZIRAN_CALLABLE_ZirGlobalFieldRewrite
+typedef void (*ZirGlobalFieldRewrite)(ZirType*, uint8_t*, uint8_t*, size_t, void*);
+#endif
 #include "compiler_ir.h"
 #include "compiler_native_names.h"
 #include "compiler_c_emit.h"
@@ -15,21 +59,6 @@ extern "C" {
 #ifdef ZIRAN_COMPILER_C_EMIT_CALL_H_PRIVATE
 #define PRINT_PIECES_MAX 64
 #endif
-#ifdef ZIRAN_COMPILER_C_EMIT_CALL_H_PRIVATE
-typedef struct PrintPiece PrintPiece;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_CALL_H_PRIVATE
-typedef struct compiler_c_emit_call_StaticText compiler_c_emit_call_StaticText;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_CALL_H_PRIVATE
-typedef struct GlobalLiteralEmit GlobalLiteralEmit;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_CALL_H_PRIVATE
-typedef struct PrintRun PrintRun;
-#endif
-typedef int32_t (*ZirGlobalScalarRewrite)(ZirModule*, uint8_t*, uint8_t*, size_t, void*);
-typedef int32_t (*ZirGlobalTypeRewrite)(ZirModule*, uint8_t*, uint8_t*, size_t, void*);
-typedef void (*ZirGlobalFieldRewrite)(ZirType*, uint8_t*, uint8_t*, size_t, void*);
 #ifdef ZIRAN_COMPILER_C_EMIT_CALL_H_PRIVATE
 
 struct PrintPiece {

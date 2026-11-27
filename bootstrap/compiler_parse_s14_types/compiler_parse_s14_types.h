@@ -5,6 +5,210 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include <stdlib.h>
+#ifndef ZIRAN_TYPE_FORWARD_ActionKindBuffers
+#define ZIRAN_TYPE_FORWARD_ActionKindBuffers
+typedef struct ActionKindBuffers ActionKindBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_AddDefaultHelpersBuffers
+#define ZIRAN_TYPE_FORWARD_AddDefaultHelpersBuffers
+typedef struct AddDefaultHelpersBuffers AddDefaultHelpersBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BindJaiLoopControlsBuffers
+#define ZIRAN_TYPE_FORWARD_BindJaiLoopControlsBuffers
+typedef struct BindJaiLoopControlsBuffers BindJaiLoopControlsBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BodyNormalizer
+#define ZIRAN_TYPE_FORWARD_BodyNormalizer
+typedef struct BodyNormalizer BodyNormalizer;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Cleanup
+#define ZIRAN_TYPE_FORWARD_Cleanup
+typedef struct Cleanup Cleanup;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CompileCompoundIndexBuffers
+#define ZIRAN_TYPE_FORWARD_CompileCompoundIndexBuffers
+typedef struct CompileCompoundIndexBuffers CompileCompoundIndexBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CompileCompoundMemberBuffers
+#define ZIRAN_TYPE_FORWARD_CompileCompoundMemberBuffers
+typedef struct CompileCompoundMemberBuffers CompileCompoundMemberBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CompileReference
+#define ZIRAN_TYPE_FORWARD_CompileReference
+typedef struct CompileReference CompileReference;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CompileStore
+#define ZIRAN_TYPE_FORWARD_CompileStore
+typedef struct CompileStore CompileStore;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CompileText
+#define ZIRAN_TYPE_FORWARD_CompileText
+typedef struct CompileText CompileText;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ElementEdit
+#define ZIRAN_TYPE_FORWARD_ElementEdit
+typedef struct ElementEdit ElementEdit;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_EvaluateTypedExpressionBuffers
+#define ZIRAN_TYPE_FORWARD_EvaluateTypedExpressionBuffers
+typedef struct EvaluateTypedExpressionBuffers EvaluateTypedExpressionBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_EvaluateTypedFunctionBuffers
+#define ZIRAN_TYPE_FORWARD_EvaluateTypedFunctionBuffers
+typedef struct EvaluateTypedFunctionBuffers EvaluateTypedFunctionBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray16_CompileValue
+#define ZIRAN_TYPE_FORWARD_ParserArray16_CompileValue
+typedef struct ParserArray16_CompileValue ParserArray16_CompileValue;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_EvaluateTypedNodeBuffers
+#define ZIRAN_TYPE_FORWARD_EvaluateTypedNodeBuffers
+typedef struct EvaluateTypedNodeBuffers EvaluateTypedNodeBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ExpressionCache
+#define ZIRAN_TYPE_FORWARD_ExpressionCache
+typedef struct ExpressionCache ExpressionCache;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_KeptValue
+#define ZIRAN_TYPE_FORWARD_KeptValue
+typedef struct KeptValue KeptValue;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_KeptCall
+#define ZIRAN_TYPE_FORWARD_KeptCall
+typedef struct KeptCall KeptCall;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_KeptCalls
+#define ZIRAN_TYPE_FORWARD_KeptCalls
+typedef struct KeptCalls KeptCalls;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LoopScope
+#define ZIRAN_TYPE_FORWARD_LoopScope
+typedef struct LoopScope LoopScope;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LowerCleanupBuffers
+#define ZIRAN_TYPE_FORWARD_LowerCleanupBuffers
+typedef struct LowerCleanupBuffers LowerCleanupBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LowerNamedWhileBuffers
+#define ZIRAN_TYPE_FORWARD_LowerNamedWhileBuffers
+typedef struct LowerNamedWhileBuffers LowerNamedWhileBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LowerOneCollectionBuffers
+#define ZIRAN_TYPE_FORWARD_LowerOneCollectionBuffers
+typedef struct LowerOneCollectionBuffers LowerOneCollectionBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LowerOneRangeBuffers
+#define ZIRAN_TYPE_FORWARD_LowerOneRangeBuffers
+typedef struct LowerOneRangeBuffers LowerOneRangeBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LowerTemplateRecordDefaultBuffers
+#define ZIRAN_TYPE_FORWARD_LowerTemplateRecordDefaultBuffers
+typedef struct LowerTemplateRecordDefaultBuffers LowerTemplateRecordDefaultBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParseCacheEntry
+#define ZIRAN_TYPE_FORWARD_ParseCacheEntry
+typedef struct ParseCacheEntry ParseCacheEntry;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserSlice
+#define ZIRAN_TYPE_FORWARD_ParserSlice
+typedef struct ParserSlice ParserSlice;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_StoreStep
+#define ZIRAN_TYPE_FORWARD_StoreStep
+typedef struct StoreStep StoreStep;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_TypedBody
+#define ZIRAN_TYPE_FORWARD_TypedBody
+typedef struct TypedBody TypedBody;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_TypedBodyConditionBuffers
+#define ZIRAN_TYPE_FORWARD_TypedBodyConditionBuffers
+typedef struct TypedBodyConditionBuffers TypedBodyConditionBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_TypedBodyStatementsBuffers
+#define ZIRAN_TYPE_FORWARD_TypedBodyStatementsBuffers
+typedef struct TypedBodyStatementsBuffers TypedBodyStatementsBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_TypedParameter
+#define ZIRAN_TYPE_FORWARD_TypedParameter
+typedef struct TypedParameter TypedParameter;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray16_TypedParameter
+#define ZIRAN_TYPE_FORWARD_ParserArray16_TypedParameter
+typedef struct ParserArray16_TypedParameter ParserArray16_TypedParameter;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_TypedSignature
+#define ZIRAN_TYPE_FORWARD_TypedSignature
+typedef struct TypedSignature TypedSignature;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_TypedSignatures
+#define ZIRAN_TYPE_FORWARD_TypedSignatures
+typedef struct TypedSignatures TypedSignatures;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirBoundCondition
+#define ZIRAN_TYPE_FORWARD_ZirBoundCondition
+typedef struct ZirBoundCondition ZirBoundCondition;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirBoundRead
+#define ZIRAN_TYPE_FORWARD_ZirBoundRead
+typedef struct ZirBoundRead ZirBoundRead;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray64_Declaration_StatementOutput
+#define ZIRAN_TYPE_FORWARD_ParserArray64_Declaration_StatementOutput
+typedef struct ParserArray64_Declaration_StatementOutput ParserArray64_Declaration_StatementOutput;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray17__ZirConst
+#define ZIRAN_TYPE_FORWARD_ParserArray17__ZirConst
+typedef struct ParserArray17__ZirConst ParserArray17__ZirConst;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray17_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray17_u8
+typedef struct ParserArray17_u8 ParserArray17_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray24_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray24_u8
+typedef struct ParserArray24_u8 ParserArray24_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray32_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray32_u8
+typedef struct ParserArray32_u8 ParserArray32_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray6__u8
+#define ZIRAN_TYPE_FORWARD_ParserArray6__u8
+typedef struct ParserArray6__u8 ParserArray6__u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray4__u8
+#define ZIRAN_TYPE_FORWARD_ParserArray4__u8
+typedef struct ParserArray4__u8 ParserArray4__u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray2_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray2_u8
+typedef struct ParserArray2_u8 ParserArray2_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray16_StoreStep
+#define ZIRAN_TYPE_FORWARD_ParserArray16_StoreStep
+typedef struct ParserArray16_StoreStep ParserArray16_StoreStep;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray16_s32
+#define ZIRAN_TYPE_FORWARD_ParserArray16_s32
+typedef struct ParserArray16_s32 ParserArray16_s32;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray16__u8
+#define ZIRAN_TYPE_FORWARD_ParserArray16__u8
+typedef struct ParserArray16__u8 ParserArray16__u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_EvaluationState
+#define ZIRAN_TYPE_FORWARD_EvaluationState
+typedef struct EvaluationState EvaluationState;
+#endif
+#ifndef ZIRAN_CALLABLE_ParserCallback0
+#define ZIRAN_CALLABLE_ParserCallback0
+typedef void (*ParserCallback0)(void*);
+#endif
+#ifndef ZIRAN_CALLABLE_ParserCallback1
+#define ZIRAN_CALLABLE_ParserCallback1
+typedef int32_t (*ParserCallback1)(void*, int64_t, uint8_t*, size_t);
+#endif
 #include "compiler_ir.h"
 #include "compiler_parse_types.h"
 #include "compiler_statement.h"
@@ -14,57 +218,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct ActionKindBuffers ActionKindBuffers;
-typedef struct AddDefaultHelpersBuffers AddDefaultHelpersBuffers;
-typedef struct BindJaiLoopControlsBuffers BindJaiLoopControlsBuffers;
-typedef struct BodyNormalizer BodyNormalizer;
-typedef struct Cleanup Cleanup;
-typedef struct CompileCompoundIndexBuffers CompileCompoundIndexBuffers;
-typedef struct CompileCompoundMemberBuffers CompileCompoundMemberBuffers;
-typedef struct CompileReference CompileReference;
-typedef struct CompileStore CompileStore;
-typedef struct CompileText CompileText;
-typedef struct ElementEdit ElementEdit;
-typedef struct EvaluateTypedExpressionBuffers EvaluateTypedExpressionBuffers;
-typedef struct EvaluateTypedFunctionBuffers EvaluateTypedFunctionBuffers;
-typedef struct ParserArray16_CompileValue ParserArray16_CompileValue;
-typedef struct EvaluateTypedNodeBuffers EvaluateTypedNodeBuffers;
-typedef struct ExpressionCache ExpressionCache;
-typedef struct KeptValue KeptValue;
-typedef struct KeptCall KeptCall;
-typedef struct KeptCalls KeptCalls;
-typedef struct LoopScope LoopScope;
-typedef struct LowerCleanupBuffers LowerCleanupBuffers;
-typedef struct LowerNamedWhileBuffers LowerNamedWhileBuffers;
-typedef struct LowerOneCollectionBuffers LowerOneCollectionBuffers;
-typedef struct LowerOneRangeBuffers LowerOneRangeBuffers;
-typedef struct LowerTemplateRecordDefaultBuffers LowerTemplateRecordDefaultBuffers;
-typedef struct ParseCacheEntry ParseCacheEntry;
-typedef struct ParserSlice ParserSlice;
-typedef struct StoreStep StoreStep;
-typedef struct TypedBody TypedBody;
-typedef struct TypedBodyConditionBuffers TypedBodyConditionBuffers;
-typedef struct TypedBodyStatementsBuffers TypedBodyStatementsBuffers;
-typedef struct TypedParameter TypedParameter;
-typedef struct ParserArray16_TypedParameter ParserArray16_TypedParameter;
-typedef struct TypedSignature TypedSignature;
-typedef struct TypedSignatures TypedSignatures;
-typedef struct ZirBoundCondition ZirBoundCondition;
-typedef struct ZirBoundRead ZirBoundRead;
-typedef struct ParserArray64_Declaration_StatementOutput ParserArray64_Declaration_StatementOutput;
-typedef struct ParserArray17__ZirConst ParserArray17__ZirConst;
-typedef struct ParserArray17_u8 ParserArray17_u8;
-typedef struct ParserArray24_u8 ParserArray24_u8;
-typedef struct ParserArray32_u8 ParserArray32_u8;
-typedef struct ParserArray6__u8 ParserArray6__u8;
-typedef struct ParserArray4__u8 ParserArray4__u8;
-typedef struct ParserArray2_u8 ParserArray2_u8;
-typedef struct ParserArray16_StoreStep ParserArray16_StoreStep;
-typedef struct ParserArray16_s32 ParserArray16_s32;
-typedef struct ParserArray16__u8 ParserArray16__u8;
-typedef struct EvaluationState EvaluationState;
-typedef void (*ParserCallback0)(void*);
-typedef int32_t (*ParserCallback1)(void*, int64_t, uint8_t*, size_t);
 
 struct ActionKindBuffers {
     ZirToken token;

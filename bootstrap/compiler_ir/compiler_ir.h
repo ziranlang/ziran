@@ -5,6 +5,138 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_ZirImportKind
+#define ZIRAN_TYPE_FORWARD_ZirImportKind
+typedef int32_t ZirImportKind;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirExternKind
+#define ZIRAN_TYPE_FORWARD_ZirExternKind
+typedef int32_t ZirExternKind;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirStmtKind
+#define ZIRAN_TYPE_FORWARD_ZirStmtKind
+typedef int32_t ZirStmtKind;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirExprKind
+#define ZIRAN_TYPE_FORWARD_ZirExprKind
+typedef int32_t ZirExprKind;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirTargetFacts
+#define ZIRAN_TYPE_FORWARD_ZirTargetFacts
+typedef struct ZirTargetFacts ZirTargetFacts;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirSourceSpan
+#define ZIRAN_TYPE_FORWARD_ZirSourceSpan
+typedef struct ZirSourceSpan ZirSourceSpan;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirToken
+#define ZIRAN_TYPE_FORWARD_ZirToken
+typedef struct ZirToken ZirToken;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirLexer
+#define ZIRAN_TYPE_FORWARD_ZirLexer
+typedef struct ZirLexer ZirLexer;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirImport
+#define ZIRAN_TYPE_FORWARD_ZirImport
+typedef struct ZirImport ZirImport;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirStmtNames
+#define ZIRAN_TYPE_FORWARD_ZirStmtNames
+typedef union ZirStmtNames ZirStmtNames;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirStmt
+#define ZIRAN_TYPE_FORWARD_ZirStmt
+typedef struct ZirStmt ZirStmt;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirExpr
+#define ZIRAN_TYPE_FORWARD_ZirExpr
+typedef struct ZirExpr ZirExpr;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirFunction
+#define ZIRAN_TYPE_FORWARD_ZirFunction
+typedef struct ZirFunction ZirFunction;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirExprWalk
+#define ZIRAN_TYPE_FORWARD_ZirExprWalk
+typedef struct ZirExprWalk ZirExprWalk;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirGlobal
+#define ZIRAN_TYPE_FORWARD_ZirGlobal
+typedef struct ZirGlobal ZirGlobal;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirDefine
+#define ZIRAN_TYPE_FORWARD_ZirDefine
+typedef struct ZirDefine ZirDefine;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirModuleParameter
+#define ZIRAN_TYPE_FORWARD_ZirModuleParameter
+typedef struct ZirModuleParameter ZirModuleParameter;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirAssert
+#define ZIRAN_TYPE_FORWARD_ZirAssert
+typedef struct ZirAssert ZirAssert;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirUsing
+#define ZIRAN_TYPE_FORWARD_ZirUsing
+typedef struct ZirUsing ZirUsing;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirLawEvidence
+#define ZIRAN_TYPE_FORWARD_ZirLawEvidence
+typedef struct ZirLawEvidence ZirLawEvidence;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirProofStepKind
+#define ZIRAN_TYPE_FORWARD_ZirProofStepKind
+typedef int32_t ZirProofStepKind;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirProofStep
+#define ZIRAN_TYPE_FORWARD_ZirProofStep
+typedef struct ZirProofStep ZirProofStep;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirProof
+#define ZIRAN_TYPE_FORWARD_ZirProof
+typedef struct ZirProof ZirProof;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirLaw
+#define ZIRAN_TYPE_FORWARD_ZirLaw
+typedef struct ZirLaw ZirLaw;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirLawWaiver
+#define ZIRAN_TYPE_FORWARD_ZirLawWaiver
+typedef struct ZirLawWaiver ZirLawWaiver;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirType
+#define ZIRAN_TYPE_FORWARD_ZirType
+typedef struct ZirType ZirType;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirTypeField
+#define ZIRAN_TYPE_FORWARD_ZirTypeField
+typedef struct ZirTypeField ZirTypeField;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirModule
+#define ZIRAN_TYPE_FORWARD_ZirModule
+typedef struct ZirModule ZirModule;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirProgram
+#define ZIRAN_TYPE_FORWARD_ZirProgram
+typedef struct ZirProgram ZirProgram;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ProgramSet
+#define ZIRAN_TYPE_FORWARD_ProgramSet
+typedef struct ProgramSet ProgramSet;
+#endif
+#ifdef ZIRAN_COMPILER_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_TextDescriptor
+#define ZIRAN_TYPE_FORWARD_TextDescriptor
+typedef struct TextDescriptor TextDescriptor;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_IR_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ByteDescriptor
+#define ZIRAN_TYPE_FORWARD_ByteDescriptor
+typedef struct ByteDescriptor ByteDescriptor;
+#endif
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -12,42 +144,6 @@ extern "C" {
 #define ZIR_PATH_MAX 1024
 #define ZIR_NAME_MAX 128
 #define ZIR_TEXT_MAX 4096
-typedef int32_t ZirImportKind;
-typedef int32_t ZirExternKind;
-typedef int32_t ZirStmtKind;
-typedef int32_t ZirExprKind;
-typedef struct ZirTargetFacts ZirTargetFacts;
-typedef struct ZirSourceSpan ZirSourceSpan;
-typedef struct ZirToken ZirToken;
-typedef struct ZirLexer ZirLexer;
-typedef struct ZirImport ZirImport;
-typedef union ZirStmtNames ZirStmtNames;
-typedef struct ZirStmt ZirStmt;
-typedef struct ZirExpr ZirExpr;
-typedef struct ZirFunction ZirFunction;
-typedef struct ZirExprWalk ZirExprWalk;
-typedef struct ZirGlobal ZirGlobal;
-typedef struct ZirDefine ZirDefine;
-typedef struct ZirModuleParameter ZirModuleParameter;
-typedef struct ZirAssert ZirAssert;
-typedef struct ZirUsing ZirUsing;
-typedef struct ZirLawEvidence ZirLawEvidence;
-typedef int32_t ZirProofStepKind;
-typedef struct ZirProofStep ZirProofStep;
-typedef struct ZirProof ZirProof;
-typedef struct ZirLaw ZirLaw;
-typedef struct ZirLawWaiver ZirLawWaiver;
-typedef struct ZirType ZirType;
-typedef struct ZirTypeField ZirTypeField;
-typedef struct ZirModule ZirModule;
-typedef struct ZirProgram ZirProgram;
-typedef struct ProgramSet ProgramSet;
-#ifdef ZIRAN_COMPILER_IR_H_PRIVATE
-typedef struct TextDescriptor TextDescriptor;
-#endif
-#ifdef ZIRAN_COMPILER_IR_H_PRIVATE
-typedef struct ByteDescriptor ByteDescriptor;
-#endif
 
 enum {
     ZIR_IMPORT_OPEN = 1,
@@ -149,6 +245,7 @@ struct ZirImport {
     char name[128];
     char target[1024];
     char extern_symbol[128];
+    char declaration_module[128];
     char signature[4096];
     char args[4096];
     char return_type[128];
@@ -525,7 +622,7 @@ compiler_ir_CopyText_ziran_inline(Slice output, String text)
         int64_t range_last_8 = (int64_t)((uint64_t)length - UINT64_C(1));
         int64_t i = range_first_8;
         if (i <= range_last_8) for (;;) {
-            uint8_t* value_0 = &(((uint8_t *)output.data)[i]);
+            uint8_t* value_0 = &(((uint8_t *)(output).data)[i]);
             (*value_0) = (uint8_t)text.data[i];
             if ((uint8_t)text.data[i] == 0) {
                 clean = false;
@@ -536,7 +633,7 @@ compiler_ir_CopyText_ziran_inline(Slice output, String text)
             i = (int64_t)((uint64_t)i + UINT64_C(1));
         }
     }
-    uint8_t* value_1 = &(((uint8_t *)output.data)[length]);
+    uint8_t* value_1 = &(((uint8_t *)(output).data)[length]);
     (*value_1) = 0;
     return clean;
 }

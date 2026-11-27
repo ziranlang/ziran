@@ -240,13 +240,7 @@ int32_t zir_foreign_compiler_check_link__template_type_at_use(ZirModule* module,
 #else
 int32_t zir_foreign_compiler_check_link__template_type_at_use(ZirModule* module, ZirModule* owner, ZirFunction* fn, uint8_t* callee, uint8_t* type, size_t size) __asm__("private_check_template_type_at_use");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int32_t compiler_check_link_rewrite_type_applications_with_buffers(ZirModule* module, uint8_t* source, uint8_t* output, size_t capacity, ZirSourceSpan span, int32_t recursion, RewriteTypeApplicationsBuffers* buffers) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_link_rewrite_function_type_applications_with_buffers(ZirModule* module, ZirFunction* fn, RewriteFunctionTypeApplicationsBuffers* buffers) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_link_rewrite_function_type_applications(ZirModule* module, ZirFunction* fn) ZIRAN_MAYBE_UNUSED;

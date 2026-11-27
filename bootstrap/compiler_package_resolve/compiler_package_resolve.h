@@ -5,6 +5,30 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#ifndef ZIRAN_TYPE_FORWARD_PackageRoot
+#define ZIRAN_TYPE_FORWARD_PackageRoot
+typedef struct PackageRoot PackageRoot;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PackageModule
+#define ZIRAN_TYPE_FORWARD_PackageModule
+typedef struct PackageModule PackageModule;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PackageDependency
+#define ZIRAN_TYPE_FORWARD_PackageDependency
+typedef struct PackageDependency PackageDependency;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PackageAmbiguous
+#define ZIRAN_TYPE_FORWARD_PackageAmbiguous
+typedef struct PackageAmbiguous PackageAmbiguous;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PackageRename
+#define ZIRAN_TYPE_FORWARD_PackageRename
+typedef struct PackageRename PackageRename;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirPackageMap
+#define ZIRAN_TYPE_FORWARD_ZirPackageMap
+typedef struct ZirPackageMap ZirPackageMap;
+#endif
 #include "compiler_ir.h"
 #include "compiler_files.h"
 #include "compiler_source_store.h"
@@ -13,12 +37,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct PackageRoot PackageRoot;
-typedef struct PackageModule PackageModule;
-typedef struct PackageDependency PackageDependency;
-typedef struct PackageAmbiguous PackageAmbiguous;
-typedef struct PackageRename PackageRename;
-typedef struct ZirPackageMap ZirPackageMap;
 
 struct PackageRoot {
     uint8_t* id;
@@ -67,6 +85,7 @@ void PackageMapFree(ZirPackageMap* map);
 ZirPackageMap* compiler_package_resolve_PackageMapLoad(uint8_t* path);
 uint8_t* compiler_package_resolve_PackageOwner(ZirPackageMap* map, uint8_t* path);
 uint8_t* compiler_package_resolve_PackageModuleName(ZirPackageMap* map, uint8_t* path);
+bool compiler_package_resolve_RemapSavedName(ZirPackageMap* map, uint8_t* owner, uint8_t* spelling, size_t size);
 bool compiler_package_resolve_PackageRemapSaved(ZirPackageMap* map, uint8_t* path, ZirModule* module);
 int32_t compiler_package_resolve_PackageResolve(ZirPackageMap* map, uint8_t* owner, uint8_t* visible, uint8_t* path, size_t path_size, uint8_t* identity, size_t identity_size);
 int32_t compiler_package_resolve_PackageResolveSaved(ZirPackageMap* map, uint8_t* owner, uint8_t* identity, uint8_t* path, size_t path_size);

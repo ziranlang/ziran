@@ -40,13 +40,7 @@ static inline uint64_t ZiShrU64(uint64_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static void compiler_inline_asm___global_init_0_0(void) ZIRAN_MAYBE_UNUSED;
 static void compiler_inline_asm___global_init_1_0(void) ZIRAN_MAYBE_UNUSED;
 static void compiler_inline_asm___global_init_2_0(void) ZIRAN_MAYBE_UNUSED;

@@ -6,6 +6,134 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_Storage
+#define ZIRAN_TYPE_FORWARD_Storage
+typedef struct Storage Storage;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray12_Storage
+#define ZIRAN_TYPE_FORWARD_ParserArray12_Storage
+typedef struct ParserArray12_Storage ParserArray12_Storage;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CompilerContext
+#define ZIRAN_TYPE_FORWARD_CompilerContext
+typedef struct CompilerContext CompilerContext;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CompilerKeptText
+#define ZIRAN_TYPE_FORWARD_CompilerKeptText
+typedef struct CompilerKeptText CompilerKeptText;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray16__void
+#define ZIRAN_TYPE_FORWARD_ParserArray16__void
+typedef struct ParserArray16__void ParserArray16__void;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CompilerScratch
+#define ZIRAN_TYPE_FORWARD_CompilerScratch
+typedef struct CompilerScratch CompilerScratch;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CompilerScratchCache
+#define ZIRAN_TYPE_FORWARD_CompilerScratchCache
+typedef struct CompilerScratchCache CompilerScratchCache;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray12__void
+#define ZIRAN_TYPE_FORWARD_ParserArray12__void
+typedef struct ParserArray12__void ParserArray12__void;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray128_CompilerKeptText
+#define ZIRAN_TYPE_FORWARD_ParserArray128_CompilerKeptText
+typedef struct ParserArray128_CompilerKeptText ParserArray128_CompilerKeptText;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CompilerThread
+#define ZIRAN_TYPE_FORWARD_CompilerThread
+typedef struct CompilerThread CompilerThread;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_JsonBuffer
+#define ZIRAN_TYPE_FORWARD_JsonBuffer
+typedef struct JsonBuffer JsonBuffer;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_DiagnosticVBuffers
+#define ZIRAN_TYPE_FORWARD_DiagnosticVBuffers
+typedef struct DiagnosticVBuffers DiagnosticVBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_DocumentStore
+#define ZIRAN_TYPE_FORWARD_DocumentStore
+typedef struct DocumentStore DocumentStore;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_KeptBlock
+#define ZIRAN_TYPE_FORWARD_KeptBlock
+typedef struct KeptBlock KeptBlock;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_KeptTexts
+#define ZIRAN_TYPE_FORWARD_KeptTexts
+typedef struct KeptTexts KeptTexts;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParameterLists
+#define ZIRAN_TYPE_FORWARD_ParameterLists
+typedef struct ParameterLists ParameterLists;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PrintFormatPiecesBuffers
+#define ZIRAN_TYPE_FORWARD_PrintFormatPiecesBuffers
+typedef struct PrintFormatPiecesBuffers PrintFormatPiecesBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S15OverlayState
+#define ZIRAN_TYPE_FORWARD_S15OverlayState
+typedef struct S15OverlayState S15OverlayState;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S15RawTexts
+#define ZIRAN_TYPE_FORWARD_S15RawTexts
+typedef struct S15RawTexts S15RawTexts;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray256__CompilerScratch
+#define ZIRAN_TYPE_FORWARD_ParserArray256__CompilerScratch
+typedef struct ParserArray256__CompilerScratch ParserArray256__CompilerScratch;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ScratchPools
+#define ZIRAN_TYPE_FORWARD_ScratchPools
+typedef struct ScratchPools ScratchPools;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray8_u32
+#define ZIRAN_TYPE_FORWARD_ParserArray8_u32
+typedef struct ParserArray8_u32 ParserArray8_u32;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Sha256
+#define ZIRAN_TYPE_FORWARD_Sha256
+typedef struct Sha256 Sha256;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_SourceFiles
+#define ZIRAN_TYPE_FORWARD_SourceFiles
+typedef struct SourceFiles SourceFiles;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray5__u8
+#define ZIRAN_TYPE_FORWARD_ParserArray5__u8
+typedef struct ParserArray5__u8 ParserArray5__u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray100_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray100_u8
+typedef struct ParserArray100_u8 ParserArray100_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray1_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray1_u8
+typedef struct ParserArray1_u8 ParserArray1_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray256_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray256_u8
+typedef struct ParserArray256_u8 ParserArray256_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray40_u8
+#define ZIRAN_TYPE_FORWARD_ParserArray40_u8
+typedef struct ParserArray40_u8 ParserArray40_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParserArray64_u32
+#define ZIRAN_TYPE_FORWARD_ParserArray64_u32
+typedef struct ParserArray64_u32 ParserArray64_u32;
+#endif
+#ifndef ZIRAN_CALLABLE_S15Callback0
+#define ZIRAN_CALLABLE_S15Callback0
+typedef void (*S15Callback0)(void*);
+#endif
+#ifndef ZIRAN_CALLABLE_S15Callback1
+#define ZIRAN_CALLABLE_S15Callback1
+typedef void (*S15Callback1)(uint32_t*, uint8_t*, size_t);
+#endif
 #include "compiler_ir.h"
 #include "compiler_parse_types.h"
 #include "compiler_check_types.h"
@@ -15,38 +143,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct Storage Storage;
-typedef struct ParserArray12_Storage ParserArray12_Storage;
-typedef struct CompilerContext CompilerContext;
-typedef struct CompilerKeptText CompilerKeptText;
-typedef struct ParserArray16__void ParserArray16__void;
-typedef struct CompilerScratch CompilerScratch;
-typedef struct CompilerScratchCache CompilerScratchCache;
-typedef struct ParserArray12__void ParserArray12__void;
-typedef struct ParserArray128_CompilerKeptText ParserArray128_CompilerKeptText;
-typedef struct CompilerThread CompilerThread;
-typedef struct JsonBuffer JsonBuffer;
-typedef struct DiagnosticVBuffers DiagnosticVBuffers;
-typedef struct DocumentStore DocumentStore;
-typedef struct KeptBlock KeptBlock;
-typedef struct KeptTexts KeptTexts;
-typedef struct ParameterLists ParameterLists;
-typedef struct PrintFormatPiecesBuffers PrintFormatPiecesBuffers;
-typedef struct S15OverlayState S15OverlayState;
-typedef struct S15RawTexts S15RawTexts;
-typedef struct ParserArray256__CompilerScratch ParserArray256__CompilerScratch;
-typedef struct ScratchPools ScratchPools;
-typedef struct ParserArray8_u32 ParserArray8_u32;
-typedef struct Sha256 Sha256;
-typedef struct SourceFiles SourceFiles;
-typedef struct ParserArray5__u8 ParserArray5__u8;
-typedef struct ParserArray100_u8 ParserArray100_u8;
-typedef struct ParserArray1_u8 ParserArray1_u8;
-typedef struct ParserArray256_u8 ParserArray256_u8;
-typedef struct ParserArray40_u8 ParserArray40_u8;
-typedef struct ParserArray64_u32 ParserArray64_u32;
-typedef void (*S15Callback0)(void*);
-typedef void (*S15Callback1)(uint32_t*, uint8_t*, size_t);
 
 struct Storage {
     void* value;

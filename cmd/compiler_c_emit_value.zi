@@ -1230,7 +1230,7 @@ PostfixBase :: (text: *u8, out: *u8, size: usize) {
 #program_export "zir_emit_slice_index"
 SliceIndex :: (e: *Emitter, type: *u8, base: *u8, index: *u8, checked: s32, out: *u8, size: usize) {
     if e.target == .ZIR_GO {
-        CheckFormat(snprintf(out, size, CStr("%s[%s]"), base, index), size)
+        CheckFormat(snprintf(out, size, CStr("(%s)[%s]"), base, index), size)
         return
     }
     element: [IR.ZIR_NAME_MAX]u8
@@ -1251,9 +1251,9 @@ SliceIndex :: (e: *Emitter, type: *u8, base: *u8, index: *u8, checked: s32, out:
     }
     mapped[used] = 0
     if checked != 0 {
-        CheckFormat(snprintf(out, size, CStr("((%s *)%s.data)[SliceIndex(%s, (int64_t)%s)]"), *mapped[0], base, base, index), size)
+        CheckFormat(snprintf(out, size, CStr("((%s *)(%s).data)[SliceIndex(%s, (int64_t)%s)]"), *mapped[0], base, base, index), size)
     } else {
-        CheckFormat(snprintf(out, size, CStr("((%s *)%s.data)[%s]"), *mapped[0], base, index), size)
+        CheckFormat(snprintf(out, size, CStr("((%s *)(%s).data)[%s]"), *mapped[0], base, index), size)
     }
 }
 

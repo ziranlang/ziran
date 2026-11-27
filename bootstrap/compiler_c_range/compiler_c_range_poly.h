@@ -4,6 +4,18 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#ifdef ZIRAN_COMPILER_C_RANGE_POLY_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_SidedFact
+#define ZIRAN_TYPE_FORWARD_SidedFact
+typedef struct SidedFact SidedFact;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_RANGE_POLY_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Gathered
+#define ZIRAN_TYPE_FORWARD_Gathered
+typedef struct Gathered Gathered;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_c_range_facts.h"
 #include "compiler_c_range_values.h"
@@ -14,12 +26,6 @@ extern "C" {
 #define INDEX_FACTS 48
 #define GATHERED_FACTS 4 * INDEX_FACTS
 #define SUBSTITUTE_TRIES 64
-#ifdef ZIRAN_COMPILER_C_RANGE_POLY_H_PRIVATE
-typedef struct SidedFact SidedFact;
-#endif
-#ifdef ZIRAN_COMPILER_C_RANGE_POLY_H_PRIVATE
-typedef struct Gathered Gathered;
-#endif
 #ifdef ZIRAN_COMPILER_C_RANGE_POLY_H_PRIVATE
 
 struct SidedFact {

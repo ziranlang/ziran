@@ -5,7 +5,7 @@ Expr :: #import "compiler_parse"
 Check :: #import "compiler_check_types"
 
 #scope_file
-ZIR_FORMAT_VERSION :: 69
+ZIR_FORMAT_VERSION :: 70
 
 compiler :: #system_library "ziran";
 libc :: #system_library "libc";
@@ -352,7 +352,8 @@ describe_import_fields :: (input: *void, output: *Field) -> usize {
     output[18] = serial_field(input, cast(*void)*record.is_using, size_of(type_of(record.is_using)), .Integer)
     output[19] = serial_field(input, cast(*void)*record.required, size_of(type_of(record.required)), .Integer)
     output[20] = serial_field(input, cast(*void)*record.span, size_of(type_of(record.span)), .Span)
-    return 21
+    output[21] = serial_field(input, cast(*void)*record.declaration_module, size_of(type_of(record.declaration_module)), .String)
+    return 22
 }
 
 
@@ -1938,6 +1939,7 @@ validate_program :: (program: *IR.ZirProgram) -> s32 {
             {
                 i: s32 = 0
                 while check_loop_46 := (i < (module).import_count) {
+                    if module.imports[i].declaration_module[0] != 0 && module.imports[i].kind != .EXTERN { return 0 }
                     if ((((((((((((((((cast(s32)((((module).imports)[i]).kind) < cast(s32)(1)) || (cast(s32)((((module).imports)[i]).kind) > cast(s32)(3))) || (((((module).imports)[i]).go_results != 0) && ((((module).imports)[i]).go_results != 1))) || (((((module).imports)[i]).go_field != 0) && ((((module).imports)[i]).go_field != 1))) || (((((module).imports)[i]).go_defer != 0) && ((((module).imports)[i]).go_defer != 1))) || (((((module).imports)[i]).go_variadic != 0) && ((((module).imports)[i]).go_variadic != 1))) || (((((module).imports)[i]).reads_arguments != 0) && (((((module).imports)[i]).reads_arguments != 1) || (cast(s32)((((module).imports)[i]).kind) != cast(s32)(3))))) || (((((module).imports)[i]).go_defer != 0) && (((((cast(s32)((((module).imports)[i]).kind) != cast(s32)(3)) || (cast(s32)((((module).imports)[i]).extern_kind) != cast(s32)(2))) || ((((module).imports)[i]).go_results != 0)) || ((((module).imports)[i]).go_field != 0)) || (strncmp(cast(*u8)(*((((module).imports)[i]).target)), ParserCString("go:"), cast(usize)(3)) != 0)))) || (((((module).imports)[i]).go_field != 0) && ((((cast(s32)((((module).imports)[i]).kind) != cast(s32)(3)) || (cast(s32)((((module).imports)[i]).extern_kind) != cast(s32)(2))) || ((((module).imports)[i]).go_results != 0)) || (strncmp(cast(*u8)(*((((module).imports)[i]).target)), ParserCString("go:"), cast(usize)(3)) != 0)))) || (((((module).imports)[i]).go_variadic != 0) && (((((cast(s32)((((module).imports)[i]).kind) != cast(s32)(3)) || (cast(s32)((((module).imports)[i]).extern_kind) != cast(s32)(2))) || ((((module).imports)[i]).go_field != 0)) || ((((module).imports)[i]).is_varargs != 0)) || (strncmp(cast(*u8)(*((((module).imports)[i]).target)), ParserCString("go:"), cast(usize)(3)) != 0)))) || (((((module).imports)[i]).go_results != 0) && (((cast(s32)((((module).imports)[i]).kind) != cast(s32)(3)) || (cast(s32)((((module).imports)[i]).extern_kind) != cast(s32)(2))) || (strncmp(cast(*u8)(*((((module).imports)[i]).target)), ParserCString("go:"), cast(usize)(3)) != 0)))) || (strncmp(cast(*u8)(*((((module).imports)[i]).signature)), ParserCString("c-header:"), cast(usize)(9)) == 0)) || (((((module).imports)[i]).must_use != 0) && ((((module).imports)[i]).must_use != 1))) || (((((module).imports)[i]).must_use != 0) && ((cast(s32)((((module).imports)[i]).kind) != cast(s32)(3)) || !(strcmp(cast(*u8)(*((((module).imports)[i]).return_type)), ParserCString("void")) != 0)))) || (((((module).imports)[i]).is_file_private != 0) && ((((module).imports)[i]).is_file_private != 1))) || (((((module).imports)[i]).is_file_private != 0) && ((((module).imports)[i]).is_public != 0))) {
                         return 0
                     }

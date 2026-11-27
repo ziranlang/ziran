@@ -4,12 +4,18 @@
 
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_TextDescriptor
+#define ZIRAN_TYPE_FORWARD_TextDescriptor
+typedef struct TextDescriptor TextDescriptor;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ByteDescriptor
+#define ZIRAN_TYPE_FORWARD_ByteDescriptor
+typedef struct ByteDescriptor ByteDescriptor;
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct TextDescriptor TextDescriptor;
-typedef struct ByteDescriptor ByteDescriptor;
 
 struct TextDescriptor {
     uint8_t* data;

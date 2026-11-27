@@ -34,13 +34,7 @@ void* zir_foreign_compiler_parse_types__AllocateOrExit(size_t size) __asm__("_Al
 #else
 void* zir_foreign_compiler_parse_types__AllocateOrExit(size_t size) __asm__("AllocateOrExit");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static void compiler_parse_types_DestroyScratch(void* memory) ZIRAN_MAYBE_UNUSED;
 
 int32_t

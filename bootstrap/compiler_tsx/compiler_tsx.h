@@ -5,22 +5,23 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
-#include "compiler_ir.h"
-#include "compiler_scan.h"
-#include "compiler_services.h"
-#include "vec.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 #ifdef ZIRAN_COMPILER_TSX_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ImportedName
+#define ZIRAN_TYPE_FORWARD_ImportedName
 typedef struct ImportedName ImportedName;
 #endif
-#ifdef ZIRAN_COMPILER_TSX_H_PRIVATE
-typedef struct LocalBinding LocalBinding;
 #endif
 #ifdef ZIRAN_COMPILER_TSX_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_LocalBinding
+#define ZIRAN_TYPE_FORWARD_LocalBinding
+typedef struct LocalBinding LocalBinding;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_TSX_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_LoopStep
+#define ZIRAN_TYPE_FORWARD_LoopStep
 typedef struct LoopStep LoopStep;
+#endif
 #endif
 #ifdef ZIRAN_COMPILER_TSX_H_PRIVATE
 #ifndef ZIRAN_CONCRETE_FORWARD___type_804c5db6ec38ec61
@@ -45,11 +46,22 @@ typedef struct __type_f7d3635871b7267e __type_f7d3635871b7267e;
 #endif
 #endif
 #ifdef ZIRAN_COMPILER_TSX_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Parser
+#define ZIRAN_TYPE_FORWARD_Parser
 typedef struct Parser Parser;
+#endif
 #endif
 #ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
 #define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
 typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
+#endif
+#include "compiler_ir.h"
+#include "compiler_scan.h"
+#include "compiler_services.h"
+#include "vec.h"
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_TSX_H_PRIVATE
 

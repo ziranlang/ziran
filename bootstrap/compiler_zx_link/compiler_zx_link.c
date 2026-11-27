@@ -4,13 +4,7 @@
 #include "zir_string.h"
 #include "zir_vec.h"
 #include "compiler_zx_link.h"
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static void compiler_zx_link___global_init_0_0(void) ZIRAN_MAYBE_UNUSED;
 uint8_t* builtin_calls[18] = {0};
 
@@ -1924,7 +1918,7 @@ compiler_zx_link_SlotReference(ZirModule* module, ZirExpr* expression, Slice slo
         return -1LL;
     }
     for (int64_t index = 0LL; index < (int64_t)(slots).length; index++) {
-        UnwrittenSlot slot = ((UnwrittenSlot *)slots.data)[index];
+        UnwrittenSlot slot = ((UnwrittenSlot *)(slots).data)[index];
         if (slot.owner == owner && slot.global == global) {
             return index;
         }
@@ -1947,7 +1941,7 @@ compiler_zx_link_MarkSlotDestination(ZirModule* module, ZirFunction* function, i
     ZirExpr* expression = value_0;
     int64_t index = compiler_zx_link_SlotReference(module, expression, slots);
     if (index >= 0LL) {
-        bool* value_2 = &((((UnwrittenSlot *)slots.data)[index]).mutable);
+        bool* value_2 = &((((UnwrittenSlot *)(slots).data)[index]).mutable);
         (*value_2) = true;
     }
     compiler_zx_link_MarkSlotDestination(module, function, expression->left, slots, (int32_t)((uint32_t)depth + 1u));
@@ -7802,6 +7796,48 @@ compiler_zx_link_HostProviderMatches(ZirModule* module, ZirImport* imported, Zir
     return matches;
 }
 
+bool
+compiler_zx_link_SameHostDeclaration(ZirModule* left_owner, ZirImport* left, ZirModule* right_owner, ZirImport* right)
+{
+    uint8_t* value_0 = (void *)0;
+    if ((left->declaration_module)[0] != 0) {
+        value_0 = &(left->declaration_module[0]);
+    } else {
+        value_0 = &(left_owner->name[0]);
+    }
+    uint8_t* left_module = value_0;
+    uint8_t* value_1 = (void *)0;
+    if ((right->declaration_module)[0] != 0) {
+        value_1 = &(right->declaration_module[0]);
+    } else {
+        value_1 = &(right_owner->name[0]);
+    }
+    uint8_t* right_module = value_1;
+    bool value_2 = false;
+    {
+        ZirImport* imported = left;
+        value_2 = ((ZirImportKind)(imported->kind)) == ((ZirImportKind)(3)) && ((ZirExternKind)(imported->extern_kind)) == ((ZirExternKind)(1));
+    }
+    bool value_4 = value_2;
+    if (value_4) {
+        bool value_5 = false;
+        {
+            ZirImport* imported = right;
+            value_5 = ((ZirImportKind)(imported->kind)) == ((ZirImportKind)(3)) && ((ZirExternKind)(imported->extern_kind)) == ((ZirExternKind)(1));
+        }
+        value_4 = value_5;
+    }
+    bool value_7 = value_4 && compiler_zx_link_Same(left_module, right_module);
+    bool value_8 = value_7 && left->span.line == right->span.line && left->span.column == right->span.column;
+    bool value_9 = value_8;
+    if (value_9) {
+        uint8_t* value_10 = zir_foreign_compiler_zx_link__SpanPath(left->span);
+        bool value_11 = compiler_zx_link_Same(value_10, zir_foreign_compiler_zx_link__SpanPath(right->span));
+        value_9 = value_11;
+    }
+    return value_9;
+}
+
 int32_t
 BindHostProvider(ZirProgram* program, uint8_t* spec)
 {
@@ -8063,7 +8099,94 @@ BindHostProvider(ZirProgram* program, uint8_t* spec)
     if (!value_78) {
         return 0;
     }
-    compiler_zx_link_BindImport(matched, &(provider_module[0]), &(provider_function[0]));
+    {
+        int32_t range_first_69 = 0;
+        int32_t range_last_69 = (int32_t)((uint32_t)(program->module_count) - 1u);
+        int32_t m = range_first_69;
+        if (m <= range_last_69) for (;;) {
+            ZirProgram* value_79 = program;
+            ZirModule* value_80 = (void *)0;
+            {
+                ZirProgram* program = value_79;
+                int32_t index = m;
+                value_80 = &(program->modules[index]);
+            }
+            ZirModule* module = value_80;
+            {
+                int32_t range_first_71 = 0;
+                int32_t range_last_71 = (int32_t)((uint32_t)(module->import_count) - 1u);
+                int32_t i = range_first_71;
+                if (i <= range_last_71) for (;;) {
+                    ZirModule* value_82 = module;
+                    ZirImport* value_83 = (void *)0;
+                    {
+                        ZirModule* module = value_82;
+                        int32_t index = i;
+                        value_83 = &(module->imports[index]);
+                    }
+                    ZirImport* imported = value_83;
+                    bool value_85 = compiler_zx_link_SameHostDeclaration(module, imported, capability_owner, matched);
+                    bool value_86 = value_85;
+                    if (value_86) {
+                        bool value_87 = compiler_zx_link_HostProviderMatches(module, imported, implementation_owner, implementation);
+                        value_86 = !value_87;
+                    }
+                    if (value_86) {
+                        return 0;
+                    }
+                    if (i == range_last_71) {
+                        break;
+                    }
+                    i = (int32_t)((uint32_t)i + 1u);
+                }
+            }
+            if (m == range_last_69) {
+                break;
+            }
+            m = (int32_t)((uint32_t)m + 1u);
+        }
+    }
+    {
+        int32_t range_first_78 = 0;
+        int32_t range_last_78 = (int32_t)((uint32_t)(program->module_count) - 1u);
+        int32_t m = range_first_78;
+        if (m <= range_last_78) for (;;) {
+            ZirProgram* value_88 = program;
+            ZirModule* value_89 = (void *)0;
+            {
+                ZirProgram* program = value_88;
+                int32_t index = m;
+                value_89 = &(program->modules[index]);
+            }
+            ZirModule* module = value_89;
+            {
+                int32_t range_first_80 = 0;
+                int32_t range_last_80 = (int32_t)((uint32_t)(module->import_count) - 1u);
+                int32_t i = range_first_80;
+                if (i <= range_last_80) for (;;) {
+                    ZirModule* value_91 = module;
+                    ZirImport* value_92 = (void *)0;
+                    {
+                        ZirModule* module = value_91;
+                        int32_t index = i;
+                        value_92 = &(module->imports[index]);
+                    }
+                    ZirImport* imported = value_92;
+                    if (compiler_zx_link_SameHostDeclaration(module, imported, capability_owner, matched)) {
+                        compiler_zx_link_BindImport(imported, &(provider_module[0]), &(provider_function[0]));
+                    }
+                    if (i == range_last_80) {
+                        break;
+                    }
+                    i = (int32_t)((uint32_t)i + 1u);
+                }
+            }
+            if (m == range_last_78) {
+                break;
+            }
+            m = (int32_t)((uint32_t)m + 1u);
+        }
+    }
     return 1;
 }
 
@@ -8239,28 +8362,35 @@ BindHostModule(ZirProgram* program, uint8_t* spec)
                         i = (int32_t)((uint32_t)i + 1u);
                         continue;
                     }
+                    uint8_t* value_28 = (void *)0;
+                    if ((imported->extern_symbol)[0] != 0) {
+                        value_28 = &(imported->extern_symbol[0]);
+                    } else {
+                        value_28 = &(imported->name[0]);
+                    }
+                    uint8_t* symbol = value_28;
                     {
-                        int32_t range_first_27 = 0;
-                        int32_t range_last_27 = (int32_t)((uint32_t)(provider->function_count) - 1u);
-                        int32_t f = range_first_27;
-                        if (f <= range_last_27) for (;;) {
-                            ZirFunction* value_28 = (void *)0;
+                        int32_t range_first_28 = 0;
+                        int32_t range_last_28 = (int32_t)((uint32_t)(provider->function_count) - 1u);
+                        int32_t f = range_first_28;
+                        if (f <= range_last_28) for (;;) {
+                            ZirFunction* value_29 = (void *)0;
                             {
                                 ZirModule* module = provider;
                                 int32_t index = f;
-                                value_28 = &(module->functions[index]);
+                                value_29 = &(module->functions[index]);
                             }
-                            ZirFunction* function = value_28;
-                            bool value_30 = compiler_ir_HostProviderVisible(function);
-                            if (value_30 && compiler_zx_link_Same(&(function->name[0]), &(imported->name[0]))) {
-                                bool value_31 = compiler_zx_link_HostProviderMatches(module, imported, provider, function);
-                                if (!value_31) {
+                            ZirFunction* function = value_29;
+                            bool value_31 = compiler_ir_HostProviderVisible(function);
+                            if (value_31 && compiler_zx_link_Same(&(function->name[0]), symbol)) {
+                                bool value_32 = compiler_zx_link_HostProviderMatches(module, imported, provider, function);
+                                if (!value_32) {
                                     return 0;
                                 }
                                 compiler_zx_link_BindImport(imported, &(provider_module[0]), &(function->name[0]));
                                 break;
                             }
-                            if (f == range_last_27) {
+                            if (f == range_last_28) {
                                 break;
                             }
                             f = (int32_t)((uint32_t)f + 1u);

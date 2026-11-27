@@ -4,6 +4,32 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#ifndef ZIRAN_TYPE_FORWARD_Local
+#define ZIRAN_TYPE_FORWARD_Local
+typedef struct Local Local;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Emitter
+#define ZIRAN_TYPE_FORWARD_Emitter
+typedef struct Emitter Emitter;
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_VALUE_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_c_emit_value_StaticText
+#define ZIRAN_TYPE_FORWARD_compiler_c_emit_value_StaticText
+typedef struct compiler_c_emit_value_StaticText compiler_c_emit_value_StaticText;
+#endif
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirModule
+#define ZIRAN_TYPE_FORWARD_ZirModule
+typedef struct ZirModule ZirModule;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirFunction
+#define ZIRAN_TYPE_FORWARD_ZirFunction
+typedef struct ZirFunction ZirFunction;
+#endif
+#ifndef ZIRAN_CALLABLE_ZirAssemblyBlockEmitter
+#define ZIRAN_CALLABLE_ZirAssemblyBlockEmitter
+typedef int32_t (*ZirAssemblyBlockEmitter)(void*, ZirModule*, ZirFunction*, int32_t, void*);
+#endif
 #include "compiler_ir.h"
 #include "compiler_native_names.h"
 #include "compiler_c_range.h"
@@ -14,12 +40,6 @@
 extern "C" {
 #endif
 #define ZIR_INLINE_MAX 96
-typedef struct Local Local;
-typedef struct Emitter Emitter;
-#ifdef ZIRAN_COMPILER_C_EMIT_VALUE_H_PRIVATE
-typedef struct compiler_c_emit_value_StaticText compiler_c_emit_value_StaticText;
-#endif
-typedef int32_t (*ZirAssemblyBlockEmitter)(void*, ZirModule*, ZirFunction*, int32_t, void*);
 
 struct Local {
     uint8_t name[128];

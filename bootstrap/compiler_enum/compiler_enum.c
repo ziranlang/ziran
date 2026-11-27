@@ -52,13 +52,7 @@ static inline int64_t ZiShrS64(int64_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static void compiler_enum_Space(Cursor* cursor) ZIRAN_MAYBE_UNUSED;
 static bool compiler_enum_IdentifierStart(uint8_t byte) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_enum_Number(Cursor* cursor, bool negative) ZIRAN_MAYBE_UNUSED;
@@ -168,7 +162,7 @@ compiler_enum_Term(Cursor* cursor, Slice entries)
     String value_21 = cursor->source;
     String name = StringRangeAt(value_21, (int64_t)begin, (int64_t)cursor->at);
     for (int64_t it_index = 0LL; it_index < (int64_t)(entries).length; it_index++) {
-        Entry entry = ((Entry *)entries.data)[it_index];
+        Entry entry = ((Entry *)(entries).data)[it_index];
         if (StringEqual(entry.name, name)) {
             if (!negative) {
                 return entry.value;
@@ -447,7 +441,7 @@ compiler_enum_MemberValue(String body, String backing, String wanted, Slice entr
             int64_t loop_cursor_26 = 0LL;
             while (loop_cursor_26 < loop_count_26) {
                 int64_t loop_index_26 = loop_cursor_26;
-                Entry entry = ((Entry *)loop_view_26.data)[loop_index_26];
+                Entry entry = ((Entry *)(loop_view_26).data)[loop_index_26];
                 if (StringEqual(entry.name, name)) {
                     return (Evaluation){0};
                 }
@@ -481,7 +475,7 @@ compiler_enum_MemberValue(String body, String backing, String wanted, Slice entr
         if (!value_16) {
             return (Evaluation){0};
         }
-        Entry* value_17 = &(((Entry *)entries.data)[result.count]);
+        Entry* value_17 = &(((Entry *)(entries).data)[result.count]);
         (*value_17) = (Entry){.name = name, .value = value};
         if (StringEqual(name, wanted)) {
             bool* value_18 = &(result.found);

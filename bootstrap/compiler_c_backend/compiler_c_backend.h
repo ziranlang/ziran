@@ -4,6 +4,94 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#ifndef ZIRAN_TYPE_FORWARD_ZirCFunctionSym
+#define ZIRAN_TYPE_FORWARD_ZirCFunctionSym
+typedef struct ZirCFunctionSym ZirCFunctionSym;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirCHeaderUse
+#define ZIRAN_TYPE_FORWARD_ZirCHeaderUse
+typedef struct ZirCHeaderUse ZirCHeaderUse;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirCHeaderUses
+#define ZIRAN_TYPE_FORWARD_ZirCHeaderUses
+typedef struct ZirCHeaderUses ZirCHeaderUses;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirCModuleSyms
+#define ZIRAN_TYPE_FORWARD_ZirCModuleSyms
+typedef struct ZirCModuleSyms ZirCModuleSyms;
+#endif
+#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_TextStream
+#define ZIRAN_TYPE_FORWARD_TextStream
+typedef struct TextStream TextStream;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZirParameter
+#define ZIRAN_TYPE_FORWARD_ZirParameter
+typedef struct ZirParameter ZirParameter;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZirParameters
+#define ZIRAN_TYPE_FORWARD_ZirParameters
+typedef struct ZirParameters ZirParameters;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZirCPruneModule
+#define ZIRAN_TYPE_FORWARD_ZirCPruneModule
+typedef struct ZirCPruneModule ZirCPruneModule;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_c_backend_StaticText
+#define ZIRAN_TYPE_FORWARD_compiler_c_backend_StaticText
+typedef struct compiler_c_backend_StaticText compiler_c_backend_StaticText;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_BodySymbols
+#define ZIRAN_TYPE_FORWARD_BodySymbols
+typedef struct BodySymbols BodySymbols;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_EmitExternPrototypeBuffers
+#define ZIRAN_TYPE_FORWARD_EmitExternPrototypeBuffers
+typedef struct EmitExternPrototypeBuffers EmitExternPrototypeBuffers;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_HeaderNode
+#define ZIRAN_TYPE_FORWARD_HeaderNode
+typedef struct HeaderNode HeaderNode;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_HeaderTable
+#define ZIRAN_TYPE_FORWARD_HeaderTable
+typedef struct HeaderTable HeaderTable;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_InlineNames
+#define ZIRAN_TYPE_FORWARD_InlineNames
+typedef struct InlineNames InlineNames;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_LowerModuleBuffers
+#define ZIRAN_TYPE_FORWARD_LowerModuleBuffers
+typedef struct LowerModuleBuffers LowerModuleBuffers;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_HeaderPrelude
+#define ZIRAN_TYPE_FORWARD_HeaderPrelude
+typedef struct HeaderPrelude HeaderPrelude;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_native_names.h"
 #include "compiler_c_emit.h"
@@ -91,43 +179,6 @@ extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
 #define ZIR_BIT_NONE 0
-#endif
-typedef struct ZirCFunctionSym ZirCFunctionSym;
-typedef struct ZirCHeaderUse ZirCHeaderUse;
-typedef struct ZirCHeaderUses ZirCHeaderUses;
-typedef struct ZirCModuleSyms ZirCModuleSyms;
-#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
-typedef struct TextStream TextStream;
-#endif
-#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
-typedef struct ZirParameter ZirParameter;
-#endif
-#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
-typedef struct ZirParameters ZirParameters;
-#endif
-#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
-typedef struct ZirCPruneModule ZirCPruneModule;
-#endif
-#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
-typedef struct compiler_c_backend_StaticText compiler_c_backend_StaticText;
-#endif
-#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
-typedef struct BodySymbols BodySymbols;
-#endif
-#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
-typedef struct EmitExternPrototypeBuffers EmitExternPrototypeBuffers;
-#endif
-#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
-typedef struct HeaderNode HeaderNode;
-#endif
-#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
-typedef struct HeaderTable HeaderTable;
-#endif
-#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
-typedef struct InlineNames InlineNames;
-#endif
-#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
-typedef struct LowerModuleBuffers LowerModuleBuffers;
 #endif
 
 struct ZirCFunctionSym {
@@ -275,6 +326,13 @@ struct LowerModuleBuffers {
     uint8_t cargs[4096];
     uint8_t abi_args[4096];
     uint8_t initw[262144];
+};
+#endif
+#ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
+
+struct HeaderPrelude {
+    ZirType** types;
+    int32_t count;
 };
 #endif
 uint8_t* PruneInlineText(uint8_t* stem, uint8_t* guard, int32_t vector_operations, uint8_t* declarations, uint8_t* bodies, ZirSimdUses* simd);

@@ -30,7 +30,7 @@ ModuleAddFunction :: (module: *IR.ZirModule, name: *u8, args: *u8, return_type: 
 OwnedTextType :: (module: *IR.ZirModule, type: *u8) -> s32 #foreign compiler "OwnedTextType";
 ParametersOf :: (text: *u8) -> *ZirParameters #foreign compiler "ParametersOf";
 ResolveFunctionAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8, owner: **IR.ZirModule, function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunctionAt";
-ResolveQualifiedHostImportAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8, owner: **IR.ZirModule, declaration: **IR.ZirImport) -> s32 #foreign compiler "ResolveQualifiedHostImportAt";
+ResolveForeignImportAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8, owner: **IR.ZirModule, declaration: **IR.ZirImport) -> s32 #foreign compiler "ResolveForeignImportAt";
 ScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
 SliceElementType :: (type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "SliceElementType";
 SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
@@ -1756,7 +1756,7 @@ call_must_use :: (c: *Checker, call: *IR.ZirExpr) -> s32 {
         }
     }
     qualified_host: *IR.ZirImport = null
-    return cast(s32)((ResolveQualifiedHostImportAt((c).module, (call).name, SpanPath((call).span), *(owner), *(qualified_host)) == 1) && ((qualified_host).must_use != 0))
+    return cast(s32)((ResolveForeignImportAt((c).module, (call).name, SpanPath((call).span), *(owner), *(qualified_host)) == 1) && ((qualified_host).must_use != 0))
 }
 
 #scope_export

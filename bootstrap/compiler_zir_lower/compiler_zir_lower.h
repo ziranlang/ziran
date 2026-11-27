@@ -5,6 +5,248 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CheckedAssemblyOperand
+#define ZIRAN_TYPE_FORWARD_CheckedAssemblyOperand
+typedef struct CheckedAssemblyOperand CheckedAssemblyOperand;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CheckedAssemblyVariant
+#define ZIRAN_TYPE_FORWARD_CheckedAssemblyVariant
+typedef struct CheckedAssemblyVariant CheckedAssemblyVariant;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZirParameter
+#define ZIRAN_TYPE_FORWARD_ZirParameter
+typedef struct ZirParameter ZirParameter;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZirParameters
+#define ZIRAN_TYPE_FORWARD_ZirParameters
+typedef struct ZirParameters ZirParameters;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_PrintPiece
+#define ZIRAN_TYPE_FORWARD_PrintPiece
+typedef struct PrintPiece PrintPiece;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZirVector
+#define ZIRAN_TYPE_FORWARD_ZirVector
+typedef struct ZirVector ZirVector;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_SimdShape
+#define ZIRAN_TYPE_FORWARD_SimdShape
+typedef int32_t SimdShape;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_SimdOp
+#define ZIRAN_TYPE_FORWARD_SimdOp
+typedef struct SimdOp SimdOp;
+#endif
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Allocation
+#define ZIRAN_TYPE_FORWARD_Allocation
+typedef struct Allocation Allocation;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyBinding
+#define ZIRAN_TYPE_FORWARD_AssemblyBinding
+typedef struct AssemblyBinding AssemblyBinding;
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyLocalPlace
+#define ZIRAN_TYPE_FORWARD_AssemblyLocalPlace
+typedef struct AssemblyLocalPlace AssemblyLocalPlace;
+#endif
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyType
+#define ZIRAN_TYPE_FORWARD_AssemblyType
+typedef struct AssemblyType AssemblyType;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyGlobal
+#define ZIRAN_TYPE_FORWARD_AssemblyGlobal
+typedef struct AssemblyGlobal AssemblyGlobal;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_a268808db406c613
+#define ZIRAN_CONCRETE_FORWARD___type_a268808db406c613
+typedef struct __type_a268808db406c613 __type_a268808db406c613;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_90740861c75ea996
+#define ZIRAN_CONCRETE_FORWARD___type_90740861c75ea996
+typedef struct __type_90740861c75ea996 __type_90740861c75ea996;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyBlock
+#define ZIRAN_TYPE_FORWARD_AssemblyBlock
+typedef struct AssemblyBlock AssemblyBlock;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyZeroSlot
+#define ZIRAN_TYPE_FORWARD_AssemblyZeroSlot
+typedef struct AssemblyZeroSlot AssemblyZeroSlot;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyLoop
+#define ZIRAN_TYPE_FORWARD_AssemblyLoop
+typedef struct AssemblyLoop AssemblyLoop;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_4848f083bd341f05
+#define ZIRAN_CONCRETE_FORWARD___type_4848f083bd341f05
+typedef struct __type_4848f083bd341f05 __type_4848f083bd341f05;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_a86c8c04d298dd35
+#define ZIRAN_CONCRETE_FORWARD___type_a86c8c04d298dd35
+typedef struct __type_a86c8c04d298dd35 __type_a86c8c04d298dd35;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_4729534061a4e3aa
+#define ZIRAN_CONCRETE_FORWARD___type_4729534061a4e3aa
+typedef struct __type_4729534061a4e3aa __type_4729534061a4e3aa;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyFunction
+#define ZIRAN_TYPE_FORWARD_AssemblyFunction
+typedef struct AssemblyFunction AssemblyFunction;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyExportRoot
+#define ZIRAN_TYPE_FORWARD_AssemblyExportRoot
+typedef struct AssemblyExportRoot AssemblyExportRoot;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_781c45d78de52aa8
+#define ZIRAN_CONCRETE_FORWARD___type_781c45d78de52aa8
+typedef struct __type_781c45d78de52aa8 __type_781c45d78de52aa8;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_05087b0903b6d41a
+#define ZIRAN_CONCRETE_FORWARD___type_05087b0903b6d41a
+typedef struct __type_05087b0903b6d41a __type_05087b0903b6d41a;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_501281b5d4ea2fa3
+#define ZIRAN_CONCRETE_FORWARD___type_501281b5d4ea2fa3
+typedef struct __type_501281b5d4ea2fa3 __type_501281b5d4ea2fa3;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_59c3ac6bb10569cc
+#define ZIRAN_CONCRETE_FORWARD___type_59c3ac6bb10569cc
+typedef struct __type_59c3ac6bb10569cc __type_59c3ac6bb10569cc;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_67a48de9397a3f1c
+#define ZIRAN_CONCRETE_FORWARD___type_67a48de9397a3f1c
+typedef struct __type_67a48de9397a3f1c __type_67a48de9397a3f1c;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_84d45d230427ff25
+#define ZIRAN_CONCRETE_FORWARD___type_84d45d230427ff25
+typedef struct __type_84d45d230427ff25 __type_84d45d230427ff25;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_d46e199831b1046a
+#define ZIRAN_CONCRETE_FORWARD___type_d46e199831b1046a
+typedef struct __type_d46e199831b1046a __type_d46e199831b1046a;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_d77643bc17475164
+#define ZIRAN_CONCRETE_FORWARD___type_d77643bc17475164
+typedef struct __type_d77643bc17475164 __type_d77643bc17475164;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyProgram
+#define ZIRAN_TYPE_FORWARD_AssemblyProgram
+typedef struct AssemblyProgram AssemblyProgram;
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_SliceParts
+#define ZIRAN_TYPE_FORWARD_SliceParts
+typedef struct SliceParts SliceParts;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_TextParts
+#define ZIRAN_TYPE_FORWARD_TextParts
+typedef struct TextParts TextParts;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_RawVector
+#define ZIRAN_TYPE_FORWARD_RawVector
+typedef struct RawVector RawVector;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ScopeBinding
+#define ZIRAN_TYPE_FORWARD_ScopeBinding
+typedef struct ScopeBinding ScopeBinding;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_LiteralCache
+#define ZIRAN_TYPE_FORWARD_LiteralCache
+typedef struct LiteralCache LiteralCache;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyVecPlace
+#define ZIRAN_TYPE_FORWARD_AssemblyVecPlace
+typedef struct AssemblyVecPlace AssemblyVecPlace;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_AssemblySimd
+#define ZIRAN_TYPE_FORWARD_AssemblySimd
+typedef struct AssemblySimd AssemblySimd;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyLanes
+#define ZIRAN_TYPE_FORWARD_AssemblyLanes
+typedef struct AssemblyLanes AssemblyLanes;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyCase
+#define ZIRAN_TYPE_FORWARD_AssemblyCase
+typedef struct AssemblyCase AssemblyCase;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyArm
+#define ZIRAN_TYPE_FORWARD_AssemblyArm
+typedef struct AssemblyArm AssemblyArm;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_InterfaceText
+#define ZIRAN_TYPE_FORWARD_InterfaceText
+typedef struct InterfaceText InterfaceText;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_InterfaceNode
+#define ZIRAN_TYPE_FORWARD_InterfaceNode
+typedef struct InterfaceNode InterfaceNode;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_CONCRETE_FORWARD___type_e684a33bc3bac008
+#define ZIRAN_CONCRETE_FORWARD___type_e684a33bc3bac008
+typedef struct __type_e684a33bc3bac008 __type_e684a33bc3bac008;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_CONCRETE_FORWARD___type_b493536fa28f21e0
+#define ZIRAN_CONCRETE_FORWARD___type_b493536fa28f21e0
+typedef struct __type_b493536fa28f21e0 __type_b493536fa28f21e0;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_CONCRETE_FORWARD___type_ffd365130c02c976
+#define ZIRAN_CONCRETE_FORWARD___type_ffd365130c02c976
+typedef struct __type_ffd365130c02c976 __type_ffd365130c02c976;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#ifndef ZIRAN_CONCRETE_FORWARD___type_b1913ece2700738b
+#define ZIRAN_CONCRETE_FORWARD___type_b1913ece2700738b
+typedef struct __type_b1913ece2700738b __type_b1913ece2700738b;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_lowered_ir.h"
 #include "compiler_services.h"
@@ -281,153 +523,6 @@ extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
 #define DispatchModule "__zx_module_dispatch"
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct CheckedAssemblyOperand CheckedAssemblyOperand;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct CheckedAssemblyVariant CheckedAssemblyVariant;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct ZirParameter ZirParameter;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct ZirParameters ZirParameters;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct PrintPiece PrintPiece;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct ZirVector ZirVector;
-#endif
-typedef int32_t SimdShape;
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct SimdOp SimdOp;
-#endif
-typedef struct Allocation Allocation;
-typedef struct AssemblyBinding AssemblyBinding;
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct AssemblyLocalPlace AssemblyLocalPlace;
-#endif
-typedef struct AssemblyType AssemblyType;
-typedef struct AssemblyGlobal AssemblyGlobal;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_a268808db406c613
-#define ZIRAN_CONCRETE_FORWARD___type_a268808db406c613
-typedef struct __type_a268808db406c613 __type_a268808db406c613;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_90740861c75ea996
-#define ZIRAN_CONCRETE_FORWARD___type_90740861c75ea996
-typedef struct __type_90740861c75ea996 __type_90740861c75ea996;
-#endif
-typedef struct AssemblyBlock AssemblyBlock;
-typedef struct AssemblyZeroSlot AssemblyZeroSlot;
-typedef struct AssemblyLoop AssemblyLoop;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_4848f083bd341f05
-#define ZIRAN_CONCRETE_FORWARD___type_4848f083bd341f05
-typedef struct __type_4848f083bd341f05 __type_4848f083bd341f05;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_a86c8c04d298dd35
-#define ZIRAN_CONCRETE_FORWARD___type_a86c8c04d298dd35
-typedef struct __type_a86c8c04d298dd35 __type_a86c8c04d298dd35;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_4729534061a4e3aa
-#define ZIRAN_CONCRETE_FORWARD___type_4729534061a4e3aa
-typedef struct __type_4729534061a4e3aa __type_4729534061a4e3aa;
-#endif
-typedef struct AssemblyFunction AssemblyFunction;
-typedef struct AssemblyExportRoot AssemblyExportRoot;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_781c45d78de52aa8
-#define ZIRAN_CONCRETE_FORWARD___type_781c45d78de52aa8
-typedef struct __type_781c45d78de52aa8 __type_781c45d78de52aa8;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_05087b0903b6d41a
-#define ZIRAN_CONCRETE_FORWARD___type_05087b0903b6d41a
-typedef struct __type_05087b0903b6d41a __type_05087b0903b6d41a;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_501281b5d4ea2fa3
-#define ZIRAN_CONCRETE_FORWARD___type_501281b5d4ea2fa3
-typedef struct __type_501281b5d4ea2fa3 __type_501281b5d4ea2fa3;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_59c3ac6bb10569cc
-#define ZIRAN_CONCRETE_FORWARD___type_59c3ac6bb10569cc
-typedef struct __type_59c3ac6bb10569cc __type_59c3ac6bb10569cc;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_67a48de9397a3f1c
-#define ZIRAN_CONCRETE_FORWARD___type_67a48de9397a3f1c
-typedef struct __type_67a48de9397a3f1c __type_67a48de9397a3f1c;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_84d45d230427ff25
-#define ZIRAN_CONCRETE_FORWARD___type_84d45d230427ff25
-typedef struct __type_84d45d230427ff25 __type_84d45d230427ff25;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_d46e199831b1046a
-#define ZIRAN_CONCRETE_FORWARD___type_d46e199831b1046a
-typedef struct __type_d46e199831b1046a __type_d46e199831b1046a;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_d77643bc17475164
-#define ZIRAN_CONCRETE_FORWARD___type_d77643bc17475164
-typedef struct __type_d77643bc17475164 __type_d77643bc17475164;
-#endif
-typedef struct AssemblyProgram AssemblyProgram;
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct SliceParts SliceParts;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct TextParts TextParts;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct RawVector RawVector;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct ScopeBinding ScopeBinding;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct LiteralCache LiteralCache;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct AssemblyVecPlace AssemblyVecPlace;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct AssemblySimd AssemblySimd;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct AssemblyLanes AssemblyLanes;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct AssemblyCase AssemblyCase;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct AssemblyArm AssemblyArm;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct InterfaceText InterfaceText;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-typedef struct InterfaceNode InterfaceNode;
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-#ifndef ZIRAN_CONCRETE_FORWARD___type_e684a33bc3bac008
-#define ZIRAN_CONCRETE_FORWARD___type_e684a33bc3bac008
-typedef struct __type_e684a33bc3bac008 __type_e684a33bc3bac008;
-#endif
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-#ifndef ZIRAN_CONCRETE_FORWARD___type_b493536fa28f21e0
-#define ZIRAN_CONCRETE_FORWARD___type_b493536fa28f21e0
-typedef struct __type_b493536fa28f21e0 __type_b493536fa28f21e0;
-#endif
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-#ifndef ZIRAN_CONCRETE_FORWARD___type_ffd365130c02c976
-#define ZIRAN_CONCRETE_FORWARD___type_ffd365130c02c976
-typedef struct __type_ffd365130c02c976 __type_ffd365130c02c976;
-#endif
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-#ifndef ZIRAN_CONCRETE_FORWARD___type_b1913ece2700738b
-#define ZIRAN_CONCRETE_FORWARD___type_b1913ece2700738b
-typedef struct __type_b1913ece2700738b __type_b1913ece2700738b;
-#endif
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
 

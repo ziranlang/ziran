@@ -5,40 +5,112 @@
 #include <stdbool.h>
 #include "zir_string.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_DeclarationError
+#define ZIRAN_TYPE_FORWARD_DeclarationError
+typedef int32_t DeclarationError;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_GoMethodDeclaration
+#define ZIRAN_TYPE_FORWARD_GoMethodDeclaration
+typedef struct GoMethodDeclaration GoMethodDeclaration;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ExportDirective
+#define ZIRAN_TYPE_FORWARD_ExportDirective
+typedef struct ExportDirective ExportDirective;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParameterRewrite
+#define ZIRAN_TYPE_FORWARD_ParameterRewrite
+typedef struct ParameterRewrite ParameterRewrite;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ImportMode
+#define ZIRAN_TYPE_FORWARD_ImportMode
+typedef int32_t ImportMode;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ModuleImport
+#define ZIRAN_TYPE_FORWARD_ModuleImport
+typedef struct ModuleImport ModuleImport;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ParameterEntry
+#define ZIRAN_TYPE_FORWARD_ParameterEntry
+typedef struct ParameterEntry ParameterEntry;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ModuleParameterDirective
+#define ZIRAN_TYPE_FORWARD_ModuleParameterDirective
+typedef struct ModuleParameterDirective ModuleParameterDirective;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_InsertDirective
+#define ZIRAN_TYPE_FORWARD_InsertDirective
+typedef struct InsertDirective InsertDirective;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LibraryDeclaration
+#define ZIRAN_TYPE_FORWARD_LibraryDeclaration
+typedef struct LibraryDeclaration LibraryDeclaration;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_MethodSymbol
+#define ZIRAN_TYPE_FORWARD_MethodSymbol
+typedef struct MethodSymbol MethodSymbol;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_UsingFilter
+#define ZIRAN_TYPE_FORWARD_UsingFilter
+typedef struct UsingFilter UsingFilter;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ForeignDeclaration
+#define ZIRAN_TYPE_FORWARD_ForeignDeclaration
+typedef struct ForeignDeclaration ForeignDeclaration;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ForeignTarget
+#define ZIRAN_TYPE_FORWARD_ForeignTarget
+typedef struct ForeignTarget ForeignTarget;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ResultDeclaration
+#define ZIRAN_TYPE_FORWARD_ResultDeclaration
+typedef struct ResultDeclaration ResultDeclaration;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ResultReturn
+#define ZIRAN_TYPE_FORWARD_ResultReturn
+typedef struct ResultReturn ResultReturn;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ResultBinding
+#define ZIRAN_TYPE_FORWARD_ResultBinding
+typedef struct ResultBinding ResultBinding;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_SymmetricRewrite
+#define ZIRAN_TYPE_FORWARD_SymmetricRewrite
+typedef struct SymmetricRewrite SymmetricRewrite;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_TextRewrite
+#define ZIRAN_TYPE_FORWARD_TextRewrite
+typedef struct TextRewrite TextRewrite;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_NameReplacement
+#define ZIRAN_TYPE_FORWARD_NameReplacement
+typedef struct NameReplacement NameReplacement;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PrintRewrite
+#define ZIRAN_TYPE_FORWARD_PrintRewrite
+typedef struct PrintRewrite PrintRewrite;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_StatementOutput
+#define ZIRAN_TYPE_FORWARD_StatementOutput
+typedef struct StatementOutput StatementOutput;
+#endif
+#ifdef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_QuotedText
+#define ZIRAN_TYPE_FORWARD_QuotedText
+typedef struct QuotedText QuotedText;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CText
+#define ZIRAN_TYPE_FORWARD_CText
+typedef struct CText CText;
+#endif
+#endif
 #include "compiler_text.h"
 #include "compiler_source.h"
 #include "compiler_scan.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-typedef int32_t DeclarationError;
-typedef struct GoMethodDeclaration GoMethodDeclaration;
-typedef struct ExportDirective ExportDirective;
-typedef struct ParameterRewrite ParameterRewrite;
-typedef int32_t ImportMode;
-typedef struct ModuleImport ModuleImport;
-typedef struct ParameterEntry ParameterEntry;
-typedef struct ModuleParameterDirective ModuleParameterDirective;
-typedef struct InsertDirective InsertDirective;
-typedef struct LibraryDeclaration LibraryDeclaration;
-typedef struct MethodSymbol MethodSymbol;
-typedef struct UsingFilter UsingFilter;
-typedef struct ForeignDeclaration ForeignDeclaration;
-typedef struct ForeignTarget ForeignTarget;
-typedef struct ResultDeclaration ResultDeclaration;
-typedef struct ResultReturn ResultReturn;
-typedef struct ResultBinding ResultBinding;
-typedef struct SymmetricRewrite SymmetricRewrite;
-typedef struct TextRewrite TextRewrite;
-typedef struct NameReplacement NameReplacement;
-typedef struct PrintRewrite PrintRewrite;
-typedef struct StatementOutput StatementOutput;
-#ifdef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
-typedef struct QuotedText QuotedText;
-#endif
-#ifdef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
-typedef struct CText CText;
 #endif
 
 enum {

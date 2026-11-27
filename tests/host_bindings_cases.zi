@@ -3,6 +3,7 @@
 #import "std/byte_text_linux"
 #import "std/file"
 #import "std/file_tree_linux"
+#import "std/path"
 #import "std/text_tools"
 using Vectors :: #import "std/vec"
 
@@ -128,6 +129,124 @@ SavedNativeProvider :: (test: *NativeTest) -> bool {
     return true
 }
 
+// An imported foreign declaration keeps its native signature and ABI through
+// TSX namespaces, re-exports, nested arguments and saved checked IR.
+ImportedForeignCalls :: (test: *NativeTest) -> bool {
+    root := CheckPath(test.work, "imported-foreign")
+    guest := CheckPath(root, "guest.tsx")
+    driver := CheckPath(root, "driver.zi")
+    if !NativeWrite(test, CheckPath(root, "capabilities.zi"),
+        "host :: #system_library \"host_api\";\nFrame :: struct { value: s32; }\nRead :: (value: s32) -> Frame #must #foreign host;\n#scope_module\nHidden :: () -> s32 #foreign host;\n") ||
+       !NativeWrite(test, CheckPath(root, "facade.zi"), "using Capabilities :: #import \"capabilities\";\n") ||
+       !NativeWrite(test, guest,
+        "import * as Native from \"facade\";\nimport { Read } from \"capabilities\";\nexport function Answer(): s32 { const result: Native.Frame = Native.Read(Read(s32(6)).value); return result.value === s32(8) ? s32(0) : s32(1); }\n") ||
+       !NativeWrite(test, driver,
+        "Guest :: #import \"guest\";\nCapabilities :: #import \"capabilities\";\n#program_export\nRead :: (value: s32) -> Capabilities.Frame { return .{value = value + 1} }\n#program_export\nAnswer :: () -> s32 { return Guest.Answer() }\n") { return false }
+    ir := CheckPath(root, "ir")
+    save := string.[test.ziran, "ir", "--entry", "driver:Answer", "--bind",
+        "capabilities:Read=driver:Read", "--root", root, "-o", ir, driver]
+    unused NativeRun(test, save[:])
+    forms := string.["source", "saved"]
+    targets := string.["c", "go", "zx"]
+    backends := string.["engine", "native"]
+    for form: forms {
+        source_root := ifx form == "source" then root else ir
+        input := CheckPath(source_root, ifx form == "source" then "driver.zi" else "driver.zir")
+        for target: targets {
+            output := CheckPath(root, CheckConcat(form, CheckConcat("-", target)))
+            command: Vec(string)
+            VecPush(command, test.ziran)
+            if target == "zx" {
+                VecPush(command, "bundle")
+                output = CheckConcat(output, ".zx")
+            } else {
+                VecPush(command, "build")
+                VecPush(command, CheckConcat("--target=", target))
+                VecPush(command, "--exe")
+                if target == "go" { VecPush(command, "--pkg"); VecPush(command, "main") }
+            }
+            arguments := string.["--entry", "driver:Answer", "--root", source_root, "-o", output]
+            for argument: arguments { VecPush(command, argument) }
+            if form == "source" {
+                VecPush(command, "--bind"); VecPush(command, "capabilities:Read=driver:Read")
+            }
+            VecPush(command, input)
+            unused NativeRun(test, command[:])
+            if target == "zx" {
+                tools := PathParent(test.ziran)
+                for backend: backends {
+                    run := string.[CheckPath(tools, "zi2zx"), "run", "--backend", backend, output]
+                    if !NativeExpect(test, run[:], "0\n") { return false }
+                }
+            } else if target == "c" {
+                run := string.[CheckPath(output, "driver")]
+                unused NativeRun(test, run[:])
+            } else {
+                run := string.["env", "GO111MODULE=off", "go", "run", "."]
+                unused NativeRun(test, run[:], output)
+            }
+            if test.failed { return false }
+        }
+    }
+    if !NativeAssert(test, NativeSameFile(CheckPath(root, "source-zx.zx"), CheckPath(root, "saved-zx.zx")),
+        "imported host source and saved bundles differ") { return false }
+    check := string.[test.ziran, "check", "--root", root, guest]
+    failures := string.["Native.Read(\"wrong\")", "Native.Hidden()", "Native.Read(s32(6))"]
+    errors := string.["argument type mismatch", "unresolved function: Native.Hidden", "#must return value is ignored"]
+    for call, index: failures {
+        text := CheckConcat("import * as Native from \"facade\";\nexport function Answer(): s32 { ",
+            CheckConcat(call, "; return s32(0); }\n"))
+        if !NativeWrite(test, guest, text) || !NativeReject(test, check[:], errors[index]) { return false }
+    }
+    // Native foreign symbols retain the declared external name after projection.
+    if !NativeWrite(test, CheckPath(root, "native.zi"),
+        "c :: #system_library \"c\";\nAbs :: (value: s32) -> s32 #foreign c \"abs\";\nhost :: #system_library \"host_api\";\nabs :: (value: s32) -> s32 #foreign host;\n") ||
+       !NativeWrite(test, guest,
+        "import { Abs, abs } from \"native\";\nexport function main(): s32 { return Abs(s32(-42)) === s32(42) && abs(s32(-42)) === s32(42) ? s32(0) : s32(1); }\n") { return false }
+    native_ir := CheckPath(root, "native-ir")
+    save_native := string.[test.ziran, "ir", "--target=c", "--entry", "guest:main",
+        "--root", root, "-o", native_ir, guest]
+    unused NativeRun(test, save_native[:])
+    for form: forms {
+        source_root := ifx form == "source" then root else native_ir
+        input := CheckPath(source_root, ifx form == "source" then "guest.tsx" else "guest.zir")
+        native := CheckPath(root, CheckConcat("native-c-", form))
+        build := string.[test.ziran, "build", "--target=c", "--exe", "--entry", "guest:main",
+            "--root", source_root, "-o", native, input]
+        unused NativeRun(test, build[:])
+        run := string.[CheckPath(native, "guest")]
+        unused NativeRun(test, run[:])
+        if test.failed { return false }
+    }
+    return !test.failed
+}
+
+// Reuse the real host oracle: TSX imports must request only solo.Only,
+// including the original declaration's module initializer and saved IR.
+ImportedCapabilityIdentity :: (test: *NativeTest) -> bool {
+    source := CheckPath(test.work, "imported.tsx")
+    if !NativeWrite(test, source,
+        "import * as Host from \"solo\";\nimport { Only } from \"solo\";\nexport function Answer(): s64 { return Only(Host.seed); }\n") { return false }
+    ir := CheckPath(test.work, "imported-ir")
+    save := string.[test.ziran, "ir", "--root", test.work, "-o", ir, source]
+    unused NativeRun(test, save[:])
+    forms := string.["source", "saved"]
+    for form: forms {
+        root := ifx form == "source" then test.work else ir
+        input := ifx form == "source" then source else CheckPath(ir, "imported.zir")
+        bundle := CheckPath(test.work, CheckConcat("imported-", CheckConcat(form, ".zx")))
+        build := string.[test.ziran, "bundle", "--entry", "imported:Answer", "--root", root, "-o", bundle, input]
+        unused NativeRun(test, build[:])
+        run := string.[CheckPath(test.work, "test"), bundle]
+        unused NativeRun(test, run[:])
+        bound := string.[test.ziran, "run", "--backend", "engine", "--root", root,
+            "--entry", "imported:Answer", "--bind-host", "implementation", input, CheckPath(test.work, "implementation.zi")]
+        if !NativeExpect(test, bound[:], "9\n") { return false }
+    }
+    return NativeAssert(test, NativeSameFile(CheckPath(test.work, "imported-source.zx"),
+        CheckPath(test.work, "imported-saved.zx")), "imported source and saved capabilities differ")
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "host-bindings-")
@@ -188,7 +307,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
         unused NativeRun(*test, run[:])
     }
     if !NativeAssert(*test, NativeSameFile(CheckPath(test.work, "single-source.zx"), CheckPath(test.work, "single-saved.zx")), "single host bundles differ") { return 1 }
-    if !QualifiedHostCalls(*test) || !BindingDiagnostics(*test) || !SavedNativeProvider(*test) { return 1 }
+    if !QualifiedHostCalls(*test) || !BindingDiagnostics(*test) || !SavedNativeProvider(*test) ||
+       !ImportedForeignCalls(*test) || !ImportedCapabilityIdentity(*test) { return 1 }
     // A host result record whose name is longer than eight bytes, as
     // Kryon's ReadBundleInput returns BundleInput: lowering keeps the whole
     // name and resolves the record.

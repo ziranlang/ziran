@@ -55,7 +55,7 @@ String
 FormatInteger(int64_t value, Slice output)
 {
     int64_t end = (int64_t)((uint64_t)((int64_t)(output).length) - UINT64_C(1));
-    uint8_t* value_0 = &(((uint8_t *)output.data)[end]);
+    uint8_t* value_0 = &(((uint8_t *)(output).data)[end]);
     (*value_0) = 0;
     bool negative = value < 0LL;
     int64_t value_1 = 0;
@@ -67,18 +67,18 @@ FormatInteger(int64_t value, Slice output)
     int64_t remaining = value_1;
     if (remaining == 0LL) {
         end = (int64_t)((uint64_t)end - UINT64_C(1));
-        uint8_t* value_2 = &(((uint8_t *)output.data)[end]);
+        uint8_t* value_2 = &(((uint8_t *)(output).data)[end]);
         (*value_2) = 48;
     }
     while (remaining < 0LL) {
         end = (int64_t)((uint64_t)end - UINT64_C(1));
-        uint8_t* value_3 = &(((uint8_t *)output.data)[end]);
+        uint8_t* value_3 = &(((uint8_t *)(output).data)[end]);
         (*value_3) = (uint8_t)(((int32_t)(48u - (uint32_t)((remaining % 10LL)))));
         remaining = remaining / 10LL;
     }
     if (negative) {
         end = (int64_t)((uint64_t)end - UINT64_C(1));
-        uint8_t* value_4 = &(((uint8_t *)output.data)[end]);
+        uint8_t* value_4 = &(((uint8_t *)(output).data)[end]);
         (*value_4) = 45;
     }
     Slice value_5 = output;
@@ -142,7 +142,7 @@ FormatDecimal(double value, int32_t places, Slice output)
     int64_t whole = ZiDivS64(remaining, scale, INT64_MIN);
     int64_t fraction = ZiRemS64(remaining, scale);
     int64_t end = (int64_t)((uint64_t)((int64_t)(output).length) - UINT64_C(1));
-    uint8_t* value_0 = &(((uint8_t *)output.data)[end]);
+    uint8_t* value_0 = &(((uint8_t *)(output).data)[end]);
     (*value_0) = 0;
     int32_t kept = digits;
     while (true) {
@@ -159,29 +159,29 @@ FormatDecimal(double value, int32_t places, Slice output)
         step = 0;
         while (step < kept) {
             end = (int64_t)((uint64_t)end - UINT64_C(1));
-            uint8_t* value_3 = &(((uint8_t *)output.data)[end]);
+            uint8_t* value_3 = &(((uint8_t *)(output).data)[end]);
             (*value_3) = (uint8_t)(((int32_t)(48u + (uint32_t)((fraction % 10LL)))));
             fraction = fraction / 10LL;
             step = (int32_t)((uint32_t)step + 1u);
         }
         end = (int64_t)((uint64_t)end - UINT64_C(1));
-        uint8_t* value_4 = &(((uint8_t *)output.data)[end]);
+        uint8_t* value_4 = &(((uint8_t *)(output).data)[end]);
         (*value_4) = 46;
     }
     if (whole == 0LL) {
         end = (int64_t)((uint64_t)end - UINT64_C(1));
-        uint8_t* value_5 = &(((uint8_t *)output.data)[end]);
+        uint8_t* value_5 = &(((uint8_t *)(output).data)[end]);
         (*value_5) = 48;
     }
     while (whole > 0LL) {
         end = (int64_t)((uint64_t)end - UINT64_C(1));
-        uint8_t* value_6 = &(((uint8_t *)output.data)[end]);
+        uint8_t* value_6 = &(((uint8_t *)(output).data)[end]);
         (*value_6) = (uint8_t)(((int32_t)(48u + (uint32_t)((whole % 10LL)))));
         whole = whole / 10LL;
     }
     if (negative && units != 0LL) {
         end = (int64_t)((uint64_t)end - UINT64_C(1));
-        uint8_t* value_7 = &(((uint8_t *)output.data)[end]);
+        uint8_t* value_7 = &(((uint8_t *)(output).data)[end]);
         (*value_7) = 45;
     }
     Slice value_8 = output;

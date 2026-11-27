@@ -481,13 +481,7 @@ int32_t zir_foreign_compiler_go_backend__GoAssemblyBlock(void* out, ZirModule* m
 #else
 int32_t zir_foreign_compiler_go_backend__GoAssemblyBlock(void* out, ZirModule* module, ZirFunction* function, int32_t statement, void* context) __asm__("GoAssemblyBlock");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_go_backend_CStr(String s) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_go_backend_FunctionArgs(ZirFunction* fn) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_go_backend_StatementHasAssembly(ZirStmt* st) ZIRAN_MAYBE_UNUSED;

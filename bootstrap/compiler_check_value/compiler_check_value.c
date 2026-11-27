@@ -331,13 +331,7 @@ uint8_t* zir_foreign_compiler_check_value__trim_in_place(uint8_t* s) __asm__("_t
 #else
 uint8_t* zir_foreign_compiler_check_value__trim_in_place(uint8_t* s) __asm__("trim_in_place");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static Binding* compiler_check_value_owned_member_path(Checker* c, int32_t index, uint8_t* path, size_t capacity) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_value_path_prefix(uint8_t* prefix, uint8_t* value) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_value_moved_path_conflict(Binding* binding, uint8_t* path, int32_t owns_storage) ZIRAN_MAYBE_UNUSED;

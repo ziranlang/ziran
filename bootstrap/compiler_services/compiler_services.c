@@ -85,13 +85,7 @@ void zir_foreign_compiler_services__exit(int32_t status) __asm__("_exit");
 #else
 void zir_foreign_compiler_services__exit(int32_t status) __asm__("exit");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_services_CStringCopy(String text) ZIRAN_MAYBE_UNUSED;
 
 void

@@ -3,6 +3,22 @@
 #define ZIRAN_COMPILER_CLI_H
 
 #include "zir_string_types.h"
+#ifndef ZIRAN_TYPE_FORWARD_StaticText
+#define ZIRAN_TYPE_FORWARD_StaticText
+typedef struct StaticText StaticText;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CommandOption
+#define ZIRAN_TYPE_FORWARD_CommandOption
+typedef struct CommandOption CommandOption;
+#endif
+#ifndef ZIRAN_CALLABLE_ExitHandler
+#define ZIRAN_CALLABLE_ExitHandler
+typedef void (*ExitHandler)(void);
+#endif
+#ifndef ZIRAN_CALLABLE_OptionValid
+#define ZIRAN_CALLABLE_OptionValid
+typedef int32_t (*OptionValid)(uint8_t*);
+#endif
 #include "compiler_ir.h"
 
 #ifdef __cplusplus
@@ -11,10 +27,6 @@ extern "C" {
 #define CliTargetZX 3
 #define CliOSWeb 5
 #define CliCPUWasm32 3
-typedef struct StaticText StaticText;
-typedef struct CommandOption CommandOption;
-typedef void (*ExitHandler)(void);
-typedef int32_t (*OptionValid)(uint8_t*);
 
 struct StaticText {
     uint8_t* data;

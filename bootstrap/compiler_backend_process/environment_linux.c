@@ -19,7 +19,7 @@ environment_linux_BoundedHostText(uint8_t* value, Slice output)
     }
     int64_t index = 0LL;
     while (index < (int64_t)(output).length && value[index] != 0) {
-        uint8_t* value_1 = &(((uint8_t *)output.data)[index]);
+        uint8_t* value_1 = &(((uint8_t *)(output).data)[index]);
         (*value_1) = value[index];
         index = (int64_t)((uint64_t)index + UINT64_C(1));
     }
@@ -145,7 +145,7 @@ ArgumentRead(int32_t argc, uint8_t** argv, int32_t index, Slice output)
     }
     int64_t at = 0LL;
     while (at < (int64_t)(output).length && value[at] != 0) {
-        uint8_t* value_2 = &(((uint8_t *)output.data)[at]);
+        uint8_t* value_2 = &(((uint8_t *)(output).data)[at]);
         (*value_2) = value[at];
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }

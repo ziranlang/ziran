@@ -121,9 +121,9 @@ int32_t zir_foreign_compiler_check_text__ResolveFunction(ZirModule* module, uint
 int32_t zir_foreign_compiler_check_text__ResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction** function) __asm__("ResolveFunction");
 #endif
 #ifdef __APPLE__
-int32_t zir_foreign_compiler_check_text__ResolveQualifiedHostImportAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirImport** declaration) __asm__("_ResolveQualifiedHostImportAt");
+int32_t zir_foreign_compiler_check_text__ResolveForeignImportAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirImport** declaration) __asm__("_ResolveForeignImportAt");
 #else
-int32_t zir_foreign_compiler_check_text__ResolveQualifiedHostImportAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirImport** declaration) __asm__("ResolveQualifiedHostImportAt");
+int32_t zir_foreign_compiler_check_text__ResolveForeignImportAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirImport** declaration) __asm__("ResolveForeignImportAt");
 #endif
 #ifdef __APPLE__
 uint8_t* zir_foreign_compiler_check_text__SpanPath(ZirSourceSpan span) __asm__("_SpanPath");
@@ -225,13 +225,7 @@ uint8_t* zir_foreign_compiler_check_text__strrchr(uint8_t* ziran_keyword___s_0, 
 #else
 uint8_t* zir_foreign_compiler_check_text__strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strrchr");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int32_t compiler_check_text_parents_build(ZirFunction* fn, Parents* parents) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_text_comparison(uint8_t* op) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_text_combine(int32_t a, int32_t b) ZIRAN_MAYBE_UNUSED;
@@ -588,7 +582,7 @@ compiler_check_text_argument_flow(TextScope* scope, ZirModule* module, ZirFuncti
         if (value_16) {
             ZirModule* value_17 = module;
             uint8_t* value_18 = (uint8_t*)e->name;
-            bool value_19 = zir_foreign_compiler_check_text__ResolveQualifiedHostImportAt(value_17, value_18, zir_foreign_compiler_check_text__SpanPath(e->span), &(owner), &(qualified_host)) == 1;
+            bool value_19 = zir_foreign_compiler_check_text__ResolveForeignImportAt(value_17, value_18, zir_foreign_compiler_check_text__SpanPath(e->span), &(owner), &(qualified_host)) == 1;
             value_16 = value_19;
         }
         if (value_16 && qualified_host->reads_arguments != 0) {

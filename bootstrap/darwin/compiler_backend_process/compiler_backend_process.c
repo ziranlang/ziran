@@ -595,7 +595,7 @@ compiler_backend_process_FreePointers(__type_6897586eed124d12 values)
         int64_t loop_cursor_0 = 0LL;
         while (loop_cursor_0 < loop_count_0) {
             int64_t loop_index_0 = loop_cursor_0;
-            uint8_t* value = ((uint8_t* *)loop_view_0.data)[loop_index_0];
+            uint8_t* value = ((uint8_t* *)(loop_view_0).data)[loop_index_0];
             zir_foreign_compiler_backend_process__FreeRaw((void*)(value));
             loop_cursor_0 = (int64_t)((uint64_t)loop_cursor_0 + UINT64_C(1));
         }
@@ -614,7 +614,7 @@ bool
 compiler_backend_process_PrepareArguments(Slice arguments, __type_6897586eed124d12* pointers)
 {
     for (int64_t it_index = 0LL; it_index < (int64_t)(arguments).length; it_index++) {
-        String argument = ((String *)arguments.data)[it_index];
+        String argument = ((String *)(arguments).data)[it_index];
         uint8_t* value = compiler_backend_process_AllocateText(argument);
         bool value_0 = value == ((void *)0);
         bool value_1 = value_0;
@@ -921,7 +921,7 @@ compiler_backend_process_AppendIncludedLinks(__type_6897586eed124d12* files, __t
                 int64_t loop_cursor_67 = 0LL;
                 while (loop_cursor_67 < loop_count_67) {
                     int64_t loop_index_67 = loop_cursor_67;
-                    MapOwner row = ((MapOwner *)loop_view_67.data)[loop_index_67];
+                    MapOwner row = ((MapOwner *)(loop_view_67).data)[loop_index_67];
                     bool matches = StringEqual(row.module, module);
                     bool value_18 = !matches && (int64_t)(module).length > (int64_t)((uint64_t)((int64_t)(row.owner).length) + UINT64_C(2));
                     bool value_19 = value_18 && StringEqual(StringRangeAt(module, (int64_t)0LL, (int64_t)(int64_t)(row.owner).length), row.owner);
@@ -972,7 +972,7 @@ compiler_backend_process_AppendIncludedLinks(__type_6897586eed124d12* files, __t
                         int64_t loop_cursor_90 = 0LL;
                         while (loop_cursor_90 < loop_count_90) {
                             int64_t loop_index_90 = loop_cursor_90;
-                            MapLink map_link = ((MapLink *)loop_view_90.data)[loop_index_90];
+                            MapLink map_link = ((MapLink *)(loop_view_90).data)[loop_index_90];
                             if (!StringEqual(map_link.owner, row.owner)) {
                                 loop_cursor_90 = (int64_t)((uint64_t)loop_cursor_90 + UINT64_C(1));
                                 continue;
@@ -1180,7 +1180,7 @@ compiler_backend_process_CompileExecutable(String out, String name, bool threads
         int64_t loop_cursor_19 = 0LL;
         while (loop_cursor_19 < loop_count_19) {
             int64_t loop_index_19 = loop_cursor_19;
-            uint8_t* argument = ((uint8_t* *)loop_view_19.data)[loop_index_19];
+            uint8_t* argument = ((uint8_t* *)(loop_view_19).data)[loop_index_19];
             if (compiler_backend_process_TextContains(compiler_backend_process_CText(argument), StringLiteral("-x"))) {
                 forced_language = true;
             }
@@ -1691,22 +1691,22 @@ compiler_backend_process_PollSlots(Slice jobs, Slice slots, bool* failed)
         int64_t range_last_5 = 15LL;
         int64_t slot = range_first_5;
         if (slot <= range_last_5) for (;;) {
-            if (!(((SlotOutput *)slots.data)[slot]).running) {
+            if (!(((SlotOutput *)(slots).data)[slot]).running) {
                 if (slot == range_last_5) {
                     break;
                 }
                 slot = (int64_t)((uint64_t)slot + UINT64_C(1));
                 continue;
             }
-            if ((((Job *)jobs.data)[slot]).descriptor >= 0) {
+            if ((((Job *)(jobs).data)[slot]).descriptor >= 0) {
                 PollRecord* value_0 = &(pollers[count]);
-                (*value_0) = (PollRecord){.descriptor = (((Job *)jobs.data)[slot]).descriptor, .events = 1, .revents = 0};
+                (*value_0) = (PollRecord){.descriptor = (((Job *)(jobs).data)[slot]).descriptor, .events = 1, .revents = 0};
                 int64_t* value_1 = &(numbered[count]);
                 (*value_1) = slot;
                 count = (int64_t)((uint64_t)count + UINT64_C(1));
             } else {
-                compiler_backend_process_ReapJob(&(((Job *)jobs.data)[slot]));
-                if ((((Job *)jobs.data)[slot]).finished) {
+                compiler_backend_process_ReapJob(&(((Job *)(jobs).data)[slot]));
+                if ((((Job *)(jobs).data)[slot]).finished) {
                     finished = true;
                 } else {
                     unreaped = true;
@@ -1739,20 +1739,20 @@ compiler_backend_process_PollSlots(Slice jobs, Slice slots, bool* failed)
             int64_t index = range_first_32;
             if (index <= range_last_32) for (;;) {
                 int64_t slot = (numbered)[index];
-                if ((pollers[index]).revents == 0 || !(((SlotOutput *)slots.data)[slot]).running) {
+                if ((pollers[index]).revents == 0 || !(((SlotOutput *)(slots).data)[slot]).running) {
                     if (index == range_last_32) {
                         break;
                     }
                     index = (int64_t)((uint64_t)index + UINT64_C(1));
                     continue;
                 }
-                bool value_4 = compiler_backend_process_ReadJobOutput(&(((Job *)jobs.data)[slot]));
+                bool value_4 = compiler_backend_process_ReadJobOutput(&(((Job *)(jobs).data)[slot]));
                 if (!value_4) {
                     bool* value_5 = &((*(failed)));
                     (*value_5) = true;
-                    compiler_backend_process_ReapJob(&(((Job *)jobs.data)[slot]));
+                    compiler_backend_process_ReapJob(&(((Job *)(jobs).data)[slot]));
                 } else {
-                    compiler_backend_process_ReapJob(&(((Job *)jobs.data)[slot]));
+                    compiler_backend_process_ReapJob(&(((Job *)(jobs).data)[slot]));
                 }
                 if (index == range_last_32) {
                     break;
@@ -2422,7 +2422,7 @@ compiler_backend_process_AppendLog(__type_131eebaaeb761e42* log, Slice output)
         }
     }
     for (int64_t it_index = 0LL; it_index < (int64_t)(output).length; it_index++) {
-        uint8_t byte = ((uint8_t *)output.data)[it_index];
+        uint8_t byte = ((uint8_t *)(output).data)[it_index];
         int64_t value_6 = log->count;
         if (value_6 > 4095LL) {
             return true;
@@ -2520,7 +2520,7 @@ compiler_backend_process_LinkOwnedObjects(String out, String name, bool forced_l
         int64_t loop_cursor_40 = 0LL;
         while (loop_cursor_40 < loop_count_40) {
             int64_t loop_index_40 = loop_cursor_40;
-            uint8_t* value = ((uint8_t* *)loop_view_40.data)[loop_index_40];
+            uint8_t* value = ((uint8_t* *)(loop_view_40).data)[loop_index_40];
             if (ok) {
                 added = compiler_backend_process_AddTextArgument(&(arguments), compiler_backend_process_CText(value), StringLiteral(""));
                 ok = added;

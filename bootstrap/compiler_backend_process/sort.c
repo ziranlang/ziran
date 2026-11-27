@@ -2,13 +2,7 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "sort.h"
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static bool sort_TextBefore(String a, String b) ZIRAN_MAYBE_UNUSED;
 static void sort_TextSiftDown(Slice values, int64_t root, int64_t end) ZIRAN_MAYBE_UNUSED;
 
@@ -31,17 +25,17 @@ sort_TextSiftDown(Slice values, int64_t root, int64_t end)
     int64_t parent = root;
     while ((int64_t)(((uint64_t)parent * UINT64_C(2)) + UINT64_C(1)) < end) {
         int64_t child = (int64_t)(((uint64_t)parent * UINT64_C(2)) + UINT64_C(1));
-        if ((int64_t)((uint64_t)child + UINT64_C(1)) < end && sort_TextBefore(((String *)values.data)[child], ((String *)values.data)[((int64_t)((uint64_t)child + UINT64_C(1)))])) {
+        if ((int64_t)((uint64_t)child + UINT64_C(1)) < end && sort_TextBefore(((String *)(values).data)[child], ((String *)(values).data)[((int64_t)((uint64_t)child + UINT64_C(1)))])) {
             child = (int64_t)((uint64_t)child + UINT64_C(1));
         }
-        bool value_0 = sort_TextBefore(((String *)values.data)[parent], ((String *)values.data)[child]);
+        bool value_0 = sort_TextBefore(((String *)(values).data)[parent], ((String *)(values).data)[child]);
         if (!value_0) {
             return;
         }
-        String saved = ((String *)values.data)[parent];
-        String* value_1 = &(((String *)values.data)[parent]);
-        (*value_1) = ((String *)values.data)[child];
-        String* value_2 = &(((String *)values.data)[child]);
+        String saved = ((String *)(values).data)[parent];
+        String* value_1 = &(((String *)(values).data)[parent]);
+        (*value_1) = ((String *)(values).data)[child];
+        String* value_2 = &(((String *)(values).data)[child]);
         (*value_2) = saved;
         parent = child;
     }
@@ -58,10 +52,10 @@ sort_SortText(Slice values)
     int64_t end = (int64_t)(values).length;
     while (end > 1LL) {
         end = (int64_t)((uint64_t)end - UINT64_C(1));
-        String saved = ((String *)values.data)[0];
-        String* value_0 = &(((String *)values.data)[0]);
-        (*value_0) = ((String *)values.data)[end];
-        String* value_1 = &(((String *)values.data)[end]);
+        String saved = ((String *)(values).data)[0];
+        String* value_0 = &(((String *)(values).data)[0]);
+        (*value_0) = ((String *)(values).data)[end];
+        String* value_1 = &(((String *)(values).data)[end]);
         (*value_1) = saved;
         sort_TextSiftDown(values, 0LL, end);
     }

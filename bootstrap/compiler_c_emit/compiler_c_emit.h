@@ -4,6 +4,82 @@
 
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CParameter
+#define ZIRAN_TYPE_FORWARD_CParameter
+typedef struct CParameter CParameter;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CParameters
+#define ZIRAN_TYPE_FORWARD_CParameters
+typedef struct CParameters CParameters;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ZirVector
+#define ZIRAN_TYPE_FORWARD_ZirVector
+typedef struct ZirVector ZirVector;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_c_emit_StaticText
+#define ZIRAN_TYPE_FORWARD_compiler_c_emit_StaticText
+typedef struct compiler_c_emit_StaticText compiler_c_emit_StaticText;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ModuleIdentity
+#define ZIRAN_TYPE_FORWARD_ModuleIdentity
+typedef struct ModuleIdentity ModuleIdentity;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ModuleIdentities
+#define ZIRAN_TYPE_FORWARD_ModuleIdentities
+typedef struct ModuleIdentities ModuleIdentities;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_NativeValueName
+#define ZIRAN_TYPE_FORWARD_NativeValueName
+typedef struct NativeValueName NativeValueName;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_NativeValueNames
+#define ZIRAN_TYPE_FORWARD_NativeValueNames
+typedef struct NativeValueNames NativeValueNames;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ModuleVisits
+#define ZIRAN_TYPE_FORWARD_ModuleVisits
+typedef struct ModuleVisits ModuleVisits;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_HelperEntry
+#define ZIRAN_TYPE_FORWARD_HelperEntry
+typedef struct HelperEntry HelperEntry;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_RuntimeUse
+#define ZIRAN_TYPE_FORWARD_RuntimeUse
+typedef struct RuntimeUse RuntimeUse;
+#endif
+#endif
+#ifndef ZIRAN_CALLABLE_ZirResolveTarget
+#define ZIRAN_CALLABLE_ZirResolveTarget
+typedef void (*ZirResolveTarget)(void*, uint8_t*, uint8_t*, size_t);
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_DestroyFn
+#define ZIRAN_CALLABLE_DestroyFn
+typedef void (*DestroyFn)(void*);
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_native_names.h"
 #include "compiler_scalar.h"
@@ -55,43 +131,6 @@ extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
 #define NATIVE_STDBOOL 1024
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
-typedef struct CParameter CParameter;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
-typedef struct CParameters CParameters;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
-typedef struct ZirVector ZirVector;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
-typedef struct compiler_c_emit_StaticText compiler_c_emit_StaticText;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
-typedef struct ModuleIdentity ModuleIdentity;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
-typedef struct ModuleIdentities ModuleIdentities;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
-typedef struct NativeValueName NativeValueName;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
-typedef struct NativeValueNames NativeValueNames;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
-typedef struct ModuleVisits ModuleVisits;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
-typedef struct HelperEntry HelperEntry;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
-typedef struct RuntimeUse RuntimeUse;
-#endif
-typedef void (*ZirResolveTarget)(void*, uint8_t*, uint8_t*, size_t);
-#ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
-typedef void (*DestroyFn)(void*);
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_H_PRIVATE
 

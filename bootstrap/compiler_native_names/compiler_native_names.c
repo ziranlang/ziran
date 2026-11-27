@@ -56,13 +56,7 @@ int32_t zir_foreign_compiler_native_names__CQualifyNativeTypeNames(ZirProgram** 
 #else
 int32_t zir_foreign_compiler_native_names__CQualifyNativeTypeNames(ZirProgram** programs, int32_t count) __asm__("QualifyNativeTypeNames");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int32_t compiler_native_names_CSameTypeApplication(ZirModule* target_owner, ZirType* target, ZirModule* source_owner, ZirType* source) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_native_names_CSameMapType(ZirModule* target_owner, ZirType* target, ZirModule* source_owner, ZirType* source) ZIRAN_MAYBE_UNUSED;
 static void* compiler_native_names_Literal(String text) ZIRAN_MAYBE_UNUSED;

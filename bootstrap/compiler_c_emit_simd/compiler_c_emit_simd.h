@@ -4,6 +4,18 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#ifdef ZIRAN_COMPILER_C_EMIT_SIMD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_c_emit_simd_StaticText
+#define ZIRAN_TYPE_FORWARD_compiler_c_emit_simd_StaticText
+typedef struct compiler_c_emit_simd_StaticText compiler_c_emit_simd_StaticText;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_C_EMIT_SIMD_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_SimdBuffers
+#define ZIRAN_TYPE_FORWARD_SimdBuffers
+typedef struct SimdBuffers SimdBuffers;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_native_names.h"
 #include "compiler_c_range.h"
@@ -12,12 +24,6 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_SIMD_H_PRIVATE
-typedef struct compiler_c_emit_simd_StaticText compiler_c_emit_simd_StaticText;
-#endif
-#ifdef ZIRAN_COMPILER_C_EMIT_SIMD_H_PRIVATE
-typedef struct SimdBuffers SimdBuffers;
 #endif
 #ifdef ZIRAN_COMPILER_C_EMIT_SIMD_H_PRIVATE
 

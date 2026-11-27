@@ -124,13 +124,7 @@ void* zir_foreign_file_tree_linux__CopyBytesRaw(void* output, void* value, size_
 #else
 void* zir_foreign_file_tree_linux__CopyBytesRaw(void* output, void* value, size_t count) __asm__("memcpy");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int32_t file_tree_linux_StatAtRaw(int32_t directory, uint8_t* path, StatRecord* output, int32_t flags) ZIRAN_MAYBE_UNUSED;
 static PathKind file_tree_linux_PathKindOf(int32_t mode) ZIRAN_MAYBE_UNUSED;
 static bool file_tree_linux_ReadPathInfo(uint8_t* name, int32_t flags, PathInfo* info) ZIRAN_MAYBE_UNUSED;
@@ -731,7 +725,7 @@ file_tree_linux_CopyText(Slice bytes)
     __type_131eebaaeb761e42 result = {0};
     __type_131eebaaeb761e42* value_0 = &result;
     for (int64_t it_index = 0LL; it_index < (int64_t)(bytes).length; it_index++) {
-        uint8_t it = ((uint8_t *)bytes.data)[it_index];
+        uint8_t it = ((uint8_t *)(bytes).data)[it_index];
         if (it == 0) {
             break;
         }

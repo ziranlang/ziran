@@ -5,19 +5,46 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_SourceError
+#define ZIRAN_TYPE_FORWARD_SourceError
+typedef int32_t SourceError;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_StatementKind
+#define ZIRAN_TYPE_FORWARD_StatementKind
+typedef int32_t StatementKind;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_SourceRewrite
+#define ZIRAN_TYPE_FORWARD_SourceRewrite
+typedef struct SourceRewrite SourceRewrite;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CommentScan
+#define ZIRAN_TYPE_FORWARD_CommentScan
+typedef struct CommentScan CommentScan;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ControlBlock
+#define ZIRAN_TYPE_FORWARD_ControlBlock
+typedef struct ControlBlock ControlBlock;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ProcedureHeader
+#define ZIRAN_TYPE_FORWARD_ProcedureHeader
+typedef struct ProcedureHeader ProcedureHeader;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_MustUseModifier
+#define ZIRAN_TYPE_FORWARD_MustUseModifier
+typedef int32_t MustUseModifier;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_InliningModifier
+#define ZIRAN_TYPE_FORWARD_InliningModifier
+typedef int32_t InliningModifier;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_TargetModifier
+#define ZIRAN_TYPE_FORWARD_TargetModifier
+typedef int32_t TargetModifier;
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef int32_t SourceError;
-typedef int32_t StatementKind;
-typedef struct SourceRewrite SourceRewrite;
-typedef struct CommentScan CommentScan;
-typedef struct ControlBlock ControlBlock;
-typedef struct ProcedureHeader ProcedureHeader;
-typedef int32_t MustUseModifier;
-typedef int32_t InliningModifier;
-typedef int32_t TargetModifier;
 
 enum {
     SourceError_None = 0,
@@ -140,7 +167,7 @@ compiler_source_NormalizeRecordSeparators_ziran_inline(Slice body, bool split_co
     bool quoted = false;
     int32_t nesting = 0;
     while (at < (int64_t)(body).length) {
-        uint8_t byte = ((uint8_t *)body.data)[at];
+        uint8_t byte = ((uint8_t *)(body).data)[at];
         if (quoted) {
             if (byte == 92 && (int64_t)((uint64_t)at + UINT64_C(1)) < (int64_t)(body).length) {
                 at = (int64_t)((uint64_t)at + UINT64_C(1));
@@ -154,7 +181,7 @@ compiler_source_NormalizeRecordSeparators_ziran_inline(Slice body, bool split_co
         } else if (byte == 93 || byte == 41) {
             nesting = (int32_t)((uint32_t)nesting - 1u);
         } else if (nesting == 0 && (byte == 59 || (split_commas && byte == 44))) {
-            uint8_t* value_0 = &(((uint8_t *)body.data)[at]);
+            uint8_t* value_0 = &(((uint8_t *)(body).data)[at]);
             (*value_0) = 10;
         }
         at = (int64_t)((uint64_t)at + UINT64_C(1));

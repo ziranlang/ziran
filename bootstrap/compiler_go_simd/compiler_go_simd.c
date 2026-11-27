@@ -164,13 +164,7 @@ GoSimdText* zir_foreign_compiler_go_simd__ZirGoSimdLaneAt(size_t i) __asm__("_Zi
 #else
 GoSimdText* zir_foreign_compiler_go_simd__ZirGoSimdLaneAt(size_t i) __asm__("ZirGoSimdLaneAt");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_go_simd_CStr(String s) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_go_simd_PtrAdd(uint8_t* base, size_t offset) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_go_simd_CheckFormat(int32_t n, size_t size) ZIRAN_MAYBE_UNUSED;

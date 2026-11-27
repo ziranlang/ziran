@@ -28,6 +28,12 @@ Ziran record or action.</p>
 <p>Exported native globals retain their declaration's record and callable types,
 including pointers, arrays and generic storage, across different import aliases.
 Reading or updating that storage uses the same native ownership checks.</p>
+<p>Exported native foreign procedures use the same checked calls as Ziran actions.
+Namespace imports, named aliases and native re-exports preserve their signatures,
+ownership annotations and external ABI. Host capabilities retain the declaration
+module's identity and normal <code>--bind</code>/<code>--bind-host</code> behavior through saved IR.
+For a C build with a native host, an unbound capability calls the original
+declaration's linker symbol; importing it does not rename the native ABI.</p>
 <pre><code class="language-tsx">import * as Model from &quot;model&quot;;
 import { Half } from &quot;arithmetic&quot;;
 

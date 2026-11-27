@@ -2,13 +2,7 @@
 #include <stdbool.h>
 #include "zir_string.h"
 #include "compiler_c_range_callers.h"
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_c_range_callers_SplicedName(Callers* c, uint8_t* name) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_c_range_callers_TreeSize(ZirFunction* fn, int32_t x) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_c_range_callers_CopyTree(ZirFunction* from, int32_t x, ZirExpr* to, int32_t* next) ZIRAN_MAYBE_UNUSED;

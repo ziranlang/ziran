@@ -4,23 +4,53 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyOperand
+#define ZIRAN_TYPE_FORWARD_AssemblyOperand
+typedef struct AssemblyOperand AssemblyOperand;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_AssemblyVariant
+#define ZIRAN_TYPE_FORWARD_AssemblyVariant
+typedef struct AssemblyVariant AssemblyVariant;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_GoOperand
+#define ZIRAN_TYPE_FORWARD_GoOperand
+typedef struct GoOperand GoOperand;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_GoLabel
+#define ZIRAN_TYPE_FORWARD_GoLabel
+typedef struct GoLabel GoLabel;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_GoAmd64Plan
+#define ZIRAN_TYPE_FORWARD_GoAmd64Plan
+typedef struct GoAmd64Plan GoAmd64Plan;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_GoArgument
+#define ZIRAN_TYPE_FORWARD_GoArgument
+typedef struct GoArgument GoArgument;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_GoConditionMapping
+#define ZIRAN_TYPE_FORWARD_GoConditionMapping
+typedef struct GoConditionMapping GoConditionMapping;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_GoInstructionMapping
+#define ZIRAN_TYPE_FORWARD_GoInstructionMapping
+typedef struct GoInstructionMapping GoInstructionMapping;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_TextStream
+#define ZIRAN_TYPE_FORWARD_TextStream
+typedef struct TextStream TextStream;
+#endif
+#ifdef ZIRAN_COMPILER_GO_ASM_X64_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_compiler_go_asm_x64_StaticText
+#define ZIRAN_TYPE_FORWARD_compiler_go_asm_x64_StaticText
+typedef struct compiler_go_asm_x64_StaticText compiler_go_asm_x64_StaticText;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_native_names.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-typedef struct AssemblyOperand AssemblyOperand;
-typedef struct AssemblyVariant AssemblyVariant;
-typedef struct GoOperand GoOperand;
-typedef struct GoLabel GoLabel;
-typedef struct GoAmd64Plan GoAmd64Plan;
-typedef struct GoArgument GoArgument;
-typedef struct GoConditionMapping GoConditionMapping;
-typedef struct GoInstructionMapping GoInstructionMapping;
-typedef struct TextStream TextStream;
-#ifdef ZIRAN_COMPILER_GO_ASM_X64_H_PRIVATE
-typedef struct compiler_go_asm_x64_StaticText compiler_go_asm_x64_StaticText;
 #endif
 
 struct AssemblyOperand {

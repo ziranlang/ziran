@@ -48,7 +48,8 @@ RecordFieldPathType :: (owner: *IR.ZirModule, record: *IR.ZirType, path: *u8, ty
 ResolveFunction :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunction";
 ResolveFunctionAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8, owner: **IR.ZirModule, function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunctionAt";
 ResolveGlobal :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, global: **IR.ZirGlobal) -> s32 #foreign compiler "ResolveGlobal";
-ResolveQualifiedHostImportAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8, owner: **IR.ZirModule, declaration: **IR.ZirImport) -> s32 #foreign compiler "ResolveQualifiedHostImportAt";
+ModuleAddImport :: (module: *IR.ZirModule, kind: IR.ZirImportKind, name: *u8, target: *u8, signature: *u8, required: s32, span: IR.ZirSourceSpan) -> *IR.ZirImport #foreign compiler "ModuleAddImport";
+ResolveForeignImportAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8, owner: **IR.ZirModule, declaration: **IR.ZirImport) -> s32 #foreign compiler "ResolveForeignImportAt";
 ResolveRecordField :: (owner: *IR.ZirModule, record: *IR.ZirType, name: *u8, path: *u8, path_size: usize, type: *u8, type_size: usize) -> s32 #foreign compiler "ResolveRecordField";
 ScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
 SliceElementType :: (type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "SliceElementType";
@@ -1700,6 +1701,72 @@ unresolved_error :: (c: *Checker, expression: *IR.ZirExpr, procedures: s32) {
 }
 
 #scope_file
+BindForeignCall :: (c: *Checker, expression: *IR.ZirExpr, declaration: *IR.ZirImport,
+                    owner: *IR.ZirModule, parameters: *CheckArray4096_u8, count: s32, result_type: *u8) {
+    binding := cast(*IR.ZirImport)AllocateOrExit(size_of(IR.ZirImport))
+    defer CompilerFree(cast(*void)binding)
+    binding[0] = declaration[0]
+    binding.is_public = 0; binding.is_file_private = 0
+    if binding.declaration_module[0] == 0 {
+        copy_text(*binding.declaration_module[0], size_of(type_of(binding.declaration_module)), *owner.name[0])
+    }
+    if binding.extern_kind == .HOST && binding.extern_symbol[0] == 0 {
+        copy_text(*binding.extern_symbol[0], size_of(type_of(binding.extern_symbol)), *declaration.name[0])
+    }
+    used: usize = 0
+    binding.args[0] = 0
+    for index: cast(s32)0..count - 1 {
+        written := snprintf(cast(*u8)(cast(usize)*binding.args[0] + used),
+            size_of(type_of(binding.args)) - used, CheckCString("%s%s"),
+            ifx index == 0 then CheckCString("") else CheckCString(", "), *parameters[index].items[0])
+        if written < 0 || cast(usize)written >= size_of(type_of(binding.args)) - used {
+            error(c, expression.span, CheckCString("imported foreign signature is too long"), expression.name)
+            return
+        }
+        used += cast(usize)written
+    }
+    copy_text(*binding.return_type[0], size_of(type_of(binding.return_type)), result_type)
+    for index: cast(s32)0..c.module.import_count - 1 {
+        existing := *c.module.imports[index]
+        if existing.kind == .EXTERN && existing.extern_kind == binding.extern_kind &&
+           existing.span.context == binding.span.context && existing.span.file == binding.span.file &&
+           existing.span.line == binding.span.line && existing.span.column == binding.span.column &&
+           strcmp(*existing.declaration_module[0], *binding.declaration_module[0]) == 0 &&
+           strcmp(*existing.target[0], *binding.target[0]) == 0 &&
+           strcmp(*existing.extern_symbol[0], *binding.extern_symbol[0]) == 0 &&
+           strcmp(*existing.args[0], *binding.args[0]) == 0 &&
+           strcmp(*existing.return_type[0], *binding.return_type[0]) == 0 {
+            expression.name = KeepName(*existing.name[0])
+            return
+        }
+    }
+    serial := c.module.import_count
+    while true {
+        snprintf(*binding.name[0], size_of(type_of(binding.name)), CheckCString("__ziran_foreign_%d"), serial)
+        collision := lookup(c, *binding.name[0])[0] != 0
+        for index: cast(s32)0..c.module.import_count - 1 {
+            if strcmp(*c.module.imports[index].name[0], *binding.name[0]) == 0 { collision = true }
+        }
+        for index: cast(s32)0..c.module.function_count - 1 {
+            function := *c.module.functions[index]
+            if strcmp(*function.name[0], *binding.name[0]) == 0 ||
+               strstr(FunctionArgs(function), *binding.name[0]) != null { collision = true }
+            for statement: cast(s32)0..function.stmt_count - 1 {
+                entry := *function.stmts[statement]
+                if entry.kind == .DECL && entry.name != null && strcmp(entry.name, *binding.name[0]) == 0 { collision = true }
+            }
+        }
+        if !collision { break }
+        serial += 1
+    }
+    stored := ModuleAddImport(c.module, .EXTERN, *binding.name[0], *binding.target[0],
+                              *binding.signature[0], binding.required, binding.span)
+    if stored == null { error(c, expression.span, CheckCString("cannot allocate imported foreign binding"), expression.name); return }
+    stored[0] = binding[0]
+    expression.name = KeepName(*stored.name[0])
+}
+
+#scope_file
 expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTypeBuffers) -> *u8 {
     e: *IR.ZirExpr
     type: *u8 = CheckCString("")
@@ -1835,7 +1902,12 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
         (e).type = KeepName(CheckCString("integer"))
         return (e).type
     }
-    if e.kind == .OWNED_LAMBDA || e.kind == .JSX_CHILDREN {
+    needs_callable_context := e.kind == .OWNED_LAMBDA || e.kind == .JSX_CHILDREN
+    if e.kind == .IDENT && e.is_function_value == 0 {
+        slot := FindType(c.module, *c.expected_type.items[0], null)
+        needs_callable_context = slot != null && (slot.is_owned_callable != 0 || slot.is_scoped_callable != 0)
+    }
+    if needs_callable_context {
         contextual_slot(c, index, *c.expected_type.items[0])
         e = *c.fn.exprs[index]
         if e.kind == .OWNED_LAMBDA || e.kind == .JSX_CHILDREN {
@@ -3326,21 +3398,29 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                                 callee_owner = slot_owner
                             }
                         }
-                        target: s32 = (CompilerTargetFacts()).target
-                        if (((((args == cast(*u8)((null))) && !((binding)[0] != 0)) && !((base_type)[0] != 0)) && !((e).is_this != 0)) && ((cast(u32)(target) == cast(u32)(3)) || (cast(u32)(target) == cast(u32)(2)))) {
-                            found: s32 = ResolveQualifiedHostImportAt((c).module, (e).name, SpanPath((e).span), *(callee_owner), *(qualified_host))
-                            if (found < 0) {
-                                error(c, (e).span, CheckCString("ambiguous imported function"), (e).name)
-                                CompilerFree(cast(*void)(parts))
-                                break check_switch_243
-                            }
-                            if (found > 0) {
-                                args = cast(*u8)(*((qualified_host).args))
-                                return_type = cast(*u8)(*((qualified_host).return_type))
-                                varargs = (qualified_host).is_varargs
-                                ((c).fn).uses_host = 1
-                            }
-                        }
+
+                    }
+                }
+            }
+            if callee == null && slot == null && args == null && binding[0] == 0 && e.is_this == 0 {
+                declaration: *IR.ZirImport = null
+                found := ResolveForeignImportAt(c.module, e.name, SpanPath(e.span), *callee_owner, *declaration)
+                if found < 0 {
+                    error(c, e.span, CheckCString("ambiguous imported function"), e.name)
+                    CompilerFree(cast(*void)parts)
+                    break check_switch_243
+                }
+                if found > 0 {
+                    // Checking nested arguments can grow this module's import array.
+                    qualified_host = cast(*IR.ZirImport)AllocateOrExit(size_of(IR.ZirImport))
+                    qualified_host[0] = declaration[0]
+                    args = *qualified_host.args[0]
+                    return_type = *qualified_host.return_type[0]
+                    varargs = qualified_host.is_varargs
+                    if qualified_host.extern_kind == .HOST { c.fn.uses_host = 1 }
+                    if qualified_host.go_defer != 0 && (c.current_stmt == null ||
+                       c.current_stmt.kind != .EXPR || c.current_stmt.expr_root != index) {
+                        error(c, e.span, CheckCString("#go_defer requires a standalone call statement"), e.name)
                     }
                 }
             }
@@ -3383,11 +3463,13 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
             fixed: s32 = (ifx ((varargs != 0) && (expected > 0)) then (expected - 1) else expected)
             if ((varargs != 0) && (expected > 0)) {
                 if !(bind_varargs_call(c, e, parts, fixed, cast(*u8)(*((display_name_storage_17[0]).items))) != 0) {
+                    CompilerFree(cast(*void)qualified_host)
                     CompilerFree(cast(*void)(parts))
                     break check_switch_243
                 }
             } else {
                 if ((args != null) && !(bind_call_arguments(c, e, parts, expected, cast(*u8)(*((display_name_storage_17[0]).items)), (ifx (callee != null) then FunctionDefaultArgs(callee) else null)) != 0)) {
+                    CompilerFree(cast(*void)qualified_host)
                     CompilerFree(cast(*void)(parts))
                     break check_switch_243
                 }
@@ -3477,6 +3559,10 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
             } else {
                 unresolved_error(c, e, 1)
             }
+            if qualified_host != null && c.failed == 0 {
+                BindForeignCall(c, e, qualified_host, callee_owner, parts, expected, type)
+            }
+            CompilerFree(cast(*void)qualified_host)
             CompilerFree(cast(*void)(parts))
             break check_switch_243
         }

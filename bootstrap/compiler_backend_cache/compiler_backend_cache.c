@@ -536,11 +536,11 @@ compiler_backend_cache_RequestedPipe(Slice arguments)
 {
     int64_t index = 1LL;
     while (index < (int64_t)(arguments).length) {
-        if (compiler_backend_cache_PairedArgument(((String *)arguments.data)[index])) {
+        if (compiler_backend_cache_PairedArgument(((String *)(arguments).data)[index])) {
             index = (int64_t)((uint64_t)index + UINT64_C(2));
             continue;
         }
-        if (StringEqual(((String *)arguments.data)[index], StringLiteral("-pipe"))) {
+        if (StringEqual(((String *)(arguments).data)[index], StringLiteral("-pipe"))) {
             return true;
         }
         index = (int64_t)((uint64_t)index + UINT64_C(1));
@@ -571,7 +571,7 @@ compiler_backend_cache_SupportedArguments(Slice arguments)
     }
     int64_t index = 1LL;
     while (index < (int64_t)(arguments).length) {
-        String value = ((String *)arguments.data)[index];
+        String value = ((String *)(arguments).data)[index];
         String value_0 = value;
         String value_1 = StringLiteral("__DATE__");
         bool value_2 = false;
@@ -622,7 +622,7 @@ compiler_backend_cache_SupportedArguments(Slice arguments)
         }
         if (compiler_backend_cache_PairedArgument(value)) {
             index = (int64_t)((uint64_t)index + UINT64_C(1));
-            if (index >= (int64_t)(arguments).length || (StringEqual(value, StringLiteral("-x")) && !StringEqual(((String *)arguments.data)[index], StringLiteral("c")))) {
+            if (index >= (int64_t)(arguments).length || (StringEqual(value, StringLiteral("-x")) && !StringEqual(((String *)(arguments).data)[index], StringLiteral("c")))) {
                 return false;
             }
             index = (int64_t)((uint64_t)index + UINT64_C(1));
@@ -1489,7 +1489,7 @@ compiler_backend_cache_EnvironmentEntries(Slice bytes, __type_9f828aa1372cb21a* 
         int64_t range_last_1 = (int64_t)((uint64_t)((int64_t)(bytes).length) - UINT64_C(1));
         int64_t index = range_first_1;
         if (index <= range_last_1) for (;;) {
-            if (((uint8_t *)bytes.data)[index] != 0) {
+            if (((uint8_t *)(bytes).data)[index] != 0) {
                 if (index == range_last_1) {
                     break;
                 }
@@ -1618,7 +1618,7 @@ compiler_backend_cache_HashEnvironment(HashState* hash)
             int64_t loop_cursor_9 = 0LL;
             while (loop_cursor_9 < loop_count_9) {
                 int64_t loop_index_9 = loop_cursor_9;
-                String entry = ((String *)loop_view_9.data)[loop_index_9];
+                String entry = ((String *)(loop_view_9).data)[loop_index_9];
                 if (compiler_backend_cache_CompilerEnvironment(entry)) {
                     compiler_backend_cache_HashText(hash, entry);
                 }
@@ -1652,7 +1652,7 @@ compiler_backend_cache_Probe(Slice arguments, bool piped)
     __type_9f828aa1372cb21a command = {0};
     __type_9f828aa1372cb21a* value_0 = &command;
     for (int64_t it_index = 0LL; it_index < (int64_t)(arguments).length; it_index++) {
-        String value = ((String *)arguments.data)[it_index];
+        String value = ((String *)(arguments).data)[it_index];
         String value_1 = value;
         bool value_2 = false;
         void *value_3 = ZirVecGrow((void *)(command).data, &(command).capacity, (command).count, sizeof(*(command).data));
@@ -1760,7 +1760,7 @@ compiler_backend_cache_Probe(Slice arguments, bool piped)
             int64_t loop_cursor_18 = 0LL;
             while (loop_cursor_18 < loop_count_18) {
                 int64_t loop_index_18 = loop_cursor_18;
-                uint8_t byte = ((uint8_t *)loop_view_18.data)[loop_index_18];
+                uint8_t byte = ((uint8_t *)(loop_view_18).data)[loop_index_18];
                 uint8_t value_35 = byte;
                 bool value_36 = false;
                 void *value_37 = ZirVecGrow((void *)(result).data, &(result).capacity, (result).count, sizeof(*(result).data));
@@ -1893,7 +1893,7 @@ compiler_backend_cache_HashProbeOutput(HashState* hash, String text)
         int64_t loop_cursor_11 = 0LL;
         while (loop_cursor_11 < loop_count_11) {
             int64_t loop_index_11 = loop_cursor_11;
-            String line = ((String *)loop_view_11.data)[loop_index_11];
+            String line = ((String *)(loop_view_11).data)[loop_index_11];
             compiler_backend_cache_HashText(hash, line);
             loop_cursor_11 = (int64_t)((uint64_t)loop_cursor_11 + UINT64_C(1));
         }
@@ -2216,7 +2216,7 @@ compiler_backend_cache_Open(Slice arguments, String output, String executable)
     if (!value_0) {
         return (void *)0;
     }
-    String compiler = compiler_backend_cache_Executable(((String *)arguments.data)[0]);
+    String compiler = compiler_backend_cache_Executable(((String *)(arguments).data)[0]);
     if ((int64_t)(compiler).length == 0LL) {
         compiler_backend_cache_Release(compiler);
         return (void *)0;
@@ -2318,7 +2318,7 @@ compiler_backend_cache_Open(Slice arguments, String output, String executable)
     Slice value_22 = SliceRangeAt(value_21, (int64_t)0LL, (int64_t)working_length, sizeof(uint8_t));
     compiler_backend_cache_HashText(&(hash), StringView((const char *)(value_22).data, (size_t)(value_22).length));
     for (int64_t it_index = 0LL; it_index < (int64_t)(arguments).length; it_index++) {
-        String argument = ((String *)arguments.data)[it_index];
+        String argument = ((String *)(arguments).data)[it_index];
         compiler_backend_cache_HashText(&(hash), argument);
     }
     bool value_23 = compiler_backend_cache_HashEnvironment(&(hash));
@@ -2748,7 +2748,7 @@ compiler_backend_cache_ParseProbe(BuildCache* cache, HashState* hash, String tex
         int64_t loop_cursor_123 = 0LL;
         while (loop_cursor_123 < loop_count_123) {
             int64_t loop_index_123 = loop_cursor_123;
-            String root = ((String *)loop_view_123.data)[loop_index_123];
+            String root = ((String *)(loop_view_123).data)[loop_index_123];
             String resolved = compiler_backend_cache_Resolved(root);
             if ((int64_t)(resolved).length > 0LL) {
                 bool value_53 = compiler_backend_cache_AppendOwned(&(resolved_roots), resolved);
@@ -3163,7 +3163,7 @@ compiler_backend_cache_ReadInteger(Slice bytes, int64_t* offset, uint32_t* outpu
     }
     uint32_t value = 0;
     for (int64_t index = 0LL; index <= 3LL; index++) {
-        uint32_t value_2 = ZiShl32((uint32_t)(((uint8_t *)bytes.data)[((int64_t)((uint64_t)(*(offset)) + (uint64_t)index))]), (uint64_t)((uint32_t)(((int64_t)(UINT64_C(8) * (uint64_t)index)))), 32);
+        uint32_t value_2 = ZiShl32((uint32_t)(((uint8_t *)(bytes).data)[((int64_t)((uint64_t)(*(offset)) + (uint64_t)index))]), (uint64_t)((uint32_t)(((int64_t)(UINT64_C(8) * (uint64_t)index)))), 32);
         value = (uint32_t)((uint32_t)value | (uint32_t)value_2);
     }
     int64_t* value_3 = &((*(offset)));
@@ -3183,7 +3183,7 @@ compiler_backend_cache_ReadDigest(Slice bytes, int64_t* offset, Digest* output)
     }
     for (int64_t index = 0LL; index <= 31LL; index++) {
         uint8_t* value_2 = &(output->bytes[index]);
-        (*value_2) = ((uint8_t *)bytes.data)[((int64_t)((uint64_t)(*(offset)) + (uint64_t)index))];
+        (*value_2) = ((uint8_t *)(bytes).data)[((int64_t)((uint64_t)(*(offset)) + (uint64_t)index))];
     }
     int64_t* value_3 = &((*(offset)));
     (*value_3) = (int64_t)((uint64_t)((*value_3)) + UINT64_C(32));
@@ -3388,7 +3388,7 @@ bool
 compiler_backend_cache_AppendBytes(__type_131eebaaeb761e42* output, Slice bytes)
 {
     for (int64_t it_index = 0LL; it_index < (int64_t)(bytes).length; it_index++) {
-        uint8_t byte = ((uint8_t *)bytes.data)[it_index];
+        uint8_t byte = ((uint8_t *)(bytes).data)[it_index];
         uint8_t value_0 = byte;
         bool value_1 = false;
         void *value_2 = ZirVecGrow((void *)((*(output))).data, &((*(output))).capacity, ((*(output))).count, sizeof(*((*(output))).data));

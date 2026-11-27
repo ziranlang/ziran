@@ -103,6 +103,7 @@ ZirImport :: struct {
     name: [ZIR_NAME_MAX]u8 #c "char"
     target: [ZIR_PATH_MAX]u8 #c "char"
     extern_symbol: [ZIR_NAME_MAX]u8 #c "char"
+    declaration_module: [ZIR_NAME_MAX]u8 #c "char"  // projected foreign declaration's canonical owner
     signature: [ZIR_TEXT_MAX]u8 #c "char"
     args: [ZIR_TEXT_MAX]u8 #c "char"  // parsed extern parameters
     return_type: [ZIR_NAME_MAX]u8 #c "char"

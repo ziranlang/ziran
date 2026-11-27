@@ -5,6 +5,34 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_TokenText
+#define ZIRAN_TYPE_FORWARD_TokenText
+typedef struct TokenText TokenText;
+#endif
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ExprStatementCursor
+#define ZIRAN_TYPE_FORWARD_ExprStatementCursor
+typedef struct ExprStatementCursor ExprStatementCursor;
+#endif
+#ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ExprText
+#define ZIRAN_TYPE_FORWARD_ExprText
+typedef struct ExprText ExprText;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_PreparedDefault
+#define ZIRAN_TYPE_FORWARD_PreparedDefault
+typedef struct PreparedDefault PreparedDefault;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Parser
+#define ZIRAN_TYPE_FORWARD_Parser
+typedef struct Parser Parser;
+#endif
+#endif
 #include "compiler_expression.h"
 #include "compiler_ir.h"
 #include "compiler_scan.h"
@@ -14,19 +42,6 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-#ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
-typedef struct TokenText TokenText;
-#endif
-typedef struct ExprStatementCursor ExprStatementCursor;
-#ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
-typedef struct ExprText ExprText;
-#endif
-#ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
-typedef struct PreparedDefault PreparedDefault;
-#endif
-#ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
-typedef struct Parser Parser;
 #endif
 #ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
 

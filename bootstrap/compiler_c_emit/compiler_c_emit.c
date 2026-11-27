@@ -279,13 +279,7 @@ void zir_foreign_compiler_c_emit__SimdUsesNote(void* uses, uint8_t* word, size_t
 #else
 void zir_foreign_compiler_c_emit__SimdUsesNote(void* uses, uint8_t* word, size_t length) __asm__("SimdUsesNote");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_c_emit_CStr(String s) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_c_emit_PtrAdd(uint8_t* p, size_t n) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_c_emit_PtrSub(uint8_t* p, size_t n) ZIRAN_MAYBE_UNUSED;
@@ -1104,7 +1098,7 @@ compiler_c_emit_IsCKeyword(String name)
         int64_t loop_cursor_1 = 0LL;
         while (loop_cursor_1 < loop_count_1) {
             int64_t loop_index_1 = loop_cursor_1;
-            String w = ((String *)loop_view_1.data)[loop_index_1];
+            String w = ((String *)(loop_view_1).data)[loop_index_1];
             if (StringEqual(name, w)) {
                 return true;
             }
@@ -1139,7 +1133,7 @@ compiler_c_emit_IsCppKeyword(String name)
         int64_t loop_cursor_1 = 0LL;
         while (loop_cursor_1 < loop_count_1) {
             int64_t loop_index_1 = loop_cursor_1;
-            String w = ((String *)loop_view_1.data)[loop_index_1];
+            String w = ((String *)(loop_view_1).data)[loop_index_1];
             if (StringEqual(name, w)) {
                 return true;
             }
@@ -1161,7 +1155,7 @@ compiler_c_emit_IsGoKeyword(String name)
         int64_t loop_cursor_1 = 0LL;
         while (loop_cursor_1 < loop_count_1) {
             int64_t loop_index_1 = loop_cursor_1;
-            String w = ((String *)loop_view_1.data)[loop_index_1];
+            String w = ((String *)(loop_view_1).data)[loop_index_1];
             if (StringEqual(name, w)) {
                 return true;
             }
@@ -1183,7 +1177,7 @@ compiler_c_emit_IsCRuntimeName(String name)
         int64_t loop_cursor_1 = 0LL;
         while (loop_cursor_1 < loop_count_1) {
             int64_t loop_index_1 = loop_cursor_1;
-            String w = ((String *)loop_view_1.data)[loop_index_1];
+            String w = ((String *)(loop_view_1).data)[loop_index_1];
             if (StringEqual(name, w)) {
                 return true;
             }
@@ -1218,7 +1212,7 @@ compiler_c_emit_IsGoRuntimeName(String name)
         int64_t loop_cursor_1 = 0LL;
         while (loop_cursor_1 < loop_count_1) {
             int64_t loop_index_1 = loop_cursor_1;
-            String w = ((String *)loop_view_1.data)[loop_index_1];
+            String w = ((String *)(loop_view_1).data)[loop_index_1];
             if (StringEqual(name, w)) {
                 return true;
             }

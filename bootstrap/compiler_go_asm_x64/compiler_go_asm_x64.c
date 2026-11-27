@@ -182,13 +182,7 @@ uint8_t* zir_foreign_compiler_go_asm_x64__trim_in_place(uint8_t* s) __asm__("_tr
 #else
 uint8_t* zir_foreign_compiler_go_asm_x64__trim_in_place(uint8_t* s) __asm__("trim_in_place");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_go_asm_x64_CStr(String s) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_go_asm_x64_width(uint8_t* type) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_go_asm_x64_floating(uint8_t* type) ZIRAN_MAYBE_UNUSED;

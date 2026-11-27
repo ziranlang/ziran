@@ -233,13 +233,7 @@ int32_t zir_foreign_compiler_parse_declaration__isspace(int32_t character) __asm
 #else
 int32_t zir_foreign_compiler_parse_declaration__isspace(int32_t character) __asm__("isspace");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static String compiler_parse_declaration_declaration_text(uint8_t* source) ZIRAN_MAYBE_UNUSED;
 static void compiler_parse_declaration_copy_declaration_part(uint8_t* output, size_t capacity, String part, int32_t normalize_type) ZIRAN_MAYBE_UNUSED;
 static void compiler_parse_declaration_check_declaration_error(DeclarationError error, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;

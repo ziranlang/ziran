@@ -5,16 +5,14 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
-#include "c_string.h"
-#include "byte_text_linux.h"
-#include "number_text.h"
-#include "result.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#ifndef ZIRAN_TYPE_FORWARD_EnvironmentFailure
+#define ZIRAN_TYPE_FORWARD_EnvironmentFailure
 typedef int64_t EnvironmentFailure;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ArgumentFailure
+#define ZIRAN_TYPE_FORWARD_ArgumentFailure
 typedef int64_t ArgumentFailure;
+#endif
 #ifndef ZIRAN_CONCRETE_FORWARD___type_1da6ca1b906259e1
 #define ZIRAN_CONCRETE_FORWARD___type_1da6ca1b906259e1
 typedef struct __type_1da6ca1b906259e1 __type_1da6ca1b906259e1;
@@ -26,6 +24,14 @@ typedef struct __type_4b8e91f1fe7720dd __type_4b8e91f1fe7720dd;
 #ifndef ZIRAN_CONCRETE_FORWARD___type_9f5455d017f855f3
 #define ZIRAN_CONCRETE_FORWARD___type_9f5455d017f855f3
 typedef struct __type_9f5455d017f855f3 __type_9f5455d017f855f3;
+#endif
+#include "c_string.h"
+#include "byte_text_linux.h"
+#include "number_text.h"
+#include "result.h"
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 enum {

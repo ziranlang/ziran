@@ -168,13 +168,7 @@ int32_t zir_foreign_compiler_borrow__strncmp(uint8_t* ziran_keyword___s1_0, uint
 #else
 int32_t zir_foreign_compiler_borrow__strncmp(uint8_t* ziran_keyword___s1_0, uint8_t* ziran_keyword___s2_0, size_t ziran_keyword___n_0) __asm__("strncmp");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint64_t compiler_borrow_pointer_hash(void* key, void* second) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_borrow_pointer_index_get(PointerIndex* index, void* key, void* second) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_borrow_pointer_index_put(PointerIndex* index, void* key, void* second, int32_t value) ZIRAN_MAYBE_UNUSED;

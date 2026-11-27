@@ -355,13 +355,7 @@ int32_t zir_foreign_compiler_zir_serial__isspace(int32_t byte) __asm__("_isspace
 #else
 int32_t zir_foreign_compiler_zir_serial__isspace(int32_t byte) __asm__("isspace");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static Field compiler_zir_serial_serial_field(void* record, void* member, size_t size, FieldKind kind) ZIRAN_MAYBE_UNUSED;
 static size_t compiler_zir_serial_PersistencePost0(size_t* p) ZIRAN_MAYBE_UNUSED;
 static uint8_t compiler_zir_serial_PersistenceSet1(uint8_t* p, uint8_t value) ZIRAN_MAYBE_UNUSED;
@@ -956,7 +950,19 @@ compiler_zir_serial_describe_import_fields(void* input, Field* output)
         value_102 = (Field){.offset = (size_t)(member) - (size_t)(record), .size = size, .kind = kind};
     }
     (*value_99) = value_102;
-    return 21;
+    Field* value_104 = &(output[21]);
+    void* value_105 = (void*)(&(record->declaration_module));
+    size_t value_106 = (128) * (sizeof(uint8_t));
+    Field value_107 = {0};
+    {
+        void* record = input;
+        void* member = value_105;
+        size_t size = value_106;
+        FieldKind kind = (FieldKind)(FieldKind_String);
+        value_107 = (Field){.offset = (size_t)(member) - (size_t)(record), .size = size, .kind = kind};
+    }
+    (*value_104) = value_107;
+    return 22;
 }
 
 static size_t
@@ -6435,6 +6441,9 @@ compiler_zir_serial_validate_program(ZirProgram* program)
                     if (!check_loop_46) {
                         break;
                     }
+                    if (((module->imports[i]).declaration_module)[0] != 0 && ((ZirImportKind)((module->imports[i]).kind)) != ((ZirImportKind)(3))) {
+                        return 0;
+                    }
                     bool value_0 = (int32_t)(((ZirImportKind)((module->imports[i]).kind))) < 1 || (int32_t)(((ZirImportKind)((module->imports[i]).kind))) > 3;
                     bool value_1 = value_0 || ((module->imports[i]).go_results != 0 && (module->imports[i]).go_results != 1) || ((module->imports[i]).go_field != 0 && (module->imports[i]).go_field != 1);
                     bool value_2 = value_1 || ((module->imports[i]).go_defer != 0 && (module->imports[i]).go_defer != 1) || ((module->imports[i]).go_variadic != 0 && (module->imports[i]).go_variadic != 1);
@@ -7221,7 +7230,7 @@ compiler_zir_serial_write_program(ZirProgram* program, Writer* out, int32_t vali
     bool value_9 = value_7;
     bool value_10 = value_9;
     if (!value_10) {
-        bool value_11 = compiler_zir_serial_write_version(out, 69) != 0;
+        bool value_11 = compiler_zir_serial_write_version(out, 70) != 0;
         value_10 = !value_11;
     }
     bool value_12 = value_10 || program->module_count < 0;
@@ -7330,7 +7339,7 @@ compiler_zir_serial_ProgramWriteQuiet(ZirProgram* program, void* out)
 int32_t
 compiler_zir_serial_ZirFormatVersion(void)
 {
-    return 69;
+    return 70;
 }
 
 static ZirProgram*
@@ -7382,7 +7391,7 @@ compiler_zir_serial_ProgramRead_in_context(void* in, uint8_t* path, int32_t vali
             if (!value_12) {
                 goto zir_loop_break_1;
             }
-            if (version != 69) {
+            if (version != 70) {
                 compiler_zir_serial_ParserArray1024_u8 reader_path = {0};
                 bool value_13 = zir_foreign_compiler_zir_serial__ExecutablePath((uint8_t*)(&(reader_path.items)), (size_t)(sizeof(compiler_zir_serial_ParserArray1024_u8))) != 0;
                 if (!value_13) {
@@ -7408,7 +7417,7 @@ compiler_zir_serial_ProgramRead_in_context(void* in, uint8_t* path, int32_t vali
                     uint8_t* value_22 = compiler_parse_types_ParserCString(StringLiteral(""));
                     value_21 = value_22;
                 }
-                zir_foreign_compiler_zir_serial__snprintf((uint8_t*)(&(mismatch.items)), (size_t)(sizeof(ParserArray2560_u8)), value_15, value_16, (uint8_t*)(&(reader_path.items)), 69, value_20, value_21);
+                zir_foreign_compiler_zir_serial__snprintf((uint8_t*)(&(mismatch.items)), (size_t)(sizeof(ParserArray2560_u8)), value_15, value_16, (uint8_t*)(&(reader_path.items)), 70, value_20, value_21);
                 uint8_t** value_23 = &(reader.problem);
                 (*value_23) = (uint8_t*)(&(mismatch.items));
                 goto zir_loop_break_1;

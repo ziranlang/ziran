@@ -3,13 +3,7 @@
 #include <stdbool.h>
 #include "zir_string.h"
 #include "compiler_lowered_ir.h"
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static String compiler_lowered_ir_AssemblyConstraintTrim(String text) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_lowered_ir_AssemblyConstraintEnd(String text, int64_t start) ZIRAN_MAYBE_UNUSED;
 static String compiler_lowered_ir_AssemblyConstraintWord(String text) ZIRAN_MAYBE_UNUSED;
@@ -94,8 +88,8 @@ bool
 compiler_lowered_ir_LirAssemblyGateAddressed(Slice variants, int64_t operand)
 {
     for (int64_t it_index = 0LL; it_index < (int64_t)(variants).length; it_index++) {
-        LirAssemblyVariant variant = ((LirAssemblyVariant *)variants.data)[it_index];
-        if (operand < (int64_t)(variant.operands).length && compiler_lowered_ir_LirAssemblyUsesMemory((((LirAssemblyOperand *)variant.operands.data)[operand]).constraint)) {
+        LirAssemblyVariant variant = ((LirAssemblyVariant *)(variants).data)[it_index];
+        if (operand < (int64_t)(variant.operands).length && compiler_lowered_ir_LirAssemblyUsesMemory((((LirAssemblyOperand *)(variant.operands).data)[operand]).constraint)) {
             return true;
         }
     }
@@ -112,7 +106,7 @@ compiler_lowered_ir_LirAssemblyRequiredFunction(LirProgram program)
         int64_t loop_cursor_0 = 0LL;
         while (loop_cursor_0 < loop_count_0) {
             int64_t loop_index_0 = loop_cursor_0;
-            LirFunction function = ((LirFunction *)loop_view_0.data)[loop_index_0];
+            LirFunction function = ((LirFunction *)(loop_view_0).data)[loop_index_0];
             int64_t index = loop_index_0;
             if (function.assembly_required) {
                 return (int32_t)(index);

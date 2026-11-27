@@ -4,12 +4,15 @@
 
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifndef ZIRAN_TYPE_FORWARD_Results__s64__s64
+#define ZIRAN_TYPE_FORWARD_Results__s64__s64
+typedef struct Results__s64__s64 Results__s64__s64;
+#endif
 #include "text_buffer.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct Results__s64__s64 Results__s64__s64;
 
 struct Results__s64__s64 {
     int64_t value_0;

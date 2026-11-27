@@ -5,17 +5,23 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#ifdef ZIRAN_COMPILER_CHECK_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_TypeDisplayName
+#define ZIRAN_TYPE_FORWARD_TypeDisplayName
+typedef struct TypeDisplayName TypeDisplayName;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_CHECK_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParameterList
+#define ZIRAN_TYPE_FORWARD_ParameterList
+typedef struct ParameterList ParameterList;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_check_types.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-#ifdef ZIRAN_COMPILER_CHECK_H_PRIVATE
-typedef struct TypeDisplayName TypeDisplayName;
-#endif
-#ifdef ZIRAN_COMPILER_CHECK_H_PRIVATE
-typedef struct ParameterList ParameterList;
 #endif
 #ifdef ZIRAN_COMPILER_CHECK_H_PRIVATE
 

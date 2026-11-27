@@ -95,13 +95,7 @@ int32_t zir_foreign_compiler_parse__ExprFclose(void* file) __asm__("_fclose");
 #else
 int32_t zir_foreign_compiler_parse__ExprFclose(void* file) __asm__("fclose");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_parse_TokenCString(String text) ZIRAN_MAYBE_UNUSED;
 static String compiler_parse_LexerSource(ZirLexer* lexer) ZIRAN_MAYBE_UNUSED;
 static ZirToken compiler_parse_StoreToken(ZirLexer* lexer, Scan scan) ZIRAN_MAYBE_UNUSED;
@@ -1200,7 +1194,7 @@ compiler_parse_LocationNumber(int32_t value, Slice output)
     }
     while (true) {
         i = (int64_t)((uint64_t)i - UINT64_C(1));
-        uint8_t* value_0 = &(((uint8_t *)output.data)[i]);
+        uint8_t* value_0 = &(((uint8_t *)(output).data)[i]);
         (*value_0) = (uint8_t)(((int64_t)(UINT64_C(48) + (uint64_t)((remaining % 10LL)))));
         remaining = remaining / 10LL;
         if (remaining == 0LL) {
@@ -1209,7 +1203,7 @@ compiler_parse_LocationNumber(int32_t value, Slice output)
     }
     if (value < 0) {
         i = (int64_t)((uint64_t)i - UINT64_C(1));
-        uint8_t* value_1 = &(((uint8_t *)output.data)[i]);
+        uint8_t* value_1 = &(((uint8_t *)(output).data)[i]);
         (*value_1) = 45;
     }
     Slice value_2 = output;
@@ -1384,7 +1378,7 @@ compiler_parse_SplitParameterText(String text, Slice output)
     while (at >= 0LL && count < (int64_t)(output).length) {
         SourcePart part = compiler_text_NextSourcePart(text, at);
         if ((int64_t)((uint64_t)(part.end) - (uint64_t)(part.begin)) < 4096LL) {
-            String* value_0 = &(((String *)output.data)[count]);
+            String* value_0 = &(((String *)(output).data)[count]);
             String value_1 = StringRangeAt(text, (int64_t)part.begin, (int64_t)part.end);
             String value_2 = StringView(NULL, 0);
             {
@@ -1568,7 +1562,7 @@ compiler_parse_PrepareDefault(ZirModule* module, ZirSourceSpan span, ZirFunction
         return (PreparedDefault){.text = location, .valid = (int64_t)(location).length > 0LL};
     }
     compiler_ir_CopyText(output, value);
-    if (zir_foreign_compiler_parse__ExprDefaultIsLiteral(&(((uint8_t *)output.data)[0])) != 0) {
+    if (zir_foreign_compiler_parse__ExprDefaultIsLiteral(&(((uint8_t *)(output).data)[0])) != 0) {
         return (PreparedDefault){.text = value, .valid = true};
     }
     uint8_t helper[128] = {0};
@@ -3080,7 +3074,7 @@ compiler_parse_Decimal(Slice output, int64_t value)
         int64_t range_last_7 = (int64_t)((uint64_t)used - UINT64_C(1));
         int64_t i = range_first_7;
         if (i <= range_last_7) for (;;) {
-            uint8_t* value_0 = &(((uint8_t *)output.data)[((int64_t)(((uint64_t)used - UINT64_C(1)) - (uint64_t)i))]);
+            uint8_t* value_0 = &(((uint8_t *)(output).data)[((int64_t)(((uint64_t)used - UINT64_C(1)) - (uint64_t)i))]);
             (*value_0) = (uint8_t)(((int64_t)(UINT64_C(48) + (uint64_t)((rest % 10LL)))));
             rest = rest / 10LL;
             if (i == range_last_7) {
@@ -4937,7 +4931,7 @@ compiler_parse_QualifiedName(Slice output, String first, String second, int64_t 
         int64_t range_last_4 = (int64_t)((uint64_t)((int64_t)(first).length) - UINT64_C(1));
         int64_t index = range_first_4;
         if (index <= range_last_4) for (;;) {
-            uint8_t* value_0 = &(((uint8_t *)output.data)[index]);
+            uint8_t* value_0 = &(((uint8_t *)(output).data)[index]);
             (*value_0) = (uint8_t)first.data[index];
             if (index == range_last_4) {
                 break;
@@ -4945,14 +4939,14 @@ compiler_parse_QualifiedName(Slice output, String first, String second, int64_t 
             index = (int64_t)((uint64_t)index + UINT64_C(1));
         }
     }
-    uint8_t* value_1 = &(((uint8_t *)output.data)[(int64_t)(first).length]);
+    uint8_t* value_1 = &(((uint8_t *)(output).data)[(int64_t)(first).length]);
     (*value_1) = 46;
     {
         int64_t range_first_8 = 0LL;
         int64_t range_last_8 = (int64_t)((uint64_t)((int64_t)(second).length) - UINT64_C(1));
         int64_t index = range_first_8;
         if (index <= range_last_8) for (;;) {
-            uint8_t* value_2 = &(((uint8_t *)output.data)[((int64_t)(((uint64_t)((int64_t)(first).length) + UINT64_C(1)) + (uint64_t)index))]);
+            uint8_t* value_2 = &(((uint8_t *)(output).data)[((int64_t)(((uint64_t)((int64_t)(first).length) + UINT64_C(1)) + (uint64_t)index))]);
             (*value_2) = (uint8_t)second.data[index];
             if (index == range_last_8) {
                 break;

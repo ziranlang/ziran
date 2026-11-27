@@ -232,13 +232,7 @@ void zir_foreign_compiler_c_emit_call__go_field_ident(uint8_t* s, uint8_t* dst, 
 #else
 void zir_foreign_compiler_c_emit_call__go_field_ident(uint8_t* s, uint8_t* dst, size_t dst_size) __asm__("go_field_ident");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_c_emit_call_CStr(String s) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_c_emit_call_PtrAdd(uint8_t* p, size_t n) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_c_emit_call_PtrSub(uint8_t* p, size_t n) ZIRAN_MAYBE_UNUSED;

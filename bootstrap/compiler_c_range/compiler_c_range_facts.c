@@ -70,13 +70,7 @@ int32_t zir_foreign_compiler_c_range_facts__CNativeProgramMain(ZirModule* module
 #else
 int32_t zir_foreign_compiler_c_range_facts__CNativeProgramMain(ZirModule* module, ZirFunction* fn) __asm__("NativeProgramMain");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static RangeParameters* compiler_c_range_facts_Parameters(ZirFunction* fn) ZIRAN_MAYBE_UNUSED;
 static RangeParameter* compiler_c_range_facts_ParameterAt(ZirFunction* fn, int32_t index) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_range_facts_SupportedStatement(ZirStmt* st) ZIRAN_MAYBE_UNUSED;
@@ -207,7 +201,7 @@ compiler_c_range_facts_ArrayCapacity(uint8_t* type, int32_t* capacity)
 bool
 compiler_c_range_facts_ArrayElement(uint8_t* type, Slice element, int32_t* capacity)
 {
-    return zir_foreign_compiler_c_range_facts__CArrayElementType(type, &(((uint8_t *)element.data)[0]), (size_t)((int64_t)(element).length), capacity) != 0;
+    return zir_foreign_compiler_c_range_facts__CArrayElementType(type, &(((uint8_t *)(element).data)[0]), (size_t)((int64_t)(element).length), capacity) != 0;
 }
 
 bool

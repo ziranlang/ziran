@@ -5,82 +5,292 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include <stdlib.h>
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray128_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray128_u8
+typedef struct CheckArray128_u8 CheckArray128_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray32_CheckArray128_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray32_CheckArray128_u8
+typedef struct CheckArray32_CheckArray128_u8 CheckArray32_CheckArray128_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray160_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray160_u8
+typedef struct CheckArray160_u8 CheckArray160_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Binding
+#define ZIRAN_TYPE_FORWARD_Binding
+typedef struct Binding Binding;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckFilePrivateExpressionBuffers
+#define ZIRAN_TYPE_FORWARD_CheckFilePrivateExpressionBuffers
+typedef struct CheckFilePrivateExpressionBuffers CheckFilePrivateExpressionBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray16_CheckArray128_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray16_CheckArray128_u8
+typedef struct CheckArray16_CheckArray128_u8 CheckArray16_CheckArray128_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray4096_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray4096_u8
+typedef struct CheckArray4096_u8 CheckArray4096_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray64_CheckArray4096_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray64_CheckArray4096_u8
+typedef struct CheckArray64_CheckArray4096_u8 CheckArray64_CheckArray4096_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckTypeDeclarationsBuffers
+#define ZIRAN_TYPE_FORWARD_CheckTypeDeclarationsBuffers
+typedef struct CheckTypeDeclarationsBuffers CheckTypeDeclarationsBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckerRestore
+#define ZIRAN_TYPE_FORWARD_CheckerRestore
+typedef struct CheckerRestore CheckerRestore;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray64_CheckerRestore
+#define ZIRAN_TYPE_FORWARD_CheckArray64_CheckerRestore
+typedef struct CheckArray64_CheckerRestore CheckArray64_CheckerRestore;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Checker
+#define ZIRAN_TYPE_FORWARD_Checker
+typedef struct Checker Checker;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CompoundConstant
+#define ZIRAN_TYPE_FORWARD_CompoundConstant
+typedef struct CompoundConstant CompoundConstant;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CompoundText
+#define ZIRAN_TYPE_FORWARD_CompoundText
+typedef struct CompoundText CompoundText;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_DeclaredApplicationValidBuffers
+#define ZIRAN_TYPE_FORWARD_DeclaredApplicationValidBuffers
+typedef struct DeclaredApplicationValidBuffers DeclaredApplicationValidBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_DiagnosticDetails
+#define ZIRAN_TYPE_FORWARD_DiagnosticDetails
+typedef struct DiagnosticDetails DiagnosticDetails;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_EnumNameRequest
+#define ZIRAN_TYPE_FORWARD_EnumNameRequest
+typedef struct EnumNameRequest EnumNameRequest;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ExprOrder
+#define ZIRAN_TYPE_FORWARD_ExprOrder
+typedef struct ExprOrder ExprOrder;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ExpressionTypeBuffers
+#define ZIRAN_TYPE_FORWARD_ExpressionTypeBuffers
+typedef struct ExpressionTypeBuffers ExpressionTypeBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_FieldAnswer
+#define ZIRAN_TYPE_FORWARD_FieldAnswer
+typedef struct FieldAnswer FieldAnswer;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_InferExpressionTypeBuffers
+#define ZIRAN_TYPE_FORWARD_InferExpressionTypeBuffers
+typedef struct InferExpressionTypeBuffers InferExpressionTypeBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_IntegerWidth
+#define ZIRAN_TYPE_FORWARD_IntegerWidth
+typedef struct IntegerWidth IntegerWidth;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LayoutTypeBuffers
+#define ZIRAN_TYPE_FORWARD_LayoutTypeBuffers
+typedef struct LayoutTypeBuffers LayoutTypeBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray1024_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray1024_u8
+typedef struct CheckArray1024_u8 CheckArray1024_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LowerFileRecordUsingBuffers
+#define ZIRAN_TYPE_FORWARD_LowerFileRecordUsingBuffers
+typedef struct LowerFileRecordUsingBuffers LowerFileRecordUsingBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LowerFileScopeUsingBuffers
+#define ZIRAN_TYPE_FORWARD_LowerFileScopeUsingBuffers
+typedef struct LowerFileScopeUsingBuffers LowerFileScopeUsingBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_LowerIfCaseBuffers
+#define ZIRAN_TYPE_FORWARD_LowerIfCaseBuffers
+typedef struct LowerIfCaseBuffers LowerIfCaseBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray8192_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray8192_u8
+typedef struct CheckArray8192_u8 CheckArray8192_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_NormalizeRecordArraysBuffers
+#define ZIRAN_TYPE_FORWARD_NormalizeRecordArraysBuffers
+typedef struct NormalizeRecordArraysBuffers NormalizeRecordArraysBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_OverloadCandidate
+#define ZIRAN_TYPE_FORWARD_OverloadCandidate
+typedef struct OverloadCandidate OverloadCandidate;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Parents
+#define ZIRAN_TYPE_FORWARD_Parents
+typedef struct Parents Parents;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PrintExpansion
+#define ZIRAN_TYPE_FORWARD_PrintExpansion
+typedef struct PrintExpansion PrintExpansion;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PrintPiece
+#define ZIRAN_TYPE_FORWARD_PrintPiece
+typedef struct PrintPiece PrintPiece;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_RecordPath
+#define ZIRAN_TYPE_FORWARD_RecordPath
+typedef struct RecordPath RecordPath;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray64_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray64_u8
+typedef struct CheckArray64_u8 CheckArray64_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ScopeAnswer
+#define ZIRAN_TYPE_FORWARD_ScopeAnswer
+typedef struct ScopeAnswer ScopeAnswer;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_SpecializationRequest
+#define ZIRAN_TYPE_FORWARD_SpecializationRequest
+typedef struct SpecializationRequest SpecializationRequest;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_TextWalking
+#define ZIRAN_TYPE_FORWARD_TextWalking
+typedef struct TextWalking TextWalking;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray16_TextWalking
+#define ZIRAN_TYPE_FORWARD_CheckArray16_TextWalking
+typedef struct CheckArray16_TextWalking CheckArray16_TextWalking;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_TextScope
+#define ZIRAN_TYPE_FORWARD_TextScope
+typedef struct TextScope TextScope;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ValidatedRecords
+#define ZIRAN_TYPE_FORWARD_ValidatedRecords
+typedef struct ValidatedRecords ValidatedRecords;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray65_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray65_u8
+typedef struct CheckArray65_u8 CheckArray65_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirDocument
+#define ZIRAN_TYPE_FORWARD_ZirDocument
+typedef struct ZirDocument ZirDocument;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirParameter
+#define ZIRAN_TYPE_FORWARD_ZirParameter
+typedef struct ZirParameter ZirParameter;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray1_ZirParameter
+#define ZIRAN_TYPE_FORWARD_CheckArray1_ZirParameter
+typedef struct CheckArray1_ZirParameter CheckArray1_ZirParameter;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirParameters
+#define ZIRAN_TYPE_FORWARD_ZirParameters
+typedef struct ZirParameters ZirParameters;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ZirVector
+#define ZIRAN_TYPE_FORWARD_ZirVector
+typedef struct ZirVector ZirVector;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_MoveState
+#define ZIRAN_TYPE_FORWARD_MoveState
+typedef struct MoveState MoveState;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray21__u8
+#define ZIRAN_TYPE_FORWARD_CheckArray21__u8
+typedef struct CheckArray21__u8 CheckArray21__u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray8_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray8_u8
+typedef struct CheckArray8_u8 CheckArray8_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray68_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray68_u8
+typedef struct CheckArray68_u8 CheckArray68_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray7__u8
+#define ZIRAN_TYPE_FORWARD_CheckArray7__u8
+typedef struct CheckArray7__u8 CheckArray7__u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray2_u32
+#define ZIRAN_TYPE_FORWARD_CheckArray2_u32
+typedef struct CheckArray2_u32 CheckArray2_u32;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray9_IntegerWidth
+#define ZIRAN_TYPE_FORWARD_CheckArray9_IntegerWidth
+typedef struct CheckArray9_IntegerWidth CheckArray9_IntegerWidth;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray258_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray258_u8
+typedef struct CheckArray258_u8 CheckArray258_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray3_s32
+#define ZIRAN_TYPE_FORWARD_CheckArray3_s32
+typedef struct CheckArray3_s32 CheckArray3_s32;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray3__u8
+#define ZIRAN_TYPE_FORWARD_CheckArray3__u8
+typedef struct CheckArray3__u8 CheckArray3__u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray64_s32
+#define ZIRAN_TYPE_FORWARD_CheckArray64_s32
+typedef struct CheckArray64_s32 CheckArray64_s32;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray8208_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray8208_u8
+typedef struct CheckArray8208_u8 CheckArray8208_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray136_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray136_u8
+typedef struct CheckArray136_u8 CheckArray136_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray3_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray3_u8
+typedef struct CheckArray3_u8 CheckArray3_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray2_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray2_u8
+typedef struct CheckArray2_u8 CheckArray2_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray32_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray32_u8
+typedef struct CheckArray32_u8 CheckArray32_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray4_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray4_u8
+typedef struct CheckArray4_u8 CheckArray4_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray2048_u8
+#define ZIRAN_TYPE_FORWARD_CheckArray2048_u8
+typedef struct CheckArray2048_u8 CheckArray2048_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray2_s32
+#define ZIRAN_TYPE_FORWARD_CheckArray2_s32
+typedef struct CheckArray2_s32 CheckArray2_s32;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray13__u8
+#define ZIRAN_TYPE_FORWARD_CheckArray13__u8
+typedef struct CheckArray13__u8 CheckArray13__u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckArray16__u8
+#define ZIRAN_TYPE_FORWARD_CheckArray16__u8
+typedef struct CheckArray16__u8 CheckArray16__u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckTextDescriptor
+#define ZIRAN_TYPE_FORWARD_CheckTextDescriptor
+typedef struct CheckTextDescriptor CheckTextDescriptor;
+#endif
+#ifdef ZIRAN_COMPILER_CHECK_TYPES_H_PRIVATE
+#ifndef ZIRAN_CALLABLE_Destroy
+#define ZIRAN_CALLABLE_Destroy
+typedef void (*Destroy)(void*);
+#endif
+#endif
 #include "compiler_ir.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-typedef struct CheckArray128_u8 CheckArray128_u8;
-typedef struct CheckArray32_CheckArray128_u8 CheckArray32_CheckArray128_u8;
-typedef struct CheckArray160_u8 CheckArray160_u8;
-typedef struct Binding Binding;
-typedef struct CheckFilePrivateExpressionBuffers CheckFilePrivateExpressionBuffers;
-typedef struct CheckArray16_CheckArray128_u8 CheckArray16_CheckArray128_u8;
-typedef struct CheckArray4096_u8 CheckArray4096_u8;
-typedef struct CheckArray64_CheckArray4096_u8 CheckArray64_CheckArray4096_u8;
-typedef struct CheckTypeDeclarationsBuffers CheckTypeDeclarationsBuffers;
-typedef struct CheckerRestore CheckerRestore;
-typedef struct CheckArray64_CheckerRestore CheckArray64_CheckerRestore;
-typedef struct Checker Checker;
-typedef struct CompoundConstant CompoundConstant;
-typedef struct CompoundText CompoundText;
-typedef struct DeclaredApplicationValidBuffers DeclaredApplicationValidBuffers;
-typedef struct DiagnosticDetails DiagnosticDetails;
-typedef struct EnumNameRequest EnumNameRequest;
-typedef struct ExprOrder ExprOrder;
-typedef struct ExpressionTypeBuffers ExpressionTypeBuffers;
-typedef struct FieldAnswer FieldAnswer;
-typedef struct InferExpressionTypeBuffers InferExpressionTypeBuffers;
-typedef struct IntegerWidth IntegerWidth;
-typedef struct LayoutTypeBuffers LayoutTypeBuffers;
-typedef struct CheckArray1024_u8 CheckArray1024_u8;
-typedef struct LowerFileRecordUsingBuffers LowerFileRecordUsingBuffers;
-typedef struct LowerFileScopeUsingBuffers LowerFileScopeUsingBuffers;
-typedef struct LowerIfCaseBuffers LowerIfCaseBuffers;
-typedef struct CheckArray8192_u8 CheckArray8192_u8;
-typedef struct NormalizeRecordArraysBuffers NormalizeRecordArraysBuffers;
-typedef struct OverloadCandidate OverloadCandidate;
-typedef struct Parents Parents;
-typedef struct PrintExpansion PrintExpansion;
-typedef struct PrintPiece PrintPiece;
-typedef struct RecordPath RecordPath;
-typedef struct CheckArray64_u8 CheckArray64_u8;
-typedef struct ScopeAnswer ScopeAnswer;
-typedef struct SpecializationRequest SpecializationRequest;
-typedef struct TextWalking TextWalking;
-typedef struct CheckArray16_TextWalking CheckArray16_TextWalking;
-typedef struct TextScope TextScope;
-typedef struct ValidatedRecords ValidatedRecords;
-typedef struct CheckArray65_u8 CheckArray65_u8;
-typedef struct ZirDocument ZirDocument;
-typedef struct ZirParameter ZirParameter;
-typedef struct CheckArray1_ZirParameter CheckArray1_ZirParameter;
-typedef struct ZirParameters ZirParameters;
-typedef struct ZirVector ZirVector;
-typedef struct MoveState MoveState;
-typedef struct CheckArray21__u8 CheckArray21__u8;
-typedef struct CheckArray8_u8 CheckArray8_u8;
-typedef struct CheckArray68_u8 CheckArray68_u8;
-typedef struct CheckArray7__u8 CheckArray7__u8;
-typedef struct CheckArray2_u32 CheckArray2_u32;
-typedef struct CheckArray9_IntegerWidth CheckArray9_IntegerWidth;
-typedef struct CheckArray258_u8 CheckArray258_u8;
-typedef struct CheckArray3_s32 CheckArray3_s32;
-typedef struct CheckArray3__u8 CheckArray3__u8;
-typedef struct CheckArray64_s32 CheckArray64_s32;
-typedef struct CheckArray8208_u8 CheckArray8208_u8;
-typedef struct CheckArray136_u8 CheckArray136_u8;
-typedef struct CheckArray3_u8 CheckArray3_u8;
-typedef struct CheckArray2_u8 CheckArray2_u8;
-typedef struct CheckArray32_u8 CheckArray32_u8;
-typedef struct CheckArray4_u8 CheckArray4_u8;
-typedef struct CheckArray2048_u8 CheckArray2048_u8;
-typedef struct CheckArray2_s32 CheckArray2_s32;
-typedef struct CheckArray13__u8 CheckArray13__u8;
-typedef struct CheckArray16__u8 CheckArray16__u8;
-typedef struct CheckTextDescriptor CheckTextDescriptor;
-#ifdef ZIRAN_COMPILER_CHECK_TYPES_H_PRIVATE
-typedef void (*Destroy)(void*);
 #endif
 
 struct CheckArray128_u8 {

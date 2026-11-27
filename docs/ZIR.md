@@ -9,8 +9,12 @@ to LIR, verifies and optimizes LIR, then emits executable ZX.
 
 Modules retain import and export identities, resolved types, constants,
 procedure signatures and bodies, checked expression graphs, source spans,
-foreign declarations and host capability requirements. Named and default
-arguments retain source evaluation order and their checked parameter indices.
+foreign declarations and host capability requirements.
+Foreign projections retain their declaration module, so importing an action
+does not create another host capability. This metadata is part of format 70.
+
+Named and default arguments retain source evaluation order and their checked
+parameter indices.
 Generic declarations retain template and specialization identities.
 Owned callables retain their erased ABI, concrete environment construction,
 invoke and cleanup procedure values, and invocation-local borrow provenance.

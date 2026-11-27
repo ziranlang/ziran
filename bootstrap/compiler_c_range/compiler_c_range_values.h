@@ -6,6 +6,12 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include "zir_slice.h"
+#ifdef ZIRAN_COMPILER_C_RANGE_VALUES_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Excepts
+#define ZIRAN_TYPE_FORWARD_Excepts
+typedef struct Excepts Excepts;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_c_range_facts.h"
 
@@ -13,9 +19,6 @@
 extern "C" {
 #endif
 #define RANGE_EXCEPT 8
-#ifdef ZIRAN_COMPILER_C_RANGE_VALUES_H_PRIVATE
-typedef struct Excepts Excepts;
-#endif
 #ifdef ZIRAN_COMPILER_C_RANGE_VALUES_H_PRIVATE
 
 struct Excepts {

@@ -4,61 +4,208 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#ifndef ZIRAN_TYPE_FORWARD_BorrowPlace
+#define ZIRAN_TYPE_FORWARD_BorrowPlace
+typedef struct BorrowPlace BorrowPlace;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ActiveTextBorrow
+#define ZIRAN_TYPE_FORWARD_ActiveTextBorrow
+typedef struct ActiveTextBorrow ActiveTextBorrow;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array128_u8
+#define ZIRAN_TYPE_FORWARD_S12Array128_u8
+typedef struct S12Array128_u8 S12Array128_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Origin
+#define ZIRAN_TYPE_FORWARD_Origin
+typedef struct Origin Origin;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BorrowBinding
+#define ZIRAN_TYPE_FORWARD_BorrowBinding
+typedef struct BorrowBinding BorrowBinding;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PointerIndex
+#define ZIRAN_TYPE_FORWARD_PointerIndex
+typedef struct PointerIndex PointerIndex;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BorrowCheck
+#define ZIRAN_TYPE_FORWARD_BorrowCheck
+typedef struct BorrowCheck BorrowCheck;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_IndexList
+#define ZIRAN_TYPE_FORWARD_IndexList
+typedef struct IndexList IndexList;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BorrowFunction
+#define ZIRAN_TYPE_FORWARD_BorrowFunction
+typedef struct BorrowFunction BorrowFunction;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BorrowMutation
+#define ZIRAN_TYPE_FORWARD_BorrowMutation
+typedef struct BorrowMutation BorrowMutation;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BorrowPath
+#define ZIRAN_TYPE_FORWARD_BorrowPath
+typedef struct BorrowPath BorrowPath;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BorrowSource
+#define ZIRAN_TYPE_FORWARD_BorrowSource
+typedef struct BorrowSource BorrowSource;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array4096_u8
+#define ZIRAN_TYPE_FORWARD_S12Array4096_u8
+typedef struct S12Array4096_u8 S12Array4096_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array64_S12Array4096_u8
+#define ZIRAN_TYPE_FORWARD_S12Array64_S12Array4096_u8
+typedef struct S12Array64_S12Array4096_u8 S12Array64_S12Array4096_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckFunctionBuffers
+#define ZIRAN_TYPE_FORWARD_CheckFunctionBuffers
+typedef struct CheckFunctionBuffers CheckFunctionBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array1024_u8
+#define ZIRAN_TYPE_FORWARD_S12Array1024_u8
+typedef struct S12Array1024_u8 S12Array1024_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array8192_u8
+#define ZIRAN_TYPE_FORWARD_S12Array8192_u8
+typedef struct S12Array8192_u8 S12Array8192_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_CheckProgramsBuffers
+#define ZIRAN_TYPE_FORWARD_CheckProgramsBuffers
+typedef struct CheckProgramsBuffers CheckProgramsBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_ForeignAnswer
+#define ZIRAN_TYPE_FORWARD_ForeignAnswer
+typedef struct ForeignAnswer ForeignAnswer;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_GlobalBits
+#define ZIRAN_TYPE_FORWARD_GlobalBits
+typedef struct GlobalBits GlobalBits;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_InstantiateSpecializationsBuffers
+#define ZIRAN_TYPE_FORWARD_InstantiateSpecializationsBuffers
+typedef struct InstantiateSpecializationsBuffers InstantiateSpecializationsBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_JaiParameterTypesBuffers
+#define ZIRAN_TYPE_FORWARD_JaiParameterTypesBuffers
+typedef struct JaiParameterTypesBuffers JaiParameterTypesBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_MutationRoot
+#define ZIRAN_TYPE_FORWARD_MutationRoot
+typedef struct MutationRoot MutationRoot;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_NormalizeFunctionArraysBuffers
+#define ZIRAN_TYPE_FORWARD_NormalizeFunctionArraysBuffers
+typedef struct NormalizeFunctionArraysBuffers NormalizeFunctionArraysBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_NormalizeTypeApplicationsBuffers
+#define ZIRAN_TYPE_FORWARD_NormalizeTypeApplicationsBuffers
+typedef struct NormalizeTypeApplicationsBuffers NormalizeTypeApplicationsBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_OrderLocalTypesBuffers
+#define ZIRAN_TYPE_FORWARD_OrderLocalTypesBuffers
+typedef struct OrderLocalTypesBuffers OrderLocalTypesBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PointerSlot
+#define ZIRAN_TYPE_FORWARD_PointerSlot
+typedef struct PointerSlot PointerSlot;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_RewriteFunctionTypeApplicationsBuffers
+#define ZIRAN_TYPE_FORWARD_RewriteFunctionTypeApplicationsBuffers
+typedef struct RewriteFunctionTypeApplicationsBuffers RewriteFunctionTypeApplicationsBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_RewriteTypeApplicationsBuffers
+#define ZIRAN_TYPE_FORWARD_RewriteTypeApplicationsBuffers
+typedef struct RewriteTypeApplicationsBuffers RewriteTypeApplicationsBuffers;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_SimdOp
+#define ZIRAN_TYPE_FORWARD_SimdOp
+typedef struct SimdOp SimdOp;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_SimdOperand
+#define ZIRAN_TYPE_FORWARD_SimdOperand
+typedef struct SimdOperand SimdOperand;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_TextTypeAnswer
+#define ZIRAN_TYPE_FORWARD_TextTypeAnswer
+typedef struct TextTypeAnswer TextTypeAnswer;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array27__u8
+#define ZIRAN_TYPE_FORWARD_S12Array27__u8
+typedef struct S12Array27__u8 S12Array27__u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array32_S12Array128_u8
+#define ZIRAN_TYPE_FORWARD_S12Array32_S12Array128_u8
+typedef struct S12Array32_S12Array128_u8 S12Array32_S12Array128_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array91_u8
+#define ZIRAN_TYPE_FORWARD_S12Array91_u8
+typedef struct S12Array91_u8 S12Array91_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array12_u8
+#define ZIRAN_TYPE_FORWARD_S12Array12_u8
+typedef struct S12Array12_u8 S12Array12_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array7__u8
+#define ZIRAN_TYPE_FORWARD_S12Array7__u8
+typedef struct S12Array7__u8 S12Array7__u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array8_u8
+#define ZIRAN_TYPE_FORWARD_S12Array8_u8
+typedef struct S12Array8_u8 S12Array8_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array130_u8
+#define ZIRAN_TYPE_FORWARD_S12Array130_u8
+typedef struct S12Array130_u8 S12Array130_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array32_u8
+#define ZIRAN_TYPE_FORWARD_S12Array32_u8
+typedef struct S12Array32_u8 S12Array32_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array136_u8
+#define ZIRAN_TYPE_FORWARD_S12Array136_u8
+typedef struct S12Array136_u8 S12Array136_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array34_s32
+#define ZIRAN_TYPE_FORWARD_S12Array34_s32
+typedef struct S12Array34_s32 S12Array34_s32;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array33_S12Array128_u8
+#define ZIRAN_TYPE_FORWARD_S12Array33_S12Array128_u8
+typedef struct S12Array33_S12Array128_u8 S12Array33_S12Array128_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array33_SimdOperand
+#define ZIRAN_TYPE_FORWARD_S12Array33_SimdOperand
+typedef struct S12Array33_SimdOperand S12Array33_SimdOperand;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array256_u8
+#define ZIRAN_TYPE_FORWARD_S12Array256_u8
+typedef struct S12Array256_u8 S12Array256_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array122_u8
+#define ZIRAN_TYPE_FORWARD_S12Array122_u8
+typedef struct S12Array122_u8 S12Array122_u8;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array64__BorrowPath
+#define ZIRAN_TYPE_FORWARD_S12Array64__BorrowPath
+typedef struct S12Array64__BorrowPath S12Array64__BorrowPath;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_S12Array192_u8
+#define ZIRAN_TYPE_FORWARD_S12Array192_u8
+typedef struct S12Array192_u8 S12Array192_u8;
+#endif
+#ifndef ZIRAN_CALLABLE_S12Callback0
+#define ZIRAN_CALLABLE_S12Callback0
+typedef uint8_t* (*S12Callback0)(void*, uint8_t*);
+#endif
 #include "compiler_ir.h"
 #include "compiler_check_types.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct BorrowPlace BorrowPlace;
-typedef struct ActiveTextBorrow ActiveTextBorrow;
-typedef struct S12Array128_u8 S12Array128_u8;
-typedef struct Origin Origin;
-typedef struct BorrowBinding BorrowBinding;
-typedef struct PointerIndex PointerIndex;
-typedef struct BorrowCheck BorrowCheck;
-typedef struct IndexList IndexList;
-typedef struct BorrowFunction BorrowFunction;
-typedef struct BorrowMutation BorrowMutation;
-typedef struct BorrowPath BorrowPath;
-typedef struct BorrowSource BorrowSource;
-typedef struct S12Array4096_u8 S12Array4096_u8;
-typedef struct S12Array64_S12Array4096_u8 S12Array64_S12Array4096_u8;
-typedef struct CheckFunctionBuffers CheckFunctionBuffers;
-typedef struct S12Array1024_u8 S12Array1024_u8;
-typedef struct S12Array8192_u8 S12Array8192_u8;
-typedef struct CheckProgramsBuffers CheckProgramsBuffers;
-typedef struct ForeignAnswer ForeignAnswer;
-typedef struct GlobalBits GlobalBits;
-typedef struct InstantiateSpecializationsBuffers InstantiateSpecializationsBuffers;
-typedef struct JaiParameterTypesBuffers JaiParameterTypesBuffers;
-typedef struct MutationRoot MutationRoot;
-typedef struct NormalizeFunctionArraysBuffers NormalizeFunctionArraysBuffers;
-typedef struct NormalizeTypeApplicationsBuffers NormalizeTypeApplicationsBuffers;
-typedef struct OrderLocalTypesBuffers OrderLocalTypesBuffers;
-typedef struct PointerSlot PointerSlot;
-typedef struct RewriteFunctionTypeApplicationsBuffers RewriteFunctionTypeApplicationsBuffers;
-typedef struct RewriteTypeApplicationsBuffers RewriteTypeApplicationsBuffers;
-typedef struct SimdOp SimdOp;
-typedef struct SimdOperand SimdOperand;
-typedef struct TextTypeAnswer TextTypeAnswer;
-typedef struct S12Array27__u8 S12Array27__u8;
-typedef struct S12Array32_S12Array128_u8 S12Array32_S12Array128_u8;
-typedef struct S12Array91_u8 S12Array91_u8;
-typedef struct S12Array12_u8 S12Array12_u8;
-typedef struct S12Array7__u8 S12Array7__u8;
-typedef struct S12Array8_u8 S12Array8_u8;
-typedef struct S12Array130_u8 S12Array130_u8;
-typedef struct S12Array32_u8 S12Array32_u8;
-typedef struct S12Array136_u8 S12Array136_u8;
-typedef struct S12Array34_s32 S12Array34_s32;
-typedef struct S12Array33_S12Array128_u8 S12Array33_S12Array128_u8;
-typedef struct S12Array33_SimdOperand S12Array33_SimdOperand;
-typedef struct S12Array256_u8 S12Array256_u8;
-typedef struct S12Array122_u8 S12Array122_u8;
-typedef struct S12Array64__BorrowPath S12Array64__BorrowPath;
-typedef struct S12Array192_u8 S12Array192_u8;
-typedef uint8_t* (*S12Callback0)(void*, uint8_t*);
 
 struct BorrowPlace {
     BorrowBinding* root;

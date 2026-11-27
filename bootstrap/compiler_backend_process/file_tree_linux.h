@@ -5,6 +5,32 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_StatxRecord
+#define ZIRAN_TYPE_FORWARD_StatxRecord
+typedef struct StatxRecord StatxRecord;
+#endif
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PathKind
+#define ZIRAN_TYPE_FORWARD_PathKind
+typedef uint8_t PathKind;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PathInfo
+#define ZIRAN_TYPE_FORWARD_PathInfo
+typedef struct PathInfo PathInfo;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_PathQueryResult
+#define ZIRAN_TYPE_FORWARD_PathQueryResult
+typedef struct PathQueryResult PathQueryResult;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
+#endif
 #include "c_string.h"
 #include "byte_text_linux.h"
 #include "sort.h"
@@ -61,20 +87,6 @@ extern "C" {
 #endif
 #ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
 #define InvalidChild 22
-#endif
-#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
-typedef struct StatxRecord StatxRecord;
-#endif
-typedef uint8_t PathKind;
-typedef struct PathInfo PathInfo;
-typedef struct PathQueryResult PathQueryResult;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
-typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
-#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
-typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
 #endif
 #ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
 

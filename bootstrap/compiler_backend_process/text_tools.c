@@ -333,14 +333,14 @@ text_tools_TextJoin(Slice parts, String separator)
             (void)value_1;
         }
         bool value_3 = false;
-        if ((((String *)parts.data)[index]).length == 0) {
+        if ((((String *)(parts).data)[index]).length == 0) {
             value_3 = true;
         } else {
-            void *value_4 = ZirVecReserve((void *)(result).data, &(result).capacity, (result).count, (int64_t)(((String *)parts.data)[index]).length, sizeof(*(result).data));
+            void *value_4 = ZirVecReserve((void *)(result).data, &(result).capacity, (result).count, (int64_t)(((String *)(parts).data)[index]).length, sizeof(*(result).data));
             if (value_4 != NULL) {
                 (result).data = (uint8_t *)value_4;
-                memcpy((result).data + (result).count, (((String *)parts.data)[index]).data, (size_t)(((String *)parts.data)[index]).length);
-                (result).count += (int64_t)(((String *)parts.data)[index]).length;
+                memcpy((result).data + (result).count, (((String *)(parts).data)[index]).data, (size_t)(((String *)(parts).data)[index]).length);
+                (result).count += (int64_t)(((String *)(parts).data)[index]).length;
                 value_3 = true;
             }
         }
@@ -613,7 +613,7 @@ text_tools_TextHex(Slice bytes)
     __type_131eebaaeb761e42 result = {0};
     __type_131eebaaeb761e42* value_0 = &result;
     for (int64_t it_index = 0LL; it_index < (int64_t)(bytes).length; it_index++) {
-        uint8_t it = ((uint8_t *)bytes.data)[it_index];
+        uint8_t it = ((uint8_t *)(bytes).data)[it_index];
         uint8_t value_1 = (uint8_t)digits.data[((uint8_t)(it >> 4))];
         bool value_2 = false;
         void *value_3 = ZirVecGrow((void *)(result).data, &(result).capacity, (result).count, sizeof(*(result).data));

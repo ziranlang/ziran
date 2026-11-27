@@ -4,6 +4,14 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
+#ifndef ZIRAN_TYPE_FORWARD_StatementExpressionError
+#define ZIRAN_TYPE_FORWARD_StatementExpressionError
+typedef int32_t StatementExpressionError;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_StatementExpression
+#define ZIRAN_TYPE_FORWARD_StatementExpression
+typedef struct StatementExpression StatementExpression;
+#endif
 #include "compiler_scan.h"
 #include "compiler_source.h"
 #include "compiler_text.h"
@@ -11,8 +19,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef int32_t StatementExpressionError;
-typedef struct StatementExpression StatementExpression;
 
 enum {
     StatementExpressionError_None = 0,

@@ -3,14 +3,23 @@
 #define ZIRAN_COMPILER_SCAN_H
 
 #include "zir_string_types.h"
+#ifndef ZIRAN_TYPE_FORWARD_TokenKind
+#define ZIRAN_TYPE_FORWARD_TokenKind
+typedef int32_t TokenKind;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_Scan
+#define ZIRAN_TYPE_FORWARD_Scan
+typedef struct Scan Scan;
+#endif
+#ifdef ZIRAN_COMPILER_SCAN_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_Cursor
+#define ZIRAN_TYPE_FORWARD_Cursor
+typedef struct Cursor Cursor;
+#endif
+#endif
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-typedef int32_t TokenKind;
-typedef struct Scan Scan;
-#ifdef ZIRAN_COMPILER_SCAN_H_PRIVATE
-typedef struct Cursor Cursor;
 #endif
 
 enum {

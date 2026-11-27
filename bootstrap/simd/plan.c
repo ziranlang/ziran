@@ -139,7 +139,7 @@ plan_HalfArguments(Slice parameters, bool high)
                 }
                 (void)value_1;
             }
-            Parameter parameter = ((Parameter *)parameters.data)[i];
+            Parameter parameter = ((Parameter *)(parameters).data)[i];
             if (text_tools_TextHasPrefix(parameter.type, StringLiteral("zi_"))) {
                 String value_3 = StringView(NULL, 0);
                 if (high) {
@@ -215,7 +215,7 @@ plan_SplitCondition(String op, VectorType t, String generic, String portable)
         int64_t loop_cursor_8 = 0LL;
         while (loop_cursor_8 < loop_count_8) {
             int64_t loop_index_8 = loop_cursor_8;
-            Branch branch = ((Branch *)loop_view_8.data)[loop_index_8];
+            Branch branch = ((Branch *)(loop_view_8).data)[loop_index_8];
             int64_t it_index = loop_index_8;
             bool present = false;
             for (int64_t it_index = 0LL; it_index < conditions.count; it_index++) {

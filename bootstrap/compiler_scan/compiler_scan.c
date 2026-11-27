@@ -4,13 +4,7 @@
 #define ZIRAN_COMPILER_SCAN_H_PRIVATE 1
 #include "compiler_scan.h"
 #undef ZIRAN_COMPILER_SCAN_H_PRIVATE
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t compiler_scan_Byte(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
 static bool compiler_scan_Space(uint8_t byte) ZIRAN_MAYBE_UNUSED;
 static bool compiler_scan_Digit(uint8_t byte) ZIRAN_MAYBE_UNUSED;

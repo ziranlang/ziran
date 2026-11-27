@@ -210,13 +210,7 @@ void zir_foreign_compiler_zx_run__ZxModuleProgramClose(void* program) __asm__("_
 #else
 void zir_foreign_compiler_zx_run__ZxModuleProgramClose(void* program) __asm__("ZxModuleProgramClose");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_zx_run_CStr(String s) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_zx_run_TextData(String* s) ZIRAN_MAYBE_UNUSED;
 static String compiler_zx_run_TextOf(uint8_t* data, size_t length) ZIRAN_MAYBE_UNUSED;
@@ -319,8 +313,8 @@ ZxExecRunProgram(LirProgram* program, LirExecLimits limits, int32_t heap_report)
         zir_foreign_compiler_zx_run__Diagnostic(value_3, value_6, value_9);
         return failed;
     }
-    LirFunction entry = ((LirFunction *)program->functions.data)[program->entry];
-    LirType result_type = ((LirType *)program->types.data)[entry.result];
+    LirFunction entry = ((LirFunction *)(program->functions).data)[program->entry];
+    LirType result_type = ((LirType *)(program->types).data)[entry.result];
     bool value_11 = (int64_t)(entry.parameters).length != 0LL;
     if (!value_11) {
         bool value_12 = ((LirTypeKind)(result_type.kind)) != ((LirTypeKind)(3)) && ((LirTypeKind)(result_type.kind)) != ((LirTypeKind)(2));
@@ -1106,9 +1100,9 @@ compiler_zx_run_HasModuleImport(LirProgram* program, ZxImportRoot* root)
         int64_t range_last_0 = (int64_t)((uint64_t)((int64_t)(program->functions).length) - UINT64_C(1));
         int64_t i = range_first_0;
         if (i <= range_last_0) for (;;) {
-            LirFunction* function = &(((LirFunction *)program->functions.data)[i]);
+            LirFunction* function = &(((LirFunction *)(program->functions).data)[i]);
             bool value_0 = function->external && ((LirCalling)(function->calling)) == ((LirCalling)(3));
-            bool value_1 = value_0 && compiler_zx_run_SameName(((String *)program->modules.data)[function->module], root->module);
+            bool value_1 = value_0 && compiler_zx_run_SameName(((String *)(program->modules).data)[function->module], root->module);
             bool value_2 = value_1;
             if (value_2 && compiler_zx_run_SameName(function->name, root->function)) {
                 return true;

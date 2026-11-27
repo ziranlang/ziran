@@ -3,15 +3,18 @@
 #define ZIRAN_COMPILER_PARSE_SOURCE_H
 
 #include <stdint.h>
+#ifdef ZIRAN_COMPILER_PARSE_SOURCE_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ParseSourceTables
+#define ZIRAN_TYPE_FORWARD_ParseSourceTables
+typedef struct ParseSourceTables ParseSourceTables;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_parse_types.h"
 #include "compiler_tsx.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-#ifdef ZIRAN_COMPILER_PARSE_SOURCE_H_PRIVATE
-typedef struct ParseSourceTables ParseSourceTables;
 #endif
 #ifdef ZIRAN_COMPILER_PARSE_SOURCE_H_PRIVATE
 

@@ -28,7 +28,7 @@ native_NativeNames(Slice names)
     __type_369bb27e9de8ac5e output = {0};
     __type_369bb27e9de8ac5e* value_0 = &output;
     for (int64_t it_index = 0LL; it_index < (int64_t)(names).length; it_index++) {
-        String name = ((String *)names.data)[it_index];
+        String name = ((String *)(names).data)[it_index];
         bool value_1 = text_tools_TextHasPrefix(name, StringLiteral("lane_"));
         if (value_1 || text_tools_TextHasPrefix(name, StringLiteral("with_lane_"))) {
             continue;
@@ -159,7 +159,7 @@ native_Aliases(Slice names)
         int64_t loop_cursor_2 = 0LL;
         while (loop_cursor_2 < loop_count_2) {
             int64_t loop_index_2 = loop_cursor_2;
-            NativeName one = ((NativeName *)loop_view_2.data)[loop_index_2];
+            NativeName one = ((NativeName *)(loop_view_2).data)[loop_index_2];
             int64_t it_index = loop_index_2;
             if (one.wide) {
                 loop_cursor_2 = (int64_t)((uint64_t)loop_cursor_2 + UINT64_C(1));
@@ -229,7 +229,7 @@ native_NativeMacros(__type_131eebaaeb761e42* output)
         int64_t loop_cursor_3 = 0LL;
         while (loop_cursor_3 < loop_count_3) {
             int64_t loop_index_3 = loop_cursor_3;
-            String op = ((String *)loop_view_3.data)[loop_index_3];
+            String op = ((String *)(loop_view_3).data)[loop_index_3];
             int64_t it_index = loop_index_3;
             for (int64_t it_index = 0LL; it_index < types.count; it_index++) {
                 VectorType t = (types).data[it_index];
@@ -283,7 +283,7 @@ native_NativeMacros(__type_131eebaaeb761e42* output)
             int64_t loop_cursor_23 = 0LL;
             while (loop_cursor_23 < loop_count_23) {
                 int64_t loop_index_23 = loop_cursor_23;
-                String name = ((String *)loop_view_23.data)[loop_index_23];
+                String name = ((String *)(loop_view_23).data)[loop_index_23];
                 int64_t it_index = loop_index_23;
                 for (int64_t it_index = 0LL; it_index < aliases.count; it_index++) {
                     Alias alias = (aliases).data[it_index];
@@ -440,7 +440,7 @@ native_NativeHelpers(void)
         int64_t loop_cursor_2 = 0LL;
         while (loop_cursor_2 < loop_count_2) {
             int64_t loop_index_2 = loop_cursor_2;
-            VectorType t = ((VectorType *)loop_view_2.data)[loop_index_2];
+            VectorType t = ((VectorType *)(loop_view_2).data)[loop_index_2];
             int64_t it_index = loop_index_2;
             if (!t.wide) {
                 loop_cursor_2 = (int64_t)((uint64_t)loop_cursor_2 + UINT64_C(1));
@@ -705,7 +705,7 @@ native_NativeSection(__type_131eebaaeb761e42* output, Slice helpers, String* mar
     {
         int64_t it_index = 0LL;
         while (it_index < (int64_t)(helpers).length) {
-            Helper* helper = &(((Helper *)helpers.data)[it_index]);
+            Helper* helper = &(((Helper *)(helpers).data)[it_index]);
             String value_2 = helper->name;
             bool value_3 = false;
             void *value_4 = ZirVecGrow((void *)(names).data, &(names).capacity, (names).count, sizeof(*(names).data));

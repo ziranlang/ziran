@@ -3,16 +3,24 @@
 #define ZIRAN_COMPILER_BORROW_H
 
 #include <stdint.h>
+#ifdef ZIRAN_COMPILER_BORROW_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_BorrowTypeKind
+#define ZIRAN_TYPE_FORWARD_BorrowTypeKind
+typedef int64_t BorrowTypeKind;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_BORROW_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_BorrowTypePath
+#define ZIRAN_TYPE_FORWARD_BorrowTypePath
+typedef struct BorrowTypePath BorrowTypePath;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_check_types.h"
 #include "compiler_check_s12_types.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-typedef int64_t BorrowTypeKind;
-#ifdef ZIRAN_COMPILER_BORROW_H_PRIVATE
-typedef struct BorrowTypePath BorrowTypePath;
 #endif
 #ifdef ZIRAN_COMPILER_BORROW_H_PRIVATE
 

@@ -20,13 +20,7 @@ uint8_t* zir_foreign_compiler_c_prune__PruneInlineText(uint8_t* stem, uint8_t* g
 #else
 uint8_t* zir_foreign_compiler_c_prune__PruneInlineText(uint8_t* stem, uint8_t* guard, int32_t vector_operations, uint8_t* declarations, uint8_t* bodies, void* simd) __asm__("PruneInlineText");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static bool compiler_c_prune_Declares(int64_t kind) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_prune_WordByte(uint8_t c) ZIRAN_MAYBE_UNUSED;
 static String compiler_c_prune_NextIdentifier(String text, int64_t* at) ZIRAN_MAYBE_UNUSED;
@@ -853,15 +847,15 @@ compiler_c_prune_StampHeader(Prune* prune, String header, Chunks* chunks)
 static bool
 compiler_c_prune_HeaderNeeded(Prune* prune, Slice all, int64_t b)
 {
-    if (!(((Chunks *)all.data)[b]).written) {
+    if (!(((Chunks *)(all).data)[b]).written) {
         return false;
     }
     {
         int64_t range_first_3 = 0LL;
-        int64_t range_last_3 = (int64_t)((uint64_t)(((((Chunks *)all.data)[b]).items).count) - UINT64_C(1));
+        int64_t range_last_3 = (int64_t)((uint64_t)(((((Chunks *)(all).data)[b]).items).count) - UINT64_C(1));
         int64_t i = range_first_3;
         if (i <= range_last_3) for (;;) {
-            Chunk chunk = ((((Chunks *)all.data)[b]).items).data[i];
+            Chunk chunk = ((((Chunks *)(all).data)[b]).items).data[i];
             bool value_0 = chunk.kept;
             if (value_0) {
                 int64_t value_1 = chunk.kind;
@@ -1170,7 +1164,7 @@ static uint8_t*
 compiler_c_prune_ComposeHeader(Prune* prune, ZirCPruneModule* modules, Slice all, int64_t self, String header)
 {
     ZirCPruneModule* module = &(modules[self]);
-    Chunks* chunks = &(((Chunks *)all.data)[self]);
+    Chunks* chunks = &(((Chunks *)(all).data)[self]);
     __type_131eebaaeb761e42 out = {0};
     __type_131eebaaeb761e42* value_0 = &out;
     bool value_1 = false;
@@ -1225,7 +1219,7 @@ static uint8_t*
 compiler_c_prune_ComposeSource(Prune* prune, ZirCPruneModule* modules, Slice all, int64_t self, String header, String source)
 {
     ZirCPruneModule* module = &(modules[self]);
-    Chunks* chunks = &(((Chunks *)all.data)[self]);
+    Chunks* chunks = &(((Chunks *)(all).data)[self]);
     int64_t define = text_tools_TextFind(source, StringLiteral("\001S\n"), 0LL);
     int64_t includes = text_tools_TextFind(source, StringLiteral("\001U\n"), 0LL);
     if (includes < 0LL || define > includes) {

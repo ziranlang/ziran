@@ -53,13 +53,7 @@ static inline int64_t ZiShrS64(int64_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static void compiler_c_range_values_Corners(int64_t array_input_0_0[4], Range* out) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_c_range_values_BitCover(int64_t value) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_range_values_ConditionBound(RangeFacts* f, int32_t condition, int32_t binding, int32_t depth, int64_t* bound) ZIRAN_MAYBE_UNUSED;

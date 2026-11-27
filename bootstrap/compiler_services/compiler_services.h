@@ -4,13 +4,16 @@
 
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#ifdef ZIRAN_COMPILER_SERVICES_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_TextBytes
+#define ZIRAN_TYPE_FORWARD_TextBytes
+typedef struct TextBytes TextBytes;
+#endif
+#endif
 #include "compiler_ir.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-#ifdef ZIRAN_COMPILER_SERVICES_H_PRIVATE
-typedef struct TextBytes TextBytes;
 #endif
 #ifdef ZIRAN_COMPILER_SERVICES_H_PRIVATE
 

@@ -8,13 +8,7 @@ int32_t zir_foreign_compiler_type__IsAlnum(int32_t byte) __asm__("_isalnum");
 #else
 int32_t zir_foreign_compiler_type__IsAlnum(int32_t byte) __asm__("isalnum");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int64_t compiler_type_VectorIndex(String name) ZIRAN_MAYBE_UNUSED;
 static bool compiler_type_VectorIdentifierByte(uint8_t byte) ZIRAN_MAYBE_UNUSED;
 static uint8_t compiler_type_Byte(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
@@ -311,7 +305,7 @@ compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name
                     int64_t loop_cursor_68 = 0LL;
                     while (loop_cursor_68 < loop_count_68) {
                         int64_t loop_index_68 = loop_cursor_68;
-                        uint8_t byte = ((uint8_t *)loop_view_68.data)[loop_index_68];
+                        uint8_t byte = ((uint8_t *)(loop_view_68).data)[loop_index_68];
                         if (byte == 0) {
                             return result;
                         }

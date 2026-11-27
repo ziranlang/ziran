@@ -240,13 +240,7 @@ uint8_t* zir_foreign_compiler_go_asm__strrchr(uint8_t* ziran_keyword___s_0, int3
 #else
 uint8_t* zir_foreign_compiler_go_asm__strrchr(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___c_0) __asm__("strrchr");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_go_asm_CStr(String s) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_go_asm_FunctionArgs(ZirFunction* fn) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_go_asm_StatementHasAssembly(ZirStmt* st) ZIRAN_MAYBE_UNUSED;

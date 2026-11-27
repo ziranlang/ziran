@@ -501,13 +501,7 @@ int32_t zir_foreign_compiler_check_program__widens_losslessly(uint8_t* to, uint8
 #else
 int32_t zir_foreign_compiler_check_program__widens_losslessly(uint8_t* to, uint8_t* from) __asm__("private_check_widens_losslessly");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static int32_t compiler_check_program_native_type(uint8_t* type) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_program_check_native_storage(ZirModule* module) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_program_generated_helper_name(uint8_t* name) ZIRAN_MAYBE_UNUSED;

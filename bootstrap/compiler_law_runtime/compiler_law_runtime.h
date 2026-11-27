@@ -4,63 +4,114 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray4096_u8
+#define ZIRAN_TYPE_FORWARD_CoreArray4096_u8
+typedef struct CoreArray4096_u8 CoreArray4096_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_EvaluateBoundsLawBuffers
+#define ZIRAN_TYPE_FORWARD_EvaluateBoundsLawBuffers
+typedef struct EvaluateBoundsLawBuffers EvaluateBoundsLawBuffers;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray128_u8
+#define ZIRAN_TYPE_FORWARD_CoreArray128_u8
+typedef struct CoreArray128_u8 CoreArray128_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray8_CoreArray128_u8
+#define ZIRAN_TYPE_FORWARD_CoreArray8_CoreArray128_u8
+typedef struct CoreArray8_CoreArray128_u8 CoreArray8_CoreArray128_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray8_CoreArray4096_u8
+#define ZIRAN_TYPE_FORWARD_CoreArray8_CoreArray4096_u8
+typedef struct CoreArray8_CoreArray4096_u8 CoreArray8_CoreArray4096_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray256_s64
+#define ZIRAN_TYPE_FORWARD_CoreArray256_s64
+typedef struct CoreArray256_s64 CoreArray256_s64;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray8_CoreArray256_s64
+#define ZIRAN_TYPE_FORWARD_CoreArray8_CoreArray256_s64
+typedef struct CoreArray8_CoreArray256_s64 CoreArray8_CoreArray256_s64;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_ForallBuffers
+#define ZIRAN_TYPE_FORWARD_ForallBuffers
+typedef struct ForallBuffers ForallBuffers;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray3__u8
+#define ZIRAN_TYPE_FORWARD_CoreArray3__u8
+typedef struct CoreArray3__u8 CoreArray3__u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray8_s64
+#define ZIRAN_TYPE_FORWARD_CoreArray8_s64
+typedef struct CoreArray8_s64 CoreArray8_s64;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray8_s32
+#define ZIRAN_TYPE_FORWARD_CoreArray8_s32
+typedef struct CoreArray8_s32 CoreArray8_s32;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray16_s64
+#define ZIRAN_TYPE_FORWARD_CoreArray16_s64
+typedef struct CoreArray16_s64 CoreArray16_s64;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray16_u8
+#define ZIRAN_TYPE_FORWARD_CoreArray16_u8
+typedef struct CoreArray16_u8 CoreArray16_u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray2_s32
+#define ZIRAN_TYPE_FORWARD_CoreArray2_s32
+typedef struct CoreArray2_s32 CoreArray2_s32;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray64__u8
+#define ZIRAN_TYPE_FORWARD_CoreArray64__u8
+typedef struct CoreArray64__u8 CoreArray64__u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray16__u8
+#define ZIRAN_TYPE_FORWARD_CoreArray16__u8
+typedef struct CoreArray16__u8 CoreArray16__u8;
+#endif
+#endif
+#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
+#ifndef ZIRAN_TYPE_FORWARD_CoreArray30__u8
+#define ZIRAN_TYPE_FORWARD_CoreArray30__u8
+typedef struct CoreArray30__u8 CoreArray30__u8;
+#endif
+#endif
 #include "compiler_ir.h"
 #include "compiler_parse_types.h"
 #include "compiler_check_types.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
-typedef struct CoreArray4096_u8 CoreArray4096_u8;
-#endif
-#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
-typedef struct EvaluateBoundsLawBuffers EvaluateBoundsLawBuffers;
-#endif
-#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
-typedef struct CoreArray128_u8 CoreArray128_u8;
-#endif
-#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
-typedef struct CoreArray8_CoreArray128_u8 CoreArray8_CoreArray128_u8;
-#endif
-#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
-typedef struct CoreArray8_CoreArray4096_u8 CoreArray8_CoreArray4096_u8;
-#endif
-#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
-typedef struct CoreArray256_s64 CoreArray256_s64;
-#endif
-#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
-typedef struct CoreArray8_CoreArray256_s64 CoreArray8_CoreArray256_s64;
-#endif
-#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
-typedef struct ForallBuffers ForallBuffers;
-#endif
-#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
-typedef struct CoreArray3__u8 CoreArray3__u8;
-#endif
-#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
-typedef struct CoreArray8_s64 CoreArray8_s64;
-#endif
-#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
-typedef struct CoreArray8_s32 CoreArray8_s32;
-#endif
-#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
-typedef struct CoreArray16_s64 CoreArray16_s64;
-#endif
-#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
-typedef struct CoreArray16_u8 CoreArray16_u8;
-#endif
-#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
-typedef struct CoreArray2_s32 CoreArray2_s32;
-#endif
-#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
-typedef struct CoreArray64__u8 CoreArray64__u8;
-#endif
-#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
-typedef struct CoreArray16__u8 CoreArray16__u8;
-#endif
-#ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
-typedef struct CoreArray30__u8 CoreArray30__u8;
 #endif
 #ifdef ZIRAN_COMPILER_LAW_RUNTIME_H_PRIVATE
 

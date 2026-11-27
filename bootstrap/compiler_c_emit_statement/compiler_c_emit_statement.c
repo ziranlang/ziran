@@ -279,13 +279,7 @@ int32_t zir_foreign_compiler_c_emit_statement__CNativeProgramMain(ZirModule* mod
 #else
 int32_t zir_foreign_compiler_c_emit_statement__CNativeProgramMain(ZirModule* module, ZirFunction* fn) __asm__("NativeProgramMain");
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static uint8_t* compiler_c_emit_statement_CStr(String s) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_c_emit_statement_PtrAdd(uint8_t* p, size_t n) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_c_emit_statement_FunctionArgs(ZirFunction* fn) ZIRAN_MAYBE_UNUSED;

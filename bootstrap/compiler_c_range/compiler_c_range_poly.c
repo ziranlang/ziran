@@ -17,13 +17,7 @@ static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-#ifndef ZIRAN_MAYBE_UNUSED
-#if defined(__GNUC__) || defined(__clang__)
-#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
-#else
-#define ZIRAN_MAYBE_UNUSED
-#endif
-#endif
+#include "ziran_compiler.h"
 static bool compiler_c_range_poly_SameAtoms(Term* a, Term* b) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_range_poly_PolyAddTerm(Poly* p, Term* t) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_range_poly_TermTimes(Term* a, Term* b, Term* out) ZIRAN_MAYBE_UNUSED;

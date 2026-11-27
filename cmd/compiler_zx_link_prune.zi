@@ -163,16 +163,16 @@ CopyLiveSequence :: (from: *IR.ZirFunction, to: *IR.ZirFunction, begin: s32, end
 
 // The copy in TO of the live expression SOURCE of FROM: -1 for none, -2 on
 // failure. MAPPING remembers copies already made.
-CopyLiveExpression :: (from: *IR.ZirFunction, to: *IR.ZirFunction, mapping: *s32, source: s32, depth: s32) -> s32 {
+CopyLiveExpression :: (from: *IR.ZirFunction, to: *IR.ZirFunction, mapping: *s32, source: s32, depth: s32, fold_constants: bool) -> s32 {
     if source < 0 { return -1 }
     if source >= from.expr_count || depth > 128 { return -2 }
     if mapping[source] >= 0 { return mapping[source] }
     expr := ExprAt(from, source)
-    if expr.kind == .CONDITIONAL {
+    if fold_constants && expr.kind == .CONDITIONAL {
         known := ConstantBool(from, expr.left, 0)
         if known >= 0 {
             selected := ifx known != 0 then expr.right else expr.third
-            result := CopyLiveExpression(from, to, mapping, selected, depth + 1)
+            result := CopyLiveExpression(from, to, mapping, selected, depth + 1, fold_constants)
             if result >= 0 {
                 // A conditional can be a named or positional call argument.
                 // The selected arm inherits that call-site binding when the
@@ -189,11 +189,11 @@ CopyLiveExpression :: (from: *IR.ZirFunction, to: *IR.ZirFunction, mapping: *s32
         }
     }
     op := *expr.op[0]
-    if expr.kind == .BINARY && (Same(op, CStr("&&")) || Same(op, CStr("||"))) {
+    if fold_constants && expr.kind == .BINARY && (Same(op, CStr("&&")) || Same(op, CStr("||"))) {
         left := ConstantBool(from, expr.left, 0)
         if left >= 0 {
             if (Same(op, CStr("&&")) && left != 0) || (Same(op, CStr("||")) && left == 0) {
-                result := CopyLiveExpression(from, to, mapping, expr.right, depth + 1)
+                result := CopyLiveExpression(from, to, mapping, expr.right, depth + 1, fold_constants)
                 if result >= 0 {
                     kept := ExprAt(to, result)
                     kept.argument_index = expr.argument_index
@@ -219,17 +219,17 @@ CopyLiveExpression :: (from: *IR.ZirFunction, to: *IR.ZirFunction, mapping: *s32
             return result
         }
     }
-    copied_left := CopyLiveExpression(from, to, mapping, expr.left, depth + 1)
+    copied_left := CopyLiveExpression(from, to, mapping, expr.left, depth + 1, fold_constants)
     if copied_left < -1 { return -2 }
-    copied_right := CopyLiveExpression(from, to, mapping, expr.right, depth + 1)
+    copied_right := CopyLiveExpression(from, to, mapping, expr.right, depth + 1, fold_constants)
     if copied_right < -1 { return -2 }
-    copied_third := CopyLiveExpression(from, to, mapping, expr.third, depth + 1)
+    copied_third := CopyLiveExpression(from, to, mapping, expr.third, depth + 1, fold_constants)
     if copied_third < -1 { return -2 }
     first_child: s32 = -1
     last_child: s32 = -1
     child := expr.first_child
     while child >= 0 {
-        copied := CopyLiveExpression(from, to, mapping, child, depth + 1)
+        copied := CopyLiveExpression(from, to, mapping, child, depth + 1, fold_constants)
         if copied < 0 { return -2 }
         if first_child < 0 { first_child = copied }
         if last_child >= 0 {
@@ -256,8 +256,10 @@ CopyLiveExpression :: (from: *IR.ZirFunction, to: *IR.ZirFunction, mapping: *s32
     return result
 }
 
-// Replaces FN's statements and expressions with the ones that can run.
-PruneFunction :: (fn: *IR.ZirFunction) -> bool {
+// Compacts FN's reachable expression records. Native links also fold known
+// branches and remove statements that cannot run; saved IR keeps that control
+// flow for the target backend to lower.
+PruneFunction :: (fn: *IR.ZirFunction, fold_constants: bool = true) -> bool {
     original := cast(*IR.ZirFunction)AllocateOrExit(size_of(IR.ZirFunction))
     output := cast(*IR.ZirFunction)AllocateOrExit(size_of(IR.ZirFunction))
     defer {
@@ -281,12 +283,19 @@ PruneFunction :: (fn: *IR.ZirFunction) -> bool {
     output.expr_cap = original.expr_count
     for i: 0..original.expr_count - 1 { mapping[i] = -1 }
     stops := false
-    ok := CopyLiveSequence(original, output, 0, original.stmt_count, 0, *stops)
+    ok := true
+    if fold_constants {
+        ok = CopyLiveSequence(original, output, 0, original.stmt_count, 0, *stops)
+    } else {
+        for s: 0..original.stmt_count - 1 {
+            if !AppendStatement(output, StatementAt(original, s)) { ok = false; break }
+        }
+    }
     for s: 0..output.stmt_count - 1 {
         if !ok { break }
         statement := StatementAt(output, s)
-        statement.expr_root = CopyLiveExpression(original, output, mapping, statement.expr_root, 0)
-        statement.lhs_root = CopyLiveExpression(original, output, mapping, statement.lhs_root, 0)
+        statement.expr_root = CopyLiveExpression(original, output, mapping, statement.expr_root, 0, fold_constants)
+        statement.lhs_root = CopyLiveExpression(original, output, mapping, statement.lhs_root, 0, fold_constants)
         ok = statement.expr_root >= -1 && statement.lhs_root >= -1
     }
     free(cast(*u8)mapping)

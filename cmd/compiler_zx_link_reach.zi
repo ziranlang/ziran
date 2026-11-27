@@ -1236,13 +1236,13 @@ BuildLinked :: (state: *LinkState) -> bool {
     return LinkImports(*linked, 1) != 0
 }
 
-CheckLinked :: (linked: *IR.ZirProgram, entry_module: *u8, entry_function: *u8) -> bool {
+CheckLinked :: (linked: *IR.ZirProgram, entry_module: *u8, entry_function: *u8, prune_fields: bool) -> bool {
     // Removing declarations can remove a local type that shadowed an imported
     // record field. Recheck this closed graph so its member types are
     // canonical in the surviving scope before it is serialized or lowered.
     // The loader still independently requires exact canonical saved IR.
-    if !PruneRecordFields(linked, entry_module, entry_function) { return false }
-    // These are already checked and pruned expression graphs. Use the same
+    if prune_fields && !PruneRecordFields(linked, entry_module, entry_function) { return false }
+    // These expression graphs are already checked. Use the same
     // graph-preserving check as saved IR, rather than re-elaborating source
     // expressions and producing a different source/saved graph.
     for m: 0..linked.module_count - 1 {

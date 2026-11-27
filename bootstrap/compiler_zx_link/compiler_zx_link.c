@@ -610,7 +610,7 @@ compiler_zx_link_CopyLiveSequence(ZirFunction* from, ZirFunction* to, int32_t be
 }
 
 int32_t
-compiler_zx_link_CopyLiveExpression(ZirFunction* from, ZirFunction* to, int32_t* mapping, int32_t source, int32_t depth)
+compiler_zx_link_CopyLiveExpression(ZirFunction* from, ZirFunction* to, int32_t* mapping, int32_t source, int32_t depth, bool fold_constants)
 {
     if (source < 0) {
         return -1;
@@ -628,7 +628,7 @@ compiler_zx_link_CopyLiveExpression(ZirFunction* from, ZirFunction* to, int32_t*
         value_0 = &(fn->exprs[index]);
     }
     ZirExpr* expr = value_0;
-    if (((ZirExprKind)(expr->kind)) == ((ZirExprKind)(14))) {
+    if (fold_constants && ((ZirExprKind)(expr->kind)) == ((ZirExprKind)(14))) {
         int32_t known = compiler_zx_link_ConstantBool(from, expr->left, 0);
         if (known >= 0) {
             int32_t value_2 = 0;
@@ -638,7 +638,7 @@ compiler_zx_link_CopyLiveExpression(ZirFunction* from, ZirFunction* to, int32_t*
                 value_2 = expr->third;
             }
             int32_t selected = value_2;
-            int32_t result = compiler_zx_link_CopyLiveExpression(from, to, mapping, selected, (int32_t)((uint32_t)depth + 1u));
+            int32_t result = compiler_zx_link_CopyLiveExpression(from, to, mapping, selected, (int32_t)((uint32_t)depth + 1u), fold_constants);
             if (result >= 0) {
                 ZirExpr* value_3 = (void *)0;
                 {
@@ -705,7 +705,7 @@ compiler_zx_link_CopyLiveExpression(ZirFunction* from, ZirFunction* to, int32_t*
         }
     }
     uint8_t* op = &(expr->op[0]);
-    bool value_32 = ((ZirExprKind)(expr->kind)) == ((ZirExprKind)(6));
+    bool value_32 = fold_constants && ((ZirExprKind)(expr->kind)) == ((ZirExprKind)(6));
     bool value_33 = value_32;
     if (value_33) {
         uint8_t* value_34 = op;
@@ -755,7 +755,7 @@ compiler_zx_link_CopyLiveExpression(ZirFunction* from, ZirFunction* to, int32_t*
                 value_51 = (value_56 && left == 0);
             }
             if (value_51) {
-                int32_t result = compiler_zx_link_CopyLiveExpression(from, to, mapping, expr->right, (int32_t)((uint32_t)depth + 1u));
+                int32_t result = compiler_zx_link_CopyLiveExpression(from, to, mapping, expr->right, (int32_t)((uint32_t)depth + 1u), fold_constants);
                 if (result >= 0) {
                     ZirExpr* value_57 = (void *)0;
                     {
@@ -826,15 +826,15 @@ compiler_zx_link_CopyLiveExpression(ZirFunction* from, ZirFunction* to, int32_t*
             return result;
         }
     }
-    int32_t copied_left = compiler_zx_link_CopyLiveExpression(from, to, mapping, expr->left, (int32_t)((uint32_t)depth + 1u));
+    int32_t copied_left = compiler_zx_link_CopyLiveExpression(from, to, mapping, expr->left, (int32_t)((uint32_t)depth + 1u), fold_constants);
     if (copied_left < -1) {
         return -2;
     }
-    int32_t copied_right = compiler_zx_link_CopyLiveExpression(from, to, mapping, expr->right, (int32_t)((uint32_t)depth + 1u));
+    int32_t copied_right = compiler_zx_link_CopyLiveExpression(from, to, mapping, expr->right, (int32_t)((uint32_t)depth + 1u), fold_constants);
     if (copied_right < -1) {
         return -2;
     }
-    int32_t copied_third = compiler_zx_link_CopyLiveExpression(from, to, mapping, expr->third, (int32_t)((uint32_t)depth + 1u));
+    int32_t copied_third = compiler_zx_link_CopyLiveExpression(from, to, mapping, expr->third, (int32_t)((uint32_t)depth + 1u), fold_constants);
     if (copied_third < -1) {
         return -2;
     }
@@ -842,7 +842,7 @@ compiler_zx_link_CopyLiveExpression(ZirFunction* from, ZirFunction* to, int32_t*
     int32_t last_child = -1;
     int32_t child = expr->first_child;
     while (child >= 0) {
-        int32_t copied = compiler_zx_link_CopyLiveExpression(from, to, mapping, child, (int32_t)((uint32_t)depth + 1u));
+        int32_t copied = compiler_zx_link_CopyLiveExpression(from, to, mapping, child, (int32_t)((uint32_t)depth + 1u), fold_constants);
         if (copied < 0) {
             return -2;
         }
@@ -910,7 +910,7 @@ compiler_zx_link_CopyLiveExpression(ZirFunction* from, ZirFunction* to, int32_t*
 }
 
 bool
-compiler_zx_link_PruneFunction(ZirFunction* fn)
+compiler_zx_link_PruneFunction(ZirFunction* fn, bool fold_constants)
 {
     uint8_t* value_0 = zir_foreign_compiler_zx_link__AllocateOrExit(sizeof(ZirFunction));
     ZirFunction* original = (ZirFunction*)(value_0);
@@ -997,30 +997,79 @@ compiler_zx_link_PruneFunction(ZirFunction* fn)
         }
     }
     bool stops = false;
-    bool ok = compiler_zx_link_CopyLiveSequence(original, output, 0, original->stmt_count, 0, &(stops));
+    bool ok = true;
+    if (fold_constants) {
+        ok = compiler_zx_link_CopyLiveSequence(original, output, 0, original->stmt_count, 0, &(stops));
+    } else {
+        {
+            int32_t range_first_31 = 0;
+            int32_t range_last_31 = (int32_t)((uint32_t)(original->stmt_count) - 1u);
+            int32_t s = range_first_31;
+            if (s <= range_last_31) for (;;) {
+                ZirFunction* value_26 = output;
+                ZirStmt* value_27 = (void *)0;
+                {
+                    ZirFunction* fn = original;
+                    int32_t index = s;
+                    value_27 = &(fn->stmts[index]);
+                }
+                bool value_29 = false;
+                {
+                    ZirFunction* to = value_26;
+                    ZirStmt* statement = value_27;
+                    if (to->stmt_count >= to->stmt_cap) {
+                        value_29 = false;
+                        goto value_30;
+                    }
+                    int32_t value_31 = to->stmt_count;
+                    ZirStmt* value_32 = (void *)0;
+                    {
+                        ZirFunction* fn = to;
+                        int32_t index = value_31;
+                        value_32 = &(fn->stmts[index]);
+                    }
+                    ZirStmt* slot = value_32;
+                    ZirStmt* value_34 = &((*(slot)));
+                    (*value_34) = *(statement);
+                    int32_t* value_35 = &(to->stmt_count);
+                    (*value_35) = (int32_t)((uint32_t)((*value_35)) + 1u);
+                    value_29 = true;
+                value_30: ;
+                }
+                if (!value_29) {
+                    ok = false;
+                    break;
+                }
+                if (s == range_last_31) {
+                    break;
+                }
+                s = (int32_t)((uint32_t)s + 1u);
+            }
+        }
+    }
     {
-        int32_t range_first_27 = 0;
-        int32_t range_last_27 = (int32_t)((uint32_t)(output->stmt_count) - 1u);
-        int32_t s = range_first_27;
-        if (s <= range_last_27) for (;;) {
+        int32_t range_first_38 = 0;
+        int32_t range_last_38 = (int32_t)((uint32_t)(output->stmt_count) - 1u);
+        int32_t s = range_first_38;
+        if (s <= range_last_38) for (;;) {
             if (!ok) {
                 break;
             }
-            ZirStmt* value_26 = (void *)0;
+            ZirStmt* value_36 = (void *)0;
             {
                 ZirFunction* fn = output;
                 int32_t index = s;
-                value_26 = &(fn->stmts[index]);
+                value_36 = &(fn->stmts[index]);
             }
-            ZirStmt* statement = value_26;
-            int32_t* value_28 = &(statement->expr_root);
-            int32_t value_29 = compiler_zx_link_CopyLiveExpression(original, output, mapping, statement->expr_root, 0);
-            (*value_28) = value_29;
-            int32_t* value_30 = &(statement->lhs_root);
-            int32_t value_31 = compiler_zx_link_CopyLiveExpression(original, output, mapping, statement->lhs_root, 0);
-            (*value_30) = value_31;
+            ZirStmt* statement = value_36;
+            int32_t* value_38 = &(statement->expr_root);
+            int32_t value_39 = compiler_zx_link_CopyLiveExpression(original, output, mapping, statement->expr_root, 0, fold_constants);
+            (*value_38) = value_39;
+            int32_t* value_40 = &(statement->lhs_root);
+            int32_t value_41 = compiler_zx_link_CopyLiveExpression(original, output, mapping, statement->lhs_root, 0, fold_constants);
+            (*value_40) = value_41;
             ok = statement->expr_root >= -1 && statement->lhs_root >= -1;
-            if (s == range_last_27) {
+            if (s == range_last_38) {
                 break;
             }
             s = (int32_t)((uint32_t)s + 1u);
@@ -1039,8 +1088,8 @@ compiler_zx_link_PruneFunction(ZirFunction* fn)
     }
     zir_foreign_compiler_zx_link__free((uint8_t*)(original->stmts));
     zir_foreign_compiler_zx_link__free((uint8_t*)(original->exprs));
-    ZirFunction* value_32 = &((*(fn)));
-    (*value_32) = *(output);
+    ZirFunction* value_42 = &((*(fn)));
+    (*value_42) = *(output);
     bool cleanup_return_2 = true;
     {
         zir_foreign_compiler_zx_link__free((uint8_t*)(original));
@@ -7162,10 +7211,14 @@ compiler_zx_link_BuildLinked(LinkState* state)
 }
 
 bool
-compiler_zx_link_CheckLinked(ZirProgram* linked, uint8_t* entry_module, uint8_t* entry_function)
+compiler_zx_link_CheckLinked(ZirProgram* linked, uint8_t* entry_module, uint8_t* entry_function, bool prune_fields)
 {
-    bool value_0 = compiler_zx_link_PruneRecordFields(linked, entry_module, entry_function);
-    if (!value_0) {
+    bool value_0 = prune_fields;
+    if (value_0) {
+        bool value_1 = compiler_zx_link_PruneRecordFields(linked, entry_module, entry_function);
+        value_0 = !value_1;
+    }
+    if (value_0) {
         return false;
     }
     {
@@ -7173,27 +7226,27 @@ compiler_zx_link_CheckLinked(ZirProgram* linked, uint8_t* entry_module, uint8_t*
         int32_t range_last_3 = (int32_t)((uint32_t)(linked->module_count) - 1u);
         int32_t m = range_first_3;
         if (m <= range_last_3) for (;;) {
-            ZirModule* value_1 = (void *)0;
+            ZirModule* value_2 = (void *)0;
             {
                 ZirProgram* program = linked;
                 int32_t index = m;
-                value_1 = &(program->modules[index]);
+                value_2 = &(program->modules[index]);
             }
-            ZirModule* module = value_1;
+            ZirModule* module = value_2;
             {
                 int32_t range_first_5 = 0;
                 int32_t range_last_5 = (int32_t)((uint32_t)(module->function_count) - 1u);
                 int32_t f = range_first_5;
                 if (f <= range_last_5) for (;;) {
-                    ZirModule* value_3 = module;
-                    ZirFunction* value_4 = (void *)0;
+                    ZirModule* value_4 = module;
+                    ZirFunction* value_5 = (void *)0;
                     {
-                        ZirModule* module = value_3;
+                        ZirModule* module = value_4;
                         int32_t index = f;
-                        value_4 = &(module->functions[index]);
+                        value_5 = &(module->functions[index]);
                     }
-                    int32_t* value_6 = &(value_4->from_ir);
-                    (*value_6) = 1;
+                    int32_t* value_7 = &(value_5->from_ir);
+                    (*value_7) = 1;
                     if (f == range_last_5) {
                         break;
                     }
@@ -7206,8 +7259,8 @@ compiler_zx_link_CheckLinked(ZirProgram* linked, uint8_t* entry_module, uint8_t*
             m = (int32_t)((uint32_t)m + 1u);
         }
     }
-    bool value_7 = zir_foreign_compiler_zx_link__CheckPrograms(&(linked), 1) != 0;
-    return value_7 && zir_foreign_compiler_zx_link__CheckLawGates(&(linked), 1) != 0;
+    bool value_8 = zir_foreign_compiler_zx_link__CheckPrograms(&(linked), 1) != 0;
+    return value_8 && zir_foreign_compiler_zx_link__CheckLawGates(&(linked), 1) != 0;
 }
 
 ZirProgram*
@@ -8983,7 +9036,7 @@ compiler_zx_link_LinkNative(ZirProgram* program, uint8_t* entry_module, uint8_t*
                         int32_t index = f;
                         value_3 = &(module->functions[index]);
                     }
-                    bool value_5 = compiler_zx_link_PruneFunction(value_3);
+                    bool value_5 = compiler_zx_link_PruneFunction(value_3, true);
                     if (!value_5) {
                         zir_foreign_compiler_zx_link__ProgramFree(optimized);
                         return (void *)0;
@@ -9033,7 +9086,7 @@ compiler_zx_link_LinkNative(ZirProgram* program, uint8_t* entry_module, uint8_t*
                             int32_t index = f;
                             value_10 = &(module->functions[index]);
                         }
-                        bool value_12 = compiler_zx_link_PruneFunction(value_10);
+                        bool value_12 = compiler_zx_link_PruneFunction(value_10, true);
                         if (!value_12) {
                             zir_foreign_compiler_zx_link__ProgramFree(linked);
                             return (void *)0;
@@ -9057,7 +9110,7 @@ compiler_zx_link_LinkNative(ZirProgram* program, uint8_t* entry_module, uint8_t*
     bool value_13 = linked != ((void *)0);
     bool value_14 = value_13;
     if (value_14) {
-        bool value_15 = compiler_zx_link_CheckLinked(linked, entry_module, entry_function);
+        bool value_15 = compiler_zx_link_CheckLinked(linked, entry_module, entry_function, true);
         value_14 = !value_15;
     }
     if (value_14) {
@@ -9077,6 +9130,85 @@ compiler_zx_link_ProgramContext(ZirProgram* program)
         value_0 = (void *)0;
     }
     return value_0;
+}
+
+ZirProgram*
+CheckedLink(ZirProgram* program, uint8_t* entry_module, uint8_t* entry_function)
+{
+    ZirProgram* value_0 = program;
+    uint8_t* value_1 = (void *)0;
+    {
+        ZirProgram* program = value_0;
+        uint8_t* value_3 = (void *)0;
+        if (program != ((void *)0)) {
+            value_3 = (uint8_t*)program->context;
+        } else {
+            value_3 = (void *)0;
+        }
+        value_1 = value_3;
+    }
+    uint8_t* previous = zir_foreign_compiler_zx_link__CompilerContextSelect(value_1);
+    ZirProgram* compacted = compiler_zx_link_CopyProgram(program);
+    if (compacted == ((void *)0)) {
+        zir_foreign_compiler_zx_link__CompilerContextSelect(previous);
+        return (void *)0;
+    }
+    {
+        int32_t range_first_6 = 0;
+        int32_t range_last_6 = (int32_t)((uint32_t)(compacted->module_count) - 1u);
+        int32_t m = range_first_6;
+        if (m <= range_last_6) for (;;) {
+            ZirModule* value_4 = (void *)0;
+            {
+                ZirProgram* program = compacted;
+                int32_t index = m;
+                value_4 = &(program->modules[index]);
+            }
+            ZirModule* module = value_4;
+            {
+                int32_t range_first_8 = 0;
+                int32_t range_last_8 = (int32_t)((uint32_t)(module->function_count) - 1u);
+                int32_t f = range_first_8;
+                if (f <= range_last_8) for (;;) {
+                    ZirModule* value_6 = module;
+                    ZirFunction* value_7 = (void *)0;
+                    {
+                        ZirModule* module = value_6;
+                        int32_t index = f;
+                        value_7 = &(module->functions[index]);
+                    }
+                    bool value_9 = compiler_zx_link_PruneFunction(value_7, false);
+                    if (!value_9) {
+                        zir_foreign_compiler_zx_link__ProgramFree(compacted);
+                        zir_foreign_compiler_zx_link__CompilerContextSelect(previous);
+                        return (void *)0;
+                    }
+                    if (f == range_last_8) {
+                        break;
+                    }
+                    f = (int32_t)((uint32_t)f + 1u);
+                }
+            }
+            if (m == range_last_6) {
+                break;
+            }
+            m = (int32_t)((uint32_t)m + 1u);
+        }
+    }
+    ZirProgram* linked = compiler_zx_link_LinkEntry(compacted, entry_module, entry_function, 1);
+    zir_foreign_compiler_zx_link__ProgramFree(compacted);
+    bool value_10 = linked != ((void *)0);
+    bool value_11 = value_10;
+    if (value_11) {
+        bool value_12 = compiler_zx_link_CheckLinked(linked, entry_module, entry_function, false);
+        value_11 = !value_12;
+    }
+    if (value_11) {
+        zir_foreign_compiler_zx_link__ProgramFree(linked);
+        linked = (void *)0;
+    }
+    zir_foreign_compiler_zx_link__CompilerContextSelect(previous);
+    return linked;
 }
 
 ZirProgram*

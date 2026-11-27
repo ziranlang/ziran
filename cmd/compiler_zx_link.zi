@@ -1,4 +1,4 @@
-// Entry linking for the C, Go and native backends: copies the checked
+// Entry linking for saved IR and the C, Go and native backends: copies the checked
 // program, prunes it to what the entry reaches, and binds declared host
 // capabilities to Ziran providers.
 //
@@ -641,7 +641,7 @@ LinkNative :: (program: *IR.ZirProgram, entry_module: *u8, entry_function: *u8, 
     // Rechecking every intermediate graph repeats type checking and field
     // layout work for declarations the next fold may discard. Validate the
     // complete surviving graph once, for C and Go alike.
-    if linked != null && !CheckLinked(linked, entry_module, entry_function) {
+    if linked != null && !CheckLinked(linked, entry_module, entry_function, true) {
         ProgramFree(linked)
         return null
     }
@@ -649,6 +649,36 @@ LinkNative :: (program: *IR.ZirProgram, entry_module: *u8, entry_function: *u8, 
 }
 
 ProgramContext :: (program: *IR.ZirProgram) -> *u8 { return ifx program != null then program.context else null }
+
+// Saved checked IR is shared by every backend. Keep its reached expression
+// graphs and complete record layouts: native-only folding or field pruning
+// would change the program a later portable lowering receives.
+#program_export
+CheckedLink :: (program: *IR.ZirProgram, entry_module: *u8, entry_function: *u8) -> *IR.ZirProgram {
+    previous := CompilerContextSelect(ProgramContext(program))
+    // Retain implementations of foreign host effects just as native linking
+    // does, so the saved program can still target C or a native executable.
+    compacted := CopyProgram(program)
+    if compacted == null { CompilerContextSelect(previous); return null }
+    for m: 0..compacted.module_count - 1 {
+        module := ModuleAt(compacted, m)
+        for f: 0..module.function_count - 1 {
+            if !PruneFunction(FunctionAt(module, f), false) {
+                ProgramFree(compacted)
+                CompilerContextSelect(previous)
+                return null
+            }
+        }
+    }
+    linked := LinkEntry(compacted, entry_module, entry_function, 1)
+    ProgramFree(compacted)
+    if linked != null && !CheckLinked(linked, entry_module, entry_function, false) {
+        ProgramFree(linked)
+        linked = null
+    }
+    CompilerContextSelect(previous)
+    return linked
+}
 
 // Native entry pruning also retains exported implementations of host effects.
 #program_export

@@ -32,7 +32,7 @@ CheckCapabilities :: (program: *IR.ZirProgram, target: *u8) -> s32 #foreign comp
 LinkImports :: (programs: **IR.ZirProgram, count: s32) -> s32 #foreign compiler "LinkImports";
 BindProvider :: (program: *IR.ZirProgram, binding: *u8) -> s32 #foreign compiler "BindHostProvider";
 BindModule :: (program: *IR.ZirProgram, module: *u8) -> s32 #foreign compiler "BindHostModule";
-NativeLink :: (program: *IR.ZirProgram, module: *u8, function: *u8) -> *IR.ZirProgram #foreign compiler "NativeLink";
+CheckedLink :: (program: *IR.ZirProgram, module: *u8, function: *u8) -> *IR.ZirProgram #foreign compiler "CheckedLink";
 ProgramFree :: (program: *IR.ZirProgram) #foreign compiler "ProgramFree";
 ProgramWrite :: (program: *IR.ZirProgram, out: *void) -> s32 #foreign compiler "ProgramWrite";
 PrintLawResults :: (programs: **IR.ZirProgram, count: s32, out: *void) #foreign compiler "PrintLawResults";
@@ -270,7 +270,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
                 if BindModule(*merged, host_modules[cast(usize)b]) == 0 { return result }
                 b += 1
             }
-            linked = NativeLink(*merged, *entry_module[0], *entry_function[0])
+            linked = CheckedLink(*merged, *entry_module[0], *entry_function[0])
             if linked == null { return result }
             if target != null && CheckCapabilities(linked, target) == 0 { return result }
             i: s32 = 0

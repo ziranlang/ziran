@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Save entry-selected checked IR without native-only folding or record-field
+  pruning. Preserve canonical expression graphs and host providers so direct
+  source and saved-IR portable bundles agree.
+
 - Preserve the exact backing field of returned native views. End a global view's
   loan only when every relevant path clears that owner before mutating its
   storage, including named nested fields. Retain independent aliases and local

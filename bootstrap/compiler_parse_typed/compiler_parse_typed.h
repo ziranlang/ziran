@@ -29,6 +29,7 @@ int32_t private_parse_evaluate_typed_expression_in_state(EvaluationState* evalua
 int32_t private_parse_evaluate_typed_expression(ZirModule* module, ZirConsts* names, uint8_t* source, ZirSourceSpan span, int32_t depth, int32_t* fuel, CompileValue* result);
 int32_t private_parse_eval_typed_condition(uint8_t* source, ZirModule* module, ZirConsts* names, ZirSourceSpan span, int64_t* result);
 int32_t EvaluateCompileExpression(ZirModule* module, uint8_t* source, ZirSourceSpan span, int32_t executing, int64_t* value);
+int32_t EvaluateCompileValue(ZirModule* module, uint8_t* source, ZirSourceSpan span, CompileValue* value);
 int32_t EvaluateCompileLiteral(ZirModule* module, uint8_t* source, ZirSourceSpan span, int32_t executing, uint8_t** literal, ZirModule** type_owner);
 int32_t EvaluateCompileRun(ZirModule* module, uint8_t* source, ZirSourceSpan span, uint8_t** literal, ZirModule** type_owner, int32_t* exhausted);
 ZirBoundCondition* PrepareBoundCondition(ZirModule* module, uint8_t* source, ZirSourceSpan span, ParserArray128_u8* names, ParserArray128_u8* types, int32_t count);

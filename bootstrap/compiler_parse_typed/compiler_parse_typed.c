@@ -6694,6 +6694,14 @@ compiler_parse_typed_evaluate_compile_value_in_state(EvaluationState* evaluation
     return cleanup_return_2;
 }
 
+int32_t
+EvaluateCompileValue(ZirModule* module, uint8_t* source, ZirSourceSpan span, CompileValue* value)
+{
+    EvaluationState evaluation = {0};
+    int32_t fuel = 10000;
+    return compiler_parse_typed_evaluate_compile_value_in_state(&(evaluation), module, source, span, 0, &(fuel), value);
+}
+
 static int32_t
 compiler_parse_typed_EvaluateCompileLiteral_in_state(EvaluationState* evaluation, ZirModule* module, uint8_t* source, ZirSourceSpan span, int32_t executing, uint8_t** literal, ZirModule** type_owner)
 {

@@ -246,6 +246,11 @@ int32_t zir_foreign_compiler_zir_lower__CModuleNeedsStartup(ZirModule* module) _
 int32_t zir_foreign_compiler_zir_lower__CModuleNeedsStartup(ZirModule* module) __asm__("ModuleNeedsStartup");
 #endif
 #ifdef __APPLE__
+ZirModule** zir_foreign_compiler_zir_lower__CModuleStartupDependencies(ZirModule* module, int32_t* count) __asm__("_ModuleStartupDependencies");
+#else
+ZirModule** zir_foreign_compiler_zir_lower__CModuleStartupDependencies(ZirModule* module, int32_t* count) __asm__("ModuleStartupDependencies");
+#endif
+#ifdef __APPLE__
 int32_t zir_foreign_compiler_zir_lower__BitBuiltin(uint8_t* name) __asm__("_BitBuiltin");
 #else
 int32_t zir_foreign_compiler_zir_lower__BitBuiltin(uint8_t* name) __asm__("BitBuiltin");
@@ -36525,11 +36530,12 @@ compiler_zir_lower_StartupModule(AssemblyProgram* program, ZirProgram* source, i
     }
     uint8_t* value_6 = &(state[module_index]);
     (*value_6) = 1;
-    int32_t import_index = 0;
-    while (import_index < module->import_count) {
-        ZirModule* dependency = (ZirModule*)(module->imports[import_index]).resolved_module;
-        bool value_7 = dependency != ((void *)0);
-        if (value_7 && zir_foreign_compiler_zir_lower__CModuleNeedsStartup(dependency) == 1) {
+    int32_t dependency_count = 0;
+    ZirModule** dependencies = zir_foreign_compiler_zir_lower__CModuleStartupDependencies(module, &(dependency_count));
+    int32_t dependency_at = 0;
+    while (dependency_at < dependency_count) {
+        ZirModule* dependency = dependencies[dependency_at];
+        {
             int32_t dependency_index = -1;
             int32_t index = 0;
             while (index < source->module_count) {
@@ -36540,29 +36546,33 @@ compiler_zir_lower_StartupModule(AssemblyProgram* program, ZirProgram* source, i
                 index = (int32_t)((uint32_t)index + 1u);
             }
             if (dependency_index < 0) {
-                AssemblyProgram* value_8 = program;
-                ZirSourceSpan value_9 = (module->imports[import_index]).span;
-                String value_10 = StringLiteral("runtime initializer dependency is outside the checked program");
-                int32_t value_11 = 0;
+                AssemblyProgram* value_7 = program;
+                ZirSourceSpan value_8 = module->span;
+                String value_9 = StringLiteral("runtime initializer dependency is outside the checked program");
+                int32_t value_10 = 0;
                 {
-                    AssemblyProgram* program = value_8;
-                    ZirSourceSpan span = value_9;
-                    String message = value_10;
+                    AssemblyProgram* program = value_7;
+                    ZirSourceSpan span = value_8;
+                    String message = value_9;
                     if (program->failed == 0) {
                         compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                     }
-                    int32_t* value_13 = &(program->failed);
-                    (*value_13) = 1;
-                    value_11 = -1;
+                    int32_t* value_12 = &(program->failed);
+                    (*value_12) = 1;
+                    value_10 = -1;
                 }
-                (void)value_11;
-                return 0;
+                (void)value_10;
+                int32_t cleanup_return_0 = 0;
+                zir_foreign_compiler_zir_lower__free((void*)(dependencies));
+                return cleanup_return_0;
             }
             if (compiler_zir_lower_StartupModule(program, source, dependency_index, state) == 0) {
-                return 0;
+                int32_t cleanup_return_1 = 0;
+                zir_foreign_compiler_zir_lower__free((void*)(dependencies));
+                return cleanup_return_1;
             }
         }
-        import_index = (int32_t)((uint32_t)import_index + 1u);
+        dependency_at = (int32_t)((uint32_t)dependency_at + 1u);
     }
     int32_t function_index = 0;
     while (function_index < module->function_count) {
@@ -36570,18 +36580,24 @@ compiler_zir_lower_StartupModule(AssemblyProgram* program, ZirProgram* source, i
         if (function->is_global_initializer != 0) {
             int32_t identity = compiler_zir_lower_Function(program, module, &(module->functions[function_index]));
             if (identity < 0) {
-                return 0;
+                int32_t cleanup_return_2 = 0;
+                zir_foreign_compiler_zir_lower__free((void*)(dependencies));
+                return cleanup_return_2;
             }
-            bool value_14 = compiler_zir_lower_Push(program, (RawVector*)(&(program->initializers)), sizeof(int32_t), (void*)(&(identity)));
-            if (value_14 == false) {
-                return 0;
+            bool value_13 = compiler_zir_lower_Push(program, (RawVector*)(&(program->initializers)), sizeof(int32_t), (void*)(&(identity)));
+            if (value_13 == false) {
+                int32_t cleanup_return_3 = 0;
+                zir_foreign_compiler_zir_lower__free((void*)(dependencies));
+                return cleanup_return_3;
             }
         }
         function_index = (int32_t)((uint32_t)function_index + 1u);
     }
-    uint8_t* value_15 = &(state[module_index]);
-    (*value_15) = 2;
-    return 1;
+    uint8_t* value_14 = &(state[module_index]);
+    (*value_14) = 2;
+    int32_t cleanup_return_4 = 1;
+    zir_foreign_compiler_zir_lower__free((void*)(dependencies));
+    return cleanup_return_4;
 }
 
 static void

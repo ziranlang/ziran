@@ -321,7 +321,10 @@ static uint64_t compiler_c_emit_NativeTypeIdentity(uint64_t hash, ZirModule* own
 static size_t compiler_c_emit_SpecializationPrefixLength(ZirFunction* fn) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_ReadableFunctionName(ZirModule* module, ZirFunction* fn, uint8_t* out, size_t size) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_ReadableModuleName(uint8_t* name, uint8_t* out, size_t size, bool upper) ZIRAN_MAYBE_UNUSED;
+static bool compiler_c_emit_ModuleVisit(ZirModule* module, ModuleVisits* visits) ZIRAN_MAYBE_UNUSED;
+static bool compiler_c_emit_ModuleHasStartup(ZirModule* module) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_c_emit_ModuleNeedsStartupWalk(ZirModule* module, ModuleVisits* visits) ZIRAN_MAYBE_UNUSED;
+static void compiler_c_emit_ModuleStartupDependenciesWalk(ZirModule* owner, ZirModule* module, ModuleVisits* visits, ModuleVisits* dependencies) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_GoFileStem(uint8_t* source, uint8_t* out, size_t size) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_emit_SameFoldedName(uint8_t* left, uint8_t* right) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_ModuleIdentityUncached(ZirProgram** programs, int32_t count, ZirModule* module, uint8_t* file_stem, size_t file_size, uint8_t* guard, size_t guard_size) ZIRAN_MAYBE_UNUSED;
@@ -3851,16 +3854,16 @@ NativeCModuleInitName(ZirModule* module, uint8_t* out, size_t size)
     compiler_c_emit_CheckFormat(value_5, size);
 }
 
-static int32_t
-compiler_c_emit_ModuleNeedsStartupWalk(ZirModule* module, ModuleVisits* visits)
+static bool
+compiler_c_emit_ModuleVisit(ZirModule* module, ModuleVisits* visits)
 {
     if (module == ((void *)0)) {
-        return 0;
+        return false;
     }
     size_t i = 0;
     while (i < visits->count) {
         if (visits->items[i] == module) {
-            return 0;
+            return false;
         }
         i = i + 1;
     }
@@ -3886,35 +3889,108 @@ compiler_c_emit_ModuleNeedsStartupWalk(ZirModule* module, ModuleVisits* visits)
     (*value_4) = module;
     size_t* value_5 = &(visits->count);
     (*value_5) = (*value_5) + 1;
+    return true;
+}
+
+static bool
+compiler_c_emit_ModuleHasStartup(ZirModule* module)
+{
     {
-        int32_t range_first_21 = 0;
-        int32_t range_last_21 = (int32_t)((uint32_t)(module->function_count) - 1u);
-        int32_t f = range_first_21;
-        if (f <= range_last_21) for (;;) {
+        int32_t range_first_0 = 0;
+        int32_t range_last_0 = (int32_t)((uint32_t)(module->function_count) - 1u);
+        int32_t f = range_first_0;
+        if (f <= range_last_0) for (;;) {
             if ((module->functions[f]).is_global_initializer != 0) {
-                return 1;
+                return true;
             }
-            if (f == range_last_21) {
+            if (f == range_last_0) {
                 break;
             }
             f = (int32_t)((uint32_t)f + 1u);
         }
     }
+    return false;
+}
+
+static int32_t
+compiler_c_emit_ModuleNeedsStartupWalk(ZirModule* module, ModuleVisits* visits)
+{
+    bool value_0 = compiler_c_emit_ModuleVisit(module, visits);
+    if (!value_0) {
+        return 0;
+    }
+    if (compiler_c_emit_ModuleHasStartup(module)) {
+        return 1;
+    }
     {
-        int32_t range_first_26 = 0;
-        int32_t range_last_26 = (int32_t)((uint32_t)(module->import_count) - 1u);
-        int32_t i = range_first_26;
-        if (i <= range_last_26) for (;;) {
+        int32_t range_first_6 = 0;
+        int32_t range_last_6 = (int32_t)((uint32_t)(module->import_count) - 1u);
+        int32_t i = range_first_6;
+        if (i <= range_last_6) for (;;) {
             if (compiler_c_emit_ModuleNeedsStartupWalk((ZirModule*)(module->imports[i]).resolved_module, visits) != 0) {
                 return 1;
             }
-            if (i == range_last_26) {
+            if (i == range_last_6) {
                 break;
             }
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
     return 0;
+}
+
+static void
+compiler_c_emit_ModuleStartupDependenciesWalk(ZirModule* owner, ZirModule* module, ModuleVisits* visits, ModuleVisits* dependencies)
+{
+    bool value_0 = module == owner;
+    if (!value_0) {
+        bool value_1 = compiler_c_emit_ModuleVisit(module, visits);
+        value_0 = !value_1;
+    }
+    if (value_0) {
+        return;
+    }
+    if (compiler_c_emit_ModuleHasStartup(module)) {
+        compiler_c_emit_ModuleVisit(module, dependencies);
+        return;
+    }
+    {
+        int32_t range_first_7 = 0;
+        int32_t range_last_7 = (int32_t)((uint32_t)(module->import_count) - 1u);
+        int32_t i = range_first_7;
+        if (i <= range_last_7) for (;;) {
+            compiler_c_emit_ModuleStartupDependenciesWalk(owner, (ZirModule*)(module->imports[i]).resolved_module, visits, dependencies);
+            if (i == range_last_7) {
+                break;
+            }
+            i = (int32_t)((uint32_t)i + 1u);
+        }
+    }
+}
+
+ZirModule**
+ModuleStartupDependencies(ZirModule* module, int32_t* count)
+{
+    ModuleVisits visits = {0};
+    ModuleVisits dependencies = {0};
+    if (module != ((void *)0)) {
+        {
+            int32_t range_first_3 = 0;
+            int32_t range_last_3 = (int32_t)((uint32_t)(module->import_count) - 1u);
+            int32_t i = range_first_3;
+            if (i <= range_last_3) for (;;) {
+                compiler_c_emit_ModuleStartupDependenciesWalk(module, (ZirModule*)(module->imports[i]).resolved_module, &(visits), &(dependencies));
+                if (i == range_last_3) {
+                    break;
+                }
+                i = (int32_t)((uint32_t)i + 1u);
+            }
+        }
+    }
+    zir_foreign_compiler_c_emit__free((void*)(visits.items));
+    int32_t* value_0 = &((*(count)));
+    (*value_0) = (int32_t)(dependencies.count);
+    return dependencies.items;
 }
 
 int32_t

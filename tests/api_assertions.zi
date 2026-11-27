@@ -94,6 +94,68 @@ ApiDiscovery :: (test: *NativeTest) -> bool {
     return ApiNames(test, *defined, JsonMember(*defined, library, "functions"), "Visible|Again|Extra")
 }
 
+ApiTypeScript :: (test: *NativeTest) -> bool {
+    root := CheckPath(test.work, "typescript"); output := CheckPath(root, "build/.ziran/types")
+    source := CheckPath(root, "main.tsx")
+    native := #string ZI
+using Callables :: #import "std/callable"
+Box :: struct($T: Type) { value: T; }
+Model :: struct { value: float64; id: u64; }
+Mode :: enum u8 { Off; On :: 7; }
+Action :: #type (model: Model) -> void;
+Props :: struct { model: Model; action: Owned(Action); }
+Widget :: (props: Props) { props.action(props.model) }
+BooleanWidget :: (props: Props, location: Source_Code_Location = #caller_location) -> bool { return props.model.value > 0 }
+RecordWidget :: (props: Props) -> Model { return props.model }
+Identity :: (value: $T) -> T { return value }
+Defaulted :: (value: s32 = 7) -> s32 { return value }
+Wide :: () -> u64 { return 18446744073709551615 }
+Rshift :: 3;
+Runit :: (1 << Rshift);
+#scope_module
+Hidden :: () -> s32 { return 0 }
+ZI
+    authored := #string TSX
+import * as Domain from "native_domain";
+import { Owned } from "std/callable";
+export interface Box<T> { value: T; }
+export function Wide(): u64 { return Domain.Wide(); }
+export function Render(): void {
+    const model: Domain.Model = {value: 2, id: u64(18446744073709551615n)};
+    const action: Owned<Domain.Action> = (value: Domain.Model): void => {};
+    <Domain.Widget model={model} action={action} />;
+    <Domain.BooleanWidget model={model} action={(value: Domain.Model): void => {}} />;
+    <Domain.RecordWidget model={model} action={(value: Domain.Model): void => {}} />;
+    const pressed: boolean = Domain.BooleanWidget({model: model, action: (value: Domain.Model): void => {}});
+    const result: Domain.Model = Domain.RecordWidget({model: model, action: (value: Domain.Model): void => {}});
+}
+TSX
+    if !NativeWrite(test, CheckPath(root, "native_domain.zi"), native) || !NativeWrite(test, source, authored) { return false }
+    args := string.[test.ziran, "api", "--typescript", "--out", output, "--target", "c", "--root", root, source]
+    result := NativeRun(test, args[:]); manifest_path := CheckPath(output, "manifest.json")
+    if test.failed || !NativeAssert(test, result.output == "", "declaration generator wrote API text") { return false }
+    text := NativeRead(test, manifest_path); document: JsonDocument
+    if !NativeAssert(test, JsonRead(*document, text) && CheckInteger(*document, document.root, "schema_version") == 1, "invalid declaration manifest") { return false }
+    resolutions := JsonMember(*document, document.root, "resolutions"); entries: s32 = -1
+    for index: cast(s32)0..JsonCount(*document, resolutions) - 1 {
+        row := JsonElement(*document, resolutions, index)
+        if CheckField(*document, row, "source") == source { entries = JsonMember(*document, row, "imports") }
+    }
+    file := CheckField(*document, entries, "native_domain")
+    if !NativeAssert(test, file != "" && CheckField(*document, entries, "std/callable") != "", "manifest lost authored native imports") { return false }
+    declaration := NativeRead(test, CheckPath(output, file))
+    expected := string.["interface Box<T>", "interface Model", "\"id\": bigint", "readonly On: 7", "function Identity<T>(value: T): T", "function Defaulted(value?: number): number", "function Wide(): bigint", "const Runit: bigint"]
+    for part: expected { if !NativeAssert(test, TextContains(declaration, part), CheckConcat("declaration missing checked type: ", part)) { return false } }
+    if !NativeAssert(test, !TextContains(declaration, "Hidden") && !TextContains(declaration, ": any") && !TextContains(declaration, ": never"), "declarations erased types or exposed private functions") { return false }
+    if !NativeWrite(test, CheckPath(output, "module-999999.d.ts"), "stale") || !NativeWrite(test, CheckPath(output, "keep.txt"), "owner") { return false }
+    unused NativeRun(test, args[:])
+    if test.failed || !NativeAssert(test, NativeRead(test, manifest_path) == text && NativeRead(test, CheckPath(output, file)) == declaration &&
+        !PathExists(CheckPath(output, "module-999999.d.ts")) && NativeRead(test, CheckPath(output, "keep.txt")) == "owner", "generation is nondeterministic or stale cleanup changed unrelated files") { return false }
+    if !NativeWrite(test, source, CheckConcat(authored, "\nexport function Invalid(): number { return false; }\n")) { return false }
+    rejected := NativeInvoke(test, args[:])
+    return NativeAssert(test, rejected.code != 0 && !PathExists(manifest_path), "failed source check left a valid-looking stale manifest")
+}
+
 ApiMetadata :: (test: *NativeTest) -> bool {
     source: JsonDocument; saved: JsonDocument
     if !ApiRead(test, *source, "source") || !ApiRead(test, *saved, "saved") || !NativeAssert(test, CheckInteger(*source, source.root, "schema_version") == 1 &&
@@ -284,7 +346,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if test.failed { return 1 }
     defer NativeCleanup(*test)
     mode := ifx argc > 3 then TextFromCString(argv[3]) else ""; valid := false
-    if mode == "discovery" { valid = ApiDiscovery(*test) }
+    if mode == "discovery" { valid = ApiDiscovery(*test) && ApiTypeScript(*test) }
     else if mode == "examples" { valid = ApiExamples(*test) }
     else if mode == "metadata" { valid = ApiMetadata(*test) }
     else if mode == "moved" { valid = ApiMoved(*test) }

@@ -6,6 +6,7 @@
 IR :: #import "compiler_ir"
 Check :: #import "compiler_check_types"
 CLI :: #import "compiler_cli"
+TypeScript :: #import "compiler_api_typescript"
 
 libc :: #system_library "libc";
 compiler :: #system_library "ziran";
@@ -349,9 +350,9 @@ ModuleSelected :: (name: *u8) -> s32 {
 // Options may follow the input files: move every option, with its value, in
 // front of them so `ziran api app.zi --module NAME` reads as written.
 OptionsFirst :: (argc: s32, argv: **u8) {
-    valued: [10]*u8 = .{CStr("--target"), CStr("--target-os"), CStr("--target-cpu"),
+    valued: [11]*u8 = .{CStr("--target"), CStr("--target-os"), CStr("--target-cpu"),
         CStr("--module"), CStr("--symbol"), CStr("--max-symbols"), CStr("--max-bytes"),
-        CStr("--root"), CStr("--module-path"), CStr("--define")}
+        CStr("--root"), CStr("--module-path"), CStr("--define"), CStr("--out")}
     ordered := cast(**u8)calloc(cast(usize)argc + 1, size_of(*u8))
     if ordered == null { return }
     defer free(cast(*void)ordered)
@@ -365,7 +366,7 @@ OptionsFirst :: (argc: s32, argv: **u8) {
             if word[0] == #char "-" && word[1] == #char "-" { option = 1 }
             value: s32 = 0
             v: usize = 0
-            while option != 0 && v < 10 {
+            while option != 0 && v < cast(usize)valued.count {
                 if strcmp(word, valued[v]) == 0 && i + 1 < argc { value = 1 }
                 v += 1
             }
@@ -560,7 +561,7 @@ FreeExamples :: () {
 
 Usage :: () {
     Diagnostic(NoSpan(), CStr("command.arguments"),
-        CStr("usage: ziran api [--json] [--diagnostics=text|json] [--target c|go|zx] [--target-os OS] [--target-cpu CPU] [--module NAME] [--symbol NAME|ID] [--imports-only] [--max-symbols N] [--max-bytes N] [--module-path DIR] [--define NAME] --root DIR file.zi|file.zir ..."))
+        CStr("usage: ziran api [--json | --typescript --out DIR] [--diagnostics=text|json] [--target c|go|zx] [--target-os OS] [--target-cpu CPU] [--module NAME] [--symbol NAME|ID] [--imports-only] [--max-symbols N] [--max-bytes N] [--module-path DIR] [--define NAME] --root DIR file.zi|file.ts|file.tsx|file.zir ..."))
 }
 
 JsonString :: (value: *u8) {
@@ -1332,6 +1333,8 @@ RunApi :: (argc: s32, argv: **u8) -> s32 {
     target_os_name: *u8 = null
     target_cpu_name: *u8 = null
     json: s32 = 0
+    typescript: s32 = 0
+    output_directory: *u8 = null
     result: s32 = 1
     set: IR.ProgramSet = .{}
     defer ProgramsFree(*(set))
@@ -1343,8 +1346,10 @@ RunApi :: (argc: s32, argv: **u8) -> s32 {
     module_path_count: s32 = 0
     api_output = StandardOutput()
     SetFormatArguments(argc, argv)
-    options: [12]CLI.CommandOption = .{
+    options: [14]CLI.CommandOption = .{
         .{name = CStr("--json"), flag = *(json)},
+        .{name = CStr("--typescript"), flag = *(typescript)},
+        .{name = CStr("--out"), value = *(output_directory)},
         .{name = CStr("--target"), value = *(target)},
         .{name = CStr("--target-os"), value = *(target_os_name)},
         .{name = CStr("--target-cpu"), value = *(target_cpu_name)},
@@ -1368,6 +1373,13 @@ RunApi :: (argc: s32, argv: **u8) -> s32 {
         Usage()
         return 2
     }
+    if (typescript != 0 && (output_directory == null || output_directory[0] == 0 || json != 0 ||
+        filter_module != null || filter_symbol != null || imports_only != 0 || max_symbols != null || max_bytes != null)) ||
+        (typescript == 0 && output_directory != null) {
+        Usage()
+        return 2
+    }
+    if typescript != 0 && TypeScript.Invalidate(output_directory) == 0 { return 1 }
     bound: usize = 0
     if (max_symbols != null && PositiveBound(max_symbols, 1, 4096, *(bound)) == 0) ||
        (json == 0 && (filter_symbol != null || imports_only != 0 || max_symbols != null)) {
@@ -1418,6 +1430,7 @@ RunApi :: (argc: s32, argv: **u8) -> s32 {
         i += 1
     }
     qsort(cast(*u8)modules, cast(usize)module_count, size_of(*IR.ZirModule), ModuleOrder)
+    if typescript != 0 { return TypeScript.Emit(*(set), modules, module_count, output_directory) }
     // A name that selects nothing is a mistake, not an empty API.
     selected: s32 = 0
     i = 0

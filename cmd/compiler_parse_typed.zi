@@ -2830,6 +2830,14 @@ evaluate_compile_value_in_state :: (evaluation: *EvaluationState, module: *IR.Zi
     return ok
 }
 
+#scope_export
+#program_export "EvaluateCompileValue"
+EvaluateCompileValue :: (module: *IR.ZirModule, source: *u8, span: IR.ZirSourceSpan, value: *CompileValue) -> s32 {
+    evaluation: EvaluationState
+    fuel: s32 = 10000
+    return evaluate_compile_value_in_state(*evaluation, module, source, span, 0, *fuel, value)
+}
+
 #scope_file
 EvaluateCompileLiteral_in_state :: (evaluation: *EvaluationState, module: *IR.ZirModule, source: *u8, span: IR.ZirSourceSpan, executing: s32, literal: **u8, type_owner: **IR.ZirModule) -> s32 {
     value_storage_0 := cast(*CompileValue)AllocateOrExit(size_of(CompileValue))

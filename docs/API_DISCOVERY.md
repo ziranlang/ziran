@@ -1,5 +1,52 @@
 # Checked API discovery
 
+`ziran api --typescript --out build/.ziran/types --project [input.tsx]`
+checks the ordinary project graph and writes TypeScript declarations for its
+native imports. Outside a package, use `--root DIR input.tsx`. Package aliases,
+module roots, defines and target selection use the same loader and checker as
+`ziran check`; declarations are not inferred from JavaScript or copied library
+schemas. `--typescript` requires `--out` and cannot combine with JSON filters
+or retrieval budgets.
+
+The output includes `native.d.ts`, checked module declarations and a schema-1
+`manifest.json`. Its `globals` array names relative declaration files, and
+`resolutions` contains `{source: absoluteAuthoredPath, imports: {specifier:
+relativeDeclarationPath}}` rows. Each import maps the source spelling to its
+actual resolved native module, including package aliases. Editor integrations
+can load these files into the ordinary TypeScript language service. Generating
+again removes stale generated declarations and publishes the manifest last;
+a failed check invalidates the previous manifest. Unrelated output files are
+preserved.
+
+This is an editor projection. Records, procedure signatures, generic record
+applications, enum members, argument defaults and callable parameter/result
+types come from checked declarations. Explicit native 64-bit and pointer-size
+integers project to `bigint`; narrow integers and floating-point scalars project
+to `number`. Integer width/sign, native record identity and ownership lifetimes
+remain native compiler checks. Scalar brands would introduce false errors when
+ordinary TypeScript arithmetic discards the brand, so the emitter does not
+pretend stock TypeScript enforces those rules. Owned and scoped callbacks retain
+their precise call signatures and a distinct optional mode tag; assigning a
+contextual arrow remains possible. References preserve their element type and
+record member access, and native arrays/slices retain their element types.
+Stock TypeScript permits only number indices and gives `string[index]` a
+JavaScript string result. Use the native `nativeAt(values, index)` operation
+for a wide integer index or a UTF-8 byte, and `nativeSet` for explicit native
+reference/index assignment. These preserve the native element/value types
+without changing ordinary TypeScript array or string diagnostics.
+
+The generated JSX contract accepts typed callable components with any result,
+including an optional caller-location parameter, and checks their actual props.
+Stock TypeScript gives all JSX expressions one fixed `JSX.Element` type (`void`
+here), so it cannot express arbitrary per-component JSX result types. Use an
+ordinary component call when consuming an immediate result, for example
+`if (Button({session, props: {...}}))`. These calls retain their exact results
+and use the same native component. Native unions, foreign maps
+and other types without a supported projection produce an explicit error,
+rather than an erased fallback. Generating declarations is an explicit command;
+the language service uses the generated files without compiling on ordinary
+open, hover, edit or save operations.
+
 `ziran api --json --root DIR file.zi` loads and checks the input and its
 transitive imports, then prints one bounded JSON object describing visible declarations
 in each loaded module. The same command accepts saved `.zir` inputs. Use

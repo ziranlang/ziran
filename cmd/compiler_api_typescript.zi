@@ -1,0 +1,663 @@
+// Declarations project the checked native graph. Source tokens supply only
+// authored import spellings; signatures always come from the shared checker.
+IR :: #import "compiler_ir"
+Check :: #import "compiler_check_types"
+Parse :: #import "compiler_parse_types"
+Services :: #import "compiler_services"
+Scan :: #import "compiler_scan"
+Rules :: #import "compiler_text"
+#import "std/file"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+#scope_file
+compiler :: #system_library "ziran";
+FindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
+TypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
+ParametersOf :: (text: *u8) -> *Check.ZirParameters #foreign compiler "ParametersOf";
+EnumMemberValue :: (record: *IR.ZirType, member: *u8, value: *s64) -> s32 #foreign compiler "EnumMemberValue";
+ScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
+ArrayCapacity :: (module: *IR.ZirModule, type: *u8, capacity: *s32) -> s32 #foreign compiler "private_check_array_capacity";
+DocumentForSpan :: (module: *IR.ZirModule, span: IR.ZirSourceSpan) -> *Check.ZirDocument #foreign compiler "DocumentForSpan";
+DocumentOffset :: (document: *Check.ZirDocument, line: s32, column: s32, offset: *usize) -> s32 #foreign compiler "DocumentOffset";
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+CanonicalPath :: (path: *u8) -> *u8 #foreign compiler "CanonicalPath";
+ParseExpr :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan) -> s32 #foreign compiler "CompilerParseExpr";
+ExpressionType :: (checker: *Check.Checker, index: s32) -> *u8 #foreign compiler "private_check_expression_type";
+CompilerFree :: (memory: *void) #foreign compiler "CompilerFree";
+BuiltinType :: (name: *u8) -> *IR.ZirType #foreign compiler "BuiltinType";
+ResolveFunction :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunction";
+ResolveDefine :: (module: *IR.ZirModule, name: *u8, definition: **IR.ZirDefine, owner: **IR.ZirModule, selected_import: **IR.ZirImport) -> s32 #foreign compiler "ResolveDefine";
+ResolveGlobal :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, global: **IR.ZirGlobal) -> s32 #foreign compiler "ResolveGlobal";
+ResolveForeignImport :: (module: *IR.ZirModule, name: *u8, source: *u8, owner: **IR.ZirModule, declaration: **IR.ZirImport) -> s32 #foreign compiler "ResolveForeignImportAt";
+EvaluateConstant :: (module: *IR.ZirModule, source: *u8, span: IR.ZirSourceSpan, result: *Parse.CompileValue) -> s32 #foreign compiler "EvaluateCompileValue";
+
+TypeUse :: struct { module: *IR.ZirModule; record: *IR.ZirType; }
+ExportName :: struct { name: string; kind: s32; owner: *IR.ZirModule; target: *IR.ZirModule; }
+State :: struct {
+    modules: **IR.ZirModule
+    module_count: s32
+    programs: *IR.ProgramSet
+    span: IR.ZirSourceSpan
+    failed: bool
+    used: Vec(TypeUse)
+}
+Append :: (out: *Vec(u8), text: string) { unused BuilderAppend(<<out, text) }
+Join :: (a: string, b: string, c: string = "") -> string {
+    out: Vec(u8); Append(*out, a); Append(*out, b); Append(*out, c)
+    return BuilderFinish(out)
+}
+Number :: (value: s64) -> string { out: Vec(u8); BuilderPrint(*out, "%", value); return BuilderFinish(out) }
+UnsignedNumber :: (value: u64) -> string { out: Vec(u8); BuilderPrint(*out, "%", value); return BuilderFinish(out) }
+Fail :: (state: *State, message: string, detail: string = "") -> string {
+    if !state.failed { Services.Diagnose(state.span, "command.arguments", "TypeScript API: ", message, Join(" ", detail)) }
+    state.failed = true
+    return ""
+}
+Identifier :: (name: string) -> bool {
+    if name.count == 0 || name[0] >= #char "0" && name[0] <= #char "9" { return false }
+    for byte: name { if !Rules.IdentifierByte(byte) && byte != #char "$" { return false } }
+    return true
+}
+ModuleIndex :: (state: *State, module: *IR.ZirModule) -> s32 {
+    index: s32 = 0
+    while index < state.module_count { if state.modules[index] == module { return index }; index += 1 }
+    return -1
+}
+ModuleFile :: (index: s32) -> string { return Join("module-", Number(cast(s64)index), ".d.ts") }
+ModuleSpecifier :: (index: s32) -> string { return Join("./module-", Number(cast(s64)index)) }
+Reference :: (state: *State, module: *IR.ZirModule, name: string) -> string {
+    index := ModuleIndex(state, module)
+    if index < 0 { return Fail(state, "type owner is absent from the checked graph:", name) }
+    if !Identifier(name) { return Fail(state, "native name has no TypeScript identifier:", name) }
+    return Join(Join("import(\"", ModuleSpecifier(index), "\")."), name)
+}
+RecordName :: (module: *IR.ZirModule, record: *IR.ZirType) -> string {
+    if VisibleType(record) { return IR.CText(*record.name[0]) }
+    index: s32 = 0
+    while index < module.type_count {
+        if *module.types[index] == record { return Join("__nativePrivate", Number(cast(s64)index)) }
+        index += 1
+    }
+    return IR.CText(*record.name[0])
+}
+TypeReference :: (state: *State, module: *IR.ZirModule, record: *IR.ZirType) -> string {
+    if !VisibleType(record) {
+        found := false
+        for use: state.used { if use.record == record { found = true; break } }
+        if !found { unused VecPush(state.used, TypeUse.{module = module, record = record}) }
+    }
+    return Reference(state, module, RecordName(module, record))
+}
+// Checked type arguments may contain nested applications and array extents.
+Parts :: (text: string) -> Vec(string) {
+    parts: Vec(string); start: s64 = 0; nesting: s32 = 0
+    for index: 0..text.count - 1 {
+        byte := text[index]
+        if byte == #char "(" || byte == #char "[" || byte == #char "<" { nesting += 1 }
+        else if byte == #char ")" || byte == #char "]" || byte == #char ">" { nesting -= 1 }
+        else if byte == #char "," && nesting == 0 { unused VecPush(parts, TextTrim(text[start:index])); start = index + 1 }
+    }
+    if start < text.count { unused VecPush(parts, TextTrim(text[start:])) }
+    return parts
+}
+ParameterNames :: (text: string) -> string {
+    out: Vec(u8); parts := Parts(text)
+    for part: parts {
+        name := part; colon := TextFind(name, ":")
+        if colon >= 0 { name = TextTrim(name[:colon]) }
+        if TextHasPrefix(name, "$") { name = name[1:] }
+        if out.count > 0 { Append(*out, ",") }; Append(*out, name)
+    }
+    return BuilderFinish(out)
+}
+TemplateName :: (parameters: string, name: string) -> bool {
+    names := Parts(parameters)
+    for item: names { if item == name { return true } }
+    return false
+}
+Arguments :: (state: *State, module: *IR.ZirModule, text: *u8, defaults: *u8,
+    templates: string, skip: s32 = 0, depth: s32 = 0) -> string {
+    parameters := ParametersOf(text)
+    default_parameters := ParametersOf(defaults)
+    out: Vec(u8); index := skip
+    while index < parameters.count && !state.failed {
+        parameter := parameters.items.items[index]
+        name := IR.CText(parameter.binding_name)
+        if !Identifier(name) { return Fail(state, "unrepresentable procedure parameter:", name) }
+        if index > skip { Append(*out, ", ") }
+        Append(*out, name)
+        optional := false
+        if index < default_parameters.count {
+            value := default_parameters.items.items[index].default_value
+            optional = value != null && value[0] != 0
+        }
+        later := index + 1
+        while optional && later < parameters.count {
+            if later >= default_parameters.count { optional = false; break }
+            value := default_parameters.items.items[later].default_value
+            if value == null || value[0] == 0 { optional = false }
+            later += 1
+        }
+        if optional { Append(*out, "?") }
+        Append(*out, ": ")
+        Append(*out, Type(state, module, IR.CText(parameter.value_type), templates, depth + 1))
+        index += 1
+    }
+    return BuilderFinish(out)
+}
+Procedure :: (state: *State, module: *IR.ZirModule, record: *IR.ZirType,
+    templates: string, skip: s32, depth: s32) -> string {
+    args := Arguments(state, module, *record.body[0], Services.Keep(""), templates, skip, depth)
+    result := Type(state, module, IR.CText(*record.procedure_return_type[0]), templates, depth + 1)
+    return Join(Join("(", args, ") => "), result)
+}
+Type :: (state: *State, module: *IR.ZirModule, source: string, templates: string = "", depth: s32 = 0) -> string {
+    if state.failed { return "" }
+    if depth > 64 { return Fail(state, "type expansion exceeds 64 levels:", source) }
+    text := TextTrim(source)
+    if text.count == 0 || text == "void" { return "void" }
+    if TextHasPrefix(text, "$") { text = text[1:] }
+    if TemplateName(templates, text) { return text }
+    if TextHasPrefix(text, "*") { return Join("NativeRef<", Type(state, module, text[1:], templates, depth + 1), ">") }
+    if TextHasPrefix(text, "[]") { return Join("NativeSlice<", Type(state, module, text[2:], templates, depth + 1), ">") }
+    if BuiltinType(Services.KeepName(text)) != null { return text }
+    if TextHasPrefix(text, "[") {
+        close := TextFind(text, "]")
+        if close < 0 { return Fail(state, "invalid checked array type:", text) }
+        capacity: s32 = 0
+        if ArrayCapacity(module, Services.KeepName(text), *capacity) != 1 || capacity < 0 {
+            return Fail(state, "array extent cannot be represented:", text)
+        }
+        element := Type(state, module, text[close + 1:], templates, depth + 1)
+        if capacity > 256 { return Join(Join("NativeArray<", element, ", "), Number(cast(s64)capacity), ">") }
+        out: Vec(u8); Append(*out, "["); index: s32 = 0
+        while index < capacity { if index != 0 { Append(*out, ", ") }; Append(*out, element); index += 1 }
+        Append(*out, "]"); return BuilderFinish(out)
+    }
+    scalar := IR.CText(ScalarType(Services.KeepName(text)))
+    if scalar.count > 0 {
+        if scalar == "bool" { return "boolean" }
+        if scalar == "string" { return "string" }
+        if scalar == "s64" || scalar == "u64" || scalar == "isize" || scalar == "usize" { return "bigint" }
+        if scalar == "s8" || scalar == "u8" || scalar == "s16" || scalar == "u16" || scalar == "s32" || scalar == "u32" || scalar == "float32" || scalar == "float64" { return "number" }
+    }
+    owner: *IR.ZirModule = null
+    record := FindType(module, Services.KeepName(text), *owner)
+    if record != null {
+        if record.is_synthetic_application != 0 || record.is_type_instance != 0 {
+            application := IR.CText(*record.template_name[0]); arguments := IR.CText(*record.template_args[0])
+            if application.count > 0 { return Application(state, owner, application, arguments, templates, depth + 1) }
+        }
+        if record.is_owned_callable != 0 || record.is_scoped_callable != 0 {
+            offset: usize = 0; field: IR.ZirTypeField
+            while TypeNextField(record, *offset, *field) == 1 {
+                if IR.CText(*field.name[0]) == "invoke" {
+                    invoke_owner: *IR.ZirModule = null
+                    invoke := FindType(owner, *field.type[0], *invoke_owner)
+                    if invoke == null || invoke.is_procedure_type == 0 { break }
+                    mode := ifx record.is_owned_callable != 0 then "NativeOwned<" else "NativeScoped<"
+                    return Join(mode, Procedure(state, invoke_owner, invoke, templates, 1, depth + 1), ">")
+                }
+            }
+            return Fail(state, "callable has no checked invoke signature:", text)
+        }
+        if record.is_results != 0 {
+            out: Vec(u8); Append(*out, "["); offset: usize = 0; field: IR.ZirTypeField
+            while TypeNextField(record, *offset, *field) == 1 {
+                if out.count > 1 { Append(*out, ", ") }
+                Append(*out, Type(state, owner, IR.CText(*field.type[0]), templates, depth + 1))
+            }
+            Append(*out, "]"); return BuilderFinish(out)
+        }
+        if record.is_procedure_type != 0 && (record.is_public == 0 || TextHasPrefix(IR.CText(*record.name[0]), "__")) {
+            return Join("(", Procedure(state, owner, record, templates, 0, depth + 1), ")")
+        }
+        return TypeReference(state, owner, record)
+    }
+    opening := TextFind(text, "(")
+    if opening >= 0 && TextHasSuffix(text, ")") {
+        return Application(state, module, TextTrim(text[:opening]), text[opening + 1:text.count - 1], templates, depth + 1)
+    }
+    return Fail(state, "checked type has no TypeScript representation:", text)
+}
+Application :: (state: *State, module: *IR.ZirModule, name: string, arguments: string,
+    templates: string, depth: s32) -> string {
+    owner: *IR.ZirModule = null
+    record := FindType(module, Services.KeepName(name), *owner)
+    if record == null { return Fail(state, "generic declaration is unresolved:", name) }
+    parts := Parts(arguments); out: Vec(u8)
+    Append(*out, TypeReference(state, owner, record)); Append(*out, "<")
+    for part, index: parts {
+        if index > 0 { Append(*out, ", ") }; Append(*out, Type(state, module, part, templates, depth + 1))
+    }
+    Append(*out, ">"); return BuilderFinish(out)
+}
+VisibleType :: (record: *IR.ZirType) -> bool {
+    return record.is_public != 0 && record.is_file_private == 0 && record.is_results == 0 &&
+        record.is_synthetic_application == 0 && record.is_type_instance == 0 && !TextHasPrefix(IR.CText(*record.name[0]), "__")
+}
+VisibleFunction :: (fn: *IR.ZirFunction) -> bool {
+    name := IR.CText(*fn.name[0])
+    return fn.is_public != 0 && fn.is_file_private == 0 && fn.is_specialization == 0 &&
+        fn.is_global_initializer == 0 && !TextHasPrefix(name, "__") && !(TextHasPrefix(name, "zi_default_") && name.count == 27)
+}
+Enum :: (state: *State, module: *IR.ZirModule, record: *IR.ZirType) -> string {
+    name := RecordName(module, record); out: Vec(u8)
+    Append(*out, Join("export declare const ", name, ": {\n"))
+    body := IR.CText(*record.body[0]); at: s64 = 0; first := true
+    while at < body.count {
+        token := Scan.NextCodeToken(body, at, 1, 1)
+        if token.kind == .Eof { break }
+        if TextContains(body[at:token.begin], "\n") { first = true }
+        spelling := body[token.begin:token.end]
+        if token.kind == .Ident && first {
+            value: s64 = 0
+            if EnumMemberValue(record, Services.KeepName(spelling), *value) == 0 { return Fail(state, "enum member has no checked value:", spelling) }
+            backing := IR.CText(*record.enum_backing[0]); literal := Number(value)
+            if backing == "u64" && value < 0 { literal = UnsignedNumber(cast(u64)value) }
+            if backing == "s64" || backing == "u64" || backing == "isize" || backing == "usize" { literal = Join(literal, "n") }
+            Append(*out, Join(Join("  readonly ", spelling, ": "), literal, ";\n")); first = false
+        }
+        if spelling == "," || spelling == ";" { first = true }; at = token.end
+    }
+    Append(*out, Join(Join("};\nexport type ", name, " = (typeof "), name, ")[keyof typeof "))
+    Append(*out, Join(name, "];\n")); return BuilderFinish(out)
+}
+Record :: (state: *State, module: *IR.ZirModule, record: *IR.ZirType) -> string {
+    state.span = record.span
+    name := RecordName(module, record); templates := ParameterNames(IR.CText(*record.template_params[0]))
+    if !Identifier(name) { return Fail(state, "type name has no TypeScript identifier:", name) }
+    if record.is_enum != 0 { return Enum(state, module, record) }
+    if record.is_map != 0 || record.is_union != 0 { return Fail(state, "native union or foreign map is not representable:", name) }
+    standard := IR.CText(*module.standard_name[0])
+    if standard == "callable" && (name == "Owned" || name == "Scoped") {
+        mode := ifx name == "Owned" then "NativeOwned" else "NativeScoped"
+        return Join(Join("export type ", name, "<Signature> = "), mode, "<Signature>;\n")
+    }
+    if record.is_procedure_type != 0 {
+        return Join(Join("export type ", name, " = "), Procedure(state, module, record, templates, 0, 0), ";\n")
+    }
+    out: Vec(u8); Append(*out, Join("export interface ", name))
+    if templates.count > 0 { Append(*out, Join("<", templates, ">")) }
+    if standard == "vec" && name == "Vec" { Append(*out, " extends NativeSlice<T>, NativeZeroInitialized") }
+    else if record.requires_all_fields == 0 { Append(*out, " extends NativeZeroInitialized") }
+    Append(*out, " {\n")
+    if record.is_extern != 0 && (record.is_abi_incomplete != 0 || record.body[0] == 0) {
+        Append(*out, Join("  readonly [nativeOpaque]: ", JsonQuote(name), ";\n"))
+    } else {
+        offset: usize = 0; field: IR.ZirTypeField
+        while TypeNextField(record, *offset, *field) == 1 && !state.failed {
+            if field.is_using != 0 { return Fail(state, "promoted record fields are not yet representable:", name) }
+            Append(*out, Join("  ", JsonQuote(IR.CText(*field.name[0])), ": "))
+            Append(*out, Type(state, module, IR.CText(*field.type[0]), templates)); Append(*out, ";\n")
+        }
+    }
+    Append(*out, "}\n"); return BuilderFinish(out)
+}
+ConstantType :: (state: *State, module: *IR.ZirModule, definition: *IR.ZirDefine) -> string {
+    // Use the shared compile-time evaluator for constants, including shifts
+    // and references to other constants in their actual source scopes.
+    value: Parse.CompileValue
+    if EvaluateConstant(module, definition.value, definition.span, *value) != 0 {
+        native_type := IR.CText(*value.type.items[0])
+        if value.kind == 1 {
+            if native_type.count > 0 { return Type(state, module, native_type) }
+            literal := Number(value.integer)
+            if value.integer >= -9007199254740991 && value.integer <= 9007199254740991 { return literal }
+            return Join(literal, "n")
+        }
+        if value.kind == 2 { return "number" }
+        if value.kind == 3 { return "string" }
+    }
+    function: IR.ZirFunction; function.span = definition.span
+    root := ParseExpr(*function, module, *definition.name[0], definition.span)
+    defer CompilerFree(cast(*void)function.exprs)
+    if root < 0 { return Fail(state, "cannot read checked constant:", IR.CText(*definition.name[0])) }
+    checker: Check.Checker; checker.module = module; checker.fn = *function
+    checker.programs = state.programs.programs; checker.program_count = state.programs.count
+    checked := IR.CText(ExpressionType(*checker, root))
+    defer CompilerFree(cast(*void)checker.bindings)
+    defer CompilerFree(cast(*void)checker.specializations)
+    defer CompilerFree(cast(*void)checker.enum_names)
+    if checker.failed != 0 || checker.errors != 0 { return Fail(state, "cannot project checked constant:", IR.CText(*definition.name[0])) }
+    if checked == "integer" {
+        node := function.exprs[root]; text := IR.CText(node.text); value, valid := TextInteger(text)
+        if valid && value >= -9007199254740991 && value <= 9007199254740991 { return text }
+        return Join(text, "n")
+    }
+    if checked == "real" { return "number" }; return Type(state, module, checked)
+}
+Function :: (state: *State, module: *IR.ZirModule, fn: *IR.ZirFunction) -> string {
+    state.span = fn.span
+    name := IR.CText(*fn.overload_name[0]); if name.count == 0 { name = IR.CText(*fn.name[0]) }
+    if TextHasPrefix(name, "operator") || TextHasPrefix(name, "__operator") { return "" }
+    if !Identifier(name) { return Fail(state, "procedure name has no TypeScript identifier:", name) }
+    templates := ParameterNames(IR.CText(*fn.template_param[0])); declaration := Join("export declare function ", name)
+    if templates.count > 0 { declaration = Join(declaration, Join("<", templates, ">")) }
+    args := Arguments(state, module, fn.args_text, fn.default_args_text, templates)
+    result := Type(state, module, IR.CText(*fn.return_type[0]), templates)
+    return Join(Join(declaration, Join("(", args, "): ")), result, ";\n")
+}
+ExportNames :: (module: *IR.ZirModule, rows: *Vec(ExportName), visited: *Vec(*IR.ZirModule)) {
+    seen: s64 = 0
+    while seen < visited.count { if (<<visited)[seen] == module { return }; seen += 1 }
+    unused VecPush(<<visited, module)
+    index: s32 = 0
+    while index < module.type_count {
+        item := *module.types[index]
+        if VisibleType(item) { unused VecPush(<<rows, ExportName.{IR.CText(*item.name[0]), 0, module, null}) }
+        index += 1
+    }
+    index = 0
+    while index < module.function_count {
+        item := *module.functions[index]
+        if VisibleFunction(item) {
+            name := IR.CText(*item.overload_name[0]); if name.count == 0 { name = IR.CText(*item.name[0]) }
+            if Identifier(name) { unused VecPush(<<rows, ExportName.{name, 1, module, null}) }
+        }
+        index += 1
+    }
+    index = 0
+    while index < module.define_count {
+        item := *module.defines[index]
+        if item.is_public != 0 && item.is_file_private == 0 && item.requires_open_enum == 0 {
+            unused VecPush(<<rows, ExportName.{IR.CText(*item.name[0]), 2, module, null})
+        }
+        index += 1
+    }
+    index = 0
+    while index < module.global_count {
+        item := *module.globals[index]
+        if item.is_static == 0 && item.is_file_private == 0 { unused VecPush(<<rows, ExportName.{IR.CText(*item.name[0]), 3, module, null}) }
+        index += 1
+    }
+    index = 0
+    while index < module.import_count {
+        item := *module.imports[index]; index += 1
+        if item.is_public == 0 || item.is_file_private != 0 { continue }
+        if item.resolved_module != null {
+            name := IR.CText(*item.name[0])
+            if item.kind == .MODULE && !TextHasPrefix(name, "__") {
+                unused VecPush(<<rows, ExportName.{name, 5, module, item.resolved_module})
+            }
+            if item.kind == .OPEN || item.is_using != 0 { ExportNames(item.resolved_module, rows, visited) }
+        } else if item.kind == .EXTERN { unused VecPush(<<rows, ExportName.{IR.CText(*item.name[0]), 4, module, null}) }
+    }
+}
+Reexports :: (state: *State, module: *IR.ZirModule) -> string {
+    rows: Vec(ExportName); visited: Vec(*IR.ZirModule); unused VecPush(visited, module)
+    index: s32 = 0
+    while index < module.import_count {
+        item := *module.imports[index]; index += 1
+        if item.resolved_module != null && item.is_public != 0 && item.is_file_private == 0 &&
+            (item.kind == .OPEN || item.is_using != 0) { ExportNames(item.resolved_module, *rows, *visited) }
+    }
+    out: Vec(u8)
+    for row, position: rows {
+        duplicate := false
+        for earlier: 0..position - 1 { if rows[earlier].name == row.name && rows[earlier].kind == row.kind { duplicate = true; break } }
+        if duplicate { continue }
+        owner: *IR.ZirModule = null; name := Services.KeepName(row.name); record: *IR.ZirType = null
+        if row.kind == 0 { record = FindType(module, name, *owner) }
+        else if row.kind == 1 { selected: *IR.ZirFunction; if ResolveFunction(module, name, *owner, *selected) != 1 { continue } }
+        else if row.kind == 2 { selected: *IR.ZirDefine; if ResolveDefine(module, name, *selected, *owner, null) != 1 { continue } }
+        else if row.kind == 3 { selected: *IR.ZirGlobal; if ResolveGlobal(module, name, *owner, *selected) != 1 { continue } }
+        else if row.kind == 4 { selected: *IR.ZirImport; if ResolveForeignImport(module, name, Services.Keep(""), *owner, *selected) != 1 { continue } }
+        else {
+            // Namespace aliases have no standalone value symbol. An alias is
+            // usable across these open edges only when all targets agree.
+            owner = row.owner
+            for candidate: rows { if candidate.name == row.name && candidate.kind == 5 && candidate.target != row.target { owner = null; break } }
+            local: s32 = 0
+            while local < module.import_count {
+                item := *module.imports[local]; local += 1
+                if item.kind == .MODULE && IR.CText(*item.name[0]) == row.name { owner = null; break }
+            }
+        }
+        if owner == null || owner == module { continue }
+        target := ModuleIndex(state, owner)
+        if target < 0 { return Fail(state, "re-export owner is absent from the graph:", row.name) }
+        if record != null && record.is_enum == 0 {
+            // A native type and a module namespace can share a name. A local
+            // type alias preserves that distinction in TypeScript; a combined
+            // re-export would also claim the namespace's export symbol.
+            templates := ParameterNames(IR.CText(*record.template_params[0])); arguments := ""
+            if templates.count > 0 { arguments = Join("<", templates, ">") }
+            Append(*out, Join(Join("export type ", row.name, arguments), " = ", Reference(state, owner, row.name)))
+            Append(*out, Join(arguments, ";\n")); continue
+        }
+        Append(*out, Join(Join("export { ", row.name, " } from "), JsonQuote(ModuleSpecifier(target)), ";\n"))
+    }
+    return BuilderFinish(out)
+}
+Module :: (state: *State, module: *IR.ZirModule) -> string {
+    out: Vec(u8); Append(*out, "// Generated from checked Ziran declarations.\n"); index: s32 = 0
+    while index < module.import_count {
+        item := *module.imports[index]
+        if item.resolved_module != null {
+            target := ModuleIndex(state, item.resolved_module)
+            if target < 0 { return Fail(state, "resolved import is absent from the graph") }
+            path := ModuleSpecifier(target)
+            if item.kind == .MODULE {
+                alias := IR.CText(*item.name[0])
+                if !Identifier(alias) { return Fail(state, "module alias has no TypeScript identifier:", alias) }
+                if item.is_public != 0 && item.is_file_private == 0 && !TextHasPrefix(alias, "__") {
+                    Append(*out, Join(Join("export * as ", alias, " from "), JsonQuote(path), ";\n"))
+                }
+            }
+        } else if item.kind == .EXTERN && item.is_public != 0 && item.is_file_private == 0 {
+            state.span = item.span; name := IR.CText(*item.name[0])
+            if !Identifier(name) { return Fail(state, "foreign procedure has no TypeScript identifier:", name) }
+            args := Arguments(state, module, *item.args[0], Services.Keep(""), "")
+            Append(*out, Join(Join("export declare function ", name, "("), args, "): "))
+            Append(*out, Join(Type(state, module, IR.CText(*item.return_type[0])), ";\n"))
+        }
+        index += 1
+    }
+    Append(*out, Reexports(state, module))
+    index = 0
+    while index < module.type_count { record := *module.types[index]; if VisibleType(record) { Append(*out, Record(state, module, record)) }; index += 1 }
+    index = 0
+    while index < module.define_count {
+        item := *module.defines[index]
+        if item.is_public != 0 && item.is_file_private == 0 && item.requires_open_enum == 0 {
+            state.span = item.span; name := IR.CText(*item.name[0])
+            if !Identifier(name) { return Fail(state, "constant has no TypeScript identifier:", name) }
+            Append(*out, Join(Join("export declare const ", name, ": "), ConstantType(state, module, item), ";\n"))
+        }
+        index += 1
+    }
+    index = 0
+    while index < module.global_count {
+        item := *module.globals[index]
+        if item.is_static == 0 && item.is_file_private == 0 {
+            state.span = item.span; name := IR.CText(*item.name[0])
+            if !Identifier(name) { return Fail(state, "global has no TypeScript identifier:", name) }
+            Append(*out, Join(Join("export declare let ", name, ": "), Type(state, module, IR.CText(*item.type[0])), ";\n"))
+        }
+        index += 1
+    }
+    index = 0
+    while index < module.function_count { fn := *module.functions[index]; if VisibleFunction(fn) { Append(*out, Function(state, module, fn)) }; index += 1 }
+    Append(*out, "export {};\n"); return BuilderFinish(out)
+}
+
+// Only language-level shapes live here. Library declarations always come
+// from the checked graph; stock TS cannot enforce native ranges/lifetimes.
+Globals :: (state: *State) -> string {
+    language := #string TS
+// Generated native language declarations. No JavaScript runtime is implied.
+declare const nativeReference: unique symbol;
+declare const nativeOpaque: unique symbol;
+declare const nativeInitialization: unique symbol;
+declare const nativeCallable: unique symbol;
+interface NativeZeroInitialized { readonly [nativeInitialization]?: true; }
+type NativeRef<T> = { readonly [nativeReference]: (value: T) => T } & (T extends object ? T : {});
+interface NativeSlice<T> { readonly count: bigint; [index: number]: T; [Symbol.iterator](): Iterator<T>; }
+type NativeArray<T, N extends number> = T[] & { readonly length: N };
+type NativeOwned<F> = F & { readonly [nativeCallable]?: "owned" };
+type NativeScoped<F> = F & { readonly [nativeCallable]?: "scoped" };
+declare function nativeRef<T>(place: T): NativeRef<T>;
+declare function nativeDeref<T>(reference: NativeRef<T>): T;
+declare function nativeAt(values: string, index: number | bigint): u8;
+declare function nativeAt<T>(values: T[] | NativeSlice<T>, index: number | bigint): T;
+declare function nativeSet<T>(reference: NativeRef<T>, value: NoInfer<T>): void;
+declare function nativeSet<T>(values: T[] | NativeSlice<T>, index: number | bigint, value: NoInfer<T>): void;
+declare function nativeSlice(values: string): string;
+declare function nativeSlice(values: string, begin: number | bigint): string;
+declare function nativeSlice(values: string, begin: number | bigint, end: number | bigint): string;
+declare function nativeSlice<T>(values: T[] | NativeSlice<T>): NativeSlice<T>;
+declare function nativeSlice<T>(values: T[] | NativeSlice<T>, begin: number | bigint): NativeSlice<T>;
+declare function nativeSlice<T>(values: T[] | NativeSlice<T>, begin: number | bigint, end: number | bigint): NativeSlice<T>;
+declare function nativeCallerLocation(): Source_Code_Location;
+interface String { readonly count: bigint; }
+interface Array<T> { readonly count: bigint; }
+interface ReadonlyArray<T> { readonly count: bigint; }
+type s8 = number; type s16 = number; type s32 = number;
+type u8 = number; type u16 = number; type u32 = number;
+type s64 = bigint; type u64 = bigint; type isize = bigint; type usize = bigint;
+type float32 = number; type float64 = number;
+declare function s8(value: number | bigint): s8;
+declare function s16(value: number | bigint): s16;
+declare function s32(value: number | bigint): s32;
+declare function u8(value: number | bigint): u8;
+declare function u16(value: number | bigint): u16;
+declare function u32(value: number | bigint): u32;
+declare function s64(value: number | bigint): s64;
+declare function u64(value: number | bigint): u64;
+declare function isize(value: number | bigint): isize;
+declare function usize(value: number | bigint): usize;
+declare function float32(value: number | bigint): float32;
+declare function float64(value: number | bigint): float64;
+declare namespace JSX {
+    type Element = void;
+    type ElementType = (props: never) => unknown;
+    interface ElementChildrenAttribute { children: {}; }
+    type LibraryManagedAttributes<C, P> = P extends NativeZeroInitialized ? Partial<P> : P;
+}
+TS
+    out: Vec(u8); Append(*out, language)
+    names := string.["Source_Code_Location", "OS", "CPU", "TARGET"]
+    for name: names {
+        record := BuiltinType(Services.KeepName(name))
+        if record == null { return Fail(state, "native builtin type is unavailable:", name) }
+        declaration := Record(state, state.modules[0], record)
+        Append(*out, TextReplace(declaration, "export ", ""))
+    }
+    return BuilderFinish(out)
+}
+DocumentPath :: (document: *Check.ZirDocument) -> string {
+    span: IR.ZirSourceSpan; span.context = cast(*u8)document.context; span.file = document.file
+    return IR.CText(SpanPath(span))
+}
+ImportSpelling :: (state: *State, item: *IR.ZirImport, document: *Check.ZirDocument, source: string) -> string {
+    offset: usize = 0
+    if DocumentOffset(document, item.span.line, item.span.column, *offset) == 0 { return Fail(state, "import has no authored byte offset") }
+    at := cast(s64)offset; line := item.span.line; column := item.span.column
+    while at < source.count {
+        token := Scan.NextCodeToken(source, at, line, column)
+        if token.kind == .Eof || token.kind == .Punct && source[token.begin:token.end] == ";" { break }
+        if token.kind == .String || token.kind == .Char {
+            spelling := source[token.begin:token.end]
+            if spelling.count >= 2 { return spelling[1:spelling.count - 1] }; break
+        }
+        at = token.end; line = token.after_line; column = token.after_column
+    }
+    return Fail(state, "checked import has no authored module string")
+}
+Manifest :: (state: *State) -> string {
+    document: JsonDocument; root := JsonNewObject(*document)
+    unused JsonSet(*document, root, "schema_version", JsonNewInteger(*document, 1))
+    globals := JsonNewArray(*document); unused JsonAppend(*document, globals, JsonNewString(*document, "native.d.ts"))
+    unused JsonSet(*document, root, "globals", globals); resolutions := JsonNewArray(*document)
+    paths: Vec(string); imports: Vec(s32); index: s32 = 0
+    while index < state.module_count && !state.failed {
+        module := state.modules[index]; edge: s32 = 0
+        while edge < module.import_count && !state.failed {
+            item := *module.imports[edge]; edge += 1
+            if item.resolved_module == null { continue }
+            authored := DocumentForSpan(module, item.span)
+            if authored == null { continue }
+            path := DocumentPath(authored)
+            if !TextHasSuffix(path, ".ts") && !TextHasSuffix(path, ".tsx") { continue }
+            state.span = item.span; canonical := CanonicalPath(Services.Keep(path))
+            if canonical == null { unused Fail(state, "cannot resolve authored source:", path); break }
+            path = IR.CText(canonical); source, ok := ReadEntireFile(path)
+            if !ok { unused Fail(state, "cannot read authored import:", path); break }
+            spelling := ImportSpelling(state, item, authored, source); slot: s64 = -1
+            for saved, position: paths { if saved == path { slot = position; break } }
+            if slot < 0 {
+                row := JsonNewObject(*document); entries := JsonNewObject(*document)
+                unused JsonSet(*document, row, "source", JsonNewString(*document, path))
+                unused JsonSet(*document, row, "imports", entries); unused JsonAppend(*document, resolutions, row)
+                slot = paths.count; unused VecPush(paths, path); unused VecPush(imports, entries)
+            }
+            target := ModuleIndex(state, item.resolved_module)
+            if target < 0 { unused Fail(state, "manifest import is absent from the checked graph"); break }
+            existing := JsonMember(*document, imports[slot], spelling); file := ModuleFile(target)
+            if existing >= 0 && !JsonIs(*document, existing, file) { unused Fail(state, "one authored import resolves to different checked modules:", spelling); break }
+            unused JsonSet(*document, imports[slot], spelling, JsonNewString(*document, file))
+        }
+        index += 1
+    }
+    unused JsonSet(*document, root, "resolutions", resolutions)
+    return JsonWrite(*document, root, JsonCompactStyle(false))
+}
+Directories :: (path: string) -> bool {
+    if DirectoryExists(path) { return true }
+    separator := TextFindLast(path, "/")
+    if separator > 0 && !Directories(path[:separator]) { return false }; return CreateDirectory(path)
+}
+GeneratedFile :: (name: string) -> bool {
+    if !TextHasPrefix(name, "module-") || !TextHasSuffix(name, ".d.ts") { return false }
+    return TextIsDecimal(name[7:name.count - 5])
+}
+Clean :: (directory: string) -> bool {
+    cursor := OpenDirectory(directory)
+    if !cursor.valid { return false }; defer CloseDirectory(*cursor)
+    while true {
+        entry := NextDirectoryEntry(*cursor); if !entry.valid { break }
+        name := TextView(entry.name[:entry.name_count])
+        if GeneratedFile(name) || name == "native.d.ts" || name == "manifest.json" || name == "manifest.json.tmp" {
+            if !RemoveFile(Join(directory, "/", name)) { return false }
+        }
+    }
+    return !cursor.failed
+}
+
+#scope_export
+Invalidate :: (directory: *u8) -> s32 {
+    manifest := Join(IR.CText(directory), "/manifest.json")
+    if !PathExists(manifest) || RemoveFile(manifest) { return 1 }
+    state: State
+    unused Fail(*state, "cannot invalidate manifest:", IR.CText(directory))
+    return 0
+}
+
+Emit :: (programs: *IR.ProgramSet, modules: **IR.ZirModule, module_count: s32, directory: *u8) -> s32 {
+    state: State = .{modules = modules, module_count = module_count, programs = programs}; output := IR.CText(directory)
+    manifest_path := Join(output, "/manifest.json")
+    if PathExists(manifest_path) && !RemoveFile(manifest_path) { unused Fail(*state, "cannot invalidate manifest:", output); return 1 }
+    declarations: Vec(string); index: s32 = 0
+    while index < module_count && !state.failed { unused VecPush(declarations, Module(*state, modules[index])); index += 1 }
+    // Private types reachable through public fields/results need declarations
+    // too. Their generated support names keep private source names unexported.
+    position: s64 = 0
+    while position < state.used.count && !state.failed {
+        use := state.used[position]; owner := ModuleIndex(*state, use.module)
+        if owner < 0 { unused Fail(*state, "private type owner is absent from the graph"); break }
+        declarations[owner] = Join(declarations[owner], Record(*state, use.module, use.record))
+        position += 1
+    }
+    manifest := Manifest(*state); globals := Globals(*state); if state.failed { return 1 }
+    if !Directories(output) || !Clean(output) { unused Fail(*state, "cannot prepare output directory:", output); return 1 }
+    if !WriteEntireFile(Join(output, "/native.d.ts"), globals) { unused Fail(*state, "cannot write native declarations:", output); return 1 }
+    for text, position: declarations {
+        if !WriteEntireFile(Join(output, "/", ModuleFile(cast(s32)position)), text) { unused Fail(*state, "cannot write module declarations:", output); return 1 }
+    }
+    temporary := Join(manifest_path, ".tmp")
+    if !WriteEntireFile(temporary, Join(manifest, "\n")) || !RenamePath(temporary, manifest_path) { unused Fail(*state, "cannot publish declaration manifest:", output); return 1 }
+    return 0
+}

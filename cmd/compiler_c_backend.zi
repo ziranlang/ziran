@@ -106,6 +106,7 @@ NativeCFunctionName :: (module: *IR.ZirModule, fn: *IR.ZirFunction, out: *u8, si
 NativeCForeignName :: (module: *IR.ZirModule, foreign: *IR.ZirImport, out: *u8, size: usize) #foreign compiler "NativeCForeignName";
 NativeCModuleInitName :: (module: *IR.ZirModule, out: *u8, size: usize) #foreign compiler "NativeCModuleInitName";
 ModuleNeedsStartup :: (module: *IR.ZirModule) -> s32 #foreign compiler "ModuleNeedsStartup";
+ModuleStartupDependencies :: (module: *IR.ZirModule, count: *s32) -> **IR.ZirModule #foreign compiler "ModuleStartupDependencies";
 NativeHeaderGuard :: (stem: *u8, out: *u8, size: usize) #foreign compiler "NativeHeaderGuard";
 ScalarLiteral :: (type: *u8, text: *u8, target: Native.ZirTarget, span: IR.ZirSourceSpan, out: *u8, size: usize) -> s32 #foreign compiler "ScalarLiteral";
 EmitGlobalInitializerText :: (module: *IR.ZirModule, global: *IR.ZirGlobal, target: Native.ZirTarget,
@@ -2747,26 +2748,23 @@ LowerModuleWithBuffers :: (m: *IR.ZirModule, restab: *ZirCModuleSyms, restab_cou
     startup_count: s32 = 0
     for i: cast(s32)0..m.function_count - 1 { startup_count += m.functions[i].is_global_initializer }
     if needs_startup != 0 {
+        dependency_count: s32 = 0
+        dependencies := ModuleStartupDependencies(m, *dependency_count)
         fputs(CStr("\n#include <stdlib.h>\n"), c)
-        for i: cast(s32)0..m.import_count - 1 {
-            dep := m.imports[i].resolved_module
-            if ModuleNeedsStartup(dep) != 0 {
-                name: [LOWER_NAME_MAX]u8
-                NativeCModuleInitName(dep, *name[0], LOWER_NAME_MAX)
-                fprintf(c, CStr("void %s(void);\n"), *name[0])
-            }
+        for i: cast(s32)0..dependency_count - 1 {
+            name: [LOWER_NAME_MAX]u8
+            NativeCModuleInitName(dependencies[i], *name[0], LOWER_NAME_MAX)
+            fprintf(c, CStr("void %s(void);\n"), *name[0])
         }
         fprintf(c, CStr("\nstatic int ziran_state_%s;"), *init_name[0])
         fprintf(c, CStr("\nvoid\n%s(void)\n{\n    if(ziran_state_%s == 2) return;\n    if(ziran_state_%s == 1) abort();\n    ziran_state_%s = 1;\n"),
                 *init_name[0], *init_name[0], *init_name[0], *init_name[0])
-        for i: cast(s32)0..m.import_count - 1 {
-            dep := m.imports[i].resolved_module
-            if ModuleNeedsStartup(dep) != 0 {
-                name: [LOWER_NAME_MAX]u8
-                NativeCModuleInitName(dep, *name[0], LOWER_NAME_MAX)
-                fprintf(c, CStr("    %s();\n"), *name[0])
-            }
+        for i: cast(s32)0..dependency_count - 1 {
+            name: [LOWER_NAME_MAX]u8
+            NativeCModuleInitName(dependencies[i], *name[0], LOWER_NAME_MAX)
+            fprintf(c, CStr("    %s();\n"), *name[0])
         }
+        free(cast(*void)dependencies)
         for i: cast(s32)0..m.function_count - 1 {
             if m.functions[i].is_global_initializer != 0 {
                 name: [LOWER_NAME_MAX]u8

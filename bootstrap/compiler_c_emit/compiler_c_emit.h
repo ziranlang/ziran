@@ -263,6 +263,7 @@ void NativeExportName(ZirModule* module, ZirFunction* fn, uint8_t* out, size_t s
 void NativeCFunctionName(ZirModule* module, ZirFunction* fn, uint8_t* out, size_t size);
 void NativeCForeignName(ZirModule* module, ZirImport* foreign, uint8_t* out, size_t size);
 void NativeCModuleInitName(ZirModule* module, uint8_t* out, size_t size);
+ZirModule** ModuleStartupDependencies(ZirModule* module, int32_t* count);
 int32_t ModuleNeedsStartup(ZirModule* module);
 void NativeGoModuleIdentity(ZirProgram** programs, int32_t count, ZirModule* module, uint8_t* file_stem, size_t file_size, uint8_t* guard, size_t guard_size);
 void NativeGoFunctionName(ZirProgram** programs, int32_t count, ZirModule* module, ZirFunction* fn, uint8_t* out, size_t size);

@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+- Generate TypeScript editor declarations from the real checked native module
+  graph with `ziran api --typescript --out build/.ziran/types --project`.
+  Preserve resolved import spellings, generic records, native scalar boundaries,
+  enum values and callable signatures; publish the resolution manifest last and
+  invalidate it after a failed check. Unsupported native projections report an
+  error. Whole-application editor coverage remains in progress.
+
+- Use TypeScript syntax for checked native references (`NativeRef<T>`,
+  `nativeRef`, `nativeDeref`), borrowed ranges (`nativeSlice`) and caller-location
+  defaults (`nativeCallerLocation()`). Reject the former Ziran spellings in
+  TS/TSX sources. Add native integer bitwise operators with standard precedence,
+  explicit wide-index/UTF-8 reads (`nativeAt`) and storage writes (`nativeSet`).
+
+- Initialize native model/TSX view import cycles once when the intervening
+  modules have no runtime initializers. Share startup dependencies across C,
+  Go and portable lowering; retain errors for actual initializer cycles.
+
 - Avoid an extra register copy for x86-64 immediate integer multiplication
   when its input remains live. Keep the existing power-of-two and factor-31
   specializations; matched Alpha trials improve indexed record updates by

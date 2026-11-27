@@ -107,6 +107,14 @@ Identifier :: (p: *Parser) -> string {
     Advance(p)
     return result
 }
+BindingIdentifier :: (p: *Parser) -> string {
+    name := Identifier(p)
+    if name == "NativeRef" || name == "nativeRef" || name == "nativeDeref" ||
+       name == "nativeSlice" || name == "nativeAt" || name == "nativeSet" || name == "nativeCallerLocation" {
+        Fail(p, "this identifier is reserved for a native TypeScript intrinsic")
+    }
+    return name
+}
 NativeType :: (name: string) -> string {
     if name == "number" { return "float64" }
     if name == "boolean" { return "bool" }
@@ -128,8 +136,10 @@ GeneratedName :: (kind: string, span: IR.ZirSourceSpan) -> string {
     return Join("__tsx_", kind, Join("_", Decimal(span.line), Join("_", Decimal(span.column))))
 }
 ParameterDefault :: (p: *Parser, declaration: *IR.ZirFunction, index: s32, type: string) -> string {
-    if Take(p, "#caller_location") {
-        if type != "Source_Code_Location" { Fail(p, "#caller_location requires a Source_Code_Location parameter") }
+    if Take(p, "nativeCallerLocation") {
+        Expect(p, "(")
+        Expect(p, ")")
+        if type != "Source_Code_Location" { Fail(p, "nativeCallerLocation() requires a Source_Code_Location parameter") }
         return "#caller_location"
     }
     span := Location(p)
@@ -154,7 +164,7 @@ Parameters :: (p: *Parser, bind: bool, defaults: *string = null, declaration: *I
     index: s32 = 0
     has_defaults := false
     while !p.failed && Token(p) != ")" {
-        arg := Identifier(p)
+        arg := BindingIdentifier(p)
         if bind && !VecPush(p.locals, .{name = arg}) { Fail(p, "cannot allocate parameter binding"); return "" }
         Expect(p, ":")
         type := TypeName(p)
@@ -189,7 +199,7 @@ ProcedureType :: (p: *Parser, name: string, public: bool, span: IR.ZirSourceSpan
 }
 TypeAlias :: (p: *Parser, public: bool) {
     span := Location(p)
-    name := Identifier(p)
+    name := BindingIdentifier(p)
     Expect(p, "=")
     if Token(p) != "(" { Fail(p, "native type aliases currently require a procedure signature"); return }
     ProcedureType(p, name, public, span)
@@ -212,7 +222,7 @@ TypeClose :: (p: *Parser) {
     else { p.token.begin += 1; p.token.column += 1 }
 }
 TypePrimary :: (p: *Parser) -> string {
-    if Take(p, "*") { return Join("*", TypeName(p)) }
+    if Token(p) == "*" { Fail(p, "use NativeRef<T> for a checked native reference type"); return "" }
     if Token(p) == "(" {
         span := Location(p)
         name := GeneratedName("type", span)
@@ -233,6 +243,13 @@ TypePrimary :: (p: *Parser) -> string {
     }
     name := Identifier(p)
     if name == "any" || name == "unknown" || name == "never" { Fail(p, "this type has no native checked representation"); return "" }
+    if name == "NativeRef" {
+        Expect(p, "<")
+        name = Join("*", TypeName(p))
+        TypeClose(p)
+        while Take(p, "[") { Expect(p, "]"); name = Join("[]", name) }
+        return name
+    }
     parameter := false
     for item: p.type_parameters { if item == name { parameter = true } }
     if !parameter { name = IR.CText(ResolveImportedName(p, name)) }
@@ -312,10 +329,14 @@ Link :: (p: *Parser, head: *s32, tail: *s32, node: s32) {
 Precedence :: (op: string) -> s32 {
     if op == "||" { return 1 }
     if op == "&&" { return 2 }
-    if op == "==" || op == "!=" { return 3 }
-    if op == "<" || op == ">" || op == "<=" || op == ">=" { return 4 }
-    if op == "+" || op == "-" { return 5 }
-    if op == "*" || op == "/" || op == "%" { return 6 }
+    if op == "|" { return 3 }
+    if op == "^" { return 4 }
+    if op == "&" { return 5 }
+    if op == "==" || op == "!=" { return 6 }
+    if op == "<" || op == ">" || op == "<=" || op == ">=" { return 7 }
+    if op == "<<" || op == ">>" { return 8 }
+    if op == "+" || op == "-" { return 9 }
+    if op == "*" || op == "/" || op == "%" { return 10 }
     return 0
 }
 Expression :: (p: *Parser, minimum: s32 = 1) -> s32 {
@@ -490,9 +511,13 @@ Prefix :: (p: *Parser) -> s32 {
     span := Location(p)
     text := Token(p)
     result: s32 = -1
-    if text == "!" || text == "-" || text == "+" || text == "&" || text == "*" {
+    if text == "&" || text == "*" {
+        Fail(p, "use nativeRef(place) or nativeDeref(reference) for checked native references")
+        return -1
+    }
+    if text == "!" || text == "-" || text == "+" || text == "~" {
         Advance(p)
-        operand := Expression(p, 7)
+        operand := Expression(p, 11)
         result = Node(p, .UNARY, Join(text, TextOf(p, operand)), span, -1, operand)
         if result >= 0 { unused IR.CopyText(p.fn.exprs[result].op[:], text) }
         return result
@@ -526,6 +551,8 @@ Prefix :: (p: *Parser) -> s32 {
     } else if p.token.kind == .Ident {
         Advance(p)
         if text == "undefined" || text == "null" { Fail(p, "use a checked native optional value"); return -1 }
+        if text == "nativeCallerLocation" { Fail(p, "nativeCallerLocation() is only supported as a named parameter default"); return -1 }
+        if text == "nativeSet" { Fail(p, "nativeSet is a statement; use a block body when writing through a callback"); return -1 }
         result = NameNode(p, IR.CText(ResolveName(p, text)), span)
     } else { Fail(p, "unsupported native TypeScript expression"); return -1 }
     while !p.failed {
@@ -535,18 +562,11 @@ Prefix :: (p: *Parser) -> s32 {
             if next >= 0 { p.fn.exprs[next].name = Services.KeepName(member); unused IR.CopyText(p.fn.exprs[next].op[:], ".") }
             result = next
         } else if Take(p, "[") {
-            index: s32 = -1
-            if Token(p) != ":" { index = Expression(p) }
-            if Take(p, ":") {
-                end: s32 = -1
-                if Token(p) != "]" { end = Expression(p) }
-                Expect(p, "]")
-                result = Node(p, .SLICE, Join(TextOf(p, result), "[", Join(TextOf(p, index), ":", Join(TextOf(p, end), "]"))), span, result, index)
-                if result >= 0 { p.fn.exprs[result].third = end }
-            } else {
-                Expect(p, "]")
-                result = Node(p, .INDEX, Join(TextOf(p, result), "[", Join(TextOf(p, index), "]")), span, result, index)
-            }
+            if Token(p) == ":" { Fail(p, "use nativeSlice(values, begin, end) for a checked native slice"); return -1 }
+            index := Expression(p)
+            if Token(p) == ":" { Fail(p, "use nativeSlice(values, begin, end) for a checked native slice"); return -1 }
+            Expect(p, "]")
+            result = Node(p, .INDEX, Join(TextOf(p, result), "[", Join(TextOf(p, index), "]")), span, result, index)
         } else if Take(p, "(") {
             first: s32 = -1
             last: s32 = -1
@@ -563,7 +583,27 @@ Prefix :: (p: *Parser) -> s32 {
             callee := TextOf(p, result)
             native := NativeType(callee)
             conversion := native == "s8" || native == "s16" || native == "s32" || native == "s64" || native == "u8" || native == "u16" || native == "u32" || native == "u64" || native == "float32" || native == "float64" || native == "usize" || native == "isize"
-            if conversion {
+            if callee == "nativeRef" || callee == "nativeDeref" {
+                if first < 0 || first != last { Fail(p, "nativeRef and nativeDeref require exactly one value"); return -1 }
+                op := ifx callee == "nativeRef" then "&" else "*"
+                result = Node(p, .UNARY, Join(op, TextOf(p, first)), span, -1, first)
+                if result >= 0 { unused IR.CopyText(p.fn.exprs[result].op[:], op) }
+            } else if callee == "nativeAt" {
+                second := ifx first >= 0 then p.fn.exprs[first].next_sibling else -1
+                if second < 0 || second != last { Fail(p, "nativeAt requires a collection and one native integer index"); return -1 }
+                p.fn.exprs[first].next_sibling = -1
+                result = Node(p, .INDEX, Join(TextOf(p, first), "[", Join(TextOf(p, second), "]")), span, first, second)
+            } else if callee == "nativeSlice" {
+                if first < 0 { Fail(p, "nativeSlice requires backing storage and up to two native integer bounds"); return -1 }
+                begin := p.fn.exprs[first].next_sibling
+                end := ifx begin >= 0 then p.fn.exprs[begin].next_sibling else -1
+                if end >= 0 && p.fn.exprs[end].next_sibling >= 0 { Fail(p, "nativeSlice requires backing storage and up to two native integer bounds"); return -1 }
+                p.fn.exprs[first].next_sibling = -1
+                if begin >= 0 { p.fn.exprs[begin].next_sibling = -1 }
+                if end >= 0 { p.fn.exprs[end].next_sibling = -1 }
+                result = Node(p, .SLICE, Join(TextOf(p, first), "[", Join(TextOf(p, begin), ":", Join(TextOf(p, end), "]"))), span, first, begin)
+                if result >= 0 { p.fn.exprs[result].third = end }
+            } else if conversion {
                 if first < 0 || first != last { Fail(p, "native conversion requires exactly one value"); return -1 }
                 result = Node(p, .CAST, Join("cast(", native, Join(")", TextOf(p, first))), span, -1, first)
                 if result >= 0 { p.fn.exprs[result].name = Services.KeepName(native) }
@@ -926,7 +966,7 @@ ForOf :: (p: *Parser, span: IR.ZirSourceSpan) {
     previous_loop := p.loop
     immutable := Take(p, "const")
     if !immutable { Expect(p, "let") }
-    name := Identifier(p)
+    name := BindingIdentifier(p)
     Expect(p, "of")
     collection := Expression(p)
     Expect(p, ")")
@@ -989,7 +1029,25 @@ ForOf :: (p: *Parser, span: IR.ZirSourceSpan) {
 ParseStatement :: (p: *Parser) {
     span := Location(p)
     if Take(p, ";") { return }
-    if Take(p, "return") {
+    if Take(p, "nativeSet") {
+        Expect(p, "(")
+        storage := Expression(p)
+        Expect(p, ",")
+        value := Expression(p)
+        place: s32 = -1
+        if Take(p, ",") {
+            place = Node(p, .INDEX, Join(TextOf(p, storage), "[", Join(TextOf(p, value), "]")), span, storage, value)
+            value = Expression(p)
+        } else {
+            place = Node(p, .UNARY, Join("*", TextOf(p, storage)), span, -1, storage)
+            if place >= 0 { unused IR.CopyText(p.fn.exprs[place].op[:], "*") }
+        }
+        Expect(p, ")")
+        if p.failed { return }
+        if CapturePlace(p, place) { Fail(p, "callback captures are immutable snapshots"); return }
+        st := Statement(p, .ASSIGN, Join(TextOf(p, place), "=", TextOf(p, value)), span)
+        if st != null { st.lhs_root = place; st.expr_root = value; unused IR.CopyText(st.assignment_op[:], "=") }
+    } else if Take(p, "return") {
         expr: s32 = -1
         if Token(p) != ";" && Token(p) != "}" { expr = Expression(p) }
         st := Statement(p, .RETURN, Join("return ", TextOf(p, expr)), span)
@@ -997,7 +1055,7 @@ ParseStatement :: (p: *Parser) {
     } else if Token(p) == "let" || Token(p) == "const" {
         immutable := Token(p) == "const"
         Advance(p)
-        name := Identifier(p)
+        name := BindingIdentifier(p)
         type := ""
         if Take(p, ":") { type = TypeName(p) }
         expr: s32 = -1
@@ -1136,7 +1194,7 @@ ParseStatement :: (p: *Parser) {
 }
 Function :: (p: *Parser, public: bool) {
     span := Location(p)
-    name := Identifier(p)
+    name := BindingIdentifier(p)
     previous := p.locals.count
     p.loop = 0
     p.loop_serial = 0
@@ -1164,7 +1222,7 @@ ModuleBinding :: (p: *Parser, public: bool) {
     immutable := Token(p) == "const"
     Advance(p)
     span := Location(p)
-    name := Identifier(p)
+    name := BindingIdentifier(p)
     Expect(p, ":")
     type := TypeName(p)
     Expect(p, "=")
@@ -1229,12 +1287,12 @@ ModuleBinding :: (p: *Parser, public: bool) {
 }
 Interface :: (p: *Parser, public: bool) {
     span := Location(p)
-    name := Identifier(p)
+    name := BindingIdentifier(p)
     previous := p.type_parameters.count
     parameters := ""
     if Take(p, "<") {
         while !p.failed {
-            parameter := Identifier(p)
+            parameter := BindingIdentifier(p)
             for at: previous..p.type_parameters.count - 1 {
                 if p.type_parameters[at] == parameter { Fail(p, "duplicate native type parameter"); return }
             }
@@ -1274,13 +1332,13 @@ Import :: (p: *Parser, collect: bool = true) {
     mappings: Vec(ImportedName)
     if Take(p, "*") {
         Expect(p, "as")
-        name = Identifier(p)
+        name = BindingIdentifier(p)
     } else {
         Expect(p, "{")
         while !p.failed && Token(p) != "}" {
-            original := Identifier(p)
+            original := BindingIdentifier(p)
             alias := original
-            if Take(p, "as") { alias = Identifier(p) }
+            if Take(p, "as") { alias = BindingIdentifier(p) }
             if name.count == 0 { name = Join("__tsx_import_", alias) }
             if !VecPush(mappings, .{alias = alias, path = Services.KeepName(Join(name, ".", original))}) { Fail(p, "cannot allocate named import"); return }
             if !Take(p, ",") { break }

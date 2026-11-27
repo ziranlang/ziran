@@ -74,6 +74,7 @@ CVectorType :: (type: *u8, vector: *ZirVector) -> s32 #foreign compiler "VectorT
 CSimdOpChecked :: (name: *u8) -> *SimdOp #foreign compiler "SimdOpChecked";
 CPrintFormatPieces :: (format: *u8, pieces: *PrintPiece, capacity: s32) -> s32 #foreign compiler "PrintFormatPieces";
 CModuleNeedsStartup :: (module: *IR.ZirModule) -> s32 #foreign compiler "ModuleNeedsStartup";
+CModuleStartupDependencies :: (module: *IR.ZirModule, count: *s32) -> **IR.ZirModule #foreign compiler "ModuleStartupDependencies";
 BitBuiltin :: (name: *u8) -> s32 #foreign compiler "BitBuiltin";
 CScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
 CParametersOf :: (text: *u8) -> *ZirParameters #foreign compiler "ParametersOf";
@@ -7497,10 +7498,13 @@ StartupModule :: (program: *AssemblyProgram, source: *IR.ZirProgram,
         return 0
     }
     state[module_index] = 1
-    import_index: s32 = 0
-    while import_index < module.import_count {
-        dependency := module.imports[import_index].resolved_module
-        if dependency != null && CModuleNeedsStartup(dependency) == 1 {
+    dependency_count: s32 = 0
+    dependencies := CModuleStartupDependencies(module, *dependency_count)
+    defer free(cast(*void)dependencies)
+    dependency_at: s32 = 0
+    while dependency_at < dependency_count {
+        dependency := dependencies[dependency_at]
+        {
             dependency_index: s32 = -1
             index: s32 = 0
             while index < source.module_count {
@@ -7511,13 +7515,13 @@ StartupModule :: (program: *AssemblyProgram, source: *IR.ZirProgram,
                 index += 1
             }
             if dependency_index < 0 {
-                Fail(program, module.imports[import_index].span,
+                Fail(program, module.span,
                      "runtime initializer dependency is outside the checked program")
                 return 0
             }
             if StartupModule(program, source, dependency_index, state) == 0 { return 0 }
         }
-        import_index += 1
+        dependency_at += 1
     }
     function_index: s32 = 0
     while function_index < module.function_count {

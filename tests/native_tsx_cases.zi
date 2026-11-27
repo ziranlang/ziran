@@ -14,6 +14,10 @@ TSX_DOMAIN :: #string ZI
 using Vectors :: #import "std/vec"
 using Callables :: #import "std/callable"
 Composition :: #import "scope_component";
+starts: s32;
+Seed :: () -> s32 { starts += 1; return 42 }
+seeded: s32 = Seed();
+Starts :: () -> s32 { return starts }
 Model :: struct { value: float64; id: u64; }
 Box :: struct($T: Type) { value: T; }
 InspectBox :: (box: Box($T)) -> T { return box.value }
@@ -29,7 +33,7 @@ WithDefaults :: (value: s32, extra: s32 = DefaultValue(), location: Source_Code_
     return value + extra
 }
 Snapshot :: () -> Model { return .{value = 42, id = 18446744073709551615} }
-CompositionValue :: () -> float64 { return Composition.Inspect(Snapshot()) }
+CompositionValue :: () -> float64 { return Composition.Inspect(Snapshot()) + cast(float64)(seeded - 42) }
 BorrowModel :: (model: *Model) { model.value += 1 }
 ModelAction :: #type (model: *Model) -> float64;
 HandlerHolder :: struct { action: ModelAction; }
@@ -87,7 +91,7 @@ export let defaultStarts: s32 = s32(0);
 function DefaultSeed(): s32 { defaultStarts = defaultStarts + s32(1); return s32(5); }
 export function Defaulted(value: s32, extra: s32 = DefaultSeed()): s32 { return value + extra; }
 export interface OriginProps {}
-export function Located(props: OriginProps, origin: Source_Code_Location = #caller_location): Source_Code_Location {
+export function Located(props: OriginProps, origin: Source_Code_Location = nativeCallerLocation()): Source_Code_Location {
     return origin;
 }
 TS
@@ -171,10 +175,10 @@ export function main(): s32 {
     const genericFrame: GenericFrame = {slot: s32(40)};
     if (Facade.Draw(genericFrame, {value: s32(1)}) !== s32(42)) { return s32(25); }
     const snapshot: Domain.Model = Domain.Snapshot();
-    if (Domain.CompositionValue() !== snapshot.value) { return s32(44); }
+    if (Domain.CompositionValue() !== snapshot.value || Domain.Starts() !== s32(1)) { return s32(44); }
     GlobalState.model = snapshot;
     GlobalState.models[s32(0)] = GlobalState.model;
-    GlobalState.model_ptr = &GlobalState.model;
+    GlobalState.model_ptr = nativeRef(GlobalState.model);
     GlobalState.box = {value: snapshot};
     const globalModel: OtherAlias.Model = GlobalState.models[s32(0)];
     if (globalModel.value !== snapshot.value || GlobalState.model.value !== snapshot.value ||
@@ -193,9 +197,9 @@ export function main(): s32 {
     }
     if (callbackLoops !== s32(2)) { return s32(41); }
     let borrowedModel: Domain.Model = snapshot;
-    const modelPointer: *Domain.Model = &borrowedModel;
+    const modelPointer: NativeRef<Domain.Model> = nativeRef(borrowedModel);
     Domain.BorrowModel(modelPointer);
-    if ((*modelPointer).value !== snapshot.value + 1 || borrowedModel.value !== snapshot.value + 1) { return s32(32); }
+    if (nativeDeref(modelPointer).value !== snapshot.value + 1 || borrowedModel.value !== snapshot.value + 1) { return s32(32); }
     const handler: Domain.HandlerHolder = Domain.Handlers();
     if (handler.action(modelPointer) !== borrowedModel.value) { return s32(42); }
     if (Domain.WithDefaults(s32(2)) !== s32(9) || Domain.WithDefaults(s32(2), s32(3)) !== s32(5)) { return s32(26); }
@@ -220,9 +224,21 @@ export function main(): s32 {
     }
     if (total !== 10) { return s32(8); }
     const values: [number, number, number, number] = [1, 2, 3, 4];
-    const view: number[] = values[:];
-    const middle: number[] = values[s32(1):s32(3)];
-    if (view.count !== s64(4) || middle.count !== s64(2) || middle[s32(0)] !== 2) { return s32(33); }
+    const view: number[] = nativeSlice(values);
+    const middle: number[] = nativeSlice(values, s32(1), s32(3));
+    const tail: number[] = nativeSlice(values, s32(3));
+    if (view.count !== s64(4) || middle.count !== s64(2) || middle[s32(0)] !== 2 || tail[s32(0)] !== 4) { return s32(33); }
+    let scalar: s32 = s32(2);
+    nativeSet(nativeRef(scalar), s32(4));
+    const mutable: [s32, s32] = [s32(1), s32(2)];
+    nativeSet(mutable, s64(1), s32(9));
+    if (scalar !== s32(4) || nativeAt(mutable, s64(1)) !== s32(9) || nativeAt(values, s64(3)) !== 4 ||
+        nativeAt("é", s64(0)) !== u8(195) || nativeAt("é", s64(1)) !== u8(169)) { return s32(46); }
+    const flags: u64 = u64(1) << u64(63) | u64(3);
+    if ((flags & u64(3)) !== u64(3) || (flags >> u64(63)) !== u64(1) ||
+        (u32(1) | u32(2) & u32(4)) !== u32(1) ||
+        (u32(1) << u32(2) + u32(1)) !== u32(8) ||
+        (~u32(0) ^ u32(3)) !== u32(4294967292)) { return s32(45); }
     const readView: Scoped<Domain.Action> = (value: number): number => view[s32(value)] + middle[s32(0)];
     if (Domain.InvokeScoped(readView, 1) !== 4) { return s32(42); }
     total = 0;
@@ -540,7 +556,17 @@ main :: (argc: s32, argv: **u8) -> s32 {
         TextContains(foreign_result.error, "Scoped parameters require a checked nonescaping procedure body") &&
         TextContains(foreign_result.error, "foreign_scoped.zi:"), "foreign procedure accepted a scoped callback without a checked body") { return 1 }
     if !TsxReject(*test, root, "default_type", "export function Value(extra: s32 = true): s32 { return extra; }", "type") ||
-       !TsxReject(*test, root, "default_location_type", "export function Value(extra: s32 = #caller_location): s32 { return extra; }", "#caller_location requires a Source_Code_Location parameter") ||
+       !TsxReject(*test, root, "default_location_type", "export function Value(extra: s32 = nativeCallerLocation()): s32 { return extra; }", "nativeCallerLocation() requires a Source_Code_Location parameter") ||
+       !TsxReject(*test, root, "native_intrinsic_binding", "export function nativeRef(): s32 { return s32(0); }", "reserved for a native TypeScript intrinsic") ||
+       !TsxReject(*test, root, "native_reference_type", "export function Value(value: *s32): s32 { return s32(0); }", "use NativeRef<T>") ||
+       !TsxReject(*test, root, "native_reference_expression", "export function Value(): s32 { let value = s32(0); const pointer = &value; return value; }", "use nativeRef(place)") ||
+       !TsxReject(*test, root, "native_range_expression", "export function Value(): s32 { const values: [number] = [1]; const view = values[:]; return s32(0); }", "use nativeSlice") ||
+       !TsxReject(*test, root, "native_reference_arity", "export function Value(): s32 { return nativeDeref(); }", "require exactly one value") ||
+       !TsxReject(*test, root, "native_slice_arity", "export function Value(): s32 { const values: [number] = [1]; const view = nativeSlice(values, s32(0), s32(1), s32(2)); return s32(0); }", "up to two native integer bounds") ||
+       !TsxReject(*test, root, "native_location_body", "export function Value(): Source_Code_Location { return nativeCallerLocation(); }", "only supported as a named parameter default") ||
+       !TsxReject(*test, root, "native_float_bitwise", "export function Value(): number { return 1 | 2; }", "integer") ||
+       !TsxReject(*test, root, "native_string_write", "export function Value(): s32 { const text = \"read-only\"; nativeSet(text, s64(0), u8(0)); return s32(0); }", "borrowed string bytes are read-only") ||
+       !TsxReject(*test, root, "native_index_type", "export function Value(): s32 { const values: [number] = [1]; return s32(nativeAt(values, true)); }", "integer") ||
        !TsxNestedBorrows(*test, root) || !TsxProject(*test) { return 1 }
     print("native TSX: typed imports, JSX, cache/project invalidation and source/saved C, Go, engine, native executable and Wasm parity passed\n")
     return 0

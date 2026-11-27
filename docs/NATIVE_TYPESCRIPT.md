@@ -48,7 +48,7 @@ function Label(props: LabelProps): number { return Half(props.value); }
 
 export function main(): s32 {
     const snapshot: Model.Snapshot = Model.Read();
-    return s32(<Label value={snapshot.value}/>);
+    return s32(Label({value: snapshot.value}));
 }
 ```
 
@@ -59,7 +59,7 @@ re-exports and JavaScript packages are unsupported.
 Named functions support typed parameter defaults, evaluated only when omitted.
 Initializers use declaration-module scope and can call checked native procedures;
 they cannot read the function's parameters. This follows native Ziran defaults.
-The native default `origin: Source_Code_Location = #caller_location` receives
+The native default `origin: Source_Code_Location = nativeCallerLocation()` receives
 the authored caller's filename, line and column, including ordinary JSX calls.
 Two components on the same source line have distinct columns. Defaults on
 arrow functions and procedure type signatures are currently rejected.
@@ -71,10 +71,13 @@ arrow functions and procedure type signatures are currently rejected.
   silently substituted for TypeScript `number`.
 - `boolean` is native `bool`. `string` is an immutable borrowed UTF-8 byte view,
   with native `.count`; it is not a JavaScript UTF-16 string object.
-- `*Native.Record` names an explicit checked native pointer type. The native
-  extensions `&place` and `*pointer` borrow an address and dereference it through
-  the common checks. These pointers follow native lifetime rules and cannot
-  be captured by an owned callback.
+- `NativeRef<Native.Record>` names an explicit checked native reference type.
+  `nativeRef(place)` borrows an address, `nativeDeref(reference)` reads its
+  pointee and `nativeSet(reference, value)` writes it through the common checks.
+  References follow native
+  lifetime rules and cannot be captured by an owned callback. These are native
+  intrinsics with TypeScript syntax; no runtime wrapper or second representation
+  is allocated. Ziran modules retain their ordinary pointer syntax.
 - `s8` through `s64`, `u8` through `u64`, `isize`, `usize`, `float32` and
   `float64` name explicit native scalar types. Conversions use `s32(value)`,
   `u64(value)` and the other native type names. These follow the existing
@@ -94,9 +97,10 @@ arrow functions and procedure type signatures are currently rejected.
   returning that view from the owning scope is rejected at the authored source.
 - A homogeneous tuple such as `[string, string]` is a fixed native array.
   `T[]` names a borrowed native slice. Slice literals need backing storage;
-  the native range extension `values[:]` borrows the whole backing array,
-  vector, string or slice. `values[s32(start):s32(end)]` borrows a checked
-  subrange with explicit native integer bounds. These views do not copy their
+  `nativeSlice(values)` borrows the whole backing array, vector, string or
+  slice. `nativeSlice(values, s32(start), s32(end))` borrows a checked subrange
+  with explicit native integer bounds. Omitting the end borrows through the
+  end of the backing storage. These views do not copy their
   elements and cannot outlive their backing storage. General owned-array and
   JSX child-range construction is still open work.
 - Native generic records use `Vec<number>` or `Domain.Box<number>` at type
@@ -113,6 +117,23 @@ native value comparison for supported operands and IEEE behavior for floats.
 Coercive `==` and `!=` are rejected. Arithmetic, comparisons, boolean operators,
 conditional expressions, record/array literals, calls and indexing use the
 common typed expression graph. Unsupported syntax produces a source diagnostic.
+Bitwise `&`, `|`, `^`, `~`, `<<` and `>>` require native integer operands and
+preserve their checked width and signedness; `number` operands are rejected.
+They use TypeScript operator precedence, without JavaScript's implicit 32-bit
+number coercion. Native `u64` flags and identifiers retain all 64 bits.
+
+`nativeAt(collection, index)` reads an element with a native integer index,
+including a wide index. On a native UTF-8 string it returns a `u8` byte.
+`nativeSet(collection, index, value)` writes an array, vector or slice element;
+borrowed string bytes remain read-only. `nativeSet` is a statement, so a callback
+which writes uses a block body. The same common assignment and borrow checks
+apply as for Ziran storage. These operations need no wrappers or extra copies.
+
+`NativeRef`, `nativeRef`, `nativeDeref`, `nativeSlice`, `nativeAt`, `nativeSet`
+and `nativeCallerLocation` are reserved intrinsic names. `nativeCallerLocation()` is supported only as a
+named function parameter default. The old `*Type`, `&place`, `*pointer`, colon
+slice and `#caller_location` source extensions are not TypeScript syntax and
+are rejected in `.ts` and `.tsx` modules.
 
 ## Functions, statements and JSX
 
@@ -138,6 +159,11 @@ after imported modules initialize. `export` makes the slot visible to other
 modules; other slots are private. Module `const` currently supports only
 explicit `string` bindings with literal initializers; other types are rejected
 until typed readonly storage is implemented in the common IR.
+
+An import cycle through modules without runtime initializers does not create a
+startup dependency on itself. A native model can import a TSX view which imports
+the model's types and actions, while the model still initializes once. Cycles
+between distinct modules with runtime initializers remain startup errors.
 
 Native procedure signatures can appear as field/parameter types or named aliases:
 
@@ -204,6 +230,12 @@ TS interfaces require every declared field. Native Ziran records retain their
 declared initialization rules for omitted fields. Duplicate props and mismatched
 closing tags are errors.
 Empty paired tags and indentation-only content do not add a `children` property.
+
+Use JSX statements for composition. When application logic consumes a component's
+immediate result, call that same imported component with its typed props record,
+for example `if (Action({model: model})) { ... }`. This preserves its declared
+native result without assigning that result to the stock TypeScript editor's
+`JSX.Element` type. Both forms invoke the same ordinary typed component value.
 
 Inline JSX text preserves spaces around expressions. Multiline text removes
 line indentation and joins nonempty lines with a space. The declared `children`

@@ -330,6 +330,11 @@ int32_t zir_foreign_compiler_c_backend__ModuleNeedsStartup(ZirModule* module) __
 int32_t zir_foreign_compiler_c_backend__ModuleNeedsStartup(ZirModule* module) __asm__("ModuleNeedsStartup");
 #endif
 #ifdef __APPLE__
+ZirModule** zir_foreign_compiler_c_backend__ModuleStartupDependencies(ZirModule* module, int32_t* count) __asm__("_ModuleStartupDependencies");
+#else
+ZirModule** zir_foreign_compiler_c_backend__ModuleStartupDependencies(ZirModule* module, int32_t* count) __asm__("ModuleStartupDependencies");
+#endif
+#ifdef __APPLE__
 void zir_foreign_compiler_c_backend__NativeHeaderGuard(uint8_t* stem, uint8_t* out, size_t size) __asm__("_NativeHeaderGuard");
 #else
 void zir_foreign_compiler_c_backend__NativeHeaderGuard(uint8_t* stem, uint8_t* out, size_t size) __asm__("NativeHeaderGuard");
@@ -9617,6 +9622,8 @@ compiler_c_backend_LowerModuleWithBuffers(ZirModule* m, ZirCModuleSyms* restab, 
         }
     }
     if (needs_startup != 0) {
+        int32_t dependency_count = 0;
+        ZirModule** dependencies = zir_foreign_compiler_c_backend__ModuleStartupDependencies(m, &(dependency_count));
         String value_500 = StringLiteral("\n#include <stdlib.h>\n");
         uint8_t* value_501 = (void *)0;
         {
@@ -9625,24 +9632,21 @@ compiler_c_backend_LowerModuleWithBuffers(ZirModule* m, ZirCModuleSyms* restab, 
         }
         zir_foreign_compiler_c_backend__fputs(value_501, c);
         {
-            int32_t range_first_536 = 0;
-            int32_t range_last_536 = (int32_t)((uint32_t)(m->import_count) - 1u);
-            int32_t i = range_first_536;
-            if (i <= range_last_536) for (;;) {
-                ZirModule* dep = (ZirModule*)(m->imports[i]).resolved_module;
-                if (zir_foreign_compiler_c_backend__ModuleNeedsStartup(dep) != 0) {
-                    uint8_t name[128] = {0};
-                    zir_foreign_compiler_c_backend__NativeCModuleInitName(dep, &(name[0]), 128);
-                    void* value_503 = c;
-                    String value_504 = StringLiteral("void %s(void);\n");
-                    uint8_t* value_505 = (void *)0;
-                    {
-                        String s = value_504;
-                        value_505 = ((compiler_c_backend_StaticText*)(&(s)))->data;
-                    }
-                    zir_foreign_compiler_c_backend__fprintf(value_503, value_505, &(name[0]));
+            int32_t range_first_538 = 0;
+            int32_t range_last_538 = (int32_t)((uint32_t)dependency_count - 1u);
+            int32_t i = range_first_538;
+            if (i <= range_last_538) for (;;) {
+                uint8_t name[128] = {0};
+                zir_foreign_compiler_c_backend__NativeCModuleInitName(dependencies[i], &(name[0]), 128);
+                void* value_503 = c;
+                String value_504 = StringLiteral("void %s(void);\n");
+                uint8_t* value_505 = (void *)0;
+                {
+                    String s = value_504;
+                    value_505 = ((compiler_c_backend_StaticText*)(&(s)))->data;
                 }
-                if (i == range_last_536) {
+                zir_foreign_compiler_c_backend__fprintf(value_503, value_505, &(name[0]));
+                if (i == range_last_538) {
                     break;
                 }
                 i = (int32_t)((uint32_t)i + 1u);
@@ -9665,34 +9669,32 @@ compiler_c_backend_LowerModuleWithBuffers(ZirModule* m, ZirCModuleSyms* restab, 
         }
         zir_foreign_compiler_c_backend__fprintf(value_511, value_513, &(init_name[0]), &(init_name[0]), &(init_name[0]), &(init_name[0]));
         {
-            int32_t range_first_546 = 0;
-            int32_t range_last_546 = (int32_t)((uint32_t)(m->import_count) - 1u);
-            int32_t i = range_first_546;
-            if (i <= range_last_546) for (;;) {
-                ZirModule* dep = (ZirModule*)(m->imports[i]).resolved_module;
-                if (zir_foreign_compiler_c_backend__ModuleNeedsStartup(dep) != 0) {
-                    uint8_t name[128] = {0};
-                    zir_foreign_compiler_c_backend__NativeCModuleInitName(dep, &(name[0]), 128);
-                    void* value_515 = c;
-                    String value_516 = StringLiteral("    %s();\n");
-                    uint8_t* value_517 = (void *)0;
-                    {
-                        String s = value_516;
-                        value_517 = ((compiler_c_backend_StaticText*)(&(s)))->data;
-                    }
-                    zir_foreign_compiler_c_backend__fprintf(value_515, value_517, &(name[0]));
+            int32_t range_first_545 = 0;
+            int32_t range_last_545 = (int32_t)((uint32_t)dependency_count - 1u);
+            int32_t i = range_first_545;
+            if (i <= range_last_545) for (;;) {
+                uint8_t name[128] = {0};
+                zir_foreign_compiler_c_backend__NativeCModuleInitName(dependencies[i], &(name[0]), 128);
+                void* value_515 = c;
+                String value_516 = StringLiteral("    %s();\n");
+                uint8_t* value_517 = (void *)0;
+                {
+                    String s = value_516;
+                    value_517 = ((compiler_c_backend_StaticText*)(&(s)))->data;
                 }
-                if (i == range_last_546) {
+                zir_foreign_compiler_c_backend__fprintf(value_515, value_517, &(name[0]));
+                if (i == range_last_545) {
                     break;
                 }
                 i = (int32_t)((uint32_t)i + 1u);
             }
         }
+        zir_foreign_compiler_c_backend__free((void*)(dependencies));
         {
-            int32_t range_first_554 = 0;
-            int32_t range_last_554 = (int32_t)((uint32_t)(m->function_count) - 1u);
-            int32_t i = range_first_554;
-            if (i <= range_last_554) for (;;) {
+            int32_t range_first_551 = 0;
+            int32_t range_last_551 = (int32_t)((uint32_t)(m->function_count) - 1u);
+            int32_t i = range_first_551;
+            if (i <= range_last_551) for (;;) {
                 if ((m->functions[i]).is_global_initializer != 0) {
                     uint8_t name[128] = {0};
                     zir_foreign_compiler_c_backend__NativeCFunctionName(m, &(m->functions[i]), &(name[0]), 128);
@@ -9705,7 +9707,7 @@ compiler_c_backend_LowerModuleWithBuffers(ZirModule* m, ZirCModuleSyms* restab, 
                     }
                     zir_foreign_compiler_c_backend__fprintf(value_519, value_521, &(name[0]));
                 }
-                if (i == range_last_554) {
+                if (i == range_last_551) {
                     break;
                 }
                 i = (int32_t)((uint32_t)i + 1u);

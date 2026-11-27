@@ -1436,11 +1436,11 @@ ModuleVisits :: struct {
     capacity: usize
 }
 
-ModuleNeedsStartupWalk :: (module: *IR.ZirModule, visits: *ModuleVisits) -> s32 {
-    if module == null { return 0 }
+ModuleVisit :: (module: *IR.ZirModule, visits: *ModuleVisits) -> bool {
+    if module == null { return false }
     i: usize = 0
     while i < visits.count {
-        if visits.items[i] == module { return 0 }
+        if visits.items[i] == module { return false }
         i += 1
     }
     if visits.count == visits.capacity {
@@ -1452,16 +1452,56 @@ ModuleNeedsStartupWalk :: (module: *IR.ZirModule, visits: *ModuleVisits) -> s32 
     }
     visits.items[visits.count] = module
     visits.count += 1
+    return true
+}
+
+ModuleHasStartup :: (module: *IR.ZirModule) -> bool {
     for f: cast(s32)0..module.function_count - 1 {
-        if module.functions[f].is_global_initializer != 0 { return 1 }
+        if module.functions[f].is_global_initializer != 0 { return true }
     }
+    return false
+}
+
+ModuleNeedsStartupWalk :: (module: *IR.ZirModule, visits: *ModuleVisits) -> s32 {
+    if !ModuleVisit(module, visits) { return 0 }
+    if ModuleHasStartup(module) { return 1 }
     for i: cast(s32)0..module.import_count - 1 {
         if ModuleNeedsStartupWalk(module.imports[i].resolved_module, visits) != 0 { return 1 }
     }
     return 0
 }
 
+ModuleStartupDependenciesWalk :: (owner: *IR.ZirModule, module: *IR.ZirModule,
+                                  visits: *ModuleVisits, dependencies: *ModuleVisits) {
+    if module == owner || !ModuleVisit(module, visits) { return }
+    if ModuleHasStartup(module) {
+        unused ModuleVisit(module, dependencies)
+        return
+    }
+    for i: cast(s32)0..module.import_count - 1 {
+        ModuleStartupDependenciesWalk(owner, module.imports[i].resolved_module, visits, dependencies)
+    }
+}
+
 #scope_export
+
+// Import cycles through modules with no initializers do not impose a startup
+// order. Flatten those paths to the nearest initialized modules. A real cycle
+// between distinct initialized modules still reaches the ordinary cycle guard.
+// The caller owns the returned array, including when count is zero.
+#program_export
+ModuleStartupDependencies :: (module: *IR.ZirModule, count: *s32) -> **IR.ZirModule {
+    visits: ModuleVisits
+    dependencies: ModuleVisits
+    if module != null {
+        for i: cast(s32)0..module.import_count - 1 {
+            ModuleStartupDependenciesWalk(module, module.imports[i].resolved_module, *visits, *dependencies)
+        }
+    }
+    free(cast(*void)visits.items)
+    <<count = cast(s32)dependencies.count
+    return dependencies.items
+}
 
 #program_export
 ModuleNeedsStartup :: (module: *IR.ZirModule) -> s32 {

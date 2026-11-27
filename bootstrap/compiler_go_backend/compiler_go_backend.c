@@ -172,6 +172,11 @@ int32_t zir_foreign_compiler_go_backend__ModuleNeedsStartup(ZirModule* module) _
 int32_t zir_foreign_compiler_go_backend__ModuleNeedsStartup(ZirModule* module) __asm__("ModuleNeedsStartup");
 #endif
 #ifdef __APPLE__
+ZirModule** zir_foreign_compiler_go_backend__ModuleStartupDependencies(ZirModule* module, int32_t* count) __asm__("_ModuleStartupDependencies");
+#else
+ZirModule** zir_foreign_compiler_go_backend__ModuleStartupDependencies(ZirModule* module, int32_t* count) __asm__("ModuleStartupDependencies");
+#endif
+#ifdef __APPLE__
 ZirModule* zir_foreign_compiler_go_backend__NativeConstantOwner(ZirModule* module, uint8_t* name) __asm__("_NativeConstantOwner");
 #else
 ZirModule* zir_foreign_compiler_go_backend__NativeConstantOwner(ZirModule* module, uint8_t* name) __asm__("NativeConstantOwner");
@@ -9653,6 +9658,8 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         }
                     }
                     if (zir_foreign_compiler_go_backend__ModuleNeedsStartup(m) != 0) {
+                        int32_t dependency_count = 0;
+                        ZirModule** dependencies = zir_foreign_compiler_go_backend__ModuleStartupDependencies(m, &(dependency_count));
                         void* value_457 = f;
                         String value_458 = StringLiteral("var %s_ziranInitState uint8\nfunc %s_ziranInit() {\n\tif %s_ziranInitState == 2 { return }\n\tif %s_ziranInitState == 1 { panic(\"cyclic module startup\") }\n\t%s_ziranInitState = 1\n");
                         uint8_t* value_459 = (void *)0;
@@ -9664,25 +9671,23 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         {
                             int32_t i = 0;
                             while (true) {
-                                if (!(i < m->import_count)) {
+                                if (!(i < dependency_count)) {
                                     break;
                                 }
-                                ZirModule* dependency = (ZirModule*)(m->imports[i]).resolved_module;
-                                if (zir_foreign_compiler_go_backend__ModuleNeedsStartup(dependency) != 0) {
-                                    uint8_t dep_guard[256] = {0};
-                                    zir_foreign_compiler_go_backend__NativeGoModuleIdentity(progs, prog_count, dependency, &(buffers->stem_2[0]), (1024) * (sizeof(uint8_t)), &(dep_guard[0]), (256) * (sizeof(uint8_t)));
-                                    void* value_461 = f;
-                                    String value_462 = StringLiteral("\t%s_ziranInit()\n");
-                                    uint8_t* value_463 = (void *)0;
-                                    {
-                                        String s = value_462;
-                                        value_463 = ((compiler_go_backend_StaticText*)(&(s)))->data;
-                                    }
-                                    zir_foreign_compiler_go_backend__fprintf(value_461, value_463, &(dep_guard[0]));
+                                uint8_t dep_guard[256] = {0};
+                                zir_foreign_compiler_go_backend__NativeGoModuleIdentity(progs, prog_count, dependencies[i], &(buffers->stem_2[0]), (1024) * (sizeof(uint8_t)), &(dep_guard[0]), (256) * (sizeof(uint8_t)));
+                                void* value_461 = f;
+                                String value_462 = StringLiteral("\t%s_ziranInit()\n");
+                                uint8_t* value_463 = (void *)0;
+                                {
+                                    String s = value_462;
+                                    value_463 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
+                                zir_foreign_compiler_go_backend__fprintf(value_461, value_463, &(dep_guard[0]));
                                 i = (int32_t)((uint32_t)i + 1u);
                             }
                         }
+                        zir_foreign_compiler_go_backend__free((void*)(dependencies));
                         {
                             int32_t i = 0;
                             while (true) {
@@ -10032,7 +10037,7 @@ compiler_go_backend_EmitGoAssemblyBlock(void* out, ZirModule* module, ZirFunctio
 }
 
 #include <stdlib.h>
-void ziran_init_compiler_go_asm(void);
+void ziran_init_compiler_go_asm_x64(void);
 
 static int ziran_state_ziran_init_compiler_go_backend;
 void
@@ -10041,6 +10046,6 @@ ziran_init_compiler_go_backend(void)
     if(ziran_state_ziran_init_compiler_go_backend == 2) return;
     if(ziran_state_ziran_init_compiler_go_backend == 1) abort();
     ziran_state_ziran_init_compiler_go_backend = 1;
-    ziran_init_compiler_go_asm();
+    ziran_init_compiler_go_asm_x64();
     ziran_state_ziran_init_compiler_go_backend = 2;
 }

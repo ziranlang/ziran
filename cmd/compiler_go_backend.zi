@@ -182,6 +182,7 @@ GoSimdCollect :: (text: *u8) #foreign compiler "GoSimdCollect";
 GoSimdWrite :: (out_dir: *u8, pkg: *u8) -> s32 #foreign compiler "GoSimdWrite";
 MapTypeParts :: (module: *IR.ZirModule, name: *u8, key: *u8, key_size: usize, value: *u8, value_size: usize) -> s32 #foreign compiler "MapTypeParts";
 ModuleNeedsStartup :: (module: *IR.ZirModule) -> s32 #foreign compiler "ModuleNeedsStartup";
+ModuleStartupDependencies :: (module: *IR.ZirModule, count: *s32) -> **IR.ZirModule #foreign compiler "ModuleStartupDependencies";
 NativeConstantOwner :: (module: *IR.ZirModule, name: *u8) -> *IR.ZirModule #foreign compiler "NativeConstantOwner";
 NativeEnumMemberName :: (owner: *IR.ZirModule, type: *IR.ZirType, member: *u8, out: *u8, size: usize) -> s32 #foreign compiler "NativeEnumMemberName";
 NativeGoModuleIdentity :: (programs: **IR.ZirProgram, count: s32, module: *IR.ZirModule, file_stem: *u8, file_size: usize, guard: *u8, guard_size: usize) #foreign compiler "NativeGoModuleIdentity";
@@ -3587,20 +3588,20 @@ go_lower_with_buffers :: (ctx: *GoLowerState, progs: **IR.ZirProgram, prog_count
                         }
                     }
                     if (ModuleNeedsStartup(m) != 0) {
+                        dependency_count: s32 = 0
+                        dependencies := ModuleStartupDependencies(m, *dependency_count)
                         fprintf(f, CStr("var %s_ziranInitState uint8\nfunc %s_ziranInit() {\n\tif %s_ziranInitState == 2 { return }\n\tif %s_ziranInitState == 1 { panic(\"cyclic module startup\") }\n\t%s_ziranInitState = 1\n"), *(guard)[0], *(guard)[0], *(guard)[0], *(guard)[0], *(guard)[0])
                         {
                             i: s32 = 0
                             while true {
-                                if !((i < (m).import_count)) { break }
-                                dependency: *IR.ZirModule = (((m).imports)[i]).resolved_module
-                                if (ModuleNeedsStartup(dependency) != 0) {
-                                    dep_guard: [256]u8
-                                    NativeGoModuleIdentity(progs, prog_count, dependency, *((buffers).stem_2)[0], size_of([1024]u8), *(dep_guard)[0], size_of([256]u8))
-                                    fprintf(f, CStr("\t%s_ziranInit()\n"), *(dep_guard)[0])
-                                }
+                                if !((i < dependency_count)) { break }
+                                dep_guard: [256]u8
+                                NativeGoModuleIdentity(progs, prog_count, dependencies[i], *((buffers).stem_2)[0], size_of([1024]u8), *(dep_guard)[0], size_of([256]u8))
+                                fprintf(f, CStr("\t%s_ziranInit()\n"), *(dep_guard)[0])
                                 i += 1
                             }
                         }
+                        free(cast(*void)dependencies)
                         {
                             i: s32 = 0
                             while true {

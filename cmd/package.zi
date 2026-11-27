@@ -243,7 +243,7 @@ PkgPaths :: (locked: *PkgLock, selectors: []string, submodules: bool,
 // Whether OPTION of `ziran api` takes the next argument as its value.
 ApiOptionValue :: (option: string) -> bool {
     valued := string.["--target", "--target-os", "--target-cpu", "--module", "--symbol", "--max-symbols",
-        "--max-bytes", "--root", "--module-path", "--define"]
+        "--max-bytes", "--root", "--module-path", "--define", "--out"]
     for name: valued { if option == name { return true } }
     return false
 }
@@ -914,7 +914,7 @@ PkgUsage :: (command: string) -> string {
     if command == "explain" { return "usage: ziran explain CODE [--json] | ziran explain --list [--json]\n" }
     if command == "learn" { return LearnUsage() }
     if command == "api" {
-        return "usage: ziran api [--json] [--diagnostics=text|json] [--target c|go|zx] [--target-os OS] [--target-cpu CPU] [--module NAME] [--symbol NAME|ID] [--imports-only] [--max-symbols N] [--max-bytes N] [--module-path DIR] [--define NAME] [--project [--current-toolchain] | --root DIR] file.zi|file.ts|file.tsx|file.zir ...\n"
+        return "usage: ziran api [--json | --typescript --out DIR] [--diagnostics=text|json] [--target c|go|zx] [--target-os OS] [--target-cpu CPU] [--module NAME] [--symbol NAME|ID] [--imports-only] [--max-symbols N] [--max-bytes N] [--module-path DIR] [--define NAME] [--project [--current-toolchain] | --root DIR] file.zi|file.ts|file.tsx|file.zir ...\n"
     }
     if command == "new" {
         return "usage: ziran new DIR [--template SOURCE[:NAME]] [--ref REF] [--name NAME] [--overrides FILE]\n"

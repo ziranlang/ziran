@@ -745,12 +745,18 @@ Binary :: (state: *State, opcode: MachineOpcode) -> bool {
     constant := immediate.kind == .Immediate
     right := ifx constant then MachineNoId else Register(state, 2, .Use)
     if destination == MachineNoId || left == MachineNoId || !constant && right == MachineNoId { return false }
-    if destination != left && opcode != .IntegerAdd { return Fail(state, .Tie, OperandId(state, 0)) }
+    if destination != left && opcode != .IntegerAdd &&
+        !(opcode == .IntegerMultiply && constant) { return Fail(state, .Tie, OperandId(state, 0)) }
     if constant && !X86Fits32(cast(s64)immediate.immediate) { return Fail(state, .Unsupported, OperandId(state, 2)) }
     type := TypeOf(state, OperandAt(state, 0))
     logical := opcode == .IntegerAnd || opcode == .IntegerOr || opcode == .IntegerXor
     if type.kind == .Bool && !logical || type.kind == .Function { return Fail(state, .Unsupported, OperandId(state, 0)) }
     value := cast(s64)immediate.immediate
+    if destination != left && opcode == .IntegerMultiply {
+        X86MultiplyValue(*state.writer, destination, left, value)
+        Normalize(state, destination, type)
+        return true
+    }
     // ADD is commutative; LEA also permits a result independent of both inputs.
     // Keep the short ADD when a dying right input already holds the result.
     if destination != left {

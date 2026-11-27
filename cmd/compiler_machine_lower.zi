@@ -716,11 +716,16 @@ LowerBinary :: (state: *LowerState, function: *MachineFunction, source: LirInstr
     } else if opcode == .ShiftLeft || opcode == .ShiftRight {
         right_fixed = MachineAbiFixedRegister(state.target, .ShiftCount)
     }
-    // x86 LEA computes a sum without overwriting either input. Leaving ADD
-    // untied avoids a temporary copy when its left input remains live.
-    independent_add := state.target.arch == .X86_64 && opcode == .IntegerAdd
-    result_tie: s32 = ifx independent_add then MachineNoId else 1
-    left_tie: s32 = ifx independent_add then MachineNoId else 0
+    // x86 LEA and immediate IMUL compute into a separate result register.
+    // Leave them untied so a live input does not need a temporary copy.
+    // Powers of two keep their one-instruction shift, and 31 keeps the
+    // measured shift/subtract sequence instead of taking the IMUL fallback.
+    factor := state.select.bits[right_value]
+    multiply := opcode == .IntegerMultiply && fold != .None && factor != 31 &&
+        (factor == 0 || (factor & (factor - 1)) != 0)
+    independent := state.target.arch == .X86_64 && (opcode == .IntegerAdd || multiply)
+    result_tie: s32 = ifx independent then MachineNoId else 1
+    left_tie: s32 = ifx independent then MachineNoId else 0
     if VirtualOperand(state, result, .Define, result_fixed, result_tie) == MachineNoId ||
         VirtualOperand(state, left, .Use, left_fixed, left_tie) == MachineNoId { return false }
     right: s32

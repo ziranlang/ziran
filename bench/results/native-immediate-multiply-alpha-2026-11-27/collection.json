@@ -1,0 +1,124 @@
+{
+  "schema": 1,
+  "checkout_head_at_capture": "e8c4d59ab681d6b68147b4b9b4b2abef9636e7d9",
+  "source_state": "Shared checkout working states, including concurrent frontend changes; not clean historical-commit builds. Runtime comparison uses identical frozen executable bundles; it does not measure compilation performance.",
+  "sources": {
+    "cmd/compiler_machine_lower.zi": {
+      "baseline_sha256": "2b1fef082cb8045190e8f3dbe86a313fef0e1119e2f19bf522196f466543bc9a",
+      "accepted_sha256": "fa9d94d3f8fea9e724ac89de189b5b85352d14beee613c96a9deaf10a2287699"
+    },
+    "cmd/compiler_x86_64.zi": {
+      "baseline_sha256": "1839dc3beb82fe745103ef25f7994f34a613dd784464dad7e759f9ce351a3918",
+      "accepted_sha256": "c61f260fd916dd19445215898194d96a567255e94bfa76ce20d613186c38df84"
+    },
+    "cmd/compiler_regalloc.zi": {
+      "baseline_sha256": "8271965f0704c317ed1ad02bc097abeb8ec14140542f83e7c8fd095bf88d9965",
+      "accepted_sha256": "8271965f0704c317ed1ad02bc097abeb8ec14140542f83e7c8fd095bf88d9965"
+    }
+  },
+  "protocol_sources": {
+    "bench/standard/host.c": "a5d9c826790bda879e656bb0c4e84ef8cd6b2dc9f6207273ba0b531e99a252fc",
+    "bench/standard/reference.c": "34f3f7ffe0b40eef73a367b6a34e51b3b1e390c4390838421efeef3a2d45792b",
+    "bench/standard/kernels.zi": "d60a6e4b09ec2492d0999219dbd02f735cb9f1991ee04dbb621d955f2b0c0957",
+    "bench/standard_cases.zi": "fcbf775ba419a36101fe0e47185545e17cbf16c052a3209061529fb747a0fac6",
+    "bench/zx_compare.zi": "39cfe913e1f4ebdf24f32e487c20974f271f02d6efe37cf865d10422e4d02436",
+    "bench/zx_compare_host.c": "f84f78091a53f5601b332338ae3657b397cb9d8ce0ac88db4d4b6626d634887c",
+    "bench/zx_compare.py": "cf5699f4e74b5deeaf604a32a26b87206c5d17c7abdfab2fd2bfad703744e6c4",
+    "scripts/benchmark_samples.py": "7e30d0da03bf6056a460705ccfb9c425a2ff2901e38d8b3fe6a0503ed9b6ab6e"
+  },
+  "variants": {
+    "before": {
+      "library_sha256": "51b6b770f51a4487c03f40967b4523dd42b1914b16798a560abedd83a1d6062a",
+      "library_bytes": 6246506,
+      "native_core_sha256": "78e0b6002515b88a8ca711e309692008e4574dd24ded19128e389229ba050cb2",
+      "native_core_bytes": 1341072,
+      "accepted": true
+    },
+    "after-v2": {
+      "library_sha256": "6230d2c0f780403314790fca93a4f4090a0e97acb77d122709c046f785ece930",
+      "library_bytes": 6247298,
+      "native_core_sha256": "76c8435e4e792e94c7a0675a52023a7d9477dd81af60b30f15f76940cae0b2d7",
+      "native_core_bytes": 1341864,
+      "accepted": true
+    },
+    "after-v3": {
+      "library_sha256": "afaec3d0a60b5fe7c00a48fab6bd3aa5a1101dd654c3f0d0c5493c18a6ae2df5",
+      "library_bytes": 6247978,
+      "native_core_sha256": "9e125f542b3211e8085658c602566a45ffe56aa738ec7a58d3213ea1100cc233",
+      "native_core_bytes": 1342528,
+      "accepted": false
+    },
+    "after": {
+      "library_sha256": "a2624cb5317ae5b38bef32e5601e1de1b3ff24925a8e6f6cc28dd1643cefd6e6",
+      "library_bytes": 6246658,
+      "accepted": false,
+      "description": "Original unrestricted multiplication experiment, label after only in standard-reference-screen.json"
+    }
+  },
+  "accepted_variant": "after-v2",
+  "statistics": {
+    "records_runtime_change_percent": -2.1342088072157317,
+    "standard_29_geomean_runtime_change_percent": 0.013488203730793735
+  },
+  "collection_commands": [
+    "ZIRAN_LEARN=off ZIRAN_NATIVE_CACHE=off build/bin/ziran run --target=c bench/bench.zi -- standard-ab --c build/standard/c --bundle build/benchmarks/native-opt/suite.zx --runner before=build/benchmarks/native-opt/before/standard-host --runner after=build/benchmarks/native-opt/after/standard-host --rounds 5 --output build/benchmarks/native-opt/standard-screen.json",
+    "python3 build/benchmarks/native-opt/measure.py before,after-v2 all 5 standard-v2.json",
+    "python3 build/benchmarks/native-opt/measure.py before,after-v2 records 9 records-v2.json",
+    "python3 build/benchmarks/native-opt/measure-paired.py before,after-v2 records 9 records-final.json",
+    "python3 build/benchmarks/native-opt/measure-paired.py before,after-v3 all 5 standard-v3.json"
+  ],
+  "temporary_collectors": {
+    "measure.py": "import hashlib, json, os, platform, random, subprocess, sys, time\nfrom pathlib import Path\nROOT=Path.cwd()\nsys.path[:0]=[str(ROOT/'scripts'),str(ROOT/'bench')]\nfrom benchmark_samples import HostGate, summarize_samples, GATE_METHOD\nfrom zx_compare import oracle\nwork=ROOT/'build/benchmarks/native-opt'\nvariants=sys.argv[1].split(',')\nmode=sys.argv[2]\ntrials=int(sys.argv[3])\nout=work/sys.argv[4]\nassert platform.node()=='alpha'\nvirt=subprocess.run(['systemd-detect-virt'],capture_output=True,text=True)\nassert virt.stdout.strip()=='none' and virt.returncode==1\nassert Path('/etc/machine-id').read_text().strip()=='56391af3c57a496aba7e9f1f24cce732'\nenv=dict(os.environ,ZIRAN_LEARN='off',ZIRAN_NATIVE_CACHE='off',HARMONY_DESKTOP_RECOVERY='0')\nfor name in ['DISPLAY','WAYLAND_DISPLAY','XAUTHORITY','DBUS_SESSION_BUS_ADDRESS','SESSION_MANAGER']: env.pop(name,None)\ndef invoke(argv):\n    run=subprocess.run(list(map(str,argv)),capture_output=True,text=True,env=HostGate.environment(env))\n    if run.returncode: raise RuntimeError(run.stdout[-2000:]+run.stderr[-2000:])\n    return json.loads(run.stdout.strip())\ndef digest(path):\n    h=hashlib.sha256()\n    with open(path,'rb') as f:\n        for chunk in iter(lambda:f.read(65536),b''): h.update(chunk)\n    return h.hexdigest()\nreceipt={'started_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'host':platform.node(),'platform':platform.platform(),'virtualization':'none','machine_id':Path('/etc/machine-id').read_text().strip(),'cpu':next(x.split(':',1)[1].strip() for x in Path('/proc/cpuinfo').read_text().splitlines() if x.startswith('model name')),'learning':'off','cache':'off','method':GATE_METHOD,'mode':mode,'trials':trials,'artifacts':{},'samples':[],'complete':False}\nfor label in variants:\n    for name in ['libziran.a','standard-host','zx-host']:\n        path=work/label/name\n        receipt['artifacts'][str(path.relative_to(ROOT))]=digest(path)\nfor name in ['suite.zx','fixture.zx']:\n    receipt['artifacts'][str((work/name).relative_to(ROOT))]=digest(work/name)\ndef save(): out.write_text(json.dumps(receipt,indent=2)+'\\n')\ngate=HostGate()\nreceipt['gate']=gate.describe()\nrng=random.Random(20261127)\nif mode=='records': cases=[('integer',0,100000),('record',1,100000)]\nelse:\n    old=json.loads((work/'standard-screen.json').read_text())\n    cases=[(w['name'],i,w['size']) for i,w in enumerate(old['workloads']) if mode=='all' or w['name'] in mode.split(',')]\n    expected={w['name']:w['result'] for w in old['workloads']}\nfor trial in range(trials):\n    jobs=[(label,case) for case in cases for label in variants]\n    rng.shuffle(jobs)\n    for label,(name,kind,size) in jobs:\n        gate.choose_core()\n        if mode=='records':\n            seed=123456+trial*100\n            batches=128\n            want=sum(oracle(seed+j,size,kind) for j in range(batches))\n            def job():\n                row=invoke([work/label/'zx-host','native',work/'fixture.zx',seed,size,kind,batches,want])\n                assert row['checksum']==want and row['native_ok'] and row['backend']=='NativeX86_64',row\n                row['per_entry_ms']=row['warm_ms']/batches\n                return row\n        else:\n            def job():\n                row=invoke([work/label/'standard-host',work/'suite.zx',kind,size,11,expected[name]])\n                assert row['result']==expected[name]\n                row['inner_summary']=summarize_samples(row['batch_samples_ms'])\n                row['per_entry_ms']=row['inner_summary']['median_ms']\n                return row\n        row=gate.measure(job)\n        row.update(variant=label,trial=trial,name=name,kind=kind,size=size)\n        receipt['samples'].append(row)\n        save()\n        print(trial,label,name,round(row['per_entry_ms'],6),flush=True)\nreceipt['summary']=[]\nfor name,kind,size in cases:\n    for label in variants:\n        raw=[r['per_entry_ms'] for r in receipt['samples'] if r['name']==name and r['variant']==label]\n        receipt['summary'].append(dict(name=name,variant=label,raw_samples_ms=raw,**summarize_samples(raw)))\nreceipt['complete']=True\nreceipt['finished_utc']=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())\nsave()\nprint('COMPLETE',out,flush=True)\n",
+    "measure-paired.py": "import hashlib, json, os, platform, random, subprocess, sys, time\nfrom pathlib import Path\nROOT=Path.cwd()\nsys.path[:0]=[str(ROOT/'scripts'),str(ROOT/'bench')]\nfrom benchmark_samples import HostGate, summarize_samples, GATE_METHOD\nfrom zx_compare import oracle\nwork=ROOT/'build/benchmarks/native-opt'\nvariants=sys.argv[1].split(',')\nmode=sys.argv[2]\ntrials=int(sys.argv[3])\nout=work/sys.argv[4]\nassert platform.node()=='alpha'\nvirt=subprocess.run(['systemd-detect-virt'],capture_output=True,text=True)\nassert virt.stdout.strip()=='none' and virt.returncode==1\nassert Path('/etc/machine-id').read_text().strip()=='56391af3c57a496aba7e9f1f24cce732'\nenv=dict(os.environ,ZIRAN_LEARN='off',ZIRAN_NATIVE_CACHE='off',HARMONY_DESKTOP_RECOVERY='0')\nfor name in ['DISPLAY','WAYLAND_DISPLAY','XAUTHORITY','DBUS_SESSION_BUS_ADDRESS','SESSION_MANAGER']: env.pop(name,None)\ndef invoke(argv):\n    run=subprocess.run(list(map(str,argv)),capture_output=True,text=True,env=HostGate.environment(env))\n    if run.returncode: raise RuntimeError(run.stdout[-2000:]+run.stderr[-2000:])\n    return json.loads(run.stdout.strip())\ndef digest(path):\n    h=hashlib.sha256()\n    with open(path,'rb') as f:\n        for chunk in iter(lambda:f.read(65536),b''): h.update(chunk)\n    return h.hexdigest()\nreceipt={'started_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'host':platform.node(),'platform':platform.platform(),'virtualization':'none','machine_id':Path('/etc/machine-id').read_text().strip(),'cpu':next(x.split(':',1)[1].strip() for x in Path('/proc/cpuinfo').read_text().splitlines() if x.startswith('model name')),'learning':'off','cache':'off','method':GATE_METHOD,'mode':mode,'trials':trials,'artifacts':{},'samples':[],'complete':False}\nfor label in variants:\n    for name in ['libziran.a','standard-host','zx-host']:\n        path=work/label/name\n        receipt['artifacts'][str(path.relative_to(ROOT))]=digest(path)\nfor name in ['suite.zx','fixture.zx']:\n    receipt['artifacts'][str((work/name).relative_to(ROOT))]=digest(work/name)\ndef save(): out.write_text(json.dumps(receipt,indent=2)+'\\n')\ngate=HostGate()\nreceipt['gate']=gate.describe()\nreceipt['method']='Choose the quietest core before each shuffled workload pair. Pin both variants to that core; each job must pass the shared clock and sibling-load gates, retries may choose another quiet core. Symmetric inclusive 1.5xIQR on inner samples and outer run medians; all raw data retained.'\nrng=random.Random(20261127)\nif mode=='records': cases=[('integer',0,100000),('record',1,100000)]\nelse:\n    old=json.loads((work/'standard-screen.json').read_text())\n    cases=[(w['name'],i,w['size']) for i,w in enumerate(old['workloads']) if mode=='all' or w['name'] in mode.split(',')]\n    expected={w['name']:w['result'] for w in old['workloads']}\nfor trial in range(trials):\n    ordered=list(cases)\n    rng.shuffle(ordered)\n    jobs=[]\n    for case in ordered:\n        labels=list(variants)\n        rng.shuffle(labels)\n        jobs.extend((label,case) for label in labels)\n    for job_index,(label,(name,kind,size)) in enumerate(jobs):\n        if job_index % len(variants)==0: gate.choose_core()\n        if mode=='records':\n            seed=123456+trial*100\n            batches=128\n            want=sum(oracle(seed+j,size,kind) for j in range(batches))\n            def job():\n                row=invoke([work/label/'zx-host','native',work/'fixture.zx',seed,size,kind,batches,want])\n                assert row['checksum']==want and row['native_ok'] and row['backend']=='NativeX86_64',row\n                row['per_entry_ms']=row['warm_ms']/batches\n                return row\n        else:\n            def job():\n                row=invoke([work/label/'standard-host',work/'suite.zx',kind,size,11,expected[name]])\n                assert row['result']==expected[name]\n                row['inner_summary']=summarize_samples(row['batch_samples_ms'])\n                row['per_entry_ms']=row['inner_summary']['median_ms']\n                return row\n        row=gate.measure(job)\n        row.update(variant=label,trial=trial,name=name,kind=kind,size=size)\n        receipt['samples'].append(row)\n        save()\n        print(trial,label,name,round(row['per_entry_ms'],6),flush=True)\nreceipt['summary']=[]\nfor name,kind,size in cases:\n    for label in variants:\n        raw=[r['per_entry_ms'] for r in receipt['samples'] if r['name']==name and r['variant']==label]\n        receipt['summary'].append(dict(name=name,variant=label,raw_samples_ms=raw,**summarize_samples(raw)))\nreceipt['complete']=True\nreceipt['finished_utc']=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())\nsave()\nprint('COMPLETE',out,flush=True)\n"
+  },
+  "validation": {
+    "arithmetic_checks": 48,
+    "temporary_typed_functions": 88,
+    "retained_checks": "269/269 passed; 269 executed, 0 reused",
+    "bootstrap": "updated 89 roots; independent check passed; stage 2 reproduces stage 1",
+    "current_tree_native_core_matches_measured": true,
+    "native_core_sha256": "76c8435e4e792e94c7a0675a52023a7d9477dd81af60b30f15f76940cae0b2d7",
+    "retained_checks_receipt": {
+      "command_id": "13dcb7442d54f74afb18de3e02f4569a4f94",
+      "command": "env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS HARMONY_DESKTOP_RECOVERY=0 make -j1 update-bootstrap CHECK_JOBS=2 JOBS=1",
+      "started_at": 1795779432,
+      "suite_completed_at": 1795779768,
+      "total": 269,
+      "executed": 269,
+      "reused": 0,
+      "failed": 0,
+      "seconds": 334.011587999
+    },
+    "bootstrap_update_receipt": {
+      "command_id": "13dcb7442d54f74afb18de3e02f4569a4f94",
+      "command": "env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS HARMONY_DESKTOP_RECOVERY=0 make -j1 update-bootstrap CHECK_JOBS=2 JOBS=1",
+      "started_at": 1795779432,
+      "finished_at": 1795779816,
+      "exit_code": 0,
+      "roots": 89,
+      "stage_2_reproduces_stage_1": true
+    },
+    "bootstrap_check_receipt": {
+      "command_id": "f3c65da9880e5fa789bf6755d1192eed59f9",
+      "command": "env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS HARMONY_DESKTOP_RECOVERY=0 make -j1 check-bootstrap JOBS=1",
+      "started_at": 1795779831,
+      "finished_at": 1795779950,
+      "exit_code": 0,
+      "roots": 89,
+      "roots_match": true,
+      "stage_2_reproduces_stage_1": true
+    }
+  },
+  "report_sha256": {
+    "records.json": "f83eb057288b3915bccec7da5353f4fe77b5367b06b2fae4d3ca03262b113b64",
+    "records-screen.json": "10164e319d65f08707ee7d227f7a23f2fde9ee03387546d48ad9318e79bf6ec3",
+    "standard.json": "e493325d5cfb77b5e801ade0556d7d71ed078477ee73c36936d9ec473addb1a9",
+    "rejected-register-hints.json": "633ee74eddeb375e3eb4ad102ffb053955b9be926d2e26b482b200073bdfddef",
+    "arithmetic-validation.json": "ea90a3c52dfb9f31ed427529834d43d626cca7cceef5ba946b4ecbc75d6fd328",
+    "standard-reference-screen.json": "a1bf5937687404c3891e7af9707edc11d43ba20b2985a0f97eb9404c31c09516"
+  },
+  "reference_screen_provenance": {
+    "original_raw_sha256": "d78ae1bf88a265a7fbb2e292f09597fb44b081ffe2a9bc186c9286ddeea6de38",
+    "augmentation": "Host identity and recomputed per-run/outer symmetric-IQR summaries added; original samples and checksums unchanged."
+  }
+}

@@ -1,0 +1,1652 @@
+{
+  "started_utc": "2026-11-27T10:52:16Z",
+  "host": "alpha",
+  "platform": "Linux-7.0.0-43-generic-x86_64-with-glibc2.43",
+  "virtualization": "none",
+  "machine_id": "56391af3c57a496aba7e9f1f24cce732",
+  "cpu": "Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
+  "learning": "off",
+  "cache": "off",
+  "method": " Host gate: every measured job runs pinned (inherited affinity, no wrapper) to one logical CPU of the quietest core, chosen again before each attempt once its other hyperthread has settled, and is repeated unless that CPU kept its clock within 3% of the job median (10th to 90th percentile), the median reached 95% of the clock calibrated at start, and the hyperthread sibling was busy at most 15% of the job; Go runs with GOMAXPROCS=1 on that CPU. Rejected attempts are retained with their observations.",
+  "mode": "records",
+  "trials": 9,
+  "artifacts": {
+    "build/benchmarks/native-opt/before/libziran.a": "51b6b770f51a4487c03f40967b4523dd42b1914b16798a560abedd83a1d6062a",
+    "build/benchmarks/native-opt/before/standard-host": "ebb2339bc979ad22daa689119a81bae7e15d21687dc95f7e802591d00e2bef20",
+    "build/benchmarks/native-opt/before/zx-host": "a2c87bd2936e174739ac53a5153d25edc017c1f86d7299c1db7df53e2a8ffa6d",
+    "build/benchmarks/native-opt/after-v2/libziran.a": "6230d2c0f780403314790fca93a4f4090a0e97acb77d122709c046f785ece930",
+    "build/benchmarks/native-opt/after-v2/standard-host": "a70636e0ef25a80400382edd20ffbedd3411183cbaa012602072995d18b155e9",
+    "build/benchmarks/native-opt/after-v2/zx-host": "a2bf553f70c451080ac68a897ebea777e988777833764019204a1b54204707fa",
+    "build/benchmarks/native-opt/suite.zx": "cb62984f7a76ca2b3d2b8dc659555991ead0ebde9ad2d63269dca606ca2b6b59",
+    "build/benchmarks/native-opt/fixture.zx": "48687b36dca373a4a7426d358d23d3606162350e4de646253fb612fa6d8be5e5"
+  },
+  "samples": [
+    {
+      "load_ms": 0.334866047,
+      "instantiate_ms": 0.629709005,
+      "first_ms": 0.340188026,
+      "warm_ms": 34.713315964,
+      "checksum": 210594857984,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.27119778096875,
+      "host_gate": {
+        "cpu": 2,
+        "sibling": 8,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 2,
+            "sibling": 8,
+            "readings": 33,
+            "median_khz": 4400001,
+            "p10_khz": 4299985,
+            "p90_khz": 4497657,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 0,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.337005973,
+      "instantiate_ms": 0.633583069,
+      "first_ms": 0.189442039,
+      "warm_ms": 14.814327955,
+      "checksum": 13745987707158528,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1157369371484375,
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 31,
+            "median_khz": 4495879,
+            "p10_khz": 4399999,
+            "p90_khz": 4499999,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 0,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.374714017,
+      "instantiate_ms": 0.592776895,
+      "first_ms": 0.405233026,
+      "warm_ms": 35.332343102,
+      "checksum": 210594857984,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.276033930484375,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 34,
+            "median_khz": 4496014,
+            "p10_khz": 4399997,
+            "p90_khz": 4500008,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 0,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.339419007,
+      "instantiate_ms": 0.610347033,
+      "first_ms": 0.188853025,
+      "warm_ms": 15.296564937,
+      "checksum": 13745987707158528,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1195044135703125,
+      "host_gate": {
+        "cpu": 2,
+        "sibling": 8,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 2,
+            "sibling": 8,
+            "readings": 32,
+            "median_khz": 4399997,
+            "p10_khz": 4397370,
+            "p90_khz": 4485908,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 0,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.358394027,
+      "instantiate_ms": 0.618610978,
+      "first_ms": 0.203299999,
+      "warm_ms": 15.467710018,
+      "checksum": 13743042157346816,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.120841484515625,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 32,
+            "median_khz": 4398984,
+            "p10_khz": 4299984,
+            "p90_khz": 4400010,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 1,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.338865042,
+      "instantiate_ms": 0.607519984,
+      "first_ms": 0.190459967,
+      "warm_ms": 15.068231106,
+      "checksum": 13743042157346816,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.117720555515625,
+      "host_gate": {
+        "cpu": 4,
+        "sibling": 10,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 4,
+            "sibling": 10,
+            "readings": 32,
+            "median_khz": 4499984,
+            "p10_khz": 4400010,
+            "p90_khz": 4500013,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 1,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.344380021,
+      "instantiate_ms": 0.611621022,
+      "first_ms": 0.346943974,
+      "warm_ms": 34.370841026,
+      "checksum": 210525537280,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.268522195515625,
+      "host_gate": {
+        "cpu": 5,
+        "sibling": 11,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 5,
+            "sibling": 11,
+            "readings": 33,
+            "median_khz": 4499020,
+            "p10_khz": 4400002,
+            "p90_khz": 4500025,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 1,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.33991003,
+      "instantiate_ms": 0.647061944,
+      "first_ms": 0.360998988,
+      "warm_ms": 38.230363011,
+      "checksum": 210525537280,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2986747110234375,
+      "host_gate": {
+        "cpu": 2,
+        "sibling": 8,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 2,
+            "sibling": 8,
+            "readings": 34,
+            "median_khz": 4396856,
+            "p10_khz": 4299998,
+            "p90_khz": 4493704,
+            "sibling_busy": 0.0185,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 1,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.338271976,
+      "instantiate_ms": 0.599225998,
+      "first_ms": 0.188621044,
+      "warm_ms": 15.293410063,
+      "checksum": 13747292825239552,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1194797661171875,
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 32,
+            "median_khz": 4400006,
+            "p10_khz": 4397761,
+            "p90_khz": 4499989,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 2,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.334446073,
+      "instantiate_ms": 0.598613024,
+      "first_ms": 0.371635914,
+      "warm_ms": 35.352717042,
+      "checksum": 210565891072,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.276193101890625,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 34,
+            "median_khz": 4400004,
+            "p10_khz": 4397332,
+            "p90_khz": 4500009,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 2,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.334581017,
+      "instantiate_ms": 0.604205966,
+      "first_ms": 0.34168303,
+      "warm_ms": 34.502925992,
+      "checksum": 210565891072,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2695541093125,
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 33,
+            "median_khz": 4499985,
+            "p10_khz": 4399990,
+            "p90_khz": 4500018,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 2,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.33791697,
+      "instantiate_ms": 0.601522923,
+      "first_ms": 0.194783926,
+      "warm_ms": 15.229833961,
+      "checksum": 13747292825239552,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1189830778203125,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 32,
+            "median_khz": 4399999,
+            "p10_khz": 4394590,
+            "p90_khz": 4400004,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 2,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.336818933,
+      "instantiate_ms": 0.601162076,
+      "first_ms": 0.342499971,
+      "warm_ms": 35.141079068,
+      "checksum": 210562647040,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.27453968021875,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 34,
+            "median_khz": 4497533,
+            "p10_khz": 4484448,
+            "p90_khz": 4500016,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 3,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.377147913,
+      "instantiate_ms": 0.606059074,
+      "first_ms": 0.188872933,
+      "warm_ms": 15.632490993,
+      "checksum": 13745618585747456,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1221288358828125,
+      "host_gate": {
+        "cpu": 2,
+        "sibling": 8,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 2,
+            "sibling": 8,
+            "readings": 32,
+            "median_khz": 4399999,
+            "p10_khz": 4397698,
+            "p90_khz": 4400013,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 3,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.342077971,
+      "instantiate_ms": 0.623241067,
+      "first_ms": 0.345842004,
+      "warm_ms": 34.370391965,
+      "checksum": 210562647040,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2685186872265625,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 33,
+            "median_khz": 4499972,
+            "p10_khz": 4495881,
+            "p90_khz": 4500028,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 3,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.339783072,
+      "instantiate_ms": 0.669493914,
+      "first_ms": 0.204766989,
+      "warm_ms": 15.10790503,
+      "checksum": 13745618585747456,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.118030508046875,
+      "host_gate": {
+        "cpu": 2,
+        "sibling": 8,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 2,
+            "sibling": 8,
+            "readings": 32,
+            "median_khz": 4400001,
+            "p10_khz": 4399018,
+            "p90_khz": 4493187,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 3,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.372514009,
+      "instantiate_ms": 0.638379931,
+      "first_ms": 0.335623026,
+      "warm_ms": 34.642601967,
+      "checksum": 210522309632,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2706453278671875,
+      "host_gate": {
+        "cpu": 2,
+        "sibling": 8,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 2,
+            "sibling": 8,
+            "readings": 34,
+            "median_khz": 4499965,
+            "p10_khz": 4496462,
+            "p90_khz": 4500023,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 4,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.365851998,
+      "instantiate_ms": 0.581743956,
+      "first_ms": 0.184305072,
+      "warm_ms": 15.486678958,
+      "checksum": 13742118985154560,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.120989679359375,
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 32,
+            "median_khz": 4416697,
+            "p10_khz": 4300000,
+            "p90_khz": 4500003,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 4,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.37398994,
+      "instantiate_ms": 0.600294113,
+      "first_ms": 0.355697989,
+      "warm_ms": 37.423427939,
+      "checksum": 210522309632,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2923705307734375,
+      "host_gate": {
+        "cpu": 2,
+        "sibling": 8,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 2,
+            "sibling": 8,
+            "readings": 34,
+            "median_khz": 4400006,
+            "p10_khz": 4299995,
+            "p90_khz": 4499990,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 4,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.328467011,
+      "instantiate_ms": 0.623125911,
+      "first_ms": 0.185450912,
+      "warm_ms": 15.102787018,
+      "checksum": 13742118985154560,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.117990523578125,
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 32,
+            "median_khz": 4499978,
+            "p10_khz": 4495254,
+            "p90_khz": 4500017,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 4,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.34079802,
+      "instantiate_ms": 0.604856968,
+      "first_ms": 0.338840008,
+      "warm_ms": 35.200909019,
+      "checksum": 210523915264,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2750071017109375,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 34,
+            "median_khz": 4400005,
+            "p10_khz": 4397909,
+            "p90_khz": 4499966,
+            "sibling_busy": 0.0182,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 5,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.342170954,
+      "instantiate_ms": 0.617928028,
+      "first_ms": 0.192800999,
+      "warm_ms": 15.473032951,
+      "checksum": 13741484127748096,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1208830699296875,
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 32,
+            "median_khz": 4499981,
+            "p10_khz": 4492887,
+            "p90_khz": 4500027,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 5,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 1.618229985,
+      "instantiate_ms": 0.583716989,
+      "first_ms": 0.364897013,
+      "warm_ms": 34.626792073,
+      "checksum": 210523915264,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2705218130703125,
+      "host_gate": {
+        "cpu": 2,
+        "sibling": 8,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 34,
+            "median_khz": 4473979,
+            "p10_khz": 4300004,
+            "p90_khz": 4499986,
+            "sibling_busy": 0.0,
+            "accepted": false,
+            "rejected_because": "clock not steady",
+            "measurement": {
+              "load_ms": 0.330242038,
+              "instantiate_ms": 0.638388991,
+              "first_ms": 0.361201048,
+              "warm_ms": 35.231149077,
+              "checksum": 210523915264,
+              "batches": 128,
+              "backend": "NativeX86_64",
+              "native_ok": true,
+              "per_entry_ms": 0.2752433521640625
+            }
+          },
+          {
+            "cpu": 2,
+            "sibling": 8,
+            "readings": 34,
+            "median_khz": 4499977,
+            "p10_khz": 4399999,
+            "p90_khz": 4500028,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 5,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.33919704,
+      "instantiate_ms": 0.600658059,
+      "first_ms": 0.188331962,
+      "warm_ms": 14.990116954,
+      "checksum": 13741484127748096,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.117110288703125,
+      "host_gate": {
+        "cpu": 2,
+        "sibling": 8,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 2,
+            "sibling": 8,
+            "readings": 31,
+            "median_khz": 4499984,
+            "p10_khz": 4399999,
+            "p90_khz": 4500027,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 5,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.383613944,
+      "instantiate_ms": 0.593667984,
+      "first_ms": 0.343808889,
+      "warm_ms": 34.305817008,
+      "checksum": 210515592192,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.268014195375,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 33,
+            "median_khz": 4400005,
+            "p10_khz": 4399995,
+            "p90_khz": 4500005,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 6,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.354726076,
+      "instantiate_ms": 0.633664012,
+      "first_ms": 0.201944947,
+      "warm_ms": 16.987797022,
+      "checksum": 13743774143070208,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.132717164234375,
+      "host_gate": {
+        "cpu": 4,
+        "sibling": 10,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 4,
+            "sibling": 10,
+            "readings": 32,
+            "median_khz": 4499995,
+            "p10_khz": 4488959,
+            "p90_khz": 4500033,
+            "sibling_busy": 0.0385,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 6,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.372326016,
+      "instantiate_ms": 0.604095936,
+      "first_ms": 0.347280979,
+      "warm_ms": 35.528022051,
+      "checksum": 210515592192,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2775626722734375,
+      "host_gate": {
+        "cpu": 5,
+        "sibling": 11,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 5,
+            "sibling": 11,
+            "readings": 34,
+            "median_khz": 4499968,
+            "p10_khz": 4399032,
+            "p90_khz": 4500040,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 6,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.353781939,
+      "instantiate_ms": 0.612768054,
+      "first_ms": 0.203508019,
+      "warm_ms": 15.455757976,
+      "checksum": 13743774143070208,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1207481091875,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 32,
+            "median_khz": 4300010,
+            "p10_khz": 4299959,
+            "p90_khz": 4395549,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 6,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.353089929,
+      "instantiate_ms": 0.623993039,
+      "first_ms": 0.358088017,
+      "warm_ms": 35.613448024,
+      "checksum": 210526618624,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2782300626875,
+      "host_gate": {
+        "cpu": 0,
+        "sibling": 6,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 34,
+            "median_khz": 4399991,
+            "p10_khz": 4299996,
+            "p90_khz": 4500009,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 7,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.386644959,
+      "instantiate_ms": 0.650063038,
+      "first_ms": 0.192234993,
+      "warm_ms": 14.791280031,
+      "checksum": 13742928832266240,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1155568752421875,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 32,
+            "median_khz": 4499997,
+            "p10_khz": 4494077,
+            "p90_khz": 4500028,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 7,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.331582069,
+      "instantiate_ms": 0.640689015,
+      "first_ms": 0.347438931,
+      "warm_ms": 35.796172023,
+      "checksum": 210526618624,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2796575939296875,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 34,
+            "median_khz": 4499962,
+            "p10_khz": 4399998,
+            "p90_khz": 4500023,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 7,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.343759894,
+      "instantiate_ms": 0.601402044,
+      "first_ms": 0.19174397,
+      "warm_ms": 15.578566909,
+      "checksum": 13742928832266240,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1217075539765625,
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 32,
+            "median_khz": 4400002,
+            "p10_khz": 4397501,
+            "p90_khz": 4500002,
+            "sibling_busy": 0.0189,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 7,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.335959077,
+      "instantiate_ms": 0.618182898,
+      "first_ms": 0.344303012,
+      "warm_ms": 35.091922998,
+      "checksum": 210514248704,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.274155648421875,
+      "host_gate": {
+        "cpu": 4,
+        "sibling": 10,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 4,
+            "sibling": 10,
+            "readings": 34,
+            "median_khz": 4499987,
+            "p10_khz": 4400029,
+            "p90_khz": 4500021,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 8,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.343183041,
+      "instantiate_ms": 0.61054194,
+      "first_ms": 0.347337008,
+      "warm_ms": 35.283725023,
+      "checksum": 210514248704,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2756541017421875,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 34,
+            "median_khz": 4400001,
+            "p10_khz": 4397103,
+            "p90_khz": 4497831,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 8,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.332265019,
+      "instantiate_ms": 0.651366949,
+      "first_ms": 0.183067083,
+      "warm_ms": 14.982961893,
+      "checksum": 13745158718046208,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1170543897890625,
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 32,
+            "median_khz": 4499993,
+            "p10_khz": 4497281,
+            "p90_khz": 4500013,
+            "sibling_busy": 0.0192,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 8,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 1.75693202,
+      "instantiate_ms": 0.593129039,
+      "first_ms": 0.265810013,
+      "warm_ms": 16.039561987,
+      "checksum": 13745158718046208,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1253090780234375,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4499982,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 5,
+            "sibling": 11,
+            "readings": 32,
+            "median_khz": 4493718,
+            "p10_khz": 4299997,
+            "p90_khz": 4500006,
+            "sibling_busy": 0.0189,
+            "accepted": false,
+            "rejected_because": "clock not steady",
+            "measurement": {
+              "load_ms": 0.347814083,
+              "instantiate_ms": 0.640995979,
+              "first_ms": 0.195905924,
+              "warm_ms": 15.376830935,
+              "checksum": 13745158718046208,
+              "batches": 128,
+              "backend": "NativeX86_64",
+              "native_ok": true,
+              "per_entry_ms": 0.1201314916796875
+            }
+          },
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 32,
+            "median_khz": 4497422,
+            "p10_khz": 4400001,
+            "p90_khz": 4500032,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 8,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    }
+  ],
+  "complete": true,
+  "gate": {
+    "cpu": 2,
+    "sibling": 8,
+    "reference_khz": 4499982,
+    "rules": {
+      "steady": 0.03,
+      "floor": 0.95,
+      "sibling_busy_max": 0.15,
+      "attempts": 8
+    }
+  },
+  "summary": [
+    {
+      "name": "integer",
+      "variant": "before",
+      "raw_samples_ms": [
+        0.1195044135703125,
+        0.117720555515625,
+        0.1194797661171875,
+        0.1221288358828125,
+        0.120989679359375,
+        0.1208830699296875,
+        0.1207481091875,
+        0.1155568752421875,
+        0.1253090780234375
+      ],
+      "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+      "lower_ms": 0.11721489625390624,
+      "upper_ms": 0.12325454922265627,
+      "excluded_indices": [
+        7,
+        8
+      ],
+      "included_samples_ms": [
+        0.1195044135703125,
+        0.117720555515625,
+        0.1194797661171875,
+        0.1221288358828125,
+        0.120989679359375,
+        0.1208830699296875,
+        0.1207481091875
+      ],
+      "median_ms": 0.1207481091875
+    },
+    {
+      "name": "integer",
+      "variant": "after-v2",
+      "raw_samples_ms": [
+        0.1157369371484375,
+        0.120841484515625,
+        0.1189830778203125,
+        0.118030508046875,
+        0.117990523578125,
+        0.117110288703125,
+        0.132717164234375,
+        0.1217075539765625,
+        0.1170543897890625
+      ],
+      "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+      "lower_ms": 0.11151349498437499,
+      "upper_ms": 0.126438278234375,
+      "excluded_indices": [
+        6
+      ],
+      "included_samples_ms": [
+        0.1157369371484375,
+        0.120841484515625,
+        0.1189830778203125,
+        0.118030508046875,
+        0.117990523578125,
+        0.117110288703125,
+        0.1217075539765625,
+        0.1170543897890625
+      ],
+      "median_ms": 0.1180105158125
+    },
+    {
+      "name": "record",
+      "variant": "before",
+      "raw_samples_ms": [
+        0.276033930484375,
+        0.2986747110234375,
+        0.276193101890625,
+        0.27453968021875,
+        0.2706453278671875,
+        0.2705218130703125,
+        0.2775626722734375,
+        0.2796575939296875,
+        0.2756541017421875
+      ],
+      "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+      "lower_ms": 0.2700051921367188,
+      "upper_ms": 0.2820971603554687,
+      "excluded_indices": [
+        1
+      ],
+      "included_samples_ms": [
+        0.276033930484375,
+        0.276193101890625,
+        0.27453968021875,
+        0.2706453278671875,
+        0.2705218130703125,
+        0.2775626722734375,
+        0.2796575939296875,
+        0.2756541017421875
+      ],
+      "median_ms": 0.27584401611328124
+    },
+    {
+      "name": "record",
+      "variant": "after-v2",
+      "raw_samples_ms": [
+        0.27119778096875,
+        0.268522195515625,
+        0.2695541093125,
+        0.2685186872265625,
+        0.2923705307734375,
+        0.2750071017109375,
+        0.268014195375,
+        0.2782300626875,
+        0.274155648421875
+      ],
+      "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+      "lower_ms": 0.25879483622265625,
+      "upper_ms": 0.28473446100390626,
+      "excluded_indices": [
+        4
+      ],
+      "included_samples_ms": [
+        0.27119778096875,
+        0.268522195515625,
+        0.2695541093125,
+        0.2685186872265625,
+        0.2750071017109375,
+        0.268014195375,
+        0.2782300626875,
+        0.274155648421875
+      ],
+      "median_ms": 0.270375945140625
+    }
+  ],
+  "finished_utc": "2026-11-27T10:55:01Z"
+}

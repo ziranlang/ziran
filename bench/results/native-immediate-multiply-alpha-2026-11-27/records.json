@@ -1,0 +1,1693 @@
+{
+  "started_utc": "2026-11-27T11:19:00Z",
+  "host": "alpha",
+  "platform": "Linux-7.0.0-43-generic-x86_64-with-glibc2.43",
+  "virtualization": "none",
+  "machine_id": "56391af3c57a496aba7e9f1f24cce732",
+  "cpu": "Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
+  "learning": "off",
+  "cache": "off",
+  "method": "Choose the quietest core before each shuffled workload pair. Pin both variants to that core; each job must pass the shared clock and sibling-load gates, retries may choose another quiet core. Symmetric inclusive 1.5xIQR on inner samples and outer run medians; all raw data retained.",
+  "mode": "records",
+  "trials": 9,
+  "artifacts": {
+    "build/benchmarks/native-opt/before/libziran.a": "51b6b770f51a4487c03f40967b4523dd42b1914b16798a560abedd83a1d6062a",
+    "build/benchmarks/native-opt/before/standard-host": "ebb2339bc979ad22daa689119a81bae7e15d21687dc95f7e802591d00e2bef20",
+    "build/benchmarks/native-opt/before/zx-host": "a2c87bd2936e174739ac53a5153d25edc017c1f86d7299c1db7df53e2a8ffa6d",
+    "build/benchmarks/native-opt/after-v2/libziran.a": "6230d2c0f780403314790fca93a4f4090a0e97acb77d122709c046f785ece930",
+    "build/benchmarks/native-opt/after-v2/standard-host": "a70636e0ef25a80400382edd20ffbedd3411183cbaa012602072995d18b155e9",
+    "build/benchmarks/native-opt/after-v2/zx-host": "a2bf553f70c451080ac68a897ebea777e988777833764019204a1b54204707fa",
+    "build/benchmarks/native-opt/suite.zx": "cb62984f7a76ca2b3d2b8dc659555991ead0ebde9ad2d63269dca606ca2b6b59",
+    "build/benchmarks/native-opt/fixture.zx": "48687b36dca373a4a7426d358d23d3606162350e4de646253fb612fa6d8be5e5"
+  },
+  "samples": [
+    {
+      "load_ms": 0.335582972,
+      "instantiate_ms": 0.61790204,
+      "first_ms": 0.341266036,
+      "warm_ms": 35.56625998,
+      "checksum": 210594857984,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.27786140609375,
+      "host_gate": {
+        "cpu": 0,
+        "sibling": 6,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 34,
+            "median_khz": 4499970,
+            "p10_khz": 4400005,
+            "p90_khz": 4500025,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 0,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.383593082,
+      "instantiate_ms": 0.614748001,
+      "first_ms": 0.344965935,
+      "warm_ms": 34.601211071,
+      "checksum": 210594857984,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2703219614921875,
+      "host_gate": {
+        "cpu": 0,
+        "sibling": 6,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 33,
+            "median_khz": 4498989,
+            "p10_khz": 4400000,
+            "p90_khz": 4500014,
+            "sibling_busy": 0.0182,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 0,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.354825974,
+      "instantiate_ms": 0.627858996,
+      "first_ms": 0.198224902,
+      "warm_ms": 15.00446701,
+      "checksum": 13745987707158528,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.117222398515625,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 32,
+            "median_khz": 4499995,
+            "p10_khz": 4497032,
+            "p90_khz": 4500027,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 0,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.375949979,
+      "instantiate_ms": 0.636114955,
+      "first_ms": 0.184109926,
+      "warm_ms": 15.112753987,
+      "checksum": 13745987707158528,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1180683905234375,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 32,
+            "median_khz": 4499990,
+            "p10_khz": 4399996,
+            "p90_khz": 4500026,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 0,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.374155998,
+      "instantiate_ms": 0.674214959,
+      "first_ms": 0.381722093,
+      "warm_ms": 35.798957944,
+      "checksum": 210525537280,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2796793589375,
+      "host_gate": {
+        "cpu": 2,
+        "sibling": 8,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 34,
+            "median_khz": 4494909,
+            "p10_khz": 4299990,
+            "p90_khz": 4500020,
+            "sibling_busy": 0.0,
+            "accepted": false,
+            "rejected_because": "clock not steady",
+            "measurement": {
+              "load_ms": 0.337136984,
+              "instantiate_ms": 0.62263608,
+              "first_ms": 0.339828014,
+              "warm_ms": 35.781817079,
+              "checksum": 210525537280,
+              "batches": 128,
+              "backend": "NativeX86_64",
+              "native_ok": true,
+              "per_entry_ms": 0.2795454459296875
+            }
+          },
+          {
+            "cpu": 2,
+            "sibling": 8,
+            "readings": 34,
+            "median_khz": 4399095,
+            "p10_khz": 4300001,
+            "p90_khz": 4400006,
+            "sibling_busy": 0.0189,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 1,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.373745918,
+      "instantiate_ms": 0.597856045,
+      "first_ms": 0.346325994,
+      "warm_ms": 36.753371,
+      "checksum": 210525537280,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2871357109375,
+      "host_gate": {
+        "cpu": 2,
+        "sibling": 8,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 2,
+            "sibling": 8,
+            "readings": 34,
+            "median_khz": 4497358,
+            "p10_khz": 4399992,
+            "p90_khz": 4500005,
+            "sibling_busy": 0.0364,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 1,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.346671939,
+      "instantiate_ms": 0.607758045,
+      "first_ms": 0.188151002,
+      "warm_ms": 15.529649019,
+      "checksum": 13743042157346816,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1213253829609375,
+      "host_gate": {
+        "cpu": 2,
+        "sibling": 8,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 2,
+            "sibling": 8,
+            "readings": 32,
+            "median_khz": 4400003,
+            "p10_khz": 4299987,
+            "p90_khz": 4500007,
+            "sibling_busy": 0.0192,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 1,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.348548055,
+      "instantiate_ms": 0.645558953,
+      "first_ms": 0.196998954,
+      "warm_ms": 16.065702081,
+      "checksum": 13743042157346816,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1255132975078125,
+      "host_gate": {
+        "cpu": 2,
+        "sibling": 8,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 2,
+            "sibling": 8,
+            "readings": 32,
+            "median_khz": 4399998,
+            "p10_khz": 4300007,
+            "p90_khz": 4497021,
+            "sibling_busy": 0.0385,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 1,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.35402,
+      "instantiate_ms": 0.628812075,
+      "first_ms": 0.203410029,
+      "warm_ms": 14.823001027,
+      "checksum": 13747292825239552,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1158046955234375,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 31,
+            "median_khz": 4497018,
+            "p10_khz": 4399994,
+            "p90_khz": 4499998,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 2,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.33317697,
+      "instantiate_ms": 0.605185032,
+      "first_ms": 0.19215095,
+      "warm_ms": 14.990828991,
+      "checksum": 13747292825239552,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1171158514921875,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 32,
+            "median_khz": 4499980,
+            "p10_khz": 4485729,
+            "p90_khz": 4500020,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 2,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.332952023,
+      "instantiate_ms": 0.611221075,
+      "first_ms": 0.340269923,
+      "warm_ms": 34.852202058,
+      "checksum": 210565891072,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.272282828578125,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 33,
+            "median_khz": 4400004,
+            "p10_khz": 4399021,
+            "p90_khz": 4497235,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 2,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.345524907,
+      "instantiate_ms": 0.683618069,
+      "first_ms": 0.348201036,
+      "warm_ms": 35.67574501,
+      "checksum": 210565891072,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.278716757890625,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 34,
+            "median_khz": 4395274,
+            "p10_khz": 4299977,
+            "p90_khz": 4400002,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 2,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.36232996,
+      "instantiate_ms": 0.70294106,
+      "first_ms": 0.366423011,
+      "warm_ms": 38.213613033,
+      "checksum": 210562647040,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2985438518203125,
+      "host_gate": {
+        "cpu": 1,
+        "sibling": 7,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 34,
+            "median_khz": 4300015,
+            "p10_khz": 4299972,
+            "p90_khz": 4397368,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 3,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.360280037,
+      "instantiate_ms": 0.633556962,
+      "first_ms": 0.361484051,
+      "warm_ms": 35.597550035,
+      "checksum": 210562647040,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2781058596484375,
+      "host_gate": {
+        "cpu": 2,
+        "sibling": 8,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 1,
+            "sibling": 7,
+            "readings": 36,
+            "median_khz": 4299998,
+            "p10_khz": 4299966,
+            "p90_khz": 4300017,
+            "sibling_busy": 1.0,
+            "accepted": false,
+            "rejected_because": "hyperthread sibling busy",
+            "measurement": {
+              "load_ms": 0.544548035,
+              "instantiate_ms": 0.904085994,
+              "first_ms": 0.528450966,
+              "warm_ms": 61.341430068,
+              "checksum": 210562647040,
+              "batches": 128,
+              "backend": "NativeX86_64",
+              "native_ok": true,
+              "per_entry_ms": 0.47922992240625
+            }
+          },
+          {
+            "cpu": 2,
+            "sibling": 8,
+            "readings": 33,
+            "median_khz": 4300003,
+            "p10_khz": 4299977,
+            "p90_khz": 4300029,
+            "sibling_busy": 0.0189,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 3,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.342914939,
+      "instantiate_ms": 0.62618506,
+      "first_ms": 0.195681095,
+      "warm_ms": 14.939262986,
+      "checksum": 13745618585747456,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.116712992078125,
+      "host_gate": {
+        "cpu": 2,
+        "sibling": 8,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 2,
+            "sibling": 8,
+            "readings": 32,
+            "median_khz": 4499987,
+            "p10_khz": 4493950,
+            "p90_khz": 4500023,
+            "sibling_busy": 0.0192,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 3,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.329451084,
+      "instantiate_ms": 0.667346001,
+      "first_ms": 0.18651998,
+      "warm_ms": 15.508442044,
+      "checksum": 13745618585747456,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.12115970346875,
+      "host_gate": {
+        "cpu": 2,
+        "sibling": 8,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 2,
+            "sibling": 8,
+            "readings": 32,
+            "median_khz": 4399988,
+            "p10_khz": 4299986,
+            "p90_khz": 4400029,
+            "sibling_busy": 0.0196,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 3,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.388615966,
+      "instantiate_ms": 0.616921067,
+      "first_ms": 0.346374035,
+      "warm_ms": 34.456317067,
+      "checksum": 210522309632,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2691899770859375,
+      "host_gate": {
+        "cpu": 0,
+        "sibling": 6,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 33,
+            "median_khz": 4499995,
+            "p10_khz": 4496356,
+            "p90_khz": 4500029,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 4,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.340039015,
+      "instantiate_ms": 0.638599038,
+      "first_ms": 0.340821028,
+      "warm_ms": 35.608039975,
+      "checksum": 210522309632,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2781878123046875,
+      "host_gate": {
+        "cpu": 0,
+        "sibling": 6,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 34,
+            "median_khz": 4397547,
+            "p10_khz": 4299988,
+            "p90_khz": 4499995,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 4,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.344318032,
+      "instantiate_ms": 0.673129916,
+      "first_ms": 0.195283055,
+      "warm_ms": 15.707398891,
+      "checksum": 13742118985154560,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1227140538359375,
+      "host_gate": {
+        "cpu": 0,
+        "sibling": 6,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 32,
+            "median_khz": 4399992,
+            "p10_khz": 4397252,
+            "p90_khz": 4400007,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 4,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 1.300305963,
+      "instantiate_ms": 0.59374702,
+      "first_ms": 0.184223056,
+      "warm_ms": 15.17454505,
+      "checksum": 13742118985154560,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.118551133203125,
+      "host_gate": {
+        "cpu": 2,
+        "sibling": 8,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 32,
+            "median_khz": 4494570,
+            "p10_khz": 4299982,
+            "p90_khz": 4500010,
+            "sibling_busy": 0.0192,
+            "accepted": false,
+            "rejected_because": "clock not steady",
+            "measurement": {
+              "load_ms": 0.355852962,
+              "instantiate_ms": 0.658558011,
+              "first_ms": 0.18722403,
+              "warm_ms": 16.769591928,
+              "checksum": 13742118985154560,
+              "batches": 128,
+              "backend": "NativeX86_64",
+              "native_ok": true,
+              "per_entry_ms": 0.1310124369375
+            }
+          },
+          {
+            "cpu": 2,
+            "sibling": 8,
+            "readings": 32,
+            "median_khz": 4499979,
+            "p10_khz": 4493653,
+            "p90_khz": 4500021,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 4,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.336423039,
+      "instantiate_ms": 0.592427015,
+      "first_ms": 0.345309973,
+      "warm_ms": 34.738529921,
+      "checksum": 210523915264,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2713947650078125,
+      "host_gate": {
+        "cpu": 4,
+        "sibling": 10,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 4,
+            "sibling": 10,
+            "readings": 33,
+            "median_khz": 4500003,
+            "p10_khz": 4497378,
+            "p90_khz": 4500035,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 5,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.335412979,
+      "instantiate_ms": 0.623252034,
+      "first_ms": 0.34066999,
+      "warm_ms": 35.35156703,
+      "checksum": 210523915264,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.276184117421875,
+      "host_gate": {
+        "cpu": 4,
+        "sibling": 10,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 4,
+            "sibling": 10,
+            "readings": 34,
+            "median_khz": 4499965,
+            "p10_khz": 4493336,
+            "p90_khz": 4500009,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 5,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.346222997,
+      "instantiate_ms": 0.633010983,
+      "first_ms": 0.193201065,
+      "warm_ms": 14.897144914,
+      "checksum": 13741484127748096,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.116383944640625,
+      "host_gate": {
+        "cpu": 5,
+        "sibling": 11,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 5,
+            "sibling": 11,
+            "readings": 31,
+            "median_khz": 4497470,
+            "p10_khz": 4400001,
+            "p90_khz": 4500008,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 5,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.333934069,
+      "instantiate_ms": 0.604164004,
+      "first_ms": 0.190205932,
+      "warm_ms": 15.337450027,
+      "checksum": 13741484127748096,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1198238283359375,
+      "host_gate": {
+        "cpu": 5,
+        "sibling": 11,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 5,
+            "sibling": 11,
+            "readings": 32,
+            "median_khz": 4499991,
+            "p10_khz": 4495366,
+            "p90_khz": 4500032,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 5,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.380162001,
+      "instantiate_ms": 0.621636987,
+      "first_ms": 0.345748067,
+      "warm_ms": 34.837823987,
+      "checksum": 210515592192,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2721704998984375,
+      "host_gate": {
+        "cpu": 4,
+        "sibling": 10,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 4,
+            "sibling": 10,
+            "readings": 34,
+            "median_khz": 4499997,
+            "p10_khz": 4490603,
+            "p90_khz": 4500029,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 6,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.344262004,
+      "instantiate_ms": 0.628288984,
+      "first_ms": 0.365060091,
+      "warm_ms": 36.511307955,
+      "checksum": 210515592192,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2852445933984375,
+      "host_gate": {
+        "cpu": 4,
+        "sibling": 10,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 4,
+            "sibling": 10,
+            "readings": 34,
+            "median_khz": 4400000,
+            "p10_khz": 4396953,
+            "p90_khz": 4497440,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 6,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.343991041,
+      "instantiate_ms": 0.591591001,
+      "first_ms": 0.185603976,
+      "warm_ms": 15.266378999,
+      "checksum": 13743774143070208,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1192685859296875,
+      "host_gate": {
+        "cpu": 4,
+        "sibling": 10,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 4,
+            "sibling": 10,
+            "readings": 31,
+            "median_khz": 4300025,
+            "p10_khz": 4299975,
+            "p90_khz": 4400007,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 6,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.339744091,
+      "instantiate_ms": 0.620194912,
+      "first_ms": 0.191145062,
+      "warm_ms": 14.803085923,
+      "checksum": 13743774143070208,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1156491087734375,
+      "host_gate": {
+        "cpu": 4,
+        "sibling": 10,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 4,
+            "sibling": 10,
+            "readings": 31,
+            "median_khz": 4499981,
+            "p10_khz": 4399997,
+            "p90_khz": 4500019,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 6,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.355075002,
+      "instantiate_ms": 0.595342994,
+      "first_ms": 0.18974793,
+      "warm_ms": 14.88755703,
+      "checksum": 13742928832266240,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.116309039296875,
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 31,
+            "median_khz": 4497173,
+            "p10_khz": 4399984,
+            "p90_khz": 4500032,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 7,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.33576405,
+      "instantiate_ms": 0.61974597,
+      "first_ms": 0.191395998,
+      "warm_ms": 15.027315974,
+      "checksum": 13742928832266240,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.117400906046875,
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 32,
+            "median_khz": 4497301,
+            "p10_khz": 4399990,
+            "p90_khz": 4500007,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 7,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.342735052,
+      "instantiate_ms": 0.624773026,
+      "first_ms": 0.340646982,
+      "warm_ms": 34.530092001,
+      "checksum": 210526618624,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2697663437578125,
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 33,
+            "median_khz": 4399046,
+            "p10_khz": 4299980,
+            "p90_khz": 4500021,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 7,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.346473932,
+      "instantiate_ms": 0.614116073,
+      "first_ms": 0.348146915,
+      "warm_ms": 34.492158055,
+      "checksum": 210526618624,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.2694699848046875,
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 33,
+            "median_khz": 4499984,
+            "p10_khz": 4497344,
+            "p90_khz": 4500022,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 7,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.337602973,
+      "instantiate_ms": 0.649128079,
+      "first_ms": 0.338302016,
+      "warm_ms": 36.69868207,
+      "checksum": 210514248704,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.286708453671875,
+      "host_gate": {
+        "cpu": 4,
+        "sibling": 10,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 4,
+            "sibling": 10,
+            "readings": 34,
+            "median_khz": 4493299,
+            "p10_khz": 4399996,
+            "p90_khz": 4500014,
+            "sibling_busy": 0.0185,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 8,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 1.549005985,
+      "instantiate_ms": 0.619832039,
+      "first_ms": 0.348526955,
+      "warm_ms": 39.642120004,
+      "checksum": 210514248704,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.30970406253125,
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 4,
+            "sibling": 10,
+            "readings": 34,
+            "median_khz": 4491898,
+            "p10_khz": 4299984,
+            "p90_khz": 4500015,
+            "sibling_busy": 0.0185,
+            "accepted": false,
+            "rejected_because": "clock not steady",
+            "measurement": {
+              "load_ms": 0.339391947,
+              "instantiate_ms": 0.619762063,
+              "first_ms": 0.339409947,
+              "warm_ms": 35.662541986,
+              "checksum": 210514248704,
+              "batches": 128,
+              "backend": "NativeX86_64",
+              "native_ok": true,
+              "per_entry_ms": 0.278613609265625
+            }
+          },
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 34,
+            "median_khz": 4399997,
+            "p10_khz": 4397189,
+            "p90_khz": 4487566,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 8,
+      "name": "record",
+      "kind": 1,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.344079971,
+      "instantiate_ms": 0.642554045,
+      "first_ms": 0.187502027,
+      "warm_ms": 14.835011005,
+      "checksum": 13745158718046208,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1158985234765625,
+      "host_gate": {
+        "cpu": 5,
+        "sibling": 11,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 5,
+            "sibling": 11,
+            "readings": 32,
+            "median_khz": 4499983,
+            "p10_khz": 4493111,
+            "p90_khz": 4500017,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "after-v2",
+      "trial": 8,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    },
+    {
+      "load_ms": 0.360705018,
+      "instantiate_ms": 0.628033996,
+      "first_ms": 0.202157974,
+      "warm_ms": 15.420180917,
+      "checksum": 13745158718046208,
+      "batches": 128,
+      "backend": "NativeX86_64",
+      "native_ok": true,
+      "per_entry_ms": 0.1204701634140625,
+      "host_gate": {
+        "cpu": 5,
+        "sibling": 11,
+        "reference_khz": 4493043,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 5,
+            "sibling": 11,
+            "readings": 32,
+            "median_khz": 4499959,
+            "p10_khz": 4492078,
+            "p90_khz": 4500014,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      },
+      "variant": "before",
+      "trial": 8,
+      "name": "integer",
+      "kind": 0,
+      "size": 100000
+    }
+  ],
+  "complete": true,
+  "gate": {
+    "cpu": 0,
+    "sibling": 6,
+    "reference_khz": 4493043,
+    "rules": {
+      "steady": 0.03,
+      "floor": 0.95,
+      "sibling_busy_max": 0.15,
+      "attempts": 8
+    }
+  },
+  "summary": [
+    {
+      "name": "integer",
+      "variant": "before",
+      "raw_samples_ms": [
+        0.117222398515625,
+        0.1213253829609375,
+        0.1171158514921875,
+        0.116712992078125,
+        0.118551133203125,
+        0.1198238283359375,
+        0.1192685859296875,
+        0.116309039296875,
+        0.1204701634140625
+      ],
+      "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+      "lower_ms": 0.11305388622656252,
+      "upper_ms": 0.12388579360156247,
+      "excluded_indices": [],
+      "included_samples_ms": [
+        0.117222398515625,
+        0.1213253829609375,
+        0.1171158514921875,
+        0.116712992078125,
+        0.118551133203125,
+        0.1198238283359375,
+        0.1192685859296875,
+        0.116309039296875,
+        0.1204701634140625
+      ],
+      "median_ms": 0.118551133203125
+    },
+    {
+      "name": "integer",
+      "variant": "after-v2",
+      "raw_samples_ms": [
+        0.1180683905234375,
+        0.1255132975078125,
+        0.1158046955234375,
+        0.12115970346875,
+        0.1227140538359375,
+        0.116383944640625,
+        0.1156491087734375,
+        0.117400906046875,
+        0.1158985234765625
+      ],
+      "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+      "lower_ms": 0.10800675348828125,
+      "upper_ms": 0.12905147345703127,
+      "excluded_indices": [],
+      "included_samples_ms": [
+        0.1180683905234375,
+        0.1255132975078125,
+        0.1158046955234375,
+        0.12115970346875,
+        0.1227140538359375,
+        0.116383944640625,
+        0.1156491087734375,
+        0.117400906046875,
+        0.1158985234765625
+      ],
+      "median_ms": 0.117400906046875
+    },
+    {
+      "name": "record",
+      "variant": "before",
+      "raw_samples_ms": [
+        0.27786140609375,
+        0.2871357109375,
+        0.272282828578125,
+        0.2781058596484375,
+        0.2781878123046875,
+        0.2713947650078125,
+        0.2852445933984375,
+        0.2694699848046875,
+        0.286708453671875
+      ],
+      "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+      "lower_ms": 0.2528401813476563,
+      "upper_ms": 0.3046872406289062,
+      "excluded_indices": [],
+      "included_samples_ms": [
+        0.27786140609375,
+        0.2871357109375,
+        0.272282828578125,
+        0.2781058596484375,
+        0.2781878123046875,
+        0.2713947650078125,
+        0.2852445933984375,
+        0.2694699848046875,
+        0.286708453671875
+      ],
+      "median_ms": 0.2781058596484375
+    },
+    {
+      "name": "record",
+      "variant": "after-v2",
+      "raw_samples_ms": [
+        0.2703219614921875,
+        0.2796793589375,
+        0.278716757890625,
+        0.2985438518203125,
+        0.2691899770859375,
+        0.276184117421875,
+        0.2721704998984375,
+        0.2697663437578125,
+        0.30970406253125
+      ],
+      "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+      "lower_ms": 0.25628586532421876,
+      "upper_ms": 0.29371545510546876,
+      "excluded_indices": [
+        3,
+        8
+      ],
+      "included_samples_ms": [
+        0.2703219614921875,
+        0.2796793589375,
+        0.278716757890625,
+        0.2691899770859375,
+        0.276184117421875,
+        0.2721704998984375,
+        0.2697663437578125
+      ],
+      "median_ms": 0.2721704998984375
+    }
+  ],
+  "finished_utc": "2026-11-27T11:21:30Z"
+}

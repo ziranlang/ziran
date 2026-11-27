@@ -104,6 +104,8 @@ enum {
     ZIR_EXPR_OWNED_CLOSURE = 18,
     ZIR_EXPR_OWNED_CAPTURE_DROP = 19,
     ZIR_EXPR_OWNED_LAMBDA = 20,
+    ZIR_EXPR_JSX_CHILDREN = 21,
+    ZIR_EXPR_SCOPED_CLOSURE = 22,
 };
 
 struct ZirTargetFacts {
@@ -389,6 +391,8 @@ struct ZirType {
     int32_t is_synthetic_application;
     int32_t is_owned_vec;
     int32_t is_owned_callable;
+    int32_t is_scoped_callable;
+    int32_t requires_all_fields;
     int32_t is_map;
     int32_t is_extern;
     int32_t is_abi_incomplete;

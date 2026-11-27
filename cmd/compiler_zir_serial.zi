@@ -5,7 +5,7 @@ Expr :: #import "compiler_parse"
 Check :: #import "compiler_check_types"
 
 #scope_file
-ZIR_FORMAT_VERSION :: 67
+ZIR_FORMAT_VERSION :: 68
 
 compiler :: #system_library "ziran";
 libc :: #system_library "libc";
@@ -569,7 +569,9 @@ describe_type_fields :: (input: *void, output: *Field) -> usize {
     output[25] = serial_field(input, cast(*void)*record.is_results, size_of(type_of(record.is_results)), .Integer)
     output[26] = serial_field(input, cast(*void)*record.span, size_of(type_of(record.span)), .Span)
     output[27] = serial_field(input, cast(*void)*record.is_owned_callable, size_of(type_of(record.is_owned_callable)), .Integer)
-    return 28
+    output[28] = serial_field(input, cast(*void)*record.is_scoped_callable, size_of(type_of(record.is_scoped_callable)), .Integer)
+    output[29] = serial_field(input, cast(*void)*record.requires_all_fields, size_of(type_of(record.requires_all_fields)), .Integer)
+    return 30
 }
 
 
@@ -1909,6 +1911,22 @@ export_symbol_valid :: (symbol: *u8) -> s32 {
 
 
 #scope_file
+unresolved_imported_type :: (module: *IR.ZirModule, name: *u8) -> bool {
+    // ProgramRead loads a module before its ordinary imports are resolved.
+    // Only a real unresolved import can defer the declaration-kind check;
+    // CheckCanonicalPrograms checks it after loading the dependency graph.
+    for i: cast(s32)0..module.import_count - 1 {
+        imported := *module.imports[i]
+        if (imported.kind != .MODULE && imported.kind != .OPEN) ||
+           imported.resolved_module != null || imported.name[0] == 0 { continue }
+        length := strlen(*imported.name[0])
+        if strncmp(name, *imported.name[0], length) == 0 && name[length] == #char "." &&
+           name[length + 1] != 0 && export_symbol_valid(*name[length + 1]) != 0 { return true }
+    }
+    return false
+}
+
+#scope_file
 validate_program :: (program: *IR.ZirProgram) -> s32 {
     {
         m: s32 = 0
@@ -1951,8 +1969,12 @@ validate_program :: (program: *IR.ZirProgram) -> s32 {
                 t: s32 = 0
                 while check_loop_49 := (t < (module).type_count) {
                     type: *IR.ZirType = cast(*IR.ZirType)(cast(usize)((module).types) + cast(usize)(t) * size_of(IR.ZirType))
-                    if type.is_owned_callable != 0 {
-                        if type.is_owned_callable != 1 || type.is_procedure_type != 0 || type.is_enum != 0 ||
+                    if type.requires_all_fields != 0 && type.requires_all_fields != 1 { return 0 }
+                    if type.is_owned_callable != 0 || type.is_scoped_callable != 0 {
+                        if (type.is_owned_callable != 0 && type.is_owned_callable != 1) ||
+                           (type.is_scoped_callable != 0 && type.is_scoped_callable != 1) ||
+                           (type.is_owned_callable != 0 && type.is_scoped_callable != 0) ||
+                           type.is_procedure_type != 0 || type.is_enum != 0 ||
                            type.is_union != 0 || type.is_extern != 0 || type.is_record_template != 0 ||
                            type.is_owned_vec != 0 || type.is_map != 0 { return 0 }
                         offset: usize = 0
@@ -1967,6 +1989,7 @@ validate_program :: (program: *IR.ZirProgram) -> s32 {
                         if invoke == null {
                             if strchr(*field.type[0], #char ".") == null { return 0 }
                         } else if invoke.is_procedure_type == 0 { return 0 }
+                        if type.is_owned_callable != 0 {
                         if TypeNextField(type, *offset, *field) != 1 || IR.CText(*field.name[0]) != "release" { return 0 }
                         release := FindType(module, *field.type[0], null)
                         if release == null {
@@ -1974,6 +1997,7 @@ validate_program :: (program: *IR.ZirProgram) -> s32 {
                         } else if release.is_procedure_type == 0 ||
                            IR.CText(*release.body[0]) != "__tsx_state: *u8" ||
                            IR.CText(*release.procedure_return_type[0]) != "void" { return 0 }
+                        }
                         if TypeNextField(type, *offset, *field) != 0 { return 0 }
                     }
                     if ((((type).is_go_anonymous != 0) && ((type).is_go_anonymous != 1)) || (((type).is_go_anonymous != 0) && ((((((((type).is_enum != 0) || ((type).is_union != 0)) || ((type).is_extern != 0)) || ((type).is_procedure_type != 0)) || ((type).is_abi_incomplete != 0)) || ((type).is_map != 0)) || ((type).is_owned_vec != 0)))) {
@@ -2016,18 +2040,20 @@ validate_program :: (program: *IR.ZirProgram) -> s32 {
                         e: s32 = 0
                         while check_loop_52 := (e < (function).expr_count) {
                             expression: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((function).exprs) + cast(usize)(e) * size_of(IR.ZirExpr))
-                            if ((((((((((((((((((cast(s32)((expression).kind) <= cast(s32)(0)) || (cast(s32)((expression).kind) > cast(s32)(19))) || ((cast(s32)((expression).kind) == cast(s32)(17)) && ((((((((strcmp((expression).text, ParserCString("#compile_time")) != 0) || (strcmp((expression).type, ParserCString("bool")) != 0)) || (((expression).name)[0] != 0)) || (((expression).op)[0] != 0)) || ((expression).left != (-1))) || ((expression).right != (-1))) || ((expression).third != (-1))) || ((expression).first_child != (-1))))) || (((expression).is_this != 0) && ((expression).is_this != 1))) || (((expression).checked != 0) && ((expression).checked != 1))) || ((((expression).is_this != 0) && (cast(s32)((expression).kind) != cast(s32)(1))) && (cast(s32)((expression).kind) != cast(s32)(5)))) || !(reference_valid((expression).left, (function).expr_count) != 0)) || !(reference_valid((expression).right, (function).expr_count) != 0)) || !(reference_valid((expression).first_child, (function).expr_count) != 0)) || !(reference_valid((expression).next_sibling, (function).expr_count) != 0)) || !(reference_valid((expression).third, (function).expr_count) != 0)) || ((expression).left >= e)) || ((expression).right >= e)) || ((expression).first_child >= e)) || ((expression).third >= e)) || ((expression).argument_index < (-1))) || ((expression).argument_index >= 64)) || (((expression).next_sibling >= 0) && ((expression).next_sibling <= e))) {
+                            if ((((((((((((((((((cast(s32)((expression).kind) <= cast(s32)(0)) || ((cast(s32)((expression).kind) > cast(s32)(22)) || expression.kind == .OWNED_LAMBDA || expression.kind == .JSX_CHILDREN)) || ((cast(s32)((expression).kind) == cast(s32)(17)) && ((((((((strcmp((expression).text, ParserCString("#compile_time")) != 0) || (strcmp((expression).type, ParserCString("bool")) != 0)) || (((expression).name)[0] != 0)) || (((expression).op)[0] != 0)) || ((expression).left != (-1))) || ((expression).right != (-1))) || ((expression).third != (-1))) || ((expression).first_child != (-1))))) || (((expression).is_this != 0) && ((expression).is_this != 1))) || (((expression).checked != 0) && ((expression).checked != 1))) || ((((expression).is_this != 0) && (cast(s32)((expression).kind) != cast(s32)(1))) && (cast(s32)((expression).kind) != cast(s32)(5)))) || !(reference_valid((expression).left, (function).expr_count) != 0)) || !(reference_valid((expression).right, (function).expr_count) != 0)) || !(reference_valid((expression).first_child, (function).expr_count) != 0)) || !(reference_valid((expression).next_sibling, (function).expr_count) != 0)) || !(reference_valid((expression).third, (function).expr_count) != 0)) || ((expression).left >= e)) || ((expression).right >= e)) || ((expression).first_child >= e)) || ((expression).third >= e)) || ((expression).argument_index < (-1))) || ((expression).argument_index >= 64)) || (((expression).next_sibling >= 0) && ((expression).next_sibling <= e))) {
                                 return 0
                             }
-                            if expression.kind == .OWNED_CLOSURE {
+                            if expression.kind == .OWNED_CLOSURE || expression.kind == .SCOPED_CLOSURE {
+                                scoped := expression.kind == .SCOPED_CLOSURE
                                 owned := FindType(module, expression.type, null)
                                 env := FindType(module, expression.name, null)
-                                if owned == null || owned.is_owned_callable == 0 || env == null ||
-                                   expression.left < 0 || expression.right < 0 || expression.third < 0 ||
+                                if (ifx owned == null then !unresolved_imported_type(module, expression.type)
+                                    else (ifx scoped then owned.is_scoped_callable == 0 else owned.is_owned_callable == 0)) || env == null ||
+                                   expression.left < 0 || expression.right < 0 || (ifx scoped then expression.third != -1 else expression.third < 0) ||
                                    expression.first_child != -1 ||
                                    function.exprs[expression.left].kind != .COMPOUND ||
                                    function.exprs[expression.right].is_function_value != 1 ||
-                                   function.exprs[expression.third].is_function_value != 1 { return 0 }
+                                   (!scoped && function.exprs[expression.third].is_function_value != 1) { return 0 }
                             }
                             if expression.kind == .OWNED_CAPTURE_DROP {
                                 env := FindType(module, expression.name, null)

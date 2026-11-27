@@ -145,6 +145,7 @@ struct __type_131eebaaeb761e42 {
     int64_t capacity;
 };
 #endif
+int32_t private_tsx_select_children(ZirModule* module, ZirFunction* fn, int32_t index, int32_t callable);
 ZirProgram* ZiranParseTSX(uint8_t* path, uint8_t* root, uint8_t* source);
 
 #ifdef __cplusplus

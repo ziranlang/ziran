@@ -2020,7 +2020,7 @@ OwnedCallableBuffers :: struct {
     args: [8192]u8
 }
 
-InstantiateOwnedCallable :: (instance: *IR.ZirType, user: *IR.ZirModule) -> s32 {
+InstantiateOwnedCallable :: (instance: *IR.ZirType, user: *IR.ZirModule, scoped: bool) -> s32 {
     index := (cast(usize)instance - cast(usize)user.types) / size_of(IR.ZirType)
     buffers := cast(*OwnedCallableBuffers)AllocateOrExit(size_of(OwnedCallableBuffers))
     defer CompilerFree(cast(*void)buffers)
@@ -2080,9 +2080,15 @@ InstantiateOwnedCallable :: (instance: *IR.ZirType, user: *IR.ZirModule) -> s32 
     if record_field_type_at_use(user, signature_owner, signature_name, *invoke_name[0], size_of(type_of(invoke_name))) == 0 ||
        record_field_type_at_use(user, signature_owner, signature_name, *release_name[0], size_of(type_of(release_name))) == 0 { return 0 }
     value.is_type_instance = 0
-    value.is_owned_callable = 1
-    unused snprintf(*value.body[0], size_of(type_of(value.body)),
-        ParserCString("state: *u8; invoke: %s; release: %s;"), *invoke_name[0], *release_name[0])
+    value.is_owned_callable = ifx scoped then 0 else 1
+    value.is_scoped_callable = ifx scoped then 1 else 0
+    if scoped {
+        unused snprintf(*value.body[0], size_of(type_of(value.body)),
+            ParserCString("state: *u8; invoke: %s;"), *invoke_name[0])
+    } else {
+        unused snprintf(*value.body[0], size_of(type_of(value.body)),
+            ParserCString("state: *u8; invoke: %s; release: %s;"), *invoke_name[0], *release_name[0])
+    }
     if value.is_synthetic_application == 0 {
         value.template_name[0] = 0
         value.template_args[0] = 0
@@ -2096,8 +2102,8 @@ InstantiateOwnedCallable :: (instance: *IR.ZirType, user: *IR.ZirModule) -> s32 
 #program_export "InstantiateGenericRecordAt"
 InstantiateGenericRecordAt :: (instance: *IR.ZirType, generic: *IR.ZirType, owner: *IR.ZirModule, user: *IR.ZirModule) -> s32 {
     if owner != null && user != null && IR.CText(*owner.standard_name[0]) == "callable" &&
-       IR.CText(*generic.name[0]) == "Owned" {
-        return InstantiateOwnedCallable(instance, user)
+       (IR.CText(*generic.name[0]) == "Owned" || IR.CText(*generic.name[0]) == "Scoped") {
+        return InstantiateOwnedCallable(instance, user, IR.CText(*generic.name[0]) == "Scoped")
     }
     params_storage_0 := cast(*ParserArray16_ParserArray128_u8)AllocateOrExit(size_of(ParserArray16_ParserArray128_u8))
     defer CompilerFree(cast(*void)params_storage_0)
@@ -2166,6 +2172,7 @@ InstantiateGenericRecordAt :: (instance: *IR.ZirType, generic: *IR.ZirType, owne
     }
     (instance).is_union = (generic).is_union
     (instance).is_results = (generic).is_results
+    instance.requires_all_fields = generic.requires_all_fields
     if ((!(strcmp(cast(*u8)(*((generic).name)), ParserCString("Map")) != 0) && (members == 2)) && (parameter_count == 2)) {
         position: usize = cast(usize)(0)
         key: IR.ZirTypeField

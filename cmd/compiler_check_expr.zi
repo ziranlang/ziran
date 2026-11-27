@@ -1836,17 +1836,18 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
         (e).type = KeepName(CheckCString("integer"))
         return (e).type
     }
-    if e.kind == .OWNED_LAMBDA {
+    if e.kind == .OWNED_LAMBDA || e.kind == .JSX_CHILDREN {
         contextual_slot(c, index, *c.expected_type.items[0])
         e = *c.fn.exprs[index]
-        if e.kind == .OWNED_LAMBDA {
-            error(c, e.span, CheckCString("capturing arrow requires an Owned(Signature) context"), e.name)
+        if e.kind == .OWNED_LAMBDA || e.kind == .JSX_CHILDREN {
+            error(c, e.span, CheckCString("capturing arrow requires an Owned(Signature) context or Scoped(Signature); JSX children need a concrete props slot"), e.name)
             return CheckCString("")
         }
     }
-    if e.kind == .OWNED_CLOSURE {
+    if e.kind == .OWNED_CLOSURE || e.kind == .SCOPED_CLOSURE {
+        scoped := e.kind == .SCOPED_CLOSURE
         slot := FindType(c.module, e.type, null)
-        if slot == null || slot.is_owned_callable == 0 || e.left < 0 || e.right < 0 || e.third < 0 {
+        if slot == null || (ifx scoped then slot.is_scoped_callable == 0 else slot.is_owned_callable == 0) || e.left < 0 || e.right < 0 || (!scoped && e.third < 0) {
             error(c, e.span, CheckCString("invalid checked owned closure"), e.name); return CheckCString("")
         }
         saved := c.expected_type
@@ -1857,11 +1858,11 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
         if strcmp(environment_type, e.name) != 0 {
             error(c, e.span, CheckCString("owned closure capture type mismatch"), e.name)
         }
-        if !capture_safe(c.module, e.name, 0) {
+        if !scoped && !capture_safe(c.module, e.name, 0) {
             error(c, e.span, CheckCString("owned closure contains borrowed capture storage"), e.name)
         }
         unused expression_type(c, e.right)
-        unused expression_type(c, e.third)
+        if !scoped { unused expression_type(c, e.third) }
         e = *c.fn.exprs[index]
         invoke_owner: *IR.ZirModule = null
         invoke: *IR.ZirFunction = null
@@ -2026,7 +2027,7 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
             }
             record_owner: *IR.ZirModule = null
             record: *IR.ZirType = FindType((c).module, (e).name, *(record_owner))
-            if record != null && record.is_owned_callable != 0 {
+            if record != null && (record.is_owned_callable != 0 || record.is_scoped_callable != 0) {
                 error(c, e.span, CheckCString("owned callable storage is private; use a native arrow"), e.name)
                 break check_switch_243
             }
@@ -2104,6 +2105,22 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                     child = ((((c).fn).exprs)[child]).next_sibling
                 }
             }
+            if record.requires_all_fields != 0 {
+                offset: usize = 0
+                field: IR.ZirTypeField
+                while TypeNextField(record, *offset, *field) == 1 {
+                    supplied := false
+                    child := e.first_child
+                    while child >= 0 {
+                        entry := c.fn.exprs[child]
+                        if strcmp(entry.name, *field.name[0]) == 0 { supplied = true; break }
+                        child = entry.next_sibling
+                    }
+                    if !supplied {
+                        error(c, e.span, CheckCString("missing required initializer field"), KeepName(*field.name[0]))
+                    }
+                }
+            }
             type = (e).name
             break check_switch_243
         }
@@ -2164,7 +2181,7 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                     break check_switch_243
                 }
             }
-            if record != null && record.is_owned_callable != 0 {
+            if record != null && (record.is_owned_callable != 0 || record.is_scoped_callable != 0) {
                 error(c, e.span, CheckCString("owned callable storage is private; invoke the callable directly"), e.name)
                 break check_switch_243
             }

@@ -52,6 +52,16 @@ static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {
 #endif
 #endif
 #ifdef __APPLE__
+int32_t zir_foreign_compiler_check_value__select_children(ZirModule* module, ZirFunction* fn, int32_t index, int32_t callable) __asm__("_private_tsx_select_children");
+#else
+int32_t zir_foreign_compiler_check_value__select_children(ZirModule* module, ZirFunction* fn, int32_t index, int32_t callable) __asm__("private_tsx_select_children");
+#endif
+#ifdef __APPLE__
+int32_t zir_foreign_compiler_check_value__order_using_expressions(ZirFunction* function) __asm__("_private_check_order_using_expressions");
+#else
+int32_t zir_foreign_compiler_check_value__order_using_expressions(ZirFunction* function) __asm__("private_check_order_using_expressions");
+#endif
+#ifdef __APPLE__
 ZirStmt* zir_foreign_compiler_check_value__FunctionAddStmt(ZirFunction* fn, ZirStmtKind kind, uint8_t* text, ZirSourceSpan span) __asm__("_FunctionAddStmt");
 #else
 ZirStmt* zir_foreign_compiler_check_value__FunctionAddStmt(ZirFunction* fn, ZirStmtKind kind, uint8_t* text, ZirSourceSpan span) __asm__("FunctionAddStmt");
@@ -3345,6 +3355,9 @@ private_check_capture_safe(ZirModule* module, uint8_t* type, int32_t depth)
     if (record == ((void *)0)) {
         return false;
     }
+    if (record->is_scoped_callable != 0) {
+        return false;
+    }
     if (record->is_enum != 0 || record->is_owned_callable != 0) {
         return true;
     }
@@ -3390,7 +3403,8 @@ static void
 compiler_check_value_contextual_owned_closure(Checker* c, int32_t index, uint8_t* expected, ZirType* owned, ZirModule* owned_owner)
 {
     ZirExpr value = c->fn->exprs[index];
-    if (((ZirExprKind)(value.kind)) == ((ZirExprKind)(18))) {
+    bool scoped = owned->is_scoped_callable != 0;
+    if (((ZirExprKind)(value.kind)) == ((ZirExprKind)(18)) || ((ZirExprKind)(value.kind)) == ((ZirExprKind)(22))) {
         return;
     }
     if (((ZirExprKind)(value.kind)) == ((ZirExprKind)(14))) {
@@ -3441,11 +3455,17 @@ compiler_check_value_contextual_owned_closure(Checker* c, int32_t index, uint8_t
         }
     }
     bool value_11 = private_check_record_field_type_at_use(c->module, owned_owner, expected, &(invoke_type[0]), (128) * (sizeof(uint8_t))) == 0;
-    if (value_11 || private_check_record_field_type_at_use(c->module, owned_owner, expected, &(drop_type[0]), (128) * (sizeof(uint8_t))) == 0) {
-        Checker* value_12 = c;
-        ZirSourceSpan value_13 = value.span;
-        uint8_t* value_14 = compiler_check_types_CheckCString(StringLiteral("owned callable signature is inaccessible"));
-        zir_foreign_compiler_check_value__error(value_12, value_13, value_14, expected);
+    bool value_12 = value_11;
+    if (!value_12) {
+        bool value_13 = !scoped;
+        bool value_14 = value_13 && private_check_record_field_type_at_use(c->module, owned_owner, expected, &(drop_type[0]), (128) * (sizeof(uint8_t))) == 0;
+        value_12 = value_14;
+    }
+    if (value_12) {
+        Checker* value_15 = c;
+        ZirSourceSpan value_16 = value.span;
+        uint8_t* value_17 = compiler_check_types_CheckCString(StringLiteral("owned callable signature is inaccessible"));
+        zir_foreign_compiler_check_value__error(value_15, value_16, value_17, expected);
         return;
     }
     String body = StringLiteral("");
@@ -3456,66 +3476,119 @@ compiler_check_value_contextual_owned_closure(Checker* c, int32_t index, uint8_t
         ZirExpr operand = c->fn->exprs[child];
         int32_t next = operand.next_sibling;
         uint8_t* actual = zir_foreign_compiler_check_value__KeepName(zir_foreign_compiler_check_value__expression_type(c, child));
-        bool value_15 = private_check_capture_safe(c->module, actual, 0);
-        if (!value_15) {
-            ZirSourceSpan value_16 = operand.span;
-            uint8_t* value_17 = compiler_check_types_CheckCString(StringLiteral("check.capture_lifetime"));
-            uint8_t* value_18 = compiler_check_types_CheckCString(StringLiteral("callback capture must be a scalar, enum, or owned value without borrowed fields: %s"));
-            zir_foreign_compiler_check_value__Diagnostic(value_16, value_17, value_18, (uint8_t*)operand.argument_name);
-            int32_t* value_19 = &(c->errors);
-            (*value_19) = (int32_t)((uint32_t)((*value_19)) + 1u);
-            int32_t* value_20 = &(c->failed);
-            (*value_20) = 1;
+        bool value_18 = !scoped;
+        bool value_19 = value_18;
+        if (value_19) {
+            bool value_20 = private_check_capture_safe(c->module, actual, 0);
+            value_19 = !value_20;
+        }
+        if (value_19) {
+            ZirSourceSpan value_21 = operand.span;
+            uint8_t* value_22 = compiler_check_types_CheckCString(StringLiteral("check.capture_lifetime"));
+            uint8_t* value_23 = compiler_check_types_CheckCString(StringLiteral("callback capture must be a scalar, enum, or owned value without borrowed fields: %s"));
+            zir_foreign_compiler_check_value__Diagnostic(value_21, value_22, value_23, (uint8_t*)operand.argument_name);
+            int32_t* value_24 = &(c->errors);
+            (*value_24) = (int32_t)((uint32_t)((*value_24)) + 1u);
+            int32_t* value_25 = &(c->failed);
+            (*value_25) = 1;
             return;
         }
-        String value_21 = body;
-        String value_22 = compiler_ir_CText((uint8_t*)operand.argument_name);
-        body = compiler_check_value_closure_join(value_21, value_22, compiler_check_value_closure_join(StringLiteral(": "), compiler_ir_CText(actual), StringLiteral("; ")));
-        int32_t* value_23 = &((c->fn->exprs[child]).next_sibling);
-        (*value_23) = -1;
-        ZirFunction* value_24 = c->fn;
-        ZirExprKind value_25 = (ZirExprKind)((ZirExprKind)(15));
-        String value_26 = compiler_ir_CText((uint8_t*)operand.text);
-        String value_27 = value_26;
-        ZirSourceSpan value_28 = operand.span;
-        String value_29 = compiler_ir_CText((uint8_t*)operand.argument_name);
-        int32_t value_30 = 0;
+        String field_type = compiler_ir_CText(actual);
+        if (scoped) {
+            field_type = compiler_check_value_closure_join(StringLiteral("*"), field_type, StringLiteral(""));
+            ZirFunction* value_26 = c->fn;
+            ZirExprKind value_27 = (ZirExprKind)((ZirExprKind)(7));
+            String value_28 = compiler_ir_CText((uint8_t*)operand.text);
+            ZirSourceSpan value_29 = operand.span;
+            String value_30 = StringLiteral("");
+            int32_t value_31 = 0;
+            {
+                ZirFunction* fn = value_26;
+                ZirExprKind kind = (ZirExprKind)(value_27);
+                String text = value_28;
+                ZirSourceSpan span = value_29;
+                String name = value_30;
+                int32_t left = -1;
+                int32_t right = child;
+                ZirExpr* node = compiler_services_AddExpr(fn, kind, text, span);
+                if (node == ((void *)0)) {
+                    value_31 = -1;
+                    goto value_32;
+                }
+                const char ** value_33 = &(node->name);
+                uint8_t* value_34 = compiler_services_KeepName(name);
+                (*value_33) = (const char *)(value_34);
+                int32_t* value_35 = &(node->left);
+                (*value_35) = left;
+                int32_t* value_36 = &(node->right);
+                (*value_36) = right;
+                value_31 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
+            value_32: ;
+            }
+            int32_t address = value_31;
+            if (address < 0) {
+                Checker* value_37 = c;
+                ZirSourceSpan value_38 = value.span;
+                uint8_t* value_39 = compiler_check_types_CheckCString(StringLiteral("cannot allocate borrowed capture"));
+                zir_foreign_compiler_check_value__error(value_37, value_38, value_39, (uint8_t*)value.name);
+                return;
+            }
+            Slice value_40 = {(c->fn->exprs[address]).op, 8};
+            compiler_ir_CopyText(value_40, StringLiteral("&"));
+            const char ** value_41 = &((c->fn->exprs[address]).argument_name);
+            (*value_41) = (const char *)(((uint8_t*)operand.argument_name));
+            int32_t* value_42 = &((c->fn->exprs[child]).next_sibling);
+            (*value_42) = -1;
+            child = address;
+        }
+        String value_43 = body;
+        String value_44 = compiler_ir_CText((uint8_t*)operand.argument_name);
+        body = compiler_check_value_closure_join(value_43, value_44, compiler_check_value_closure_join(StringLiteral(": "), field_type, StringLiteral("; ")));
+        int32_t* value_45 = &((c->fn->exprs[child]).next_sibling);
+        (*value_45) = -1;
+        ZirFunction* value_46 = c->fn;
+        ZirExprKind value_47 = (ZirExprKind)((ZirExprKind)(15));
+        String value_48 = compiler_ir_CText((uint8_t*)operand.text);
+        String value_49 = value_48;
+        ZirSourceSpan value_50 = operand.span;
+        String value_51 = compiler_ir_CText((uint8_t*)operand.argument_name);
+        int32_t value_52 = 0;
         {
-            ZirFunction* fn = value_24;
-            ZirExprKind kind = (ZirExprKind)(value_25);
-            String text = value_27;
-            ZirSourceSpan span = value_28;
-            String name = value_29;
+            ZirFunction* fn = value_46;
+            ZirExprKind kind = (ZirExprKind)(value_47);
+            String text = value_49;
+            ZirSourceSpan span = value_50;
+            String name = value_51;
             int32_t left = -1;
             int32_t right = child;
             ZirExpr* node = compiler_services_AddExpr(fn, kind, text, span);
             if (node == ((void *)0)) {
-                value_30 = -1;
-                goto value_31;
+                value_52 = -1;
+                goto value_53;
             }
-            const char ** value_32 = &(node->name);
-            uint8_t* value_33 = compiler_services_KeepName(name);
-            (*value_32) = (const char *)(value_33);
-            int32_t* value_34 = &(node->left);
-            (*value_34) = left;
-            int32_t* value_35 = &(node->right);
-            (*value_35) = right;
-            value_30 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
-        value_31: ;
+            const char ** value_54 = &(node->name);
+            uint8_t* value_55 = compiler_services_KeepName(name);
+            (*value_54) = (const char *)(value_55);
+            int32_t* value_56 = &(node->left);
+            (*value_56) = left;
+            int32_t* value_57 = &(node->right);
+            (*value_57) = right;
+            value_52 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
+        value_53: ;
         }
-        int32_t entry = value_30;
+        int32_t entry = value_52;
         if (entry < 0) {
-            Checker* value_36 = c;
-            ZirSourceSpan value_37 = value.span;
-            uint8_t* value_38 = compiler_check_types_CheckCString(StringLiteral("cannot allocate callback capture"));
-            zir_foreign_compiler_check_value__error(value_36, value_37, value_38, (uint8_t*)value.name);
+            Checker* value_58 = c;
+            ZirSourceSpan value_59 = value.span;
+            uint8_t* value_60 = compiler_check_types_CheckCString(StringLiteral("cannot allocate callback capture"));
+            zir_foreign_compiler_check_value__error(value_58, value_59, value_60, (uint8_t*)value.name);
             return;
         }
-        Slice value_39 = {(c->fn->exprs[entry]).op, 8};
-        compiler_ir_CopyText(value_39, StringLiteral("="));
+        Slice value_61 = {(c->fn->exprs[entry]).op, 8};
+        compiler_ir_CopyText(value_61, StringLiteral("="));
         if (tail >= 0) {
-            int32_t* value_40 = &((c->fn->exprs[tail]).next_sibling);
-            (*value_40) = entry;
+            int32_t* value_62 = &((c->fn->exprs[tail]).next_sibling);
+            (*value_62) = entry;
         } else {
             head = entry;
         }
@@ -3525,319 +3598,422 @@ compiler_check_value_contextual_owned_closure(Checker* c, int32_t index, uint8_t
     if ((int64_t)(body).length == 0LL) {
         body = StringLiteral("__unit: u8;");
     }
-    ZirModule* value_41 = c->module;
-    uint8_t* value_42 = compiler_services_KeepName(env_name);
-    ZirType* env = zir_foreign_compiler_check_value__ModuleAddType(value_41, value_42, value.span);
-    bool value_43 = env == ((void *)0);
-    bool value_44 = value_43;
-    if (!value_44) {
-        Slice value_45 = {env->body, 8192};
-        bool value_46 = compiler_ir_CopyText(value_45, body);
-        value_44 = !value_46;
+    ZirModule* value_63 = c->module;
+    uint8_t* value_64 = compiler_services_KeepName(env_name);
+    ZirType* env = zir_foreign_compiler_check_value__ModuleAddType(value_63, value_64, value.span);
+    bool value_65 = env == ((void *)0);
+    bool value_66 = value_65;
+    if (!value_66) {
+        Slice value_67 = {env->body, 8192};
+        bool value_68 = compiler_ir_CopyText(value_67, body);
+        value_66 = !value_68;
     }
-    if (value_44) {
-        Checker* value_47 = c;
-        ZirSourceSpan value_48 = value.span;
-        uint8_t* value_49 = compiler_check_types_CheckCString(StringLiteral("callback capture record is too large"));
-        zir_foreign_compiler_check_value__error(value_47, value_48, value_49, (uint8_t*)value.name);
+    if (value_66) {
+        Checker* value_69 = c;
+        ZirSourceSpan value_70 = value.span;
+        uint8_t* value_71 = compiler_check_types_CheckCString(StringLiteral("callback capture record is too large"));
+        zir_foreign_compiler_check_value__error(value_69, value_70, value_71, (uint8_t*)value.name);
         return;
     }
-    int32_t* value_50 = &(env->is_public);
-    (*value_50) = 0;
-    int32_t* value_51 = &(env->is_file_private);
-    (*value_51) = 1;
+    int32_t* value_72 = &(env->is_public);
+    (*value_72) = 0;
+    int32_t* value_73 = &(env->is_file_private);
+    (*value_73) = 1;
     compiler_services_LookupsChanged();
-    ZirFunction* value_52 = c->fn;
-    ZirExprKind value_53 = (ZirExprKind)((ZirExprKind)(12));
-    ZirSourceSpan value_54 = value.span;
-    int32_t value_55 = 0;
+    ZirFunction* value_74 = c->fn;
+    ZirExprKind value_75 = (ZirExprKind)((ZirExprKind)(12));
+    ZirSourceSpan value_76 = value.span;
+    int32_t value_77 = 0;
     {
-        ZirFunction* fn = value_52;
-        ZirExprKind kind = (ZirExprKind)(value_53);
+        ZirFunction* fn = value_74;
+        ZirExprKind kind = (ZirExprKind)(value_75);
         String text = env_name;
-        ZirSourceSpan span = value_54;
+        ZirSourceSpan span = value_76;
         String name = env_name;
         int32_t left = -1;
         int32_t right = -1;
         ZirExpr* node = compiler_services_AddExpr(fn, kind, text, span);
         if (node == ((void *)0)) {
-            value_55 = -1;
-            goto value_56;
+            value_77 = -1;
+            goto value_78;
         }
-        const char ** value_57 = &(node->name);
-        uint8_t* value_58 = compiler_services_KeepName(name);
-        (*value_57) = (const char *)(value_58);
-        int32_t* value_59 = &(node->left);
-        (*value_59) = left;
-        int32_t* value_60 = &(node->right);
-        (*value_60) = right;
-        value_55 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
-    value_56: ;
+        const char ** value_79 = &(node->name);
+        uint8_t* value_80 = compiler_services_KeepName(name);
+        (*value_79) = (const char *)(value_80);
+        int32_t* value_81 = &(node->left);
+        (*value_81) = left;
+        int32_t* value_82 = &(node->right);
+        (*value_82) = right;
+        value_77 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
+    value_78: ;
     }
-    int32_t environment = value_55;
+    int32_t environment = value_77;
     if (environment < 0) {
-        Checker* value_61 = c;
-        ZirSourceSpan value_62 = value.span;
-        uint8_t* value_63 = compiler_check_types_CheckCString(StringLiteral("cannot allocate callback environment"));
-        zir_foreign_compiler_check_value__error(value_61, value_62, value_63, (uint8_t*)value.name);
+        Checker* value_83 = c;
+        ZirSourceSpan value_84 = value.span;
+        uint8_t* value_85 = compiler_check_types_CheckCString(StringLiteral("cannot allocate callback environment"));
+        zir_foreign_compiler_check_value__error(value_83, value_84, value_85, (uint8_t*)value.name);
         return;
     }
-    int32_t* value_64 = &((c->fn->exprs[environment]).first_child);
-    (*value_64) = head;
-    const char ** value_65 = &((c->fn->exprs[environment]).type);
-    uint8_t* value_66 = compiler_services_KeepName(env_name);
-    (*value_65) = (const char *)(value_66);
-    String original_args = compiler_ir_CText(compiler_check_value_FunctionArgs(invoke));
-    String value_67 = StringView(NULL, 0);
-    if ((int64_t)(original_args).length > 0LL) {
-        value_67 = StringLiteral(", ");
-    } else {
-        value_67 = StringLiteral("");
+    int32_t* value_86 = &((c->fn->exprs[environment]).first_child);
+    (*value_86) = head;
+    const char ** value_87 = &((c->fn->exprs[environment]).type);
+    uint8_t* value_88 = compiler_services_KeepName(env_name);
+    (*value_87) = (const char *)(value_88);
+    if (scoped) {
+        int32_t count = invoke->expr_count;
+        {
+            int32_t range_first_106 = 0;
+            int32_t range_last_106 = (int32_t)((uint32_t)count - 1u);
+            int32_t i = range_first_106;
+            if (i <= range_last_106) for (;;) {
+                ZirExpr entry = invoke->exprs[i];
+                bool value_89 = ((ZirExprKind)(entry.kind)) != ((ZirExprKind)(8)) || entry.left < 0 || ((ZirExprKind)((invoke->exprs[entry.left]).kind)) != ((ZirExprKind)(1));
+                bool value_90 = value_89;
+                if (value_90 || !StringEqual(compiler_ir_CText((uint8_t*)(invoke->exprs[entry.left]).name), StringLiteral("__tsx_environment"))) {
+                    if (i == range_last_106) {
+                        break;
+                    }
+                    i = (int32_t)((uint32_t)i + 1u);
+                    continue;
+                }
+                ZirFunction* value_91 = invoke;
+                ZirExprKind value_92 = (ZirExprKind)((ZirExprKind)(8));
+                String value_93 = compiler_ir_CText((uint8_t*)entry.text);
+                String value_94 = value_93;
+                ZirSourceSpan value_95 = entry.span;
+                String value_96 = compiler_ir_CText((uint8_t*)entry.name);
+                int32_t value_97 = entry.left;
+                int32_t value_98 = 0;
+                {
+                    ZirFunction* fn = value_91;
+                    ZirExprKind kind = (ZirExprKind)(value_92);
+                    String text = value_94;
+                    ZirSourceSpan span = value_95;
+                    String name = value_96;
+                    int32_t left = value_97;
+                    int32_t right = -1;
+                    ZirExpr* node = compiler_services_AddExpr(fn, kind, text, span);
+                    if (node == ((void *)0)) {
+                        value_98 = -1;
+                        goto value_99;
+                    }
+                    const char ** value_100 = &(node->name);
+                    uint8_t* value_101 = compiler_services_KeepName(name);
+                    (*value_100) = (const char *)(value_101);
+                    int32_t* value_102 = &(node->left);
+                    (*value_102) = left;
+                    int32_t* value_103 = &(node->right);
+                    (*value_103) = right;
+                    value_98 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
+                value_99: ;
+                }
+                int32_t copied = value_98;
+                if (copied < 0) {
+                    Checker* value_104 = c;
+                    ZirSourceSpan value_105 = value.span;
+                    uint8_t* value_106 = compiler_check_types_CheckCString(StringLiteral("cannot allocate borrowed capture access"));
+                    zir_foreign_compiler_check_value__error(value_104, value_105, value_106, (uint8_t*)value.name);
+                    return;
+                }
+                ZirExprKind* value_107 = &((invoke->exprs[i]).kind);
+                (*value_107) = (ZirExprKind)(7);
+                const char ** value_108 = &((invoke->exprs[i]).name);
+                uint8_t* value_109 = compiler_check_types_CheckCString(StringLiteral(""));
+                (*value_108) = (const char *)(value_109);
+                int32_t* value_110 = &((invoke->exprs[i]).left);
+                (*value_110) = -1;
+                int32_t* value_111 = &((invoke->exprs[i]).right);
+                (*value_111) = copied;
+                Slice value_112 = {(invoke->exprs[i]).op, 8};
+                compiler_ir_CopyText(value_112, StringLiteral("*"));
+                if (i == range_last_106) {
+                    break;
+                }
+                i = (int32_t)((uint32_t)i + 1u);
+            }
+        }
     }
-    String hidden_args = compiler_check_value_closure_join(StringLiteral("__tsx_state: *u8"), value_67, original_args);
-    const char ** value_68 = &(invoke->args_text);
-    uint8_t* value_69 = compiler_services_KeepParameters(hidden_args);
-    (*value_68) = (const char *)(value_69);
-    const char ** value_70 = &(invoke->default_args_text);
-    (*value_70) = (const char *)(((void *)0));
-    Slice value_71 = {invoke->capture_environment, 128};
-    compiler_ir_CopyText(value_71, env_name);
-    ZirExprKind value_72 = (ZirExprKind)((ZirExprKind)(1));
-    String value_73 = StringLiteral("__tsx_state");
-    ZirSourceSpan value_74 = value.span;
-    String value_75 = StringLiteral("__tsx_state");
-    int32_t value_76 = 0;
+    String original_args = compiler_ir_CText(compiler_check_value_FunctionArgs(invoke));
+    String value_113 = StringView(NULL, 0);
+    if ((int64_t)(original_args).length > 0LL) {
+        value_113 = StringLiteral(", ");
+    } else {
+        value_113 = StringLiteral("");
+    }
+    String hidden_args = compiler_check_value_closure_join(StringLiteral("__tsx_state: *u8"), value_113, original_args);
+    const char ** value_114 = &(invoke->args_text);
+    uint8_t* value_115 = compiler_services_KeepParameters(hidden_args);
+    (*value_114) = (const char *)(value_115);
+    const char ** value_116 = &(invoke->default_args_text);
+    (*value_116) = (const char *)(((void *)0));
+    Slice value_117 = {invoke->capture_environment, 128};
+    compiler_ir_CopyText(value_117, env_name);
+    ZirExprKind value_118 = (ZirExprKind)((ZirExprKind)(1));
+    String value_119 = StringLiteral("__tsx_state");
+    ZirSourceSpan value_120 = value.span;
+    String value_121 = StringLiteral("__tsx_state");
+    int32_t value_122 = 0;
     {
         ZirFunction* fn = invoke;
-        ZirExprKind kind = (ZirExprKind)(value_72);
-        String text = value_73;
-        ZirSourceSpan span = value_74;
-        String name = value_75;
+        ZirExprKind kind = (ZirExprKind)(value_118);
+        String text = value_119;
+        ZirSourceSpan span = value_120;
+        String name = value_121;
         int32_t left = -1;
         int32_t right = -1;
         ZirExpr* node = compiler_services_AddExpr(fn, kind, text, span);
         if (node == ((void *)0)) {
-            value_76 = -1;
-            goto value_77;
+            value_122 = -1;
+            goto value_123;
         }
-        const char ** value_78 = &(node->name);
-        uint8_t* value_79 = compiler_services_KeepName(name);
-        (*value_78) = (const char *)(value_79);
-        int32_t* value_80 = &(node->left);
-        (*value_80) = left;
-        int32_t* value_81 = &(node->right);
-        (*value_81) = right;
-        value_76 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
-    value_77: ;
+        const char ** value_124 = &(node->name);
+        uint8_t* value_125 = compiler_services_KeepName(name);
+        (*value_124) = (const char *)(value_125);
+        int32_t* value_126 = &(node->left);
+        (*value_126) = left;
+        int32_t* value_127 = &(node->right);
+        (*value_127) = right;
+        value_122 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
+    value_123: ;
     }
-    int32_t state = value_76;
+    int32_t state = value_122;
     String pointer_type = compiler_check_value_closure_join(StringLiteral("*"), env_name, StringLiteral(""));
-    ZirFunction* value_82 = invoke;
-    ZirExprKind value_83 = (ZirExprKind)((ZirExprKind)(11));
-    String value_84 = compiler_check_value_closure_join(StringLiteral("cast("), pointer_type, StringLiteral(")(__tsx_state)"));
-    ZirSourceSpan value_85 = value.span;
-    int32_t value_86 = 0;
+    ZirFunction* value_128 = invoke;
+    ZirExprKind value_129 = (ZirExprKind)((ZirExprKind)(11));
+    String value_130 = compiler_check_value_closure_join(StringLiteral("cast("), pointer_type, StringLiteral(")(__tsx_state)"));
+    ZirSourceSpan value_131 = value.span;
+    int32_t value_132 = 0;
     {
-        ZirFunction* fn = value_82;
-        ZirExprKind kind = (ZirExprKind)(value_83);
-        String text = value_84;
-        ZirSourceSpan span = value_85;
+        ZirFunction* fn = value_128;
+        ZirExprKind kind = (ZirExprKind)(value_129);
+        String text = value_130;
+        ZirSourceSpan span = value_131;
         String name = pointer_type;
         int32_t left = -1;
         int32_t right = state;
         ZirExpr* node = compiler_services_AddExpr(fn, kind, text, span);
         if (node == ((void *)0)) {
-            value_86 = -1;
-            goto value_87;
+            value_132 = -1;
+            goto value_133;
         }
-        const char ** value_88 = &(node->name);
-        uint8_t* value_89 = compiler_services_KeepName(name);
-        (*value_88) = (const char *)(value_89);
-        int32_t* value_90 = &(node->left);
-        (*value_90) = left;
-        int32_t* value_91 = &(node->right);
-        (*value_91) = right;
-        value_86 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
-    value_87: ;
+        const char ** value_134 = &(node->name);
+        uint8_t* value_135 = compiler_services_KeepName(name);
+        (*value_134) = (const char *)(value_135);
+        int32_t* value_136 = &(node->left);
+        (*value_136) = left;
+        int32_t* value_137 = &(node->right);
+        (*value_137) = right;
+        value_132 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
+    value_133: ;
     }
-    int32_t cast_env = value_86;
+    int32_t cast_env = value_132;
     int32_t old_count = invoke->stmt_count;
-    ZirFunction* value_92 = invoke;
-    uint8_t* value_93 = compiler_services_Keep(StringLiteral("__tsx_environment"));
-    ZirStmt* declaration = zir_foreign_compiler_check_value__FunctionAddStmt(value_92, (ZirStmtKind)(3), value_93, value.span);
+    ZirFunction* value_138 = invoke;
+    uint8_t* value_139 = compiler_services_Keep(StringLiteral("__tsx_environment"));
+    ZirStmt* declaration = zir_foreign_compiler_check_value__FunctionAddStmt(value_138, (ZirStmtKind)(3), value_139, value.span);
     if (declaration == ((void *)0)) {
-        Checker* value_94 = c;
-        ZirSourceSpan value_95 = value.span;
-        uint8_t* value_96 = compiler_check_types_CheckCString(StringLiteral("cannot allocate callback environment binding"));
-        zir_foreign_compiler_check_value__error(value_94, value_95, value_96, (uint8_t*)value.name);
+        Checker* value_140 = c;
+        ZirSourceSpan value_141 = value.span;
+        uint8_t* value_142 = compiler_check_types_CheckCString(StringLiteral("cannot allocate callback environment binding"));
+        zir_foreign_compiler_check_value__error(value_140, value_141, value_142, (uint8_t*)value.name);
         return;
     }
-    ZirStmtNames* value_97 = &(declaration->names);
-    ZirStmtNames value_98 = {0};
-    uint8_t* value_99 = compiler_services_KeepName(StringLiteral("__tsx_environment"));
-    value_98.name = (const char *)(value_99);
-    (*value_97) = value_98;
-    const char ** value_100 = &(declaration->type);
-    uint8_t* value_101 = compiler_services_KeepName(pointer_type);
-    (*value_100) = (const char *)(value_101);
-    int32_t* value_102 = &(declaration->expr_root);
-    (*value_102) = cast_env;
+    ZirStmtNames* value_143 = &(declaration->names);
+    ZirStmtNames value_144 = {0};
+    uint8_t* value_145 = compiler_services_KeepName(StringLiteral("__tsx_environment"));
+    value_144.name = (const char *)(value_145);
+    (*value_143) = value_144;
+    const char ** value_146 = &(declaration->type);
+    uint8_t* value_147 = compiler_services_KeepName(pointer_type);
+    (*value_146) = (const char *)(value_147);
+    int32_t* value_148 = &(declaration->expr_root);
+    (*value_148) = cast_env;
     ZirStmt saved = declaration[0];
     zir_foreign_compiler_check_value__memmove((void*)(&(invoke->stmts[1])), (void*)(invoke->stmts), (size_t)(old_count) * sizeof(ZirStmt));
-    ZirStmt* value_103 = &(invoke->stmts[0]);
-    (*value_103) = saved;
+    ZirStmt* value_149 = &(invoke->stmts[0]);
+    (*value_149) = saved;
+    bool value_150 = scoped;
+    if (value_150 && zir_foreign_compiler_check_value__order_using_expressions(invoke) == 0) {
+        Checker* value_151 = c;
+        ZirSourceSpan value_152 = value.span;
+        uint8_t* value_153 = compiler_check_types_CheckCString(StringLiteral("cannot order borrowed callback captures"));
+        zir_foreign_compiler_check_value__error(value_151, value_152, value_153, (uint8_t*)value.name);
+        return;
+    }
     ZirFunction* release = (void *)0;
-    ZirModule* value_104 = c->module;
-    if (zir_foreign_compiler_check_value__ResolveFunction(value_104, compiler_services_KeepName(drop_name), &(owner), &(release)) != 1) {
-        Checker* value_105 = c;
-        ZirSourceSpan value_106 = value.span;
-        uint8_t* value_107 = compiler_check_types_CheckCString(StringLiteral("callback cleanup declaration is missing"));
-        zir_foreign_compiler_check_value__error(value_105, value_106, value_107, (uint8_t*)value.name);
+    ZirModule* value_154 = c->module;
+    if (zir_foreign_compiler_check_value__ResolveFunction(value_154, compiler_services_KeepName(drop_name), &(owner), &(release)) != 1) {
+        Checker* value_155 = c;
+        ZirSourceSpan value_156 = value.span;
+        uint8_t* value_157 = compiler_check_types_CheckCString(StringLiteral("callback cleanup declaration is missing"));
+        zir_foreign_compiler_check_value__error(value_155, value_156, value_157, (uint8_t*)value.name);
         return;
     }
-    ZirExprKind value_108 = (ZirExprKind)((ZirExprKind)(1));
-    String value_109 = StringLiteral("__tsx_state");
-    ZirSourceSpan value_110 = value.span;
-    String value_111 = StringLiteral("__tsx_state");
-    int32_t value_112 = 0;
+    ZirFunction* value_158 = c->fn;
+    ZirExprKind value_159 = (ZirExprKind)((ZirExprKind)(1));
+    ZirSourceSpan value_160 = value.span;
+    int32_t value_161 = 0;
     {
-        ZirFunction* fn = release;
-        ZirExprKind kind = (ZirExprKind)(value_108);
-        String text = value_109;
-        ZirSourceSpan span = value_110;
-        String name = value_111;
-        int32_t left = -1;
-        int32_t right = -1;
-        ZirExpr* node = compiler_services_AddExpr(fn, kind, text, span);
-        if (node == ((void *)0)) {
-            value_112 = -1;
-            goto value_113;
-        }
-        const char ** value_114 = &(node->name);
-        uint8_t* value_115 = compiler_services_KeepName(name);
-        (*value_114) = (const char *)(value_115);
-        int32_t* value_116 = &(node->left);
-        (*value_116) = left;
-        int32_t* value_117 = &(node->right);
-        (*value_117) = right;
-        value_112 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
-    value_113: ;
-    }
-    int32_t release_state = value_112;
-    ZirExprKind value_118 = (ZirExprKind)((ZirExprKind)(19));
-    ZirSourceSpan value_119 = value.span;
-    int32_t value_120 = 0;
-    {
-        ZirFunction* fn = release;
-        ZirExprKind kind = (ZirExprKind)(value_118);
-        String text = drop_name;
-        ZirSourceSpan span = value_119;
-        String name = env_name;
-        int32_t left = release_state;
-        int32_t right = -1;
-        ZirExpr* node = compiler_services_AddExpr(fn, kind, text, span);
-        if (node == ((void *)0)) {
-            value_120 = -1;
-            goto value_121;
-        }
-        const char ** value_122 = &(node->name);
-        uint8_t* value_123 = compiler_services_KeepName(name);
-        (*value_122) = (const char *)(value_123);
-        int32_t* value_124 = &(node->left);
-        (*value_124) = left;
-        int32_t* value_125 = &(node->right);
-        (*value_125) = right;
-        value_120 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
-    value_121: ;
-    }
-    int32_t cleanup = value_120;
-    ZirFunction* value_126 = release;
-    uint8_t* value_127 = compiler_services_Keep(drop_name);
-    ZirStmt* st = zir_foreign_compiler_check_value__FunctionAddStmt(value_126, (ZirStmtKind)(5), value_127, value.span);
-    if (st == ((void *)0)) {
-        Checker* value_128 = c;
-        ZirSourceSpan value_129 = value.span;
-        uint8_t* value_130 = compiler_check_types_CheckCString(StringLiteral("cannot allocate callback cleanup"));
-        zir_foreign_compiler_check_value__error(value_128, value_129, value_130, (uint8_t*)value.name);
-        return;
-    }
-    int32_t* value_131 = &(st->expr_root);
-    (*value_131) = cleanup;
-    ZirFunction* value_132 = c->fn;
-    ZirExprKind value_133 = (ZirExprKind)((ZirExprKind)(1));
-    ZirSourceSpan value_134 = value.span;
-    int32_t value_135 = 0;
-    {
-        ZirFunction* fn = value_132;
-        ZirExprKind kind = (ZirExprKind)(value_133);
+        ZirFunction* fn = value_158;
+        ZirExprKind kind = (ZirExprKind)(value_159);
         String text = callback_name;
-        ZirSourceSpan span = value_134;
+        ZirSourceSpan span = value_160;
         String name = callback_name;
         int32_t left = -1;
         int32_t right = -1;
         ZirExpr* node = compiler_services_AddExpr(fn, kind, text, span);
         if (node == ((void *)0)) {
-            value_135 = -1;
-            goto value_136;
+            value_161 = -1;
+            goto value_162;
         }
-        const char ** value_137 = &(node->name);
-        uint8_t* value_138 = compiler_services_KeepName(name);
-        (*value_137) = (const char *)(value_138);
-        int32_t* value_139 = &(node->left);
-        (*value_139) = left;
-        int32_t* value_140 = &(node->right);
-        (*value_140) = right;
-        value_135 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
-    value_136: ;
+        const char ** value_163 = &(node->name);
+        uint8_t* value_164 = compiler_services_KeepName(name);
+        (*value_163) = (const char *)(value_164);
+        int32_t* value_165 = &(node->left);
+        (*value_165) = left;
+        int32_t* value_166 = &(node->right);
+        (*value_166) = right;
+        value_161 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
+    value_162: ;
     }
-    int32_t function_value = value_135;
-    ZirFunction* value_141 = c->fn;
-    ZirExprKind value_142 = (ZirExprKind)((ZirExprKind)(1));
-    ZirSourceSpan value_143 = value.span;
-    int32_t value_144 = 0;
+    int32_t function_value = value_161;
+    private_check_contextual_slot(c, function_value, &(invoke_type[0]));
+    if (scoped) {
+        ZirExprKind* value_167 = &((c->fn->exprs[index]).kind);
+        (*value_167) = (ZirExprKind)(22);
+        const char ** value_168 = &((c->fn->exprs[index]).name);
+        uint8_t* value_169 = compiler_services_KeepName(env_name);
+        (*value_168) = (const char *)(value_169);
+        const char ** value_170 = &((c->fn->exprs[index]).type);
+        (*value_170) = (const char *)(expected);
+        int32_t* value_171 = &((c->fn->exprs[index]).left);
+        (*value_171) = environment;
+        int32_t* value_172 = &((c->fn->exprs[index]).right);
+        (*value_172) = function_value;
+        int32_t* value_173 = &((c->fn->exprs[index]).third);
+        (*value_173) = -1;
+        int32_t* value_174 = &((c->fn->exprs[index]).first_child);
+        (*value_174) = -1;
+        int32_t* value_175 = &(c->aggregate_rewritten);
+        (*value_175) = 1;
+        return;
+    }
+    ZirExprKind value_176 = (ZirExprKind)((ZirExprKind)(1));
+    String value_177 = StringLiteral("__tsx_state");
+    ZirSourceSpan value_178 = value.span;
+    String value_179 = StringLiteral("__tsx_state");
+    int32_t value_180 = 0;
     {
-        ZirFunction* fn = value_141;
-        ZirExprKind kind = (ZirExprKind)(value_142);
+        ZirFunction* fn = release;
+        ZirExprKind kind = (ZirExprKind)(value_176);
+        String text = value_177;
+        ZirSourceSpan span = value_178;
+        String name = value_179;
+        int32_t left = -1;
+        int32_t right = -1;
+        ZirExpr* node = compiler_services_AddExpr(fn, kind, text, span);
+        if (node == ((void *)0)) {
+            value_180 = -1;
+            goto value_181;
+        }
+        const char ** value_182 = &(node->name);
+        uint8_t* value_183 = compiler_services_KeepName(name);
+        (*value_182) = (const char *)(value_183);
+        int32_t* value_184 = &(node->left);
+        (*value_184) = left;
+        int32_t* value_185 = &(node->right);
+        (*value_185) = right;
+        value_180 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
+    value_181: ;
+    }
+    int32_t release_state = value_180;
+    ZirExprKind value_186 = (ZirExprKind)((ZirExprKind)(19));
+    ZirSourceSpan value_187 = value.span;
+    int32_t value_188 = 0;
+    {
+        ZirFunction* fn = release;
+        ZirExprKind kind = (ZirExprKind)(value_186);
         String text = drop_name;
-        ZirSourceSpan span = value_143;
+        ZirSourceSpan span = value_187;
+        String name = env_name;
+        int32_t left = release_state;
+        int32_t right = -1;
+        ZirExpr* node = compiler_services_AddExpr(fn, kind, text, span);
+        if (node == ((void *)0)) {
+            value_188 = -1;
+            goto value_189;
+        }
+        const char ** value_190 = &(node->name);
+        uint8_t* value_191 = compiler_services_KeepName(name);
+        (*value_190) = (const char *)(value_191);
+        int32_t* value_192 = &(node->left);
+        (*value_192) = left;
+        int32_t* value_193 = &(node->right);
+        (*value_193) = right;
+        value_188 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
+    value_189: ;
+    }
+    int32_t cleanup = value_188;
+    ZirFunction* value_194 = release;
+    uint8_t* value_195 = compiler_services_Keep(drop_name);
+    ZirStmt* st = zir_foreign_compiler_check_value__FunctionAddStmt(value_194, (ZirStmtKind)(5), value_195, value.span);
+    if (st == ((void *)0)) {
+        Checker* value_196 = c;
+        ZirSourceSpan value_197 = value.span;
+        uint8_t* value_198 = compiler_check_types_CheckCString(StringLiteral("cannot allocate callback cleanup"));
+        zir_foreign_compiler_check_value__error(value_196, value_197, value_198, (uint8_t*)value.name);
+        return;
+    }
+    int32_t* value_199 = &(st->expr_root);
+    (*value_199) = cleanup;
+    ZirFunction* value_200 = c->fn;
+    ZirExprKind value_201 = (ZirExprKind)((ZirExprKind)(1));
+    ZirSourceSpan value_202 = value.span;
+    int32_t value_203 = 0;
+    {
+        ZirFunction* fn = value_200;
+        ZirExprKind kind = (ZirExprKind)(value_201);
+        String text = drop_name;
+        ZirSourceSpan span = value_202;
         String name = drop_name;
         int32_t left = -1;
         int32_t right = -1;
         ZirExpr* node = compiler_services_AddExpr(fn, kind, text, span);
         if (node == ((void *)0)) {
-            value_144 = -1;
-            goto value_145;
+            value_203 = -1;
+            goto value_204;
         }
-        const char ** value_146 = &(node->name);
-        uint8_t* value_147 = compiler_services_KeepName(name);
-        (*value_146) = (const char *)(value_147);
-        int32_t* value_148 = &(node->left);
-        (*value_148) = left;
-        int32_t* value_149 = &(node->right);
-        (*value_149) = right;
-        value_144 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
-    value_145: ;
+        const char ** value_205 = &(node->name);
+        uint8_t* value_206 = compiler_services_KeepName(name);
+        (*value_205) = (const char *)(value_206);
+        int32_t* value_207 = &(node->left);
+        (*value_207) = left;
+        int32_t* value_208 = &(node->right);
+        (*value_208) = right;
+        value_203 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
+    value_204: ;
     }
-    int32_t release_value = value_144;
+    int32_t release_value = value_203;
     private_check_contextual_slot(c, function_value, &(invoke_type[0]));
     private_check_contextual_slot(c, release_value, &(drop_type[0]));
-    ZirExprKind* value_150 = &((c->fn->exprs[index]).kind);
-    (*value_150) = (ZirExprKind)(18);
-    const char ** value_151 = &((c->fn->exprs[index]).name);
-    uint8_t* value_152 = compiler_services_KeepName(env_name);
-    (*value_151) = (const char *)(value_152);
-    const char ** value_153 = &((c->fn->exprs[index]).type);
-    (*value_153) = (const char *)(expected);
-    int32_t* value_154 = &((c->fn->exprs[index]).left);
-    (*value_154) = environment;
-    int32_t* value_155 = &((c->fn->exprs[index]).right);
-    (*value_155) = function_value;
-    int32_t* value_156 = &((c->fn->exprs[index]).third);
-    (*value_156) = release_value;
-    int32_t* value_157 = &((c->fn->exprs[index]).first_child);
-    (*value_157) = -1;
-    int32_t* value_158 = &(c->aggregate_rewritten);
-    (*value_158) = 1;
+    ZirExprKind* value_209 = &((c->fn->exprs[index]).kind);
+    (*value_209) = (ZirExprKind)(18);
+    const char ** value_210 = &((c->fn->exprs[index]).name);
+    uint8_t* value_211 = compiler_services_KeepName(env_name);
+    (*value_210) = (const char *)(value_211);
+    const char ** value_212 = &((c->fn->exprs[index]).type);
+    (*value_212) = (const char *)(expected);
+    int32_t* value_213 = &((c->fn->exprs[index]).left);
+    (*value_213) = environment;
+    int32_t* value_214 = &((c->fn->exprs[index]).right);
+    (*value_214) = function_value;
+    int32_t* value_215 = &((c->fn->exprs[index]).third);
+    (*value_215) = release_value;
+    int32_t* value_216 = &((c->fn->exprs[index]).first_child);
+    (*value_216) = -1;
+    int32_t* value_217 = &(c->aggregate_rewritten);
+    (*value_217) = 1;
 }
 
 ZirType*
@@ -3850,7 +4026,7 @@ private_check_owned_call_slot(Checker* c, int32_t index, uint8_t* operand_type, 
     if (written != ((void *)0) && written[0] != 0) {
         owned = zir_foreign_compiler_check_value__FindType(c->module, written, &(owner));
     }
-    if (owned == ((void *)0) || owned->is_owned_callable == 0) {
+    if (owned == ((void *)0) || (owned->is_owned_callable == 0 && owned->is_scoped_callable == 0)) {
         if (call.name[0] != 0) {
             written = private_check_lookup(c, (uint8_t*)call.name);
         } else if (call.left >= 0) {
@@ -3860,7 +4036,7 @@ private_check_owned_call_slot(Checker* c, int32_t index, uint8_t* operand_type, 
         }
         owned = zir_foreign_compiler_check_value__FindType(c->module, written, &(owner));
     }
-    if (owned == ((void *)0) || owned->is_owned_callable == 0) {
+    if (owned == ((void *)0) || (owned->is_owned_callable == 0 && owned->is_scoped_callable == 0)) {
         return (void *)0;
     }
     written = zir_foreign_compiler_check_value__KeepName(written);
@@ -3929,7 +4105,18 @@ private_check_contextual_slot(Checker* c, int32_t index, uint8_t* expected)
 {
     ZirModule* slot_owner = (void *)0;
     ZirType* slot = zir_foreign_compiler_check_value__FindType(c->module, expected, &(slot_owner));
-    if (index >= 0 && slot != ((void *)0) && slot->is_owned_callable != 0) {
+    if (index >= 0 && ((ZirExprKind)((c->fn->exprs[index]).kind)) == ((ZirExprKind)(21))) {
+        int32_t value_0 = 0;
+        if (slot != ((void *)0) && (slot->is_owned_callable != 0 || slot->is_scoped_callable != 0)) {
+            value_0 = 1;
+        }
+        int32_t callable = value_0;
+        if (zir_foreign_compiler_check_value__select_children(c->module, c->fn, index, callable) != 0) {
+            int32_t* value_1 = &(c->aggregate_rewritten);
+            (*value_1) = 1;
+        }
+    }
+    if (index >= 0 && slot != ((void *)0) && (slot->is_owned_callable != 0 || slot->is_scoped_callable != 0)) {
         compiler_check_value_contextual_owned_closure(c, index, expected, slot, slot_owner);
         return;
     }
@@ -3942,57 +4129,57 @@ private_check_contextual_slot(Checker* c, int32_t index, uint8_t* expected)
         private_check_contextual_slot(c, value->third, expected);
         return;
     }
-    bool value_0 = (int32_t)(((ZirExprKind)(value->kind))) != 1;
-    bool value_1 = value_0;
-    if (!value_1) {
-        bool value_2 = !(value->is_this != 0);
-        bool value_3 = value_2;
-        if (value_3) {
-            uint8_t* value_4 = private_check_lookup(c, (uint8_t*)value->name);
-            value_3 = (value_4[0] != 0);
+    bool value_2 = (int32_t)(((ZirExprKind)(value->kind))) != 1;
+    bool value_3 = value_2;
+    if (!value_3) {
+        bool value_4 = !(value->is_this != 0);
+        bool value_5 = value_4;
+        if (value_5) {
+            uint8_t* value_6 = private_check_lookup(c, (uint8_t*)value->name);
+            value_5 = (value_6[0] != 0);
         }
-        value_1 = value_3;
+        value_3 = value_5;
     }
-    if (value_1) {
+    if (value_3) {
         return;
     }
     ZirModule* owner = (void *)0;
     ZirFunction* declaration = (void *)0;
     int32_t resolved = zir_foreign_compiler_check_value__ResolveFunction(c->module, (uint8_t*)value->name, &(owner), &(declaration));
-    int32_t value_5 = 0;
+    int32_t value_7 = 0;
     if (resolved == 1 && !(declaration->is_extern != 0)) {
-        value_5 = 1;
+        value_7 = 1;
     }
-    int32_t matches = value_5;
+    int32_t matches = value_7;
     if (matches != 0) {
         uint8_t* actual_scalar = zir_foreign_compiler_check_value__ScalarType((uint8_t*)(&(declaration->return_type)));
         uint8_t* wanted_scalar = zir_foreign_compiler_check_value__ScalarType((uint8_t*)(&(slot->procedure_return_type)));
         if (actual_scalar[0] != 0 || wanted_scalar[0] != 0) {
-            bool value_6 = zir_foreign_compiler_check_value__strcmp(actual_scalar, wanted_scalar) != 0;
-            int32_t value_7 = 0;
-            if (!value_6) {
-                value_7 = 1;
+            bool value_8 = zir_foreign_compiler_check_value__strcmp(actual_scalar, wanted_scalar) != 0;
+            int32_t value_9 = 0;
+            if (!value_8) {
+                value_9 = 1;
             }
-            matches = value_7;
+            matches = value_9;
         } else {
             matches = private_check_callback_type_equal(owner, (uint8_t*)(&(declaration->return_type)), slot_owner, (uint8_t*)(&(slot->procedure_return_type)), 0);
         }
     }
-    uint8_t* value_8 = (void *)0;
+    uint8_t* value_10 = (void *)0;
     if (matches != 0) {
-        uint8_t* value_9 = compiler_check_value_FunctionArgs(declaration);
-        value_8 = value_9;
+        uint8_t* value_11 = compiler_check_value_FunctionArgs(declaration);
+        value_10 = value_11;
     } else {
-        uint8_t* value_10 = compiler_check_types_CheckCString(StringLiteral(""));
-        value_8 = value_10;
+        uint8_t* value_12 = compiler_check_types_CheckCString(StringLiteral(""));
+        value_10 = value_12;
     }
-    ZirParameters* actual = zir_foreign_compiler_check_value__ParametersOf(value_8);
+    ZirParameters* actual = zir_foreign_compiler_check_value__ParametersOf(value_10);
     ZirParameters* wanted = zir_foreign_compiler_check_value__ParametersOf((uint8_t*)(&(slot->body)));
-    int32_t value_11 = 0;
+    int32_t value_13 = 0;
     if (actual->count == wanted->count) {
-        value_11 = 1;
+        value_13 = 1;
     }
-    matches = (int32_t)((uint32_t)matches & (uint32_t)value_11);
+    matches = (int32_t)((uint32_t)matches & (uint32_t)value_13);
     {
         int32_t i = 0;
         while (true) {
@@ -4010,12 +4197,12 @@ private_check_contextual_slot(Checker* c, int32_t index, uint8_t* expected)
                 uint8_t* actual_scalar = zir_foreign_compiler_check_value__ScalarType(actual_type);
                 uint8_t* wanted_scalar = zir_foreign_compiler_check_value__ScalarType(wanted_type);
                 if (actual_scalar[0] != 0 || wanted_scalar[0] != 0) {
-                    bool value_12 = zir_foreign_compiler_check_value__strcmp(actual_scalar, wanted_scalar) != 0;
-                    int32_t value_13 = 0;
-                    if (!value_12) {
-                        value_13 = 1;
+                    bool value_14 = zir_foreign_compiler_check_value__strcmp(actual_scalar, wanted_scalar) != 0;
+                    int32_t value_15 = 0;
+                    if (!value_14) {
+                        value_15 = 1;
                     }
-                    matches = value_13;
+                    matches = value_15;
                 } else {
                     matches = private_check_callback_type_equal(owner, actual_type, slot_owner, wanted_type, 0);
                 }
@@ -4026,20 +4213,20 @@ private_check_contextual_slot(Checker* c, int32_t index, uint8_t* expected)
         zir_loop_break_1: ;
     }
     if (!(matches != 0)) {
-        ZirSourceSpan value_14 = value->span;
-        uint8_t* value_15 = compiler_check_types_CheckCString(StringLiteral("check.slot_signature"));
-        uint8_t* value_16 = compiler_check_types_CheckCString(StringLiteral("function does not match slot signature %s: %s"));
-        zir_foreign_compiler_check_value__Diagnostic(value_14, value_15, value_16, expected, (uint8_t*)value->name);
+        ZirSourceSpan value_16 = value->span;
+        uint8_t* value_17 = compiler_check_types_CheckCString(StringLiteral("check.slot_signature"));
+        uint8_t* value_18 = compiler_check_types_CheckCString(StringLiteral("function does not match slot signature %s: %s"));
+        zir_foreign_compiler_check_value__Diagnostic(value_16, value_17, value_18, expected, (uint8_t*)value->name);
         compiler_check_types_CheckPost0(&(c->errors));
-        int32_t* value_17 = &(c->failed);
-        (*value_17) = 1;
+        int32_t* value_19 = &(c->failed);
+        (*value_19) = 1;
         return;
     }
-    int32_t* value_18 = &(value->is_function_value);
-    (*value_18) = 1;
-    const char ** value_19 = &(value->type);
-    uint8_t* value_20 = zir_foreign_compiler_check_value__KeepName(expected);
-    (*value_19) = (const char *)(value_20);
+    int32_t* value_20 = &(value->is_function_value);
+    (*value_20) = 1;
+    const char ** value_21 = &(value->type);
+    uint8_t* value_22 = zir_foreign_compiler_check_value__KeepName(expected);
+    (*value_21) = (const char *)(value_22);
 }
 
 int32_t

@@ -1726,7 +1726,7 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
         }
         zir_emit_declare(e, &(callable[0]), (uint8_t*)expr->slot_type, source_buf);
         ZirType* slot = zir_foreign_compiler_c_emit_call__CFindType(e->module, (uint8_t*)expr->slot_type, (void *)0);
-        if (slot != ((void *)0) && slot->is_owned_callable != 0) {
+        if (slot != ((void *)0) && (slot->is_owned_callable != 0 || slot->is_scoped_callable != 0)) {
             uint8_t state[128] = {0};
             uint8_t invoke[128] = {0};
             String value_7 = StringLiteral("state");

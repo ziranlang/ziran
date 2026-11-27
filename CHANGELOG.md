@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Add checked stack-borrowed `Scoped<Signature>` native callbacks and defer JSX
+  children according to their declared props type. Keep aggregate child values,
+  nested container ordering and authored source locations through saved IR.
+  TS interfaces require all declared fields; native pointer extensions borrow
+  addresses with `&place` and dereference with `*pointer`.
+
 - Keep owned callable ABIs tied to their checked signature declarations across
   import aliases and linked builds. Preserve nominal generic arguments and
   lexical helper dependencies in saved and entry-linked IR. Native TSX module

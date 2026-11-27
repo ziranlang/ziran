@@ -28,6 +28,7 @@ WithDefaults :: (value: s32, extra: s32 = DefaultValue(), location: Source_Code_
     return value + extra
 }
 Snapshot :: () -> Model { return .{value = 42, id = 18446744073709551615} }
+BorrowModel :: (model: *Model) { model.value += 1 }
 Wrapped :: () -> Box(float64) { return .{value = 6} }
 number_calls: s32;
 NumberCalls :: () -> s32 { return number_calls }
@@ -41,6 +42,7 @@ Increment :: (id: u64) -> float64 { return ifx id == 18446744073709551615 then 1
 Action :: #type (value: float64) -> float64;
 Invoke :: (action: Action, value: float64) -> float64 { return action(value) }
 InvokeOwned :: (action: Owned(Action), value: float64) -> float64 { return action(value) }
+InvokeScoped :: (action: Scoped(Action), value: float64) -> float64 { return action(value) }
 Parts :: (parts: [5]string) -> s32 {
     if parts.count != 5 { return 1 }
     if parts[0] != "Count: " || parts[1] != "7" || parts[2] != " " || parts[3] != "tail" || parts[4] != "!" { return 2 }
@@ -72,6 +74,7 @@ export function Read(props: WidgetProps<DomainTypes.Model>): number { return pro
 TS
 
 TSX_FACADE :: "using Export :: #import \"generic_widget\";\n"
+TSX_SCOPE :: "import { Scoped } from \"std/callable\";\nexport interface ScopeProps { children: Scoped<() => void>; }\nexport function Scope(props: ScopeProps): void { props.children(); }\n"
 TSX_GENERIC_SUPPORT :: "Step :: (value: s32) -> s32 { return value }\n"
 TSX_GENERIC_WIDGET :: #string ZI
 Support :: #import "generic_support";
@@ -88,12 +91,24 @@ import * as Domain from "domain";
 import * as OtherAlias from "domain";
 import * as Facade from "generic_facade";
 import * as GenericProps from "generic_props";
+import { Scope } from "scope_component";
 import { Vec } from "std/vec";
-import { Owned } from "std/callable";
+import { Owned, Scoped } from "std/callable";
 import { Text, TextCopy } from "std/vec";
 interface Props { value: number; other: number; }
 interface PartsProps { children: [string, string, string, string, string]; }
 interface EmptyProps {}
+interface DeferredProps { children: Scoped<() => void>; }
+interface MarkerProps { value: s32; }
+let deferredTrace: s32 = s32(0);
+function Deferred(props: DeferredProps): void {
+    deferredTrace = deferredTrace * s32(10) + s32(1);
+    props.children();
+    deferredTrace = deferredTrace * s32(10) + s32(3);
+}
+function Marker(props: MarkerProps): void {
+    deferredTrace = deferredTrace * s32(10) + props.value;
+}
 type Transform = (value: number) => number;
 interface ActionProps { action: (value: number) => number; value: number; }
 interface OwnedActionProps { action: Owned<Domain.Action>; value: number; }
@@ -120,6 +135,10 @@ export function main(): s32 {
     const genericFrame: GenericFrame = {slot: s32(40)};
     if (Facade.Draw(genericFrame, {value: s32(1)}) !== s32(42)) { return s32(25); }
     const snapshot: Domain.Model = Domain.Snapshot();
+    let borrowedModel: Domain.Model = snapshot;
+    const modelPointer: *Domain.Model = &borrowedModel;
+    Domain.BorrowModel(modelPointer);
+    if ((*modelPointer).value !== snapshot.value + 1 || borrowedModel.value !== snapshot.value + 1) { return s32(32); }
     if (Domain.WithDefaults(s32(2)) !== s32(9) || Domain.WithDefaults(s32(2), s32(3)) !== s32(5)) { return s32(26); }
     if (GenericProps.Read({model: snapshot, props: snapshot}) !== snapshot.value * 2) { return s32(27); }
     let genericBox: Domain.Box<number> = Domain.Wrapped();
@@ -142,6 +161,9 @@ export function main(): s32 {
     }
     if (total !== 10) { return s32(8); }
     const values: [number, number, number, number] = [1, 2, 3, 4];
+    const view: number[] = values[:];
+    const middle: number[] = values[s32(1):s32(3)];
+    if (view.count !== s64(4) || middle.count !== s64(2) || middle[s32(0)] !== 2) { return s32(33); }
     total = 0;
     for (const value of values) {
         if (value === 2) { continue; }
@@ -176,6 +198,11 @@ export function main(): s32 {
         return inner(value);
     };
     if (Domain.Invoke(half, 10) !== 5 || nested(10) !== 5) { return s32(9); }
+    const borrowedLabel: string = "borrowed";
+    const scopedText: Text = TextCopy("state");
+    const scoped: Scoped<Domain.Action> = (value: number): number => value + number(borrowedLabel.count);
+    const nestedScoped: Scoped<Domain.Action> = (value: number): number => scoped(value) + number(TextView(scopedText).count);
+    if (Domain.InvokeScoped(nestedScoped, 1) !== 14 || TextView(scopedText).count !== s64(5)) { return s32(34); }
     if ((<Apply action={(value: number): number => { return value + 1; }} value={4}/>) !== 5) { return s32(10); }
     const offset: Owned<Domain.Action> = Offset(3);
     const record: Domain.Model = Domain.Snapshot();
@@ -193,7 +220,14 @@ export function main(): s32 {
     if (Domain.InvokeOwned(nestedOwned, 1) !== snapshot.value + 1) { return s32(24); }
     if ((<Tail>
     </Tail>) !== "tail") { return s32(11); }
-    if ((<Parts>Count: {"7"} <Tail/>!</Parts>) !== s32(0)) { return s32(7); }
+    const partLabel: string = "7";
+    if ((<Parts>Count: {partLabel} <Tail/>!</Parts>) !== s32(0)) { return s32(7); }
+    const marker: MarkerProps = {value: s32(2)};
+    <Scope><Deferred>
+        <Marker value={marker.value}/>
+        <Deferred><Marker value={s32(4)}/></Deferred>
+    </Deferred></Scope>;
+    if (deferredTrace !== s32(121433)) { return s32(31); }
     Domain.Report();
     return s32(Divide(value) - 21);
 }
@@ -292,6 +326,7 @@ TsxProject :: (test: *NativeTest) -> bool {
         !NativeWrite(test, CheckPath(project, "src/generic_widget.zi"), TSX_GENERIC_WIDGET) ||
         !NativeWrite(test, CheckPath(project, "src/generic_support.zi"), TSX_GENERIC_SUPPORT) ||
         !NativeWrite(test, CheckPath(project, "src/generic_props.ts"), TSX_GENERIC_PROPS) ||
+        !NativeWrite(test, CheckPath(project, "src/scope_component.tsx"), TSX_SCOPE) ||
         !NativeWrite(test, CheckPath(project, "src/logic.ts"), logic) ||
         !NativeWrite(test, CheckPath(project, "src/label.tsx"), "export interface Props { value: number; } export function Label(props: Props): number { return props.value; }\n") { return false }
     lock := string.["lock", "--offline"]; unused PackageCommand(test, project, lock[:])
@@ -334,6 +369,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         !NativeWrite(*test, CheckPath(root, "generic_widget.zi"), TSX_GENERIC_WIDGET) ||
         !NativeWrite(*test, CheckPath(root, "generic_support.zi"), TSX_GENERIC_SUPPORT) ||
         !NativeWrite(*test, CheckPath(root, "generic_props.ts"), TSX_GENERIC_PROPS) ||
+        !NativeWrite(*test, CheckPath(root, "scope_component.tsx"), TSX_SCOPE) ||
         !NativeWrite(*test, CheckPath(root, "logic.ts"), TSX_LOGIC) { return 1 }
     warm := string.[test.ziran, "check", "--root", root, source]
     unused NativeRun(*test, warm[:])
@@ -356,14 +392,24 @@ main :: (argc: s32, argv: **u8) -> s32 {
         !TsxReject(*test, root, "visibility", "import { HalfImpl } from \"logic\"; export function main(): s32 { return s32(HalfImpl(0)); }", "unresolved function:") ||
         !TsxReject(*test, root, "capture", "type Action = () => number; export function main(): s32 { const value = 1; const action: Action = (): number => value; return s32(action()); }", "requires an Owned(Signature) context") ||
         !TsxReject(*test, root, "capture_view", "import { Owned } from \"std/callable\"; type Action = () => number; export function main(): s32 { const text: string = \"borrowed\"; const action: Owned<Action> = (): number => number(text.count); return s32(0); }", "callback capture must be a scalar, enum, or owned value without borrowed fields") ||
+        !TsxReject(*test, root, "scoped_escape", "import { Scoped } from \"std/callable\"; type Action = () => number; export function Leak(): Scoped<Action> { const value = 1; const action: Scoped<Action> = (): number => value; return action; }", "Scoped callable cannot be returned or retained") ||
         !TsxReject(*test, root, "capture_record_view", "import { Owned } from \"std/callable\"; interface Borrowed { text: string; } type Action = () => number; export function main(): s32 { const record: Borrowed = {text: \"borrowed\"}; const action: Owned<Action> = (): number => number(record.text.count); return s32(0); }", "callback capture must be a scalar, enum, or owned value without borrowed fields") ||
         !TsxReject(*test, root, "capture_escape", "import { Owned } from \"std/callable\"; import { Text, TextCopy } from \"std/vec\"; type Action = () => string; export function main(): s32 { const text: Text = TextCopy(\"owned\"); const action: Owned<Action> = (): string => TextView(text); return s32(0); }", "returned text view borrows local or temporary storage") ||
         !TsxReject(*test, root, "capture_write", "import { Owned } from \"std/callable\"; type Action = () => number; export function main(): s32 { const value = 1; const action: Owned<Action> = (): number => { value = 2; return value; }; return s32(0); }", "callback captures are immutable snapshots") ||
         !TsxReject(*test, root, "capture_move", "import { Owned } from \"std/callable\"; import { Text, TextCopy } from \"std/vec\"; type Action = () => number; export function main(): s32 { const text: Text = TextCopy(\"owned\"); const action: Owned<Action> = (): number => number(TextView(text).count); return s32(TextView(text).count); }", "after moving") ||
         !TsxReject(*test, root, "callback", "type Action = (value: number) => number; export function main(): s32 { const action: Action = (value: boolean): number => 1; return s32(0); }", "type") ||
         !TsxReject(*test, root, "property", "interface Props { value: number; } function Item(props: Props): number { return props.value; } export function main(): s32 { return s32(<Item value={true}/>); }", "type") ||
+        !TsxReject(*test, root, "missing_property", "interface Props { value: number; } function Item(props: Props): number { return props.value; } export function main(): s32 { return s32(<Item/>); }", "missing required initializer field") ||
+        !TsxReject(*test, root, "missing_generic_field", "interface Box<T> { value: T; } export function main(): s32 { const box: Box<number> = {}; return s32(box.value); }", "missing required initializer field") ||
         !TsxReject(*test, root, "local_view", "import { Text, TextCopy } from \"std/vec\"; export function Leak(): string { const owned: Text = TextCopy(\"temporary\"); return TextView(owned); }", "returned text view borrows local or temporary storage") ||
         !TsxReject(*test, root, "closing", "interface Props { children: string[]; } function Item(props: Props): s32 { return s32(0); } export function main(): s32 { return <Item>text</Other>; }", "closing component does not match") { return 1 }
+    foreign_source := CheckPath(root, "foreign_scoped.zi")
+    if !NativeWrite(*test, foreign_source, "using C :: #import \"std/callable\";\nAction :: #type () -> float64;\nlib :: #system_library \"c\";\nForeign :: (action: Scoped(Action)) -> float64 #foreign lib \"foreign_scoped\";\n") { return 1 }
+    foreign_check := string.[test.ziran, "check", "--root", root, foreign_source]
+    foreign_result := NativeInvoke(*test, foreign_check[:])
+    if !NativeAssert(*test, foreign_result.code > 0 && foreign_result.code < 124 &&
+        TextContains(foreign_result.error, "Scoped parameters require a checked nonescaping procedure body") &&
+        TextContains(foreign_result.error, "foreign_scoped.zi:"), "foreign procedure accepted a scoped callback without a checked body") { return 1 }
     if !TsxProject(*test) { return 1 }
     print("native TSX: typed imports, JSX, cache/project invalidation and source/saved C, Go, engine, native executable and Wasm parity passed\n")
     return 0

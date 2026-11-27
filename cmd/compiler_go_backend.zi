@@ -1968,7 +1968,7 @@ rewrite_global_field :: (record: *IR.ZirType, source: *u8, out: *u8, size: usize
 // canonical Owned(Signature) then stay one concrete Go struct, and raw
 // procedure slot types keep their named identity.
 go_owned_slot_field :: (ctx: *GoLowerState, record: *IR.ZirType, field: *IR.ZirTypeField, out: *u8, size: usize) -> s32 {
-    if (!(((record).is_owned_callable != 0))) {
+    if record.is_owned_callable == 0 && record.is_scoped_callable == 0 {
         return 0
     }
     owner: *IR.ZirModule = cast(*IR.ZirModule)(null)
@@ -3045,7 +3045,7 @@ go_lower_with_buffers :: (ctx: *GoLowerState, progs: **IR.ZirProgram, prog_count
                                 ei: s32 = 0
                                 while true {
                                     if !((ei < (((m).functions)[fi]).expr_count)) { break }
-                                    if (((((((m).functions)[fi]).exprs)[ei]).kind == IR.ZirExprKind.OWNED_CLOSURE) || ((((((m).functions)[fi]).exprs)[ei]).kind == IR.ZirExprKind.OWNED_CAPTURE_DROP)) {
+                                    if (((((((m).functions)[fi]).exprs)[ei]).kind == IR.ZirExprKind.SCOPED_CLOSURE) || ((((((m).functions)[fi]).exprs)[ei]).kind == IR.ZirExprKind.OWNED_CLOSURE) || ((((((m).functions)[fi]).exprs)[ei]).kind == IR.ZirExprKind.OWNED_CAPTURE_DROP)) {
                                         owned_unsafe = 1
                                         break
                                     }

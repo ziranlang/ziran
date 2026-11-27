@@ -485,7 +485,7 @@ static void compiler_parse_discover_canonical_enum_values_with_buffers(ZirType* 
 static void compiler_parse_discover_canonical_enum_values(ZirType* type) ZIRAN_MAYBE_UNUSED;
 static void compiler_parse_discover_lower_enum_values_with_buffers(ZirType* type, LowerEnumValuesBuffers* buffers) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_parse_discover_qualify_generic_field_type(uint8_t* type, uint8_t* out, size_t size, ParserArray128_u8* params, int32_t parameter_count, ZirModule* owner, ZirModule* user) ZIRAN_MAYBE_UNUSED;
-static int32_t compiler_parse_discover_InstantiateOwnedCallable(ZirType* instance, ZirModule* user) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_parse_discover_InstantiateOwnedCallable(ZirType* instance, ZirModule* user, bool scoped) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_parse_discover_read_lowered_source_with_buffers(uint8_t* path, ReadLoweredSourceBuffers* buffers, bool lower) ZIRAN_MAYBE_UNUSED;
 static void compiler_parse_discover_compile_value_clear(CompileValue* value) ZIRAN_MAYBE_UNUSED;
 static uint8_t discover_named_type_scratch = {0};
@@ -3925,7 +3925,7 @@ InstantiateGenericRecord(ZirType* instance, ZirType* generic)
 }
 
 static int32_t
-compiler_parse_discover_InstantiateOwnedCallable(ZirType* instance, ZirModule* user)
+compiler_parse_discover_InstantiateOwnedCallable(ZirType* instance, ZirModule* user, bool scoped)
 {
     size_t index = ((size_t)(instance) - (size_t)(user->types)) / sizeof(ZirType);
     void* value_0 = zir_foreign_compiler_parse_discover__AllocateOrExit(sizeof(OwnedCallableBuffers));
@@ -4064,16 +4064,34 @@ compiler_parse_discover_InstantiateOwnedCallable(ZirType* instance, ZirModule* u
     int32_t* value_23 = &(value->is_type_instance);
     (*value_23) = 0;
     int32_t* value_24 = &(value->is_owned_callable);
-    (*value_24) = 1;
-    zir_foreign_compiler_parse_discover__snprintf(&(value->body[0]), (8192) * (sizeof(uint8_t)), compiler_parse_types_ParserCString(StringLiteral("state: *u8; invoke: %s; release: %s;")), &(invoke_name[0]), &(release_name[0]));
-    if (value->is_synthetic_application == 0) {
-        uint8_t* value_25 = &(value->template_name[0]);
-        (*value_25) = 0;
-        uint8_t* value_26 = &(value->template_args[0]);
-        (*value_26) = 0;
+    int32_t value_25 = 0;
+    if (scoped) {
+        value_25 = 0;
+    } else {
+        value_25 = 1;
     }
-    ZirType* value_27 = &(user->types[index]);
-    (*value_27) = value[0];
+    (*value_24) = value_25;
+    int32_t* value_26 = &(value->is_scoped_callable);
+    int32_t value_27 = 0;
+    if (scoped) {
+        value_27 = 1;
+    } else {
+        value_27 = 0;
+    }
+    (*value_26) = value_27;
+    if (scoped) {
+        zir_foreign_compiler_parse_discover__snprintf(&(value->body[0]), (8192) * (sizeof(uint8_t)), compiler_parse_types_ParserCString(StringLiteral("state: *u8; invoke: %s;")), &(invoke_name[0]));
+    } else {
+        zir_foreign_compiler_parse_discover__snprintf(&(value->body[0]), (8192) * (sizeof(uint8_t)), compiler_parse_types_ParserCString(StringLiteral("state: *u8; invoke: %s; release: %s;")), &(invoke_name[0]), &(release_name[0]));
+    }
+    if (value->is_synthetic_application == 0) {
+        uint8_t* value_28 = &(value->template_name[0]);
+        (*value_28) = 0;
+        uint8_t* value_29 = &(value->template_args[0]);
+        (*value_29) = 0;
+    }
+    ZirType* value_30 = &(user->types[index]);
+    (*value_30) = value[0];
     compiler_services_LookupsChanged();
     int32_t cleanup_return_7 = 1;
     zir_foreign_compiler_parse_discover__CompilerFree((void*)(buffers));
@@ -4086,14 +4104,22 @@ InstantiateGenericRecordAt(ZirType* instance, ZirType* generic, ZirModule* owner
     bool value_0 = owner != ((void *)0) && user != ((void *)0);
     bool value_1 = value_0 && StringEqual(compiler_ir_CText(&(owner->standard_name[0])), StringLiteral("callable"));
     bool value_2 = value_1;
-    if (value_2 && StringEqual(compiler_ir_CText(&(generic->name[0])), StringLiteral("Owned"))) {
-        return compiler_parse_discover_InstantiateOwnedCallable(instance, user);
+    bool value_3 = value_2;
+    if (value_3) {
+        bool value_4 = StringEqual(compiler_ir_CText(&(generic->name[0])), StringLiteral("Owned"));
+        bool value_5 = value_4 || StringEqual(compiler_ir_CText(&(generic->name[0])), StringLiteral("Scoped"));
+        value_3 = value_5;
     }
-    void* value_3 = zir_foreign_compiler_parse_discover__AllocateOrExit(sizeof(ParserArray16_ParserArray128_u8));
-    ParserArray16_ParserArray128_u8* params_storage_0 = (ParserArray16_ParserArray128_u8*)(value_3);
+    if (value_3) {
+        ZirType* value_6 = instance;
+        ZirModule* value_7 = user;
+        return compiler_parse_discover_InstantiateOwnedCallable(value_6, value_7, StringEqual(compiler_ir_CText(&(generic->name[0])), StringLiteral("Scoped")));
+    }
+    void* value_8 = zir_foreign_compiler_parse_discover__AllocateOrExit(sizeof(ParserArray16_ParserArray128_u8));
+    ParserArray16_ParserArray128_u8* params_storage_0 = (ParserArray16_ParserArray128_u8*)(value_8);
     zir_foreign_compiler_parse_discover__memset((void*)(params_storage_0), 0, sizeof(ParserArray16_ParserArray128_u8));
-    void* value_4 = zir_foreign_compiler_parse_discover__AllocateOrExit(sizeof(ParserArray16_ParserArray128_u8));
-    ParserArray16_ParserArray128_u8* actual_storage_1 = (ParserArray16_ParserArray128_u8*)(value_4);
+    void* value_9 = zir_foreign_compiler_parse_discover__AllocateOrExit(sizeof(ParserArray16_ParserArray128_u8));
+    ParserArray16_ParserArray128_u8* actual_storage_1 = (ParserArray16_ParserArray128_u8*)(value_9);
     zir_foreign_compiler_parse_discover__memset((void*)(actual_storage_1), 0, sizeof(ParserArray16_ParserArray128_u8));
     int32_t parameter_count = 0;
     int32_t argument_count = 0;
@@ -4118,8 +4144,8 @@ InstantiateGenericRecordAt(ZirType* instance, ZirType* generic, ZirModule* owner
             if (!loop_84) {
                 break;
             }
-            bool value_5 = zir_foreign_compiler_parse_discover__is_identifier_text((uint8_t*)(&(((((params_storage_0[0]).items)[i]).items)[0]))) != 0;
-            if (!value_5 || !(((((actual_storage_1[0]).items)[i]).items)[0] != 0)) {
+            bool value_10 = zir_foreign_compiler_parse_discover__is_identifier_text((uint8_t*)(&(((((params_storage_0[0]).items)[i]).items)[0]))) != 0;
+            if (!value_10 || !(((((actual_storage_1[0]).items)[i]).items)[0] != 0)) {
                 int32_t cleanup_return_2 = 0;
                 zir_foreign_compiler_parse_discover__CompilerFree((void*)(actual_storage_1));
                 zir_foreign_compiler_parse_discover__CompilerFree((void*)(params_storage_0));
@@ -4132,8 +4158,8 @@ InstantiateGenericRecordAt(ZirType* instance, ZirType* generic, ZirModule* owner
                     if (!loop_85) {
                         break;
                     }
-                    bool value_6 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(((((params_storage_0[0]).items)[previous]).items)[0])), (uint8_t*)(&(((((params_storage_0[0]).items)[i]).items)[0]))) != 0;
-                    if (!value_6) {
+                    bool value_11 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(((((params_storage_0[0]).items)[previous]).items)[0])), (uint8_t*)(&(((((params_storage_0[0]).items)[i]).items)[0]))) != 0;
+                    if (!value_11) {
                         int32_t cleanup_return_3 = 0;
                         zir_foreign_compiler_parse_discover__CompilerFree((void*)(actual_storage_1));
                         zir_foreign_compiler_parse_discover__CompilerFree((void*)(params_storage_0));
@@ -4155,15 +4181,15 @@ InstantiateGenericRecordAt(ZirType* instance, ZirType* generic, ZirModule* owner
         if (!loop_86) {
             break;
         }
-        void* value_7 = zir_foreign_compiler_parse_discover__AllocateOrExit(sizeof(ParserArray128_u8));
-        ParserArray128_u8* type_storage_2 = (ParserArray128_u8*)(value_7);
+        void* value_12 = zir_foreign_compiler_parse_discover__AllocateOrExit(sizeof(ParserArray128_u8));
+        ParserArray128_u8* type_storage_2 = (ParserArray128_u8*)(value_12);
         zir_foreign_compiler_parse_discover__memset((void*)(type_storage_2), 0, sizeof(ParserArray128_u8));
         if (owner != (ZirModule*)(((void *)0)) && user != (ZirModule*)(((void *)0)) && owner != user) {
-            void* value_8 = zir_foreign_compiler_parse_discover__AllocateOrExit(sizeof(ParserArray128_u8));
-            ParserArray128_u8* qualified_storage_3 = (ParserArray128_u8*)(value_8);
+            void* value_13 = zir_foreign_compiler_parse_discover__AllocateOrExit(sizeof(ParserArray128_u8));
+            ParserArray128_u8* qualified_storage_3 = (ParserArray128_u8*)(value_13);
             zir_foreign_compiler_parse_discover__memset((void*)(qualified_storage_3), 0, sizeof(ParserArray128_u8));
-            bool value_9 = compiler_parse_discover_qualify_generic_field_type((uint8_t*)(&(field.type)), (uint8_t*)(&((qualified_storage_3[0]).items)), (size_t)(sizeof(ParserArray128_u8)), (ParserArray128_u8*)(&((params_storage_0[0]).items)), parameter_count, owner, user) != 0;
-            if (!value_9) {
+            bool value_14 = compiler_parse_discover_qualify_generic_field_type((uint8_t*)(&(field.type)), (uint8_t*)(&((qualified_storage_3[0]).items)), (size_t)(sizeof(ParserArray128_u8)), (ParserArray128_u8*)(&((params_storage_0[0]).items)), parameter_count, owner, user) != 0;
+            if (!value_14) {
                 int32_t cleanup_return_4 = 0;
                 zir_foreign_compiler_parse_discover__CompilerFree((void*)(qualified_storage_3));
                 zir_foreign_compiler_parse_discover__CompilerFree((void*)(type_storage_2));
@@ -4174,8 +4200,8 @@ InstantiateGenericRecordAt(ZirType* instance, ZirType* generic, ZirModule* owner
             zir_foreign_compiler_parse_discover__copy_text((uint8_t*)(&(field.type)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)(&((qualified_storage_3[0]).items)));
             zir_foreign_compiler_parse_discover__CompilerFree((void*)(qualified_storage_3));
         }
-        bool value_10 = SubstituteGenericType((uint8_t*)(&(field.type)), (uint8_t*)(&((type_storage_2[0]).items)), (size_t)(sizeof(ParserArray128_u8)), (ParserArray128_u8*)(&((params_storage_0[0]).items)), (ParserArray128_u8*)(&((actual_storage_1[0]).items)), parameter_count) != 0;
-        if (!value_10) {
+        bool value_15 = SubstituteGenericType((uint8_t*)(&(field.type)), (uint8_t*)(&((type_storage_2[0]).items)), (size_t)(sizeof(ParserArray128_u8)), (ParserArray128_u8*)(&((params_storage_0[0]).items)), (ParserArray128_u8*)(&((actual_storage_1[0]).items)), parameter_count) != 0;
+        if (!value_15) {
             int32_t cleanup_return_5 = 0;
             zir_foreign_compiler_parse_discover__CompilerFree((void*)(type_storage_2));
             zir_foreign_compiler_parse_discover__CompilerFree((void*)(actual_storage_1));
@@ -4200,93 +4226,95 @@ InstantiateGenericRecordAt(ZirType* instance, ZirType* generic, ZirModule* owner
         zir_foreign_compiler_parse_discover__CompilerFree((void*)(params_storage_0));
         return cleanup_return_7;
     }
-    int32_t* value_11 = &(instance->is_union);
-    (*value_11) = generic->is_union;
-    int32_t* value_12 = &(instance->is_results);
-    (*value_12) = generic->is_results;
-    bool value_13 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(generic->name)), compiler_parse_types_ParserCString(StringLiteral("Map"))) != 0;
-    if (!value_13 && members == 2 && parameter_count == 2) {
+    int32_t* value_16 = &(instance->is_union);
+    (*value_16) = generic->is_union;
+    int32_t* value_17 = &(instance->is_results);
+    (*value_17) = generic->is_results;
+    int32_t* value_18 = &(instance->requires_all_fields);
+    (*value_18) = generic->requires_all_fields;
+    bool value_19 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(generic->name)), compiler_parse_types_ParserCString(StringLiteral("Map"))) != 0;
+    if (!value_19 && members == 2 && parameter_count == 2) {
         size_t position = (size_t)(0LL);
         ZirTypeField key = {0};
         ZirTypeField value = {0};
         ZirTypeField end = {0};
-        bool value_14 = zir_foreign_compiler_parse_discover__TypeNextField(generic, &(position), &(key)) == 1;
-        bool value_15 = value_14 && zir_foreign_compiler_parse_discover__TypeNextField(generic, &(position), &(value)) == 1;
-        bool value_16 = value_15 && zir_foreign_compiler_parse_discover__TypeNextField(generic, &(position), &(end)) == 0;
-        bool value_17 = value_16;
-        if (value_17) {
-            bool value_18 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(key.name)), compiler_parse_types_ParserCString(StringLiteral("key"))) != 0;
-            value_17 = !value_18;
-        }
-        bool value_19 = value_17;
-        if (value_19) {
-            bool value_20 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(key.type)), (uint8_t*)(&(((((params_storage_0[0]).items)[0]).items)[0]))) != 0;
-            value_19 = !value_20;
-        }
-        bool value_21 = value_19;
-        if (value_21) {
-            bool value_22 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(value.name)), compiler_parse_types_ParserCString(StringLiteral("value"))) != 0;
-            value_21 = !value_22;
-        }
-        bool value_23 = value_21;
+        bool value_20 = zir_foreign_compiler_parse_discover__TypeNextField(generic, &(position), &(key)) == 1;
+        bool value_21 = value_20 && zir_foreign_compiler_parse_discover__TypeNextField(generic, &(position), &(value)) == 1;
+        bool value_22 = value_21 && zir_foreign_compiler_parse_discover__TypeNextField(generic, &(position), &(end)) == 0;
+        bool value_23 = value_22;
         if (value_23) {
-            bool value_24 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(value.type)), (uint8_t*)(&(((((params_storage_0[0]).items)[1]).items)[0]))) != 0;
+            bool value_24 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(key.name)), compiler_parse_types_ParserCString(StringLiteral("key"))) != 0;
             value_23 = !value_24;
         }
-        if (value_23 && !(key.is_using != 0) && !(value.is_using != 0) && !((key.go_tag)[0] != 0) && !((value.go_tag)[0] != 0)) {
-            int32_t* value_25 = &(instance->is_map);
-            (*value_25) = 1;
+        bool value_25 = value_23;
+        if (value_25) {
+            bool value_26 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(key.type)), (uint8_t*)(&(((((params_storage_0[0]).items)[0]).items)[0]))) != 0;
+            value_25 = !value_26;
+        }
+        bool value_27 = value_25;
+        if (value_27) {
+            bool value_28 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(value.name)), compiler_parse_types_ParserCString(StringLiteral("value"))) != 0;
+            value_27 = !value_28;
+        }
+        bool value_29 = value_27;
+        if (value_29) {
+            bool value_30 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(value.type)), (uint8_t*)(&(((((params_storage_0[0]).items)[1]).items)[0]))) != 0;
+            value_29 = !value_30;
+        }
+        if (value_29 && !(key.is_using != 0) && !(value.is_using != 0) && !((key.go_tag)[0] != 0) && !((value.go_tag)[0] != 0)) {
+            int32_t* value_31 = &(instance->is_map);
+            (*value_31) = 1;
         }
     }
-    bool value_26 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(generic->name)), compiler_parse_types_ParserCString(StringLiteral("Vec"))) != 0;
-    if (!value_26 && members == 3) {
+    bool value_32 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(generic->name)), compiler_parse_types_ParserCString(StringLiteral("Vec"))) != 0;
+    if (!value_32 && members == 3) {
         size_t position = (size_t)(0LL);
         ZirTypeField part = {0};
-        bool value_27 = zir_foreign_compiler_parse_discover__TypeNextField(generic, &(position), &(part)) == 1;
-        bool value_28 = value_27;
-        if (value_28) {
-            bool value_29 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(part.name)), compiler_parse_types_ParserCString(StringLiteral("data"))) != 0;
-            value_28 = !value_29;
+        bool value_33 = zir_foreign_compiler_parse_discover__TypeNextField(generic, &(position), &(part)) == 1;
+        bool value_34 = value_33;
+        if (value_34) {
+            bool value_35 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(part.name)), compiler_parse_types_ParserCString(StringLiteral("data"))) != 0;
+            value_34 = !value_35;
         }
-        bool value_30 = value_28;
-        if (value_30) {
-            bool value_31 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(part.type)), compiler_parse_types_ParserCString(StringLiteral("*T"))) != 0;
-            value_30 = !value_31;
+        bool value_36 = value_34;
+        if (value_36) {
+            bool value_37 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(part.type)), compiler_parse_types_ParserCString(StringLiteral("*T"))) != 0;
+            value_36 = !value_37;
         }
-        bool value_32 = value_30 && zir_foreign_compiler_parse_discover__TypeNextField(generic, &(position), &(part)) == 1;
-        bool value_33 = value_32;
-        if (value_33) {
-            bool value_34 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(part.name)), compiler_parse_types_ParserCString(StringLiteral("count"))) != 0;
-            value_33 = !value_34;
+        bool value_38 = value_36 && zir_foreign_compiler_parse_discover__TypeNextField(generic, &(position), &(part)) == 1;
+        bool value_39 = value_38;
+        if (value_39) {
+            bool value_40 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(part.name)), compiler_parse_types_ParserCString(StringLiteral("count"))) != 0;
+            value_39 = !value_40;
         }
-        bool value_35 = value_33;
-        if (value_35) {
-            bool value_36 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(part.type)), compiler_parse_types_ParserCString(StringLiteral("s64"))) != 0;
-            value_35 = !value_36;
+        bool value_41 = value_39;
+        if (value_41) {
+            bool value_42 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(part.type)), compiler_parse_types_ParserCString(StringLiteral("s64"))) != 0;
+            value_41 = !value_42;
         }
-        bool value_37 = value_35 && zir_foreign_compiler_parse_discover__TypeNextField(generic, &(position), &(part)) == 1;
-        bool value_38 = value_37;
-        if (value_38) {
-            bool value_39 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(part.name)), compiler_parse_types_ParserCString(StringLiteral("capacity"))) != 0;
-            value_38 = !value_39;
+        bool value_43 = value_41 && zir_foreign_compiler_parse_discover__TypeNextField(generic, &(position), &(part)) == 1;
+        bool value_44 = value_43;
+        if (value_44) {
+            bool value_45 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(part.name)), compiler_parse_types_ParserCString(StringLiteral("capacity"))) != 0;
+            value_44 = !value_45;
         }
-        bool value_40 = value_38;
-        if (value_40) {
-            bool value_41 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(part.type)), compiler_parse_types_ParserCString(StringLiteral("s64"))) != 0;
-            value_40 = !value_41;
+        bool value_46 = value_44;
+        if (value_46) {
+            bool value_47 = zir_foreign_compiler_parse_discover__strcmp((uint8_t*)(&(part.type)), compiler_parse_types_ParserCString(StringLiteral("s64"))) != 0;
+            value_46 = !value_47;
         }
-        if (value_40) {
-            int32_t* value_42 = &(instance->is_owned_vec);
-            (*value_42) = 1;
+        if (value_46) {
+            int32_t* value_48 = &(instance->is_owned_vec);
+            (*value_48) = 1;
         }
     }
-    int32_t* value_43 = &(instance->is_type_instance);
-    (*value_43) = 0;
+    int32_t* value_49 = &(instance->is_type_instance);
+    (*value_49) = 0;
     if (!(instance->is_synthetic_application != 0)) {
-        uint8_t* value_44 = &(instance->template_name[0]);
-        (*value_44) = 0;
-        uint8_t* value_45 = &(instance->template_args[0]);
-        (*value_45) = 0;
+        uint8_t* value_50 = &(instance->template_name[0]);
+        (*value_50) = 0;
+        uint8_t* value_51 = &(instance->template_args[0]);
+        (*value_51) = 0;
     }
     int32_t cleanup_return_8 = 1;
     zir_foreign_compiler_parse_discover__CompilerFree((void*)(actual_storage_1));

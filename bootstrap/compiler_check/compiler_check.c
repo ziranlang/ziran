@@ -3975,47 +3975,30 @@ private_check_order_using_expressions(ZirFunction* function)
             {
                 int32_t i = 0;
                 while (true) {
-                    bool check_loop_63 = i < count;
-                    if (!check_loop_63) {
-                        break;
-                    }
-                    bool value_11 = compiler_check_order_expression(&(order), i, 0) != 0;
-                    if (!value_11) {
-                        goto zir_loop_break_1;
-                    }
-                    compiler_check_types_CheckPost0(&(i));
-                }
-            }
-            if (order.count != count) {
-                goto zir_loop_break_1;
-            }
-            {
-                int32_t i = 0;
-                while (true) {
-                    bool check_loop_64 = i < count;
+                    bool check_loop_64 = i < order.count;
                     if (!check_loop_64) {
                         break;
                     }
                     ZirExpr* expression = (ZirExpr*)(((size_t)(order.ordered) + ((size_t)(i) * sizeof(ZirExpr))));
                     if (expression->left >= 0) {
-                        int32_t* value_12 = &(expression->left);
-                        (*value_12) = order.map[expression->left];
+                        int32_t* value_11 = &(expression->left);
+                        (*value_11) = order.map[expression->left];
                     }
                     if (expression->right >= 0) {
-                        int32_t* value_13 = &(expression->right);
-                        (*value_13) = order.map[expression->right];
+                        int32_t* value_12 = &(expression->right);
+                        (*value_12) = order.map[expression->right];
                     }
                     if (expression->third >= 0) {
-                        int32_t* value_14 = &(expression->third);
-                        (*value_14) = order.map[expression->third];
+                        int32_t* value_13 = &(expression->third);
+                        (*value_13) = order.map[expression->third];
                     }
                     if (expression->first_child >= 0) {
-                        int32_t* value_15 = &(expression->first_child);
-                        (*value_15) = order.map[expression->first_child];
+                        int32_t* value_14 = &(expression->first_child);
+                        (*value_14) = order.map[expression->first_child];
                     }
                     if (expression->next_sibling >= 0) {
-                        int32_t* value_16 = &(expression->next_sibling);
-                        (*value_16) = order.map[expression->next_sibling];
+                        int32_t* value_15 = &(expression->next_sibling);
+                        (*value_15) = order.map[expression->next_sibling];
                     }
                     compiler_check_types_CheckPost0(&(i));
                 }
@@ -4029,19 +4012,21 @@ private_check_order_using_expressions(ZirFunction* function)
                     }
                     ZirStmt* statement = (ZirStmt*)(((size_t)(function->stmts) + ((size_t)(s) * sizeof(ZirStmt))));
                     if (statement->expr_root >= 0) {
-                        int32_t* value_17 = &(statement->expr_root);
-                        (*value_17) = order.map[statement->expr_root];
+                        int32_t* value_16 = &(statement->expr_root);
+                        (*value_16) = order.map[statement->expr_root];
                     }
                     if (statement->lhs_root >= 0) {
-                        int32_t* value_18 = &(statement->lhs_root);
-                        (*value_18) = order.map[statement->lhs_root];
+                        int32_t* value_17 = &(statement->lhs_root);
+                        (*value_17) = order.map[statement->lhs_root];
                     }
                     compiler_check_types_CheckPost0(&(s));
                 }
             }
             zir_foreign_compiler_check__CompilerFree((void*)(function->exprs));
-            ZirExpr** value_19 = &(function->exprs);
-            (*value_19) = order.ordered;
+            ZirExpr** value_18 = &(function->exprs);
+            (*value_18) = order.ordered;
+            int32_t* value_19 = &(function->expr_count);
+            (*value_19) = order.count;
             int32_t* value_20 = &(function->expr_cap);
             (*value_20) = count;
             zir_foreign_compiler_check__CompilerFree((void*)(order.map));

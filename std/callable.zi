@@ -4,3 +4,9 @@
 Owned :: struct($Signature: Type) {
     signature: Signature;
 }
+
+// A borrowed native callable. Its environment belongs to the calling scope;
+// callees may invoke or forward it, but cannot retain it.
+Scoped :: struct($Signature: Type) {
+    signature: Signature;
+}

@@ -617,7 +617,7 @@ EmitCall :: (e: *Emitter, expr: *IR.ZirExpr, array_result: *u8, out: *u8, size: 
         }
         Declare(e, *callable[0], expr.slot_type, source_buf)
         slot := CFindType(e.module, expr.slot_type, null)
-        if slot != null && slot.is_owned_callable != 0 {
+        if slot != null && (slot.is_owned_callable != 0 || slot.is_scoped_callable != 0) {
             // An owned callable dispatches through its generated invoke slot
             // with the erased state pointer; an empty record traps here.
             state: [IR.ZIR_NAME_MAX]u8

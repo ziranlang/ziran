@@ -468,7 +468,7 @@ MarkModuleFields :: (module: *IR.ZirModule, entry_module: *u8, entry_function: *
         type := TypeAt(module, t)
         // Callable fields are read by the checked closure/call/drop ABI,
         // rather than explicit authored member expressions.
-        if type.is_owned_callable != 0 || VecElementType(module, *type.name[0], null, 0) != 0 {
+        if type.is_owned_callable != 0 || type.is_scoped_callable != 0 || VecElementType(module, *type.name[0], null, 0) != 0 {
             MarkAllFields(module, *type.name[0], uses)
         }
     }

@@ -2785,7 +2785,12 @@ PruneScopes :: (program: *IR.ZirProgram, m: *IR.ZirModule, prune: *ZirCPruneModu
     starts := cast(**IR.ZirModule)AllocateOrExit(alloc_n * size_of(*IR.ZirModule))
     count: s32 = 0
     for i: cast(s32)0..uses.count - 1 {
-        if uses.items[i].use == 1 { starts[count] = uses.items[i].module; count += 1 }
+        // Pruning may keep a formerly private concrete type in its header
+        // when another module instantiates the same nominal application.
+        // Its private field types still need their declaring headers. The
+        // word-use pass selects only headers the kept declarations require.
+        starts[count] = uses.items[i].module
+        count += 1
     }
     prune.header_scope = IncludeScope(program, m, starts, count, *prune.header_scope_count)
     count = 0

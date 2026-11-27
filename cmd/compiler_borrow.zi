@@ -584,6 +584,28 @@ binding :: (check: *BorrowCheck, name: *u8) -> *BorrowBinding {
 }
 
 #scope_file
+contains_scoped :: (module: *IR.ZirModule, type: *u8, depth: s32) -> bool {
+    if depth > 32 || type == null || type[0] == 0 || type[0] == #char "*" { return false }
+    element: [128]u8
+    if ArrayElementType(type, *element[0], size_of(type_of(element)), null) != 0 ||
+       SliceElementType(type, *element[0], size_of(type_of(element))) != 0 ||
+       VecElementType(module, type, *element[0], size_of(type_of(element))) != 0 {
+        return contains_scoped(module, *element[0], depth + 1)
+    }
+    owner: *IR.ZirModule = null
+    record := FindType(module, type, *owner)
+    if record == null { return false }
+    if record.is_scoped_callable != 0 { return true }
+    if record.is_enum != 0 || record.is_procedure_type != 0 || record.is_record_template != 0 || record.is_extern != 0 { return false }
+    offset: usize = 0
+    field: IR.ZirTypeField
+    while TypeNextField(record, *offset, *field) == 1 {
+        if contains_scoped(ifx owner != null then owner else module, *field.type[0], depth + 1) { return true }
+    }
+    return false
+}
+
+#scope_file
 contains_view :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 {
     if ((((depth > 32) || (type == cast(*u8)((null)))) || !((type)[0] != 0)) || (cast(s32)(cast(s8)((type)[0])) == 42)) {
         return 0
@@ -599,6 +621,7 @@ contains_view :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 {
     }
     owner: *IR.ZirModule = null
     record: *IR.ZirType = FindType(module, type, *(owner))
+    if record != null && record.is_scoped_callable != 0 { return 1 }
     if (((((record == cast(*IR.ZirType)((null))) || ((record).is_enum != 0)) || ((record).is_procedure_type != 0)) || ((record).is_record_template != 0)) || ((record).is_extern != 0)) {
         return 0
     }
@@ -1098,6 +1121,14 @@ check_call_mutations :: (check: *BorrowCheck, expression: *IR.ZirExpr) {
     owner: *IR.ZirModule = null
     ResolveFunction(((check).current).module, name, *(owner), *(callee))
     if (((callee != cast(*IR.ZirFunction)((null))) && ((callee).is_extern != 0)) || (((callee == cast(*IR.ZirFunction)((null))) && (binding(check, name) == cast(*BorrowBinding)((null)))) && (foreign_call(check, ((check).current).module, name) != 0))) {
+        argument := expression.first_child
+        while argument >= 0 {
+            if contains_scoped(check.current.module, fn.exprs[argument].type, 0) {
+                reject(check, fn.exprs[argument].span,
+                    CheckCString("Scoped arguments require a checked nonescaping procedure body"))
+            }
+            argument = fn.exprs[argument].next_sibling
+        }
         return
     }
     summary: *BorrowFunction = function_summary(check, callee)
@@ -1284,6 +1315,21 @@ text_view_backings :: (check: *BorrowCheck, index: s32) -> *BorrowSource {
                 result = add_source(check, result, append_place(check, (source).place, (ifx (cast(s32)((expression).kind) == 10) then null else (expression).name), cast(s32)(cast(s32)((expression).kind) == 10)))
                 source = (source).next
             }
+        }
+        return result
+    }
+    if expression.kind == .SCOPED_CLOSURE {
+        result: *BorrowSource = null
+        if expression.left < 0 { return result }
+        child := fn.exprs[expression.left].first_child
+        while child >= 0 {
+            address := fn.exprs[child].right
+            if address >= 0 && fn.exprs[address].kind == .UNARY {
+                place := fn.exprs[address].right
+                result = add_source(check, result, storage_place(check, place, 1))
+                result = merge_sources(check, result, text_view_backings(check, place))
+            }
+            child = fn.exprs[child].next_sibling
         }
         return result
     }
@@ -1500,6 +1546,7 @@ expression_origin :: (check: *BorrowCheck, index: s32) -> Origin {
     }
     fn: *IR.ZirFunction = ((check).current).fn
     expression: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    if expression.kind == .SCOPED_CLOSURE { return Origin.{depth = check.depth} }
     check_choice_241 := (expression).kind
     while check_switch_241 := true {
         if check_choice_241 == cast(IR.ZirExprKind)((1)) {
@@ -1654,6 +1701,21 @@ expression_origin :: (check: *BorrowCheck, index: s32) -> Origin {
 }
 
 #scope_file
+borrowed_capture_place :: (fn: *IR.ZirFunction, index: s32, depth: s32 = 0) -> bool {
+    if index < 0 || depth > 64 || fn.capture_environment[0] == 0 { return false }
+    expression := fn.exprs[index]
+    if expression.kind == .UNARY && IR.CText(*expression.op[0]) == "*" && expression.right >= 0 {
+        field := fn.exprs[expression.right]
+        if field.kind == .MEMBER && field.left >= 0 && fn.exprs[field.left].kind == .IDENT &&
+           IR.CText(fn.exprs[field.left].name) == "__tsx_environment" { return true }
+    }
+    if expression.kind == .MEMBER || expression.kind == .POINTER_MEMBER || expression.kind == .INDEX {
+        return borrowed_capture_place(fn, expression.left, depth + 1)
+    }
+    return false
+}
+
+#scope_file
 check_ranges :: (check: *BorrowCheck, index: s32) {
     if ((index < 0) || ((check).failed != 0)) {
         return
@@ -1665,7 +1727,29 @@ check_ranges :: (check: *BorrowCheck, index: s32) {
     if (((cast(s32)((expression).kind) == 16) && (strcmp((((((check).current).fn).exprs)[(expression).left]).type, CheckCString("string")) != 0)) && ((expression_origin(check, index)).invalid != 0)) {
         reject(check, (expression).span, CheckCString("slice range requires live owned backing storage"))
     }
+    if expression.kind == .UNARY && IR.CText(*expression.op[0]) == "&" && expression.right >= 0 &&
+       contains_scoped(check.current.module, check.current.fn.exprs[expression.right].type, 0) {
+        allowed := false
+        fn := check.current.fn
+        for i: cast(s32)0..fn.expr_count - 1 {
+            candidate := fn.exprs[i]
+            if candidate.kind != .SCOPED_CLOSURE || candidate.left < 0 { continue }
+            child := fn.exprs[candidate.left].first_child
+            while child >= 0 {
+                if fn.exprs[child].right == index { allowed = true }
+                child = fn.exprs[child].next_sibling
+            }
+        }
+        if !allowed { reject(check, expression.span, CheckCString("cannot take the address of Scoped callable storage")) }
+    }
+    if expression.kind == .MEMBER && IR.CText(expression.name) == "data" && expression.left >= 0 &&
+       contains_scoped(check.current.module, check.current.fn.exprs[expression.left].type, 0) {
+        reject(check, expression.span, CheckCString("cannot expose an address of Scoped callable storage"))
+    }
     if expression.is_move != 0 {
+        if borrowed_capture_place(check.current.fn, index) {
+            reject(check, expression.span, CheckCString("cannot move owned storage through a borrowed Scoped capture"))
+        }
         if reference_owned_field(check.current.module, check.current.fn, index) != 0 {
             check_reference_owned_field(check, index)
         }
@@ -1687,11 +1771,15 @@ check_ranges :: (check: *BorrowCheck, index: s32) {
         while check_loop_243 := (child >= 0) {
             check_ranges(check, child)
             type: *u8 = (((((check).current).fn).exprs)[child]).type
-            if (((((cast(s32)((expression).kind) == 5) && (cast(s32)(cast(s8)((type)[0])) != 42)) && !(SliceElementType(type, null, cast(usize)(0)) != 0)) && !(VecElementType(((check).current).module, type, null, cast(usize)(0)) != 0)) && (text_view_type(check, type) != 0)) {
+            if (((((cast(s32)((expression).kind) == 5) && (cast(s32)(cast(s8)((type)[0])) != 42)) && !(SliceElementType(type, null, cast(usize)(0)) != 0)) && !(VecElementType(((check).current).module, type, null, cast(usize)(0)) != 0)) && (text_view_type(check, type) != 0 || contains_scoped(check.current.module, type, 0))) {
                 add_active_text_borrows(check, text_view_backings(check, child), (check).depth)
             }
             child = (((((check).current).fn).exprs)[child]).next_sibling
         }
+    }
+    if expression.kind == .CALL && IR.CText(expression.name) == "VecPush" && expression.first_child >= 0 &&
+       contains_scoped(check.current.module, check.current.fn.exprs[expression.first_child].type, 0) {
+        reject(check, expression.span, CheckCString("Scoped callable cannot be retained in owned collection storage"))
     }
     if (cast(s32)((expression).kind) == 5) {
         check_call_mutations(check, expression)
@@ -1915,6 +2003,9 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                 S12Post2(*(i))
                 continue check_loop_248
             }
+            if statement.kind == .RETURN && contains_scoped(function.module, *fn.return_type[0], 0) {
+                reject(check, statement.span, CheckCString("a Scoped callable cannot be returned or retained"))
+            }
             check_ranges(check, (statement).lhs_root)
             check_ranges(check, (statement).expr_root)
             if ((cast(s32)((statement).kind) == 4) && ((statement).lhs_root >= 0)) {
@@ -1954,7 +2045,7 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                     declared.address_backing = root_place(declared)
                 }
                 if reference_fields { protect_owned_reference(check, declared, statement.span) }
-                if (text_view_type(check, (statement).type) != 0) {
+                if (text_view_type(check, (statement).type) != 0 || contains_scoped(check.current.module, statement.type, 0)) {
                     add_active_text_borrows(check, (declared).text_backings, (check).depth)
                 }
                 add_active_vec_borrow(check, (statement).expr_root, (check).depth)
@@ -1962,6 +2053,13 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                 if ((cast(s32)((statement).kind) == 4) && ((statement).lhs_root >= 0)) {
                     destination: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)((statement).lhs_root) * size_of(IR.ZirExpr))
                     assignment_root: *IR.ZirExpr = destination_root(fn, (statement).lhs_root)
+                    if contains_scoped(function.module, destination.type, 0) {
+                        target := ifx assignment_root == null then null else binding(check, assignment_root.name)
+                        if target == null || target.global_index >= 0 || target.captured != 0 ||
+                           target.type.items[0] == #char "*" {
+                            reject(check, statement.span, CheckCString("a Scoped callable cannot be retained through global or reference storage"))
+                        }
+                    }
                     assignment_target: *BorrowBinding = (ifx (assignment_root == cast(*IR.ZirExpr)((null))) then null else binding(check, (assignment_root).name))
                     if (((cast(s32)((destination).kind) == 1) && (cast(s32)(cast(s8)(((destination).type)[0])) == 42)) && (assignment_target != cast(*BorrowBinding)((null)))) {
                         before_storage_3 := cast(*BorrowBinding)AllocateOrExit(size_of(BorrowBinding))
@@ -2037,7 +2135,9 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                                 }
                             }
                         }
-                        if ((((text_view_type(check, (destination).type) != 0) && (!(static_storage != 0) || ((source_storage_4[0]).globals != cast(*u64)((null))))) && (target != cast(*BorrowBinding)((null)))) && !(((target).captured != 0) && ((target).global_index < 0))) {
+                        if (text_view_type(check, destination.type) != 0 || contains_scoped(function.module, destination.type, 0)) &&
+                           (static_storage == 0 || source_storage_4.globals != null) && target != null &&
+                           !(target.captured != 0 && target.global_index < 0) {
                             add_active_text_borrows(check, text_view_backings(check, (statement).expr_root), (target).depth)
                         }
                     }
@@ -2125,6 +2225,18 @@ check_slice_lifetimes :: (programs: **IR.ZirProgram, count: s32) -> s32 {
                 m: s32 = 0
                 while check_loop_255 := (m < ((programs)[p]).module_count) {
                     module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    for i: cast(s32)0..module.import_count - 1 {
+                        foreign := *module.imports[i]
+                        if foreign.kind != .EXTERN { continue }
+                        parameters := ParametersOf(*foreign.args[0])
+                        for parameter: cast(s32)0..parameters.count - 1 {
+                            if contains_scoped(module, parameters.items.items[parameter].type, 0) {
+                                Diagnostic(foreign.span, CheckCString("check.capture_lifetime"),
+                                    CheckCString("Scoped parameters require a checked nonescaping procedure body"))
+                                check_storage_0.failed = 1
+                            }
+                        }
+                    }
                     {
                         g: s32 = 0
                         while check_loop_256 := (g < (module).global_count) {
@@ -2133,6 +2245,11 @@ check_slice_lifetimes :: (programs: **IR.ZirProgram, count: s32) -> s32 {
                             (item).global = cast(*IR.ZirGlobal)(cast(usize)((module).globals) + cast(usize)(g) * size_of(IR.ZirGlobal))
                             copy_text(cast(*u8)(*(((item).name).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), cast(*u8)(*((((module).globals)[g]).name)))
                             copy_text(cast(*u8)(*(((item).type).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), cast(*u8)(*((((module).globals)[g]).type)))
+                            if contains_scoped(module, *module.globals[g].type[0], 0) {
+                                Diagnostic(module.globals[g].span, CheckCString("check.capture_lifetime"),
+                                    CheckCString("Scoped callable storage cannot be global"))
+                                check_storage_0.failed = 1
+                            }
                             (item).local = (-1)
                             (item).captured = 1
                             (item).parameter = (-1)
@@ -2163,6 +2280,16 @@ check_slice_lifetimes :: (programs: **IR.ZirProgram, count: s32) -> s32 {
                             function: *BorrowFunction = cast(*BorrowFunction)(cast(usize)((check_storage_0[0]).functions) + cast(usize)(index) * size_of(BorrowFunction))
                             (function).module = module
                             (function).fn = cast(*IR.ZirFunction)(cast(usize)((module).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
+                            if function.fn.is_extern != 0 {
+                                parameters := ParametersOf(FunctionArgs(function.fn))
+                                for parameter: cast(s32)0..parameters.count - 1 {
+                                    if contains_scoped(module, parameters.items.items[parameter].type, 0) {
+                                        Diagnostic(function.fn.span, CheckCString("check.capture_lifetime"),
+                                            CheckCString("Scoped parameters require a checked nonescaping procedure body"))
+                                        check_storage_0.failed = 1
+                                    }
+                                }
+                            }
                             if !(pointer_index_put(*((check_storage_0[0]).function_index), cast(*void)((function).fn), null, index) != 0) {
                                 (check_storage_0[0]).failed = 1
                             }

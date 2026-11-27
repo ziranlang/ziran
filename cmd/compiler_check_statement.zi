@@ -658,6 +658,7 @@ check_owned_callable_storage :: (module: *IR.ZirModule, record: *IR.ZirType) -> 
     if invoke == null || invoke.is_procedure_type == 0 || invoke.is_c_call != 0 {
         return record_declaration_error(record, CheckCString("invalid owned callable invoke signature"), null)
     }
+    if record.is_scoped_callable != 0 { return cast(s32)(TypeNextField(record, *offset, *field) == 0) }
     if TypeNextField(record, *offset, *field) != 1 || IR.CText(*field.name[0]) != "release" {
         return record_declaration_error(record, CheckCString("invalid owned callable release storage"), null)
     }
@@ -677,7 +678,7 @@ check_type_declarations_with_buffers :: (module: *IR.ZirModule, buffers: *CheckT
         while check_loop_128 := (i < (module).type_count) {
             record: *IR.ZirType = cast(*IR.ZirType)(cast(usize)((module).types) + cast(usize)(i) * size_of(IR.ZirType))
             select_lookup_file(module, (record).span)
-            if record.is_owned_callable != 0 && check_owned_callable_storage(module, record) == 0 { return 0 }
+            if (record.is_owned_callable != 0 || record.is_scoped_callable != 0) && check_owned_callable_storage(module, record) == 0 { return 0 }
             offset: usize = cast(usize)(0)
             status: s32
             field: IR.ZirTypeField

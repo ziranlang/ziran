@@ -2181,22 +2181,30 @@ compiler_check_statement_check_owned_callable_storage(ZirModule* module, ZirType
         uint8_t* value_8 = compiler_check_types_CheckCString(StringLiteral("invalid owned callable invoke signature"));
         return compiler_check_statement_record_declaration_error(value_7, value_8, (void *)0);
     }
-    bool value_9 = zir_foreign_compiler_check_statement__TypeNextField(record, &(offset), &(field)) != 1;
-    if (value_9 || !StringEqual(compiler_ir_CText(&(field.name[0])), StringLiteral("release"))) {
-        ZirType* value_10 = record;
-        uint8_t* value_11 = compiler_check_types_CheckCString(StringLiteral("invalid owned callable release storage"));
-        return compiler_check_statement_record_declaration_error(value_10, value_11, (void *)0);
+    if (record->is_scoped_callable != 0) {
+        bool value_9 = zir_foreign_compiler_check_statement__TypeNextField(record, &(offset), &(field)) == 0;
+        int32_t value_10 = 0;
+        if (value_9) {
+            value_10 = 1;
+        }
+        return value_10;
+    }
+    bool value_11 = zir_foreign_compiler_check_statement__TypeNextField(record, &(offset), &(field)) != 1;
+    if (value_11 || !StringEqual(compiler_ir_CText(&(field.name[0])), StringLiteral("release"))) {
+        ZirType* value_12 = record;
+        uint8_t* value_13 = compiler_check_types_CheckCString(StringLiteral("invalid owned callable release storage"));
+        return compiler_check_statement_record_declaration_error(value_12, value_13, (void *)0);
     }
     ZirType* release = zir_foreign_compiler_check_statement__FindType(module, &(field.type[0]), (void *)0);
-    bool value_12 = release == ((void *)0) || release->is_procedure_type == 0 || release->is_c_call != 0;
-    bool value_13 = value_12 || !StringEqual(compiler_ir_CText(&(release->body[0])), StringLiteral("__tsx_state: *u8"));
-    bool value_14 = value_13;
-    bool value_15 = value_14 || !StringEqual(compiler_ir_CText(&(release->procedure_return_type[0])), StringLiteral("void"));
+    bool value_14 = release == ((void *)0) || release->is_procedure_type == 0 || release->is_c_call != 0;
+    bool value_15 = value_14 || !StringEqual(compiler_ir_CText(&(release->body[0])), StringLiteral("__tsx_state: *u8"));
     bool value_16 = value_15;
-    if (value_16 || zir_foreign_compiler_check_statement__TypeNextField(record, &(offset), &(field)) != 0) {
-        ZirType* value_17 = record;
-        uint8_t* value_18 = compiler_check_types_CheckCString(StringLiteral("invalid owned callable release signature"));
-        return compiler_check_statement_record_declaration_error(value_17, value_18, (void *)0);
+    bool value_17 = value_16 || !StringEqual(compiler_ir_CText(&(release->procedure_return_type[0])), StringLiteral("void"));
+    bool value_18 = value_17;
+    if (value_18 || zir_foreign_compiler_check_statement__TypeNextField(record, &(offset), &(field)) != 0) {
+        ZirType* value_19 = record;
+        uint8_t* value_20 = compiler_check_types_CheckCString(StringLiteral("invalid owned callable release signature"));
+        return compiler_check_statement_record_declaration_error(value_19, value_20, (void *)0);
     }
     return 1;
 }
@@ -2214,7 +2222,7 @@ compiler_check_statement_check_type_declarations_with_buffers(ZirModule* module,
                 }
                 ZirType* record = (ZirType*)(((size_t)(module->types) + ((size_t)(i) * sizeof(ZirType))));
                 zir_foreign_compiler_check_statement__select_lookup_file(module, record->span);
-                bool value_0 = record->is_owned_callable != 0;
+                bool value_0 = record->is_owned_callable != 0 || record->is_scoped_callable != 0;
                 if (value_0 && compiler_check_statement_check_owned_callable_storage(module, record) == 0) {
                     return 0;
                 }

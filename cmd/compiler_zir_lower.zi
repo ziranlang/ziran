@@ -3999,13 +3999,21 @@ OwnedClosure :: (program: *AssemblyProgram, function: *AssemblyFunction,
     environment := Type(program, function, expression.name, span)
     value := Expression(program, function, expression.left, depth + 1)
     pointer_type := PointerType(program, environment, span)
-    pointer := New(program, function, expression, pointer_type)
+    pointer: s32 = -1
+    if expression.kind == .SCOPED_CLOSURE {
+        pointer = EntrySlot(program, function, environment, span)
+    } else { pointer = New(program, function, expression, pointer_type) }
     RequirePointer(program, function, pointer, span)
     if program.failed != 0 { return -1 }
     store := s32.[pointer, Convert(program, function, value, environment, span)]
     Emit(program, function, LirOp.Store, 0, store.data, 2, -1, span)
     state_type := TypeAt(program, type).fields[0]
     invoke_type := TypeAt(program, type).fields[1]
+    if expression.kind == .SCOPED_CLOSURE {
+        fields := s32.[Emit(program, function, LirOp.Bitcast, state_type, *pointer, 1, -1, span),
+            Convert(program, function, Expression(program, function, expression.right, depth + 1), invoke_type, span)]
+        return Emit(program, function, LirOp.Aggregate, type, fields.data, 2, -1, span)
+    }
     release_type := TypeAt(program, type).fields[2]
     fields := s32.[Emit(program, function, LirOp.Bitcast, state_type, *pointer, 1, -1, span),
         Convert(program, function, Expression(program, function, expression.right, depth + 1), invoke_type, span),
@@ -6029,7 +6037,7 @@ ExpressionValue :: (program: *AssemblyProgram, function: *AssemblyFunction,
     expression := *function.source.exprs[root]
     type := Type(program, function, expression.type, expression.span)
     if program.failed != 0 { return -1 }
-    if expression.kind == .OWNED_CLOSURE {
+    if expression.kind == .OWNED_CLOSURE || expression.kind == .SCOPED_CLOSURE {
         return OwnedClosure(program, function, expression, type, depth + 1)
     }
     if expression.kind == .OWNED_CAPTURE_DROP {
@@ -6380,7 +6388,8 @@ ExpressionValue :: (program: *AssemblyProgram, function: *AssemblyFunction,
             }
             if program.failed != 0 { return -1 }
             owned_identity = function.values.data[receiver]
-            if OwnedCallable(program, owned_identity) {
+            callable := CFindType(function.module, expression.slot_type, null)
+            if OwnedCallable(program, owned_identity) || (callable != null && callable.is_scoped_callable != 0) {
                 owned_receiver = receiver
                 record := TypeAt(program, owned_identity)
                 state_type := record.fields[0]

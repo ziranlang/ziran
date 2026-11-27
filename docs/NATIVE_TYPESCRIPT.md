@@ -7,9 +7,9 @@ paths apply to them. There is no generated Ziran screen source, JavaScript
 engine, npm module resolver or React runtime. The experimental `tsx2zi`
 command has been removed.
 
-The Kryon migration is still in progress. Owned capturing callables are
-supported. Scoped borrowed callbacks, component state, keyed mounting and the
-complete UI package integration remain open work.
+The Kryon migration is still in progress. Owned and scoped capturing callables
+use the common checked IR. The complete component authoring contract, keyed
+mounting integration and UI package migration remain open work.
 
 ## Commands and imports
 
@@ -52,8 +52,10 @@ re-exports and JavaScript packages are unsupported.
   silently substituted for TypeScript `number`.
 - `boolean` is native `bool`. `string` is an immutable borrowed UTF-8 byte view,
   with native `.count`; it is not a JavaScript UTF-16 string object.
-- `*Native.Record` names an explicit checked native pointer type. It follows
-  the native borrow rules and cannot be captured by an owned callback.
+- `*Native.Record` names an explicit checked native pointer type. The native
+  extensions `&place` and `*pointer` borrow an address and dereference it through
+  the common checks. These pointers follow native lifetime rules and cannot
+  be captured by an owned callback.
 - `s8` through `s64`, `u8` through `u64`, `isize`, `usize`, `float32` and
   `float64` name explicit native scalar types. Conversions use `s32(value)`,
   `u64(value)` and the other native type names. These follow the existing
@@ -62,7 +64,8 @@ re-exports and JavaScript packages are unsupported.
   at an explicit native boundary, such as `u64(18446744073709551615n)`, to
   preserve a wide identifier without going through binary64. This suffix does
   not provide a dynamically sized JavaScript BigInt runtime.
-- Interfaces declare native records. Imported Ziran records, procedure types and enums retain
+- Interfaces declare native records and require every declared field in a
+  record literal or JSX props. Imported Ziran records, procedure types and enums retain
   their checked identity. Records use value semantics and native ownership.
   Keep an owned native result in an explicitly typed binding, for example
   `const text: Text = TextCopy("label")` with `Text` and `TextCopy` imported
@@ -72,7 +75,11 @@ re-exports and JavaScript packages are unsupported.
   returning that view from the owning scope is rejected at the authored source.
 - A homogeneous tuple such as `[string, string]` is a fixed native array.
   `T[]` names a borrowed native slice. Slice literals need backing storage;
-  general owned-array and JSX child-range construction is still open work.
+  the native range extension `values[:]` borrows the whole backing array,
+  vector, string or slice. `values[s32(start):s32(end)]` borrows a checked
+  subrange with explicit native integer bounds. These views do not copy their
+  elements and cannot outlive their backing storage. General owned-array and
+  JSX child-range construction is still open work.
 - Native generic records use `Vec<number>` or `Domain.Box<number>` at type
   positions and retain the actual checked Ziran declaration and specialization.
   An `interface Holder<T> { value: T; }` declares a native generic record.
@@ -148,8 +155,18 @@ capture record types. The `__tsx_` identifier prefix is reserved for generated
 IR declarations.
 Invoking an empty callable traps; dropping an empty or moved callable is harmless.
 
-Scoped borrowed callbacks, classes, promises, async functions and type unions are not
-implemented yet. Generic record applications retain their declaring module
+`Scoped<Signature>` borrows captured lexical places for the calling scope. It
+uses typed stack storage and a checked invoke trampoline, with no heap-owned
+capture or release slot. The callback reads the captured places when invoked;
+it does not move their owned values. A callee may invoke the callback or pass
+it to another checked Scoped parameter. Transient props records and local
+bindings preserve its lexical lifetime. Returning it, retaining it in global,
+reference or owned collection storage, taking its address, or moving an owned
+capture is rejected. Owned callbacks cannot capture Scoped values. Foreign
+procedures cannot take Scoped parameters because their bodies have no checked
+no-escape guarantee.
+
+Classes, promises, async functions and type unions are not implemented yet. Generic record applications retain their declaring module
 and file scope: a local `Box<T>` and an imported `Domain.Box<T>` remain
 distinct, including inside nested applications. Import aliases for the same
 declaration share its identity.
@@ -164,9 +181,13 @@ and mismatched closing tags are errors.
 Empty paired tags and indentation-only content do not add a `children` property.
 
 Inline JSX text preserves spaces around expressions. Multiline text removes
-line indentation and joins nonempty lines with a space. Children are positional
-values in the props' `children` aggregate; the current finite tuple support does
-not establish general UI child arrays or component lifecycle behavior.
+line indentation and joins nonempty lines with a space. The declared `children`
+prop controls evaluation: an aggregate receives positional child values; a
+`Scoped<() => void>` prop receives a borrowed child body that the component
+invokes synchronously. Nested child calls therefore run inside the container's
+begin/end lifetime. The compiler does not insert text widgets or a UI runtime.
+Finite aggregate children do not establish general child arrays or component
+lifecycle behavior.
 
 Diagnostics retain the authored `.ts` or `.tsx` source span. Frontend caches
 preserve the structured expression graph and rerun common checking, including

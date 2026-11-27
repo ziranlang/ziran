@@ -1270,7 +1270,7 @@ EmitOwnedClosure :: (e: *Emitter, expr: *IR.ZirExpr, out: *u8, size: usize) {
         free(cast(*void)source)
     }
     record := CFindType(e.module, expr.type, null)
-    if record == null || record.is_owned_callable == 0 {
+    if record == null || (record.is_owned_callable == 0 && record.is_scoped_callable == 0) {
         Val.Fatal(expr, CStr("owned closure requires an Owned(Signature) type"))
     }
     if CFindType(e.module, expr.name, null) == null {
@@ -1284,13 +1284,20 @@ EmitOwnedClosure :: (e: *Emitter, expr: *IR.ZirExpr, out: *u8, size: usize) {
     OwnedCallableField(record, e.target, CStr("state"), *state[0], IR.ZIR_NAME_MAX)
     OwnedCallableField(record, e.target, CStr("invoke"), *invoke[0], IR.ZIR_NAME_MAX)
     OwnedCallableField(record, e.target, CStr("release"), *release[0], IR.ZIR_NAME_MAX)
-    if state[0] == 0 || invoke[0] == 0 || release[0] == 0 {
+    scoped := expr.kind == .SCOPED_CLOSURE
+    if state[0] == 0 || invoke[0] == 0 || (!scoped && release[0] == 0) {
         Val.Fatal(expr, CStr("owned callable record has unexpected storage"))
     }
     // The capture heap slot receives the environment value exactly once.
     slot: [IR.ZIR_NAME_MAX]u8
     Fresh(e, *slot[0])
-    if e.target == .ZIR_GO {
+    if scoped {
+        environment: [IR.ZIR_NAME_MAX]u8
+        Fresh(e, *environment[0])
+        ZeroRecord(e, expr.name, text, IR.ZIR_TEXT_MAX)
+        Declare(e, *environment[0], expr.name, text)
+        CheckFormat(snprintf(text, IR.ZIR_TEXT_MAX, CStr("&%s"), *environment[0]), IR.ZIR_TEXT_MAX)
+    } else if e.target == .ZIR_GO {
         CheckFormat(snprintf(text, IR.ZIR_TEXT_MAX, CStr("new(%s)"), *mapped[0]), IR.ZIR_TEXT_MAX)
     } else {
         CheckFormat(snprintf(text, IR.ZIR_TEXT_MAX,
@@ -1327,6 +1334,7 @@ EmitOwnedClosure :: (e: *Emitter, expr: *IR.ZirExpr, out: *u8, size: usize) {
     } else {
         fprintf(e.out, CStr("%s.%s = %s;\n"), *owned[0], *invoke[0], source)
     }
+    if scoped { copy_text(out, size, *owned[0]); e.pure = 0; return }
     EmitExpr(e, expr.third, e.fn.exprs[expr.third].type, source, IR.ZIR_TEXT_MAX)
     EmitIndent(e)
     if e.target == .ZIR_GO {
@@ -1844,7 +1852,7 @@ EmitExprWithBuffers :: (e: *Emitter, index: s32, expected: *u8, out: *u8, size: 
     } else if expr.kind == .COMPILE_TIME {
         copy_text(*buffers.result[0], IR.ZIR_TEXT_MAX, CStr("false"))
         pure = 1
-    } else if expr.kind == .OWNED_CLOSURE {
+    } else if expr.kind == .OWNED_CLOSURE || expr.kind == .SCOPED_CLOSURE {
         EmitOwnedClosure(e, expr, out, size)
         return
     } else if expr.kind == .OWNED_CAPTURE_DROP {

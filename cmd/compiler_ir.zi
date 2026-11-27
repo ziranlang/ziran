@@ -55,6 +55,8 @@ ZirExprKind :: enum s32 #c "ZIR_EXPR_" {
     OWNED_CLOSURE
     OWNED_CAPTURE_DROP
     OWNED_LAMBDA  // frontend-only, contextualized before saving
+    JSX_CHILDREN  // frontend-only aggregate or deferred child body
+    SCOPED_CLOSURE  // borrowed environment and checked invoke slot
 }
 
 // Per-thread target selection, shared by the checker, parser, and host tools.
@@ -359,6 +361,8 @@ ZirType :: struct {
     is_synthetic_application: s32  // private name made from a direct type call
     is_owned_vec: s32  // specialized standard Vec storage
     is_owned_callable: s32  // owned state + checked invoke and cleanup slots
+    is_scoped_callable: s32  // borrowed state + checked invoke slot
+    requires_all_fields: s32  // record literals must supply each declared field
     is_map: s32  // Go map; body records the private key/value types
     is_extern: s32  // host-owned record or opaque foreign type
     is_abi_incomplete: s32  // native ABI treats the complete record as opaque

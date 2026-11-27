@@ -1464,7 +1464,7 @@ compiler_zx_link_MarkModuleFields(ZirModule* module, uint8_t* entry_module, uint
                 value_1 = &(module->types[index]);
             }
             ZirType* type = value_1;
-            bool value_3 = type->is_owned_callable != 0;
+            bool value_3 = type->is_owned_callable != 0 || type->is_scoped_callable != 0;
             if (value_3 || zir_foreign_compiler_zx_link__VecElementType(module, &(type->name[0]), (void *)0, 0) != 0) {
                 compiler_zx_link_MarkAllFields(module, &(type->name[0]), uses);
             }

@@ -9863,11 +9863,9 @@ compiler_c_backend_PruneScopes(ZirProgram* program, ZirModule* m, ZirCPruneModul
         int32_t range_last_5 = (int32_t)((uint32_t)(uses->count) - 1u);
         int32_t i = range_first_5;
         if (i <= range_last_5) for (;;) {
-            if ((uses->items[i]).use == 1) {
-                ZirModule** value_3 = &(starts[count]);
-                (*value_3) = (ZirModule*)(uses->items[i]).module;
-                count = (int32_t)((uint32_t)count + 1u);
-            }
+            ZirModule** value_3 = &(starts[count]);
+            (*value_3) = (ZirModule*)(uses->items[i]).module;
+            count = (int32_t)((uint32_t)count + 1u);
             if (i == range_last_5) {
                 break;
             }
@@ -9879,30 +9877,30 @@ compiler_c_backend_PruneScopes(ZirProgram* program, ZirModule* m, ZirCPruneModul
     (*value_4) = value_5;
     count = 0;
     {
-        int32_t range_first_13 = 0;
-        int32_t range_last_13 = (int32_t)((uint32_t)(uses->count) - 1u);
-        int32_t i = range_first_13;
-        if (i <= range_last_13) for (;;) {
+        int32_t range_first_11 = 0;
+        int32_t range_last_11 = (int32_t)((uint32_t)(uses->count) - 1u);
+        int32_t i = range_first_11;
+        if (i <= range_last_11) for (;;) {
             ZirModule** value_6 = &(starts[count]);
             (*value_6) = (ZirModule*)(uses->items[i]).module;
             count = (int32_t)((uint32_t)count + 1u);
-            if (i == range_last_13) {
+            if (i == range_last_11) {
                 break;
             }
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
     {
-        int32_t range_first_17 = 0;
-        int32_t range_last_17 = (int32_t)((uint32_t)(m->import_count) - 1u);
-        int32_t i = range_first_17;
-        if (i <= range_last_17) for (;;) {
+        int32_t range_first_15 = 0;
+        int32_t range_last_15 = (int32_t)((uint32_t)(m->import_count) - 1u);
+        int32_t i = range_first_15;
+        if (i <= range_last_15) for (;;) {
             if (((ZirImportKind)((m->imports[i]).kind)) == ((ZirImportKind)(1)) || ((ZirImportKind)((m->imports[i]).kind)) == ((ZirImportKind)(2))) {
                 ZirModule** value_7 = &(starts[count]);
                 (*value_7) = (ZirModule*)(m->imports[i]).resolved_module;
                 count = (int32_t)((uint32_t)count + 1u);
             }
-            if (i == range_last_17) {
+            if (i == range_last_15) {
                 break;
             }
             i = (int32_t)((uint32_t)i + 1u);

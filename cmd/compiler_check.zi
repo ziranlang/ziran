@@ -1927,19 +1927,7 @@ order_using_expressions :: (function: *IR.ZirFunction) -> s32 {
         }
         {
             i: s32 = 0
-            while check_loop_63 := (i < count) {
-                if !(order_expression(*(order), i, 0) != 0) {
-                    break goto_failed
-                }
-                CheckPost0(*(i))
-            }
-        }
-        if ((order).count != count) {
-            break goto_failed
-        }
-        {
-            i: s32 = 0
-            while check_loop_64 := (i < count) {
+            while check_loop_64 := (i < (order).count) {
                 expression: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((order).ordered) + cast(usize)(i) * size_of(IR.ZirExpr))
                 if ((expression).left >= 0) {
                     (expression).left = ((order).map)[(expression).left]
@@ -1974,6 +1962,7 @@ order_using_expressions :: (function: *IR.ZirFunction) -> s32 {
         }
         CompilerFree(cast(*void)((function).exprs))
         (function).exprs = (order).ordered
+        (function).expr_count = (order).count
         (function).expr_cap = count
         CompilerFree(cast(*void)((order).map))
         CompilerFree(cast(*void)((order).state))

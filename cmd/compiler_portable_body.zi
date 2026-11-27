@@ -163,7 +163,7 @@ PortableExpression :: (module: *IR.ZirModule, fn: *IR.ZirFunction, index: s32, s
         if indirect && (expr.left < 0 || expr.left >= fn.expr_count || MemoType(module, fn.exprs[expr.left].type) == 0) {
             return false
         }
-    } else if kind == .OWNED_CLOSURE || kind == .OWNED_CAPTURE_DROP {
+    } else if kind == .OWNED_CLOSURE || kind == .SCOPED_CLOSURE || kind == .OWNED_CAPTURE_DROP {
         // Both materialize the checked environment record by name.
         if CFindType(module, expr.name, null) == null || MemoType(module, expr.name) == 0 {
             return false

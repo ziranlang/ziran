@@ -4960,7 +4960,7 @@ compiler_go_backend_rewrite_global_field(ZirType* record, uint8_t* source, uint8
 static int32_t
 compiler_go_backend_go_owned_slot_field(GoLowerState* ctx, ZirType* record, ZirTypeField* field, uint8_t* out, size_t size)
 {
-    if (!(record->is_owned_callable != 0)) {
+    if (record->is_owned_callable == 0 && record->is_scoped_callable == 0) {
         return 0;
     }
     ZirModule* owner = (ZirModule*)(((void *)0));
@@ -8423,7 +8423,8 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     if (!(ei < (m->functions[fi]).expr_count)) {
                                         break;
                                     }
-                                    if (((ZirExprKind)((((m->functions[fi]).exprs)[ei]).kind)) == ((ZirExprKind)(18)) || ((ZirExprKind)((((m->functions[fi]).exprs)[ei]).kind)) == ((ZirExprKind)(19))) {
+                                    bool value_105 = ((ZirExprKind)((((m->functions[fi]).exprs)[ei]).kind)) == ((ZirExprKind)(22)) || ((ZirExprKind)((((m->functions[fi]).exprs)[ei]).kind)) == ((ZirExprKind)(18));
+                                    if (value_105 || ((ZirExprKind)((((m->functions[fi]).exprs)[ei]).kind)) == ((ZirExprKind)(19))) {
                                         owned_unsafe = 1;
                                         break;
                                     }
@@ -8433,74 +8434,74 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             fi = (int32_t)((uint32_t)fi + 1u);
                         }
                     }
-                    bool value_105 = pi == 0 && mi == 0;
-                    bool value_106 = value_105 && compiler_go_backend_go_prints_floats(ctx, progs, prog_count) != 0;
-                    int32_t value_107 = 0;
-                    if (value_106) {
-                        value_107 = 1;
+                    bool value_106 = pi == 0 && mi == 0;
+                    bool value_107 = value_106 && compiler_go_backend_go_prints_floats(ctx, progs, prog_count) != 0;
+                    int32_t value_108 = 0;
+                    if (value_107) {
+                        value_108 = 1;
                     }
-                    int32_t float_helper = value_107;
+                    int32_t float_helper = value_108;
                     int32_t import_count = 0;
                     if (prints != 0) {
                         int32_t post66 = import_count;
                         import_count = (int32_t)((uint32_t)import_count + 1u);
-                        String value_108 = StringLiteral("\"fmt\"");
-                        uint8_t* value_109 = (void *)0;
+                        String value_109 = StringLiteral("\"fmt\"");
+                        uint8_t* value_110 = (void *)0;
                         {
-                            String s = value_108;
-                            value_109 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_109;
+                            value_110 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post66][0]), (1288) * (sizeof(uint8_t)), value_109);
+                        zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post66][0]), (1288) * (sizeof(uint8_t)), value_110);
                     }
                     if (float_helper != 0 || sqrt_calls != 0) {
                         int32_t post67 = import_count;
                         import_count = (int32_t)((uint32_t)import_count + 1u);
-                        String value_111 = StringLiteral("\"math\"");
-                        uint8_t* value_112 = (void *)0;
+                        String value_112 = StringLiteral("\"math\"");
+                        uint8_t* value_113 = (void *)0;
                         {
-                            String s = value_111;
-                            value_112 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_112;
+                            value_113 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post67][0]), (1288) * (sizeof(uint8_t)), value_112);
+                        zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post67][0]), (1288) * (sizeof(uint8_t)), value_113);
                     }
                     if (bit_calls != 0) {
                         int32_t post68 = import_count;
                         import_count = (int32_t)((uint32_t)import_count + 1u);
-                        String value_114 = StringLiteral("zibits \"math/bits\"");
-                        uint8_t* value_115 = (void *)0;
+                        String value_115 = StringLiteral("zibits \"math/bits\"");
+                        uint8_t* value_116 = (void *)0;
                         {
-                            String s = value_114;
-                            value_115 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_115;
+                            value_116 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post68][0]), (1288) * (sizeof(uint8_t)), value_115);
+                        zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post68][0]), (1288) * (sizeof(uint8_t)), value_116);
                     }
                     if (float_helper != 0) {
                         int32_t post69 = import_count;
                         import_count = (int32_t)((uint32_t)import_count + 1u);
-                        String value_117 = StringLiteral("\"strconv\"");
-                        uint8_t* value_118 = (void *)0;
+                        String value_118 = StringLiteral("\"strconv\"");
+                        uint8_t* value_119 = (void *)0;
                         {
-                            String s = value_117;
-                            value_118 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_118;
+                            value_119 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post69][0]), (1288) * (sizeof(uint8_t)), value_118);
+                        zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post69][0]), (1288) * (sizeof(uint8_t)), value_119);
                     }
-                    bool value_120 = owned_unsafe != 0 || pointer_index != 0 || ctx->g_union_unsafe != 0;
-                    bool value_121 = value_120;
-                    if (!value_121) {
-                        bool value_122 = compiler_go_backend_go_has_c_foreigns(ctx) != 0;
-                        value_121 = (value_122 && !(header_module != 0));
+                    bool value_121 = owned_unsafe != 0 || pointer_index != 0 || ctx->g_union_unsafe != 0;
+                    bool value_122 = value_121;
+                    if (!value_122) {
+                        bool value_123 = compiler_go_backend_go_has_c_foreigns(ctx) != 0;
+                        value_122 = (value_123 && !(header_module != 0));
                     }
-                    if (value_121) {
+                    if (value_122) {
                         int32_t post70 = import_count;
                         import_count = (int32_t)((uint32_t)import_count + 1u);
-                        String value_123 = StringLiteral("\"unsafe\"");
-                        uint8_t* value_124 = (void *)0;
+                        String value_124 = StringLiteral("\"unsafe\"");
+                        uint8_t* value_125 = (void *)0;
                         {
-                            String s = value_123;
-                            value_124 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_124;
+                            value_125 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post70][0]), (1288) * (sizeof(uint8_t)), value_124);
+                        zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post70][0]), (1288) * (sizeof(uint8_t)), value_125);
                     }
                     {
                         int32_t i = 0;
@@ -8509,21 +8510,21 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 break;
                             }
                             int32_t duplicate = 0;
-                            bool value_126 = !((ctx->g_externs[i]).direct_go != 0) || ((ctx->g_externs[i]).c_header)[0] != 0;
-                            bool value_127 = value_126 || compiler_go_backend_go_package_initializer(ctx, &(ctx->g_externs[i])) != 0;
-                            bool value_128 = value_127 || ((ctx->g_externs[i]).go_field != 0 && ((ctx->g_externs[i]).go_receiver)[0] != 0);
-                            bool value_129 = value_128;
-                            if (!value_129) {
-                                String value_130 = StringLiteral("builtin");
-                                uint8_t* value_131 = (void *)0;
+                            bool value_127 = !((ctx->g_externs[i]).direct_go != 0) || ((ctx->g_externs[i]).c_header)[0] != 0;
+                            bool value_128 = value_127 || compiler_go_backend_go_package_initializer(ctx, &(ctx->g_externs[i])) != 0;
+                            bool value_129 = value_128 || ((ctx->g_externs[i]).go_field != 0 && ((ctx->g_externs[i]).go_receiver)[0] != 0);
+                            bool value_130 = value_129;
+                            if (!value_130) {
+                                String value_131 = StringLiteral("builtin");
+                                uint8_t* value_132 = (void *)0;
                                 {
-                                    String s = value_130;
-                                    value_131 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_131;
+                                    value_132 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                bool value_133 = zir_foreign_compiler_go_backend__strcmp(&(((ctx->g_externs[i]).go_import_path)[0]), value_131) != 0;
-                                value_129 = !value_133;
+                                bool value_134 = zir_foreign_compiler_go_backend__strcmp(&(((ctx->g_externs[i]).go_import_path)[0]), value_132) != 0;
+                                value_130 = !value_134;
                             }
-                            if (value_129) {
+                            if (value_130) {
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
@@ -8533,15 +8534,15 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     if (!(j < i)) {
                                         break;
                                     }
-                                    bool value_134 = (ctx->g_externs[j]).direct_go != 0;
-                                    bool value_135 = value_134;
-                                    if (value_135) {
-                                        bool value_136 = compiler_go_backend_go_package_initializer(ctx, &(ctx->g_externs[j])) != 0;
-                                        value_135 = !value_136;
+                                    bool value_135 = (ctx->g_externs[j]).direct_go != 0;
+                                    bool value_136 = value_135;
+                                    if (value_136) {
+                                        bool value_137 = compiler_go_backend_go_package_initializer(ctx, &(ctx->g_externs[j])) != 0;
+                                        value_136 = !value_137;
                                     }
-                                    bool value_137 = value_135 && (!((ctx->g_externs[j]).go_field != 0) || !(((ctx->g_externs[j]).go_receiver)[0] != 0));
-                                    bool value_138 = value_137;
-                                    if (value_138 && zir_foreign_compiler_go_backend__strcmp(&(((ctx->g_externs[j]).go_import_path)[0]), &(((ctx->g_externs[i]).go_import_path)[0])) == 0) {
+                                    bool value_138 = value_136 && (!((ctx->g_externs[j]).go_field != 0) || !(((ctx->g_externs[j]).go_receiver)[0] != 0));
+                                    bool value_139 = value_138;
+                                    if (value_139 && zir_foreign_compiler_go_backend__strcmp(&(((ctx->g_externs[j]).go_import_path)[0]), &(((ctx->g_externs[i]).go_import_path)[0])) == 0) {
                                         duplicate = 1;
                                         break;
                                     }
@@ -8551,13 +8552,13 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             if (!(duplicate != 0)) {
                                 int32_t post71 = import_count;
                                 import_count = (int32_t)((uint32_t)import_count + 1u);
-                                String value_139 = StringLiteral("%s \"%s\"");
-                                uint8_t* value_140 = (void *)0;
+                                String value_140 = StringLiteral("%s \"%s\"");
+                                uint8_t* value_141 = (void *)0;
                                 {
-                                    String s = value_139;
-                                    value_140 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_140;
+                                    value_141 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post71][0]), (1288) * (sizeof(uint8_t)), value_140, &(((ctx->g_externs[i]).go_import_alias)[0]), &(((ctx->g_externs[i]).go_import_path)[0]));
+                                zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post71][0]), (1288) * (sizeof(uint8_t)), value_141, &(((ctx->g_externs[i]).go_import_alias)[0]), &(((ctx->g_externs[i]).go_import_path)[0]));
                             }
                             i = (int32_t)((uint32_t)i + 1u);
                         }
@@ -8576,42 +8577,42 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             uint8_t path[1024] = {0};
                             uint8_t alias[256] = {0};
                             uint8_t declaration[1288] = {0};
-                            bool value_142 = compiler_go_backend_extern_direct_go_target(ctx, &(type->foreign_target[0]), &(path[0]), (1024) * (sizeof(uint8_t)), &(alias[0]), (256) * (sizeof(uint8_t))) != 0;
-                            if (!value_142) {
-                                ZirSourceSpan value_143 = type->span;
-                                String value_144 = StringLiteral("zir_go.type");
-                                uint8_t* value_145 = (void *)0;
+                            bool value_143 = compiler_go_backend_extern_direct_go_target(ctx, &(type->foreign_target[0]), &(path[0]), (1024) * (sizeof(uint8_t)), &(alias[0]), (256) * (sizeof(uint8_t))) != 0;
+                            if (!value_143) {
+                                ZirSourceSpan value_144 = type->span;
+                                String value_145 = StringLiteral("zir_go.type");
+                                uint8_t* value_146 = (void *)0;
                                 {
-                                    String s = value_144;
-                                    value_145 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_145;
+                                    value_146 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                String value_147 = StringLiteral("invalid foreign Go type");
-                                uint8_t* value_148 = (void *)0;
+                                String value_148 = StringLiteral("invalid foreign Go type");
+                                uint8_t* value_149 = (void *)0;
                                 {
-                                    String s = value_147;
-                                    value_148 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_148;
+                                    value_149 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_foreign_compiler_go_backend__Diagnostic(value_143, value_145, value_148);
+                                zir_foreign_compiler_go_backend__Diagnostic(value_144, value_146, value_149);
                                 return 1;
                             }
-                            String value_150 = StringLiteral("builtin");
-                            uint8_t* value_151 = (void *)0;
+                            String value_151 = StringLiteral("builtin");
+                            uint8_t* value_152 = (void *)0;
                             {
-                                String s = value_150;
-                                value_151 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                String s = value_151;
+                                value_152 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            bool value_153 = zir_foreign_compiler_go_backend__strcmp(&(path[0]), value_151) != 0;
-                            if (!value_153 || zir_foreign_compiler_go_backend__GoCHeader(&(path[0]), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0) {
+                            bool value_154 = zir_foreign_compiler_go_backend__strcmp(&(path[0]), value_152) != 0;
+                            if (!value_154 || zir_foreign_compiler_go_backend__GoCHeader(&(path[0]), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0) {
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
-                            String value_154 = StringLiteral("%s \"%s\"");
-                            uint8_t* value_155 = (void *)0;
+                            String value_155 = StringLiteral("%s \"%s\"");
+                            uint8_t* value_156 = (void *)0;
                             {
-                                String s = value_154;
-                                value_155 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                String s = value_155;
+                                value_156 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_foreign_compiler_go_backend__snprintf(&(declaration[0]), (1288) * (sizeof(uint8_t)), value_155, &(alias[0]), &(path[0]));
+                            zir_foreign_compiler_go_backend__snprintf(&(declaration[0]), (1288) * (sizeof(uint8_t)), value_156, &(alias[0]), &(path[0]));
                             int32_t duplicate = 0;
                             {
                                 int32_t j = 0;
@@ -8619,8 +8620,8 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     if (!(j < import_count)) {
                                         break;
                                     }
-                                    bool value_157 = zir_foreign_compiler_go_backend__strcmp(&(declaration[0]), &(buffers->imports[j][0])) != 0;
-                                    if (!value_157) {
+                                    bool value_158 = zir_foreign_compiler_go_backend__strcmp(&(declaration[0]), &(buffers->imports[j][0])) != 0;
+                                    if (!value_158) {
                                         duplicate = 1;
                                     }
                                     j = (int32_t)((uint32_t)j + 1u);
@@ -8628,20 +8629,20 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             }
                             if (!(duplicate != 0)) {
                                 if (import_count == 64) {
-                                    ZirSourceSpan value_158 = type->span;
-                                    String value_159 = StringLiteral("zir_go.type");
-                                    uint8_t* value_160 = (void *)0;
+                                    ZirSourceSpan value_159 = type->span;
+                                    String value_160 = StringLiteral("zir_go.type");
+                                    uint8_t* value_161 = (void *)0;
                                     {
-                                        String s = value_159;
-                                        value_160 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_160;
+                                        value_161 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    String value_162 = StringLiteral("too many Go imports");
-                                    uint8_t* value_163 = (void *)0;
+                                    String value_163 = StringLiteral("too many Go imports");
+                                    uint8_t* value_164 = (void *)0;
                                     {
-                                        String s = value_162;
-                                        value_163 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_163;
+                                        value_164 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_foreign_compiler_go_backend__Diagnostic(value_158, value_160, value_163);
+                                    zir_foreign_compiler_go_backend__Diagnostic(value_159, value_161, value_164);
                                     return 1;
                                 }
                                 int32_t post72 = import_count;
@@ -8658,19 +8659,19 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 break;
                             }
                             ZirGoExtern* binding = &(ctx->g_externs[i]);
-                            bool value_165 = compiler_go_backend_go_package_initializer(ctx, binding) != 0;
-                            if (!value_165) {
+                            bool value_166 = compiler_go_backend_go_package_initializer(ctx, binding) != 0;
+                            if (!value_166) {
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
                             uint8_t quoted[1028] = {0};
-                            String value_166 = StringLiteral("\"%s\"");
-                            uint8_t* value_167 = (void *)0;
+                            String value_167 = StringLiteral("\"%s\"");
+                            uint8_t* value_168 = (void *)0;
                             {
-                                String s = value_166;
-                                value_167 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                String s = value_167;
+                                value_168 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_foreign_compiler_go_backend__snprintf(&(quoted[0]), (1028) * (sizeof(uint8_t)), value_167, &(binding->go_import_path[0]));
+                            zir_foreign_compiler_go_backend__snprintf(&(quoted[0]), (1028) * (sizeof(uint8_t)), value_168, &(binding->go_import_path[0]));
                             int32_t duplicate = 0;
                             {
                                 int32_t j = 0;
@@ -8678,8 +8679,8 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     if (!(j < import_count)) {
                                         break;
                                     }
-                                    uint8_t* value_169 = zir_foreign_compiler_go_backend__strstr(&(buffers->imports[j][0]), &(quoted[0]));
-                                    if (value_169 != ((void *)0)) {
+                                    uint8_t* value_170 = zir_foreign_compiler_go_backend__strstr(&(buffers->imports[j][0]), &(quoted[0]));
+                                    if (value_170 != ((void *)0)) {
                                         duplicate = 1;
                                     }
                                     j = (int32_t)((uint32_t)j + 1u);
@@ -8690,31 +8691,31 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 continue;
                             }
                             if (import_count == 64) {
-                                ZirSourceSpan value_170 = m->span;
-                                String value_171 = StringLiteral("zir_go.import");
-                                uint8_t* value_172 = (void *)0;
+                                ZirSourceSpan value_171 = m->span;
+                                String value_172 = StringLiteral("zir_go.import");
+                                uint8_t* value_173 = (void *)0;
                                 {
-                                    String s = value_171;
-                                    value_172 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_172;
+                                    value_173 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                String value_174 = StringLiteral("too many Go imports");
-                                uint8_t* value_175 = (void *)0;
+                                String value_175 = StringLiteral("too many Go imports");
+                                uint8_t* value_176 = (void *)0;
                                 {
-                                    String s = value_174;
-                                    value_175 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_175;
+                                    value_176 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_foreign_compiler_go_backend__Diagnostic(value_170, value_172, value_175);
+                                zir_foreign_compiler_go_backend__Diagnostic(value_171, value_173, value_176);
                                 return 1;
                             }
                             int32_t post73 = import_count;
                             import_count = (int32_t)((uint32_t)import_count + 1u);
-                            String value_177 = StringLiteral("_ %s");
-                            uint8_t* value_178 = (void *)0;
+                            String value_178 = StringLiteral("_ %s");
+                            uint8_t* value_179 = (void *)0;
                             {
-                                String s = value_177;
-                                value_178 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                String s = value_178;
+                                value_179 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post73][0]), (1288) * (sizeof(uint8_t)), value_178, &(quoted[0]));
+                            zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post73][0]), (1288) * (sizeof(uint8_t)), value_179, &(quoted[0]));
                             i = (int32_t)((uint32_t)i + 1u);
                         }
                     }
@@ -8726,14 +8727,14 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 if (!(i < import_count)) {
                                     break;
                                 }
-                                String value_180 = StringLiteral("testing \"testing\"");
-                                uint8_t* value_181 = (void *)0;
+                                String value_181 = StringLiteral("testing \"testing\"");
+                                uint8_t* value_182 = (void *)0;
                                 {
-                                    String s = value_180;
-                                    value_181 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_181;
+                                    value_182 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                bool value_183 = zir_foreign_compiler_go_backend__strcmp(&(buffers->imports[i][0]), value_181) != 0;
-                                if (!value_183) {
+                                bool value_184 = zir_foreign_compiler_go_backend__strcmp(&(buffers->imports[i][0]), value_182) != 0;
+                                if (!value_184) {
                                     present = 1;
                                 }
                                 i = (int32_t)((uint32_t)i + 1u);
@@ -8741,31 +8742,31 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         }
                         if (!(present != 0)) {
                             if (import_count == 64) {
-                                ZirSourceSpan value_184 = m->span;
-                                String value_185 = StringLiteral("zir_go.import");
-                                uint8_t* value_186 = (void *)0;
+                                ZirSourceSpan value_185 = m->span;
+                                String value_186 = StringLiteral("zir_go.import");
+                                uint8_t* value_187 = (void *)0;
                                 {
-                                    String s = value_185;
-                                    value_186 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_186;
+                                    value_187 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                String value_188 = StringLiteral("too many Go imports");
-                                uint8_t* value_189 = (void *)0;
+                                String value_189 = StringLiteral("too many Go imports");
+                                uint8_t* value_190 = (void *)0;
                                 {
-                                    String s = value_188;
-                                    value_189 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_189;
+                                    value_190 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_foreign_compiler_go_backend__Diagnostic(value_184, value_186, value_189);
+                                zir_foreign_compiler_go_backend__Diagnostic(value_185, value_187, value_190);
                                 return 1;
                             }
                             int32_t post74 = import_count;
                             import_count = (int32_t)((uint32_t)import_count + 1u);
-                            String value_191 = StringLiteral("testing \"testing\"");
-                            uint8_t* value_192 = (void *)0;
+                            String value_192 = StringLiteral("testing \"testing\"");
+                            uint8_t* value_193 = (void *)0;
                             {
-                                String s = value_191;
-                                value_192 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                String s = value_192;
+                                value_193 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_foreign_compiler_go_backend__copy_text(&(buffers->imports[post74][0]), (1288) * (sizeof(uint8_t)), value_192);
+                            zir_foreign_compiler_go_backend__copy_text(&(buffers->imports[post74][0]), (1288) * (sizeof(uint8_t)), value_193);
                         }
                     }
                     {
@@ -8774,81 +8775,81 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             if (!(i < import_count)) {
                                 break;
                             }
-                            bool value_194 = compiler_go_backend_go_validate_export_import(ctx, &(buffers->imports[i][0])) != 0;
-                            if (!value_194) {
+                            bool value_195 = compiler_go_backend_go_validate_export_import(ctx, &(buffers->imports[i][0])) != 0;
+                            if (!value_195) {
                                 return 1;
                             }
                             i = (int32_t)((uint32_t)i + 1u);
                         }
                     }
                     if (import_count == 1) {
-                        void* value_195 = f;
-                        String value_196 = StringLiteral("import %s\n\n");
-                        uint8_t* value_197 = (void *)0;
+                        void* value_196 = f;
+                        String value_197 = StringLiteral("import %s\n\n");
+                        uint8_t* value_198 = (void *)0;
                         {
-                            String s = value_196;
-                            value_197 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_197;
+                            value_198 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_go_backend__fprintf(value_195, value_197, &(buffers->imports[0][0]));
+                        zir_foreign_compiler_go_backend__fprintf(value_196, value_198, &(buffers->imports[0][0]));
                     } else {
                         if (import_count > 1) {
-                            String value_199 = StringLiteral("import (\n");
-                            uint8_t* value_200 = (void *)0;
+                            String value_200 = StringLiteral("import (\n");
+                            uint8_t* value_201 = (void *)0;
                             {
-                                String s = value_199;
-                                value_200 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                String s = value_200;
+                                value_201 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_foreign_compiler_go_backend__fputs(value_200, f);
+                            zir_foreign_compiler_go_backend__fputs(value_201, f);
                             {
                                 int32_t i = 0;
                                 while (true) {
                                     if (!(i < import_count)) {
                                         break;
                                     }
-                                    void* value_202 = f;
-                                    String value_203 = StringLiteral("\t%s\n");
-                                    uint8_t* value_204 = (void *)0;
+                                    void* value_203 = f;
+                                    String value_204 = StringLiteral("\t%s\n");
+                                    uint8_t* value_205 = (void *)0;
                                     {
-                                        String s = value_203;
-                                        value_204 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_204;
+                                        value_205 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_foreign_compiler_go_backend__fprintf(value_202, value_204, &(buffers->imports[i][0]));
+                                    zir_foreign_compiler_go_backend__fprintf(value_203, value_205, &(buffers->imports[i][0]));
                                     i = (int32_t)((uint32_t)i + 1u);
                                 }
                             }
-                            String value_206 = StringLiteral(")\n\n");
-                            uint8_t* value_207 = (void *)0;
+                            String value_207 = StringLiteral(")\n\n");
+                            uint8_t* value_208 = (void *)0;
                             {
-                                String s = value_206;
-                                value_207 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                String s = value_207;
+                                value_208 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_foreign_compiler_go_backend__fputs(value_207, f);
+                            zir_foreign_compiler_go_backend__fputs(value_208, f);
                         }
                     }
-                    bool value_209 = owned_unsafe != 0 || assembly_unsafe != 0;
-                    bool value_210 = value_209;
-                    if (!value_210) {
-                        bool value_211 = compiler_go_backend_go_has_c_foreigns(ctx) != 0;
-                        value_210 = (value_211 && !(header_module != 0));
+                    bool value_210 = owned_unsafe != 0 || assembly_unsafe != 0;
+                    bool value_211 = value_210;
+                    if (!value_211) {
+                        bool value_212 = compiler_go_backend_go_has_c_foreigns(ctx) != 0;
+                        value_211 = (value_212 && !(header_module != 0));
                     }
-                    if (value_210) {
-                        String value_212 = StringLiteral("var _ unsafe.Pointer\n\n");
-                        uint8_t* value_213 = (void *)0;
+                    if (value_211) {
+                        String value_213 = StringLiteral("var _ unsafe.Pointer\n\n");
+                        uint8_t* value_214 = (void *)0;
                         {
-                            String s = value_212;
-                            value_213 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_213;
+                            value_214 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_go_backend__fputs(value_213, f);
+                        zir_foreign_compiler_go_backend__fputs(value_214, f);
                     }
-                    bool value_215 = pi == 0 && mi == 0;
-                    if (value_215 && compiler_go_backend_go_uses_caller_location(ctx, progs, prog_count) != 0) {
-                        String value_216 = StringLiteral("type Source_Code_Location struct {\n\tFullyPathedFilename string\n\tLineNumber int64\n}\n\n");
-                        uint8_t* value_217 = (void *)0;
+                    bool value_216 = pi == 0 && mi == 0;
+                    if (value_216 && compiler_go_backend_go_uses_caller_location(ctx, progs, prog_count) != 0) {
+                        String value_217 = StringLiteral("type Source_Code_Location struct {\n\tFullyPathedFilename string\n\tLineNumber int64\n}\n\n");
+                        uint8_t* value_218 = (void *)0;
                         {
-                            String s = value_216;
-                            value_217 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_217;
+                            value_218 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_go_backend__fputs(value_217, f);
+                        zir_foreign_compiler_go_backend__fputs(value_218, f);
                     }
                     {
                         int32_t i = 0;
@@ -8858,14 +8859,14 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             }
                             ZirImport* imp = &(m->imports[i]);
                             if (((ZirImportKind)(imp->kind)) == ((ZirImportKind)(1))) {
-                                void* value_219 = f;
-                                String value_220 = StringLiteral("// #import %s\n");
-                                uint8_t* value_221 = (void *)0;
+                                void* value_220 = f;
+                                String value_221 = StringLiteral("// #import %s\n");
+                                uint8_t* value_222 = (void *)0;
                                 {
-                                    String s = value_220;
-                                    value_221 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_221;
+                                    value_222 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_foreign_compiler_go_backend__fprintf(value_219, value_221, &(imp->target[0]));
+                                zir_foreign_compiler_go_backend__fprintf(value_220, value_222, &(imp->target[0]));
                             }
                             i = (int32_t)((uint32_t)i + 1u);
                         }
@@ -8894,22 +8895,22 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             }
                         }
                         if (host_count > 0) {
-                            void* value_223 = f;
-                            String value_224 = StringLiteral("// %sHost bridges '#foreign host_api' declarations to the");
-                            uint8_t* value_225 = (void *)0;
+                            void* value_224 = f;
+                            String value_225 = StringLiteral("// %sHost bridges '#foreign host_api' declarations to the");
+                            uint8_t* value_226 = (void *)0;
                             {
-                                String s = value_224;
-                                value_225 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                String s = value_225;
+                                value_226 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_foreign_compiler_go_backend__fprintf(value_223, value_225, &(guard[0]));
-                            void* value_227 = f;
-                            String value_228 = StringLiteral(" embedding Go program.\ntype %sHost interface {\n");
-                            uint8_t* value_229 = (void *)0;
+                            zir_foreign_compiler_go_backend__fprintf(value_224, value_226, &(guard[0]));
+                            void* value_228 = f;
+                            String value_229 = StringLiteral(" embedding Go program.\ntype %sHost interface {\n");
+                            uint8_t* value_230 = (void *)0;
                             {
-                                String s = value_228;
-                                value_229 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                String s = value_229;
+                                value_230 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_foreign_compiler_go_backend__fprintf(value_227, value_229, &(guard[0]));
+                            zir_foreign_compiler_go_backend__fprintf(value_228, value_230, &(guard[0]));
                             {
                                 int32_t i = 0;
                                 while (true) {
@@ -8922,14 +8923,14 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                         i = (int32_t)((uint32_t)i + 1u);
                                         continue;
                                     }
-                                    void* value_231 = f;
-                                    String value_232 = StringLiteral("\t%s(");
-                                    uint8_t* value_233 = (void *)0;
+                                    void* value_232 = f;
+                                    String value_233 = StringLiteral("\t%s(");
+                                    uint8_t* value_234 = (void *)0;
                                     {
-                                        String s = value_232;
-                                        value_233 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_233;
+                                        value_234 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_foreign_compiler_go_backend__fprintf(value_231, value_233, &(ex->go[0]));
+                                    zir_foreign_compiler_go_backend__fprintf(value_232, value_234, &(ex->go[0]));
                                     {
                                         int32_t a = 0;
                                         while (true) {
@@ -8939,105 +8940,105 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                             uint8_t aname[256] = {0};
                                             zir_foreign_compiler_go_backend__camel_ident((ex->parameters->items[a]).name, &(aname[0]), (256) * (sizeof(uint8_t)));
                                             compiler_go_backend_require_go_type(ctx, (ex->parameters->items[a]).type, &(gt[0]), (256) * (sizeof(uint8_t)), m->span);
-                                            void* value_235 = f;
-                                            String value_236 = StringLiteral("%s%s %s");
-                                            uint8_t* value_237 = (void *)0;
+                                            void* value_236 = f;
+                                            String value_237 = StringLiteral("%s%s %s");
+                                            uint8_t* value_238 = (void *)0;
                                             {
-                                                String s = value_236;
-                                                value_237 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                                String s = value_237;
+                                                value_238 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                             }
-                                            uint8_t* value_239 = (void *)0;
+                                            uint8_t* value_240 = (void *)0;
                                             if (a > 0) {
-                                                String value_240 = StringLiteral(", ");
-                                                uint8_t* value_241 = (void *)0;
+                                                String value_241 = StringLiteral(", ");
+                                                uint8_t* value_242 = (void *)0;
                                                 {
-                                                    String s = value_240;
-                                                    value_241 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                                    String s = value_241;
+                                                    value_242 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                                 }
-                                                value_239 = value_241;
+                                                value_240 = value_242;
                                             } else {
-                                                String value_243 = StringLiteral("");
-                                                uint8_t* value_244 = (void *)0;
+                                                String value_244 = StringLiteral("");
+                                                uint8_t* value_245 = (void *)0;
                                                 {
-                                                    String s = value_243;
-                                                    value_244 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                                    String s = value_244;
+                                                    value_245 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                                 }
-                                                value_239 = value_244;
+                                                value_240 = value_245;
                                             }
-                                            zir_foreign_compiler_go_backend__fprintf(value_235, value_237, value_239, &(aname[0]), &(gt[0]));
+                                            zir_foreign_compiler_go_backend__fprintf(value_236, value_238, value_240, &(aname[0]), &(gt[0]));
                                             a = (int32_t)((uint32_t)a + 1u);
                                         }
                                     }
-                                    void* value_246 = f;
-                                    String value_247 = StringLiteral(")");
-                                    uint8_t* value_248 = (void *)0;
+                                    void* value_247 = f;
+                                    String value_248 = StringLiteral(")");
+                                    uint8_t* value_249 = (void *)0;
                                     {
-                                        String s = value_247;
-                                        value_248 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_248;
+                                        value_249 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_foreign_compiler_go_backend__fprintf(value_246, value_248);
+                                    zir_foreign_compiler_go_backend__fprintf(value_247, value_249);
                                     compiler_go_backend_require_go_type(ctx, &(ex->ret[0]), &(gt[0]), (256) * (sizeof(uint8_t)), m->span);
                                     if ((gt)[0] != 0) {
-                                        void* value_250 = f;
-                                        String value_251 = StringLiteral(" %s");
-                                        uint8_t* value_252 = (void *)0;
+                                        void* value_251 = f;
+                                        String value_252 = StringLiteral(" %s");
+                                        uint8_t* value_253 = (void *)0;
                                         {
-                                            String s = value_251;
-                                            value_252 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                            String s = value_252;
+                                            value_253 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
-                                        zir_foreign_compiler_go_backend__fprintf(value_250, value_252, &(gt[0]));
+                                        zir_foreign_compiler_go_backend__fprintf(value_251, value_253, &(gt[0]));
                                     }
-                                    void* value_254 = f;
-                                    String value_255 = StringLiteral("\n");
-                                    uint8_t* value_256 = (void *)0;
+                                    void* value_255 = f;
+                                    String value_256 = StringLiteral("\n");
+                                    uint8_t* value_257 = (void *)0;
                                     {
-                                        String s = value_255;
-                                        value_256 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_256;
+                                        value_257 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_foreign_compiler_go_backend__fprintf(value_254, value_256);
+                                    zir_foreign_compiler_go_backend__fprintf(value_255, value_257);
                                     i = (int32_t)((uint32_t)i + 1u);
                                 }
                             }
-                            void* value_258 = f;
-                            String value_259 = StringLiteral("}\n\n");
-                            uint8_t* value_260 = (void *)0;
+                            void* value_259 = f;
+                            String value_260 = StringLiteral("}\n\n");
+                            uint8_t* value_261 = (void *)0;
                             {
-                                String s = value_259;
-                                value_260 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                String s = value_260;
+                                value_261 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_foreign_compiler_go_backend__fprintf(value_258, value_260);
-                            void* value_262 = f;
-                            String value_263 = StringLiteral("var %s %sHost\n\n");
-                            uint8_t* value_264 = (void *)0;
+                            zir_foreign_compiler_go_backend__fprintf(value_259, value_261);
+                            void* value_263 = f;
+                            String value_264 = StringLiteral("var %s %sHost\n\n");
+                            uint8_t* value_265 = (void *)0;
                             {
-                                String s = value_263;
-                                value_264 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                String s = value_264;
+                                value_265 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_foreign_compiler_go_backend__fprintf(value_262, value_264, &(((ctx->g_externs[first_host]).host_var)[0]), &(guard[0]));
-                            void* value_266 = f;
-                            String value_267 = StringLiteral("// Set%sHost wires the '#foreign host_api' bridge before");
-                            uint8_t* value_268 = (void *)0;
+                            zir_foreign_compiler_go_backend__fprintf(value_263, value_265, &(((ctx->g_externs[first_host]).host_var)[0]), &(guard[0]));
+                            void* value_267 = f;
+                            String value_268 = StringLiteral("// Set%sHost wires the '#foreign host_api' bridge before");
+                            uint8_t* value_269 = (void *)0;
                             {
-                                String s = value_267;
-                                value_268 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                String s = value_268;
+                                value_269 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_foreign_compiler_go_backend__fprintf(value_266, value_268, &(guard[0]));
-                            void* value_270 = f;
-                            String value_271 = StringLiteral(" the first frame runs.\nfunc Set%sHost(host %sHost)");
-                            uint8_t* value_272 = (void *)0;
+                            zir_foreign_compiler_go_backend__fprintf(value_267, value_269, &(guard[0]));
+                            void* value_271 = f;
+                            String value_272 = StringLiteral(" the first frame runs.\nfunc Set%sHost(host %sHost)");
+                            uint8_t* value_273 = (void *)0;
                             {
-                                String s = value_271;
-                                value_272 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                String s = value_272;
+                                value_273 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_foreign_compiler_go_backend__fprintf(value_270, value_272, &(guard[0]), &(guard[0]));
-                            void* value_274 = f;
-                            String value_275 = StringLiteral(" {\n\t%s = host\n}\n\n");
-                            uint8_t* value_276 = (void *)0;
+                            zir_foreign_compiler_go_backend__fprintf(value_271, value_273, &(guard[0]), &(guard[0]));
+                            void* value_275 = f;
+                            String value_276 = StringLiteral(" {\n\t%s = host\n}\n\n");
+                            uint8_t* value_277 = (void *)0;
                             {
-                                String s = value_275;
-                                value_276 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                String s = value_276;
+                                value_277 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_foreign_compiler_go_backend__fprintf(value_274, value_276, &(((ctx->g_externs[first_host]).host_var)[0]));
+                            zir_foreign_compiler_go_backend__fprintf(value_275, value_277, &(((ctx->g_externs[first_host]).host_var)[0]));
                         }
                     }
                     int32_t enum_idx = 0;
@@ -9059,102 +9060,102 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 uint8_t value[128] = {0};
                                 uint8_t go_key[256] = {0};
                                 uint8_t go_value[256] = {0};
-                                bool value_278 = zir_foreign_compiler_go_backend__MapTypeParts(m, &(t->name[0]), &(key[0]), (128) * (sizeof(uint8_t)), &(value[0]), (128) * (sizeof(uint8_t))) != 0;
-                                if (!value_278) {
-                                    ZirSourceSpan value_279 = t->span;
-                                    String value_280 = StringLiteral("zir_go.type");
-                                    uint8_t* value_281 = (void *)0;
+                                bool value_279 = zir_foreign_compiler_go_backend__MapTypeParts(m, &(t->name[0]), &(key[0]), (128) * (sizeof(uint8_t)), &(value[0]), (128) * (sizeof(uint8_t))) != 0;
+                                if (!value_279) {
+                                    ZirSourceSpan value_280 = t->span;
+                                    String value_281 = StringLiteral("zir_go.type");
+                                    uint8_t* value_282 = (void *)0;
                                     {
-                                        String s = value_280;
-                                        value_281 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_281;
+                                        value_282 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    String value_283 = StringLiteral("invalid Map type");
-                                    uint8_t* value_284 = (void *)0;
+                                    String value_284 = StringLiteral("invalid Map type");
+                                    uint8_t* value_285 = (void *)0;
                                     {
-                                        String s = value_283;
-                                        value_284 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_284;
+                                        value_285 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_foreign_compiler_go_backend__Diagnostic(value_279, value_281, value_284);
+                                    zir_foreign_compiler_go_backend__Diagnostic(value_280, value_282, value_285);
                                     return 1;
                                 }
                                 compiler_go_backend_require_go_type(ctx, &(key[0]), &(go_key[0]), (256) * (sizeof(uint8_t)), t->span);
                                 compiler_go_backend_require_go_type(ctx, &(value[0]), &(go_value[0]), (256) * (sizeof(uint8_t)), t->span);
-                                void* value_286 = f;
-                                String value_287 = StringLiteral("type %s = map[%s]%s\n\n");
-                                uint8_t* value_288 = (void *)0;
+                                void* value_287 = f;
+                                String value_288 = StringLiteral("type %s = map[%s]%s\n\n");
+                                uint8_t* value_289 = (void *)0;
                                 {
-                                    String s = value_287;
-                                    value_288 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_288;
+                                    value_289 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_foreign_compiler_go_backend__fprintf(value_286, value_288, &(native[0]), &(go_key[0]), &(go_value[0]));
+                                zir_foreign_compiler_go_backend__fprintf(value_287, value_289, &(native[0]), &(go_key[0]), &(go_value[0]));
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
                             if ((t->foreign_target)[0] != 0) {
                                 uint8_t foreign_package[1024] = {0};
-                                bool value_290 = zir_foreign_compiler_go_backend__GoForeignCallParts(&(t->foreign_target[0]), &(foreign_package[0]), (1024) * (sizeof(uint8_t)), (uint8_t*)(((void *)0)), (size_t)(0LL), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
-                                if (value_290 && zir_foreign_compiler_go_backend__GoCHeader(&(foreign_package[0]), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0) {
+                                bool value_291 = zir_foreign_compiler_go_backend__GoForeignCallParts(&(t->foreign_target[0]), &(foreign_package[0]), (1024) * (sizeof(uint8_t)), (uint8_t*)(((void *)0)), (size_t)(0LL), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0;
+                                if (value_291 && zir_foreign_compiler_go_backend__GoCHeader(&(foreign_package[0]), (uint8_t*)(((void *)0)), (size_t)(0LL)) != 0) {
                                     i = (int32_t)((uint32_t)i + 1u);
                                     continue;
                                 }
                                 uint8_t path[1024] = {0};
                                 uint8_t alias[256] = {0};
                                 compiler_go_backend_extern_direct_go_target(ctx, &(t->foreign_target[0]), &(path[0]), (1024) * (sizeof(uint8_t)), &(alias[0]), (256) * (sizeof(uint8_t)));
-                                void* value_291 = f;
-                                String value_292 = StringLiteral("type %s = %s%s%s\n\n");
-                                uint8_t* value_293 = (void *)0;
+                                void* value_292 = f;
+                                String value_293 = StringLiteral("type %s = %s%s%s\n\n");
+                                uint8_t* value_294 = (void *)0;
                                 {
-                                    String s = value_292;
-                                    value_293 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_293;
+                                    value_294 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                String value_295 = StringLiteral("builtin");
-                                uint8_t* value_296 = (void *)0;
+                                String value_296 = StringLiteral("builtin");
+                                uint8_t* value_297 = (void *)0;
                                 {
-                                    String s = value_295;
-                                    value_296 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_296;
+                                    value_297 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                bool value_298 = zir_foreign_compiler_go_backend__strcmp(&(path[0]), value_296) != 0;
-                                uint8_t* value_299 = (void *)0;
-                                if (!value_298) {
-                                    String value_300 = StringLiteral("");
-                                    uint8_t* value_301 = (void *)0;
+                                bool value_299 = zir_foreign_compiler_go_backend__strcmp(&(path[0]), value_297) != 0;
+                                uint8_t* value_300 = (void *)0;
+                                if (!value_299) {
+                                    String value_301 = StringLiteral("");
+                                    uint8_t* value_302 = (void *)0;
                                     {
-                                        String s = value_300;
-                                        value_301 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_301;
+                                        value_302 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    value_299 = value_301;
+                                    value_300 = value_302;
                                 } else {
-                                    value_299 = &(alias[0]);
+                                    value_300 = &(alias[0]);
                                 }
-                                uint8_t* value_303 = value_299;
-                                String value_304 = StringLiteral("builtin");
-                                uint8_t* value_305 = (void *)0;
+                                uint8_t* value_304 = value_300;
+                                String value_305 = StringLiteral("builtin");
+                                uint8_t* value_306 = (void *)0;
                                 {
-                                    String s = value_304;
-                                    value_305 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_305;
+                                    value_306 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                bool value_307 = zir_foreign_compiler_go_backend__strcmp(&(path[0]), value_305) != 0;
-                                uint8_t* value_308 = (void *)0;
-                                if (!value_307) {
-                                    String value_309 = StringLiteral("");
-                                    uint8_t* value_310 = (void *)0;
+                                bool value_308 = zir_foreign_compiler_go_backend__strcmp(&(path[0]), value_306) != 0;
+                                uint8_t* value_309 = (void *)0;
+                                if (!value_308) {
+                                    String value_310 = StringLiteral("");
+                                    uint8_t* value_311 = (void *)0;
                                     {
-                                        String s = value_309;
-                                        value_310 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_310;
+                                        value_311 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    value_308 = value_310;
+                                    value_309 = value_311;
                                 } else {
-                                    String value_312 = StringLiteral(".");
-                                    uint8_t* value_313 = (void *)0;
+                                    String value_313 = StringLiteral(".");
+                                    uint8_t* value_314 = (void *)0;
                                     {
-                                        String s = value_312;
-                                        value_313 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_313;
+                                        value_314 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    value_308 = value_313;
+                                    value_309 = value_314;
                                 }
-                                uint8_t* value_315 = value_308;
-                                uint8_t* value_316 = zir_foreign_compiler_go_backend__strrchr(&(t->foreign_target[0]), 46);
-                                zir_foreign_compiler_go_backend__fprintf(value_291, value_293, &(native[0]), value_303, value_315, (uint8_t*)(((size_t)(value_316) + ((size_t)(1LL) * sizeof(uint8_t)))));
+                                uint8_t* value_316 = value_309;
+                                uint8_t* value_317 = zir_foreign_compiler_go_backend__strrchr(&(t->foreign_target[0]), 46);
+                                zir_foreign_compiler_go_backend__fprintf(value_292, value_294, &(native[0]), value_304, value_316, (uint8_t*)(((size_t)(value_317) + ((size_t)(1LL) * sizeof(uint8_t)))));
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
@@ -9164,8 +9165,8 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 size_t size = (size_t)(0LL);
                                 size_t alignment = (size_t)(1LL);
                                 while (true) {
-                                    bool value_317 = zir_foreign_compiler_go_backend__TypeNextField(t, &(offset), &(field)) == 1;
-                                    if (!value_317) {
+                                    bool value_318 = zir_foreign_compiler_go_backend__TypeNextField(t, &(offset), &(field)) == 1;
+                                    if (!value_318) {
                                         break;
                                     }
                                     uint8_t* backing = &(field.type[0]);
@@ -9175,20 +9176,20 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                     }
                                     size_t width = compiler_go_backend_scalar_byte_width(ctx, backing);
                                     if (width == (size_t)(0LL)) {
-                                        ZirSourceSpan value_318 = t->span;
-                                        String value_319 = StringLiteral("zir_go.union");
-                                        uint8_t* value_320 = (void *)0;
+                                        ZirSourceSpan value_319 = t->span;
+                                        String value_320 = StringLiteral("zir_go.union");
+                                        uint8_t* value_321 = (void *)0;
                                         {
-                                            String s = value_319;
-                                            value_320 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                            String s = value_320;
+                                            value_321 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
-                                        String value_322 = StringLiteral("Go unions support scalar fields only: %s");
-                                        uint8_t* value_323 = (void *)0;
+                                        String value_323 = StringLiteral("Go unions support scalar fields only: %s");
+                                        uint8_t* value_324 = (void *)0;
                                         {
-                                            String s = value_322;
-                                            value_323 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                            String s = value_323;
+                                            value_324 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
-                                        zir_foreign_compiler_go_backend__Diagnostic(value_318, value_320, value_323, &(field.name[0]));
+                                        zir_foreign_compiler_go_backend__Diagnostic(value_319, value_321, value_324, &(field.name[0]));
                                         zir_foreign_compiler_go_backend__exit(1);
                                     }
                                     if (width > size) {
@@ -9201,16 +9202,16 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 if (size == (size_t)(0LL)) {
                                     size = (size_t)(1LL);
                                 }
-                                void* value_325 = f;
-                                String value_326 = StringLiteral("type %s struct {\n\t_ [0]uint%zu\n\tdata [%zu]byte\n}\n\n");
-                                uint8_t* value_327 = (void *)0;
+                                void* value_326 = f;
+                                String value_327 = StringLiteral("type %s struct {\n\t_ [0]uint%zu\n\tdata [%zu]byte\n}\n\n");
+                                uint8_t* value_328 = (void *)0;
                                 {
-                                    String s = value_326;
-                                    value_327 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_327;
+                                    value_328 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_foreign_compiler_go_backend__fprintf(value_325, value_327, &(native[0]), alignment * (size_t)(8LL), size);
-                                int32_t* value_329 = &(ctx->g_union_unsafe);
-                                (*value_329) = 1;
+                                zir_foreign_compiler_go_backend__fprintf(value_326, value_328, &(native[0]), alignment * (size_t)(8LL), size);
+                                int32_t* value_330 = &(ctx->g_union_unsafe);
+                                (*value_330) = 1;
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
@@ -9220,20 +9221,20 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             }
                             if (t->is_procedure_type != 0) {
                                 if (t->is_c_call != 0) {
-                                    ZirSourceSpan value_330 = t->span;
-                                    String value_331 = StringLiteral("zir_go.type");
-                                    uint8_t* value_332 = (void *)0;
+                                    ZirSourceSpan value_331 = t->span;
+                                    String value_332 = StringLiteral("zir_go.type");
+                                    uint8_t* value_333 = (void *)0;
                                     {
-                                        String s = value_331;
-                                        value_332 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_332;
+                                        value_333 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    String value_334 = StringLiteral("#c_call procedure types require the native C target");
-                                    uint8_t* value_335 = (void *)0;
+                                    String value_335 = StringLiteral("#c_call procedure types require the native C target");
+                                    uint8_t* value_336 = (void *)0;
                                     {
-                                        String s = value_334;
-                                        value_335 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_335;
+                                        value_336 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_foreign_compiler_go_backend__Diagnostic(value_330, value_332, value_335);
+                                    zir_foreign_compiler_go_backend__Diagnostic(value_331, value_333, value_336);
                                     zir_foreign_compiler_go_backend__exit(1);
                                 }
                                 zir_foreign_compiler_go_backend__EmitSlotType(f, t, (int32_t)(((ZirTarget)(1))), compiler_go_backend_resolve_slot_type, (void*)(ctx));
@@ -9256,38 +9257,38 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 }
                                 uint8_t* backing = compiler_go_backend_enum_storage_type(ctx, &(t->enum_backing[0]));
                                 if (backing == (uint8_t*)(((void *)0))) {
-                                    ZirSourceSpan value_337 = t->span;
-                                    String value_338 = StringLiteral("zir_go.enum");
-                                    uint8_t* value_339 = (void *)0;
+                                    ZirSourceSpan value_338 = t->span;
+                                    String value_339 = StringLiteral("zir_go.enum");
+                                    uint8_t* value_340 = (void *)0;
                                     {
-                                        String s = value_338;
-                                        value_339 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_339;
+                                        value_340 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    String value_341 = StringLiteral("invalid enum backing type");
-                                    uint8_t* value_342 = (void *)0;
+                                    String value_342 = StringLiteral("invalid enum backing type");
+                                    uint8_t* value_343 = (void *)0;
                                     {
-                                        String s = value_341;
-                                        value_342 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_342;
+                                        value_343 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_foreign_compiler_go_backend__Diagnostic(value_337, value_339, value_342);
+                                    zir_foreign_compiler_go_backend__Diagnostic(value_338, value_340, value_343);
                                     zir_foreign_compiler_go_backend__exit(1);
                                 }
-                                void* value_344 = f;
-                                String value_345 = StringLiteral("type %s %s\n\n");
-                                uint8_t* value_346 = (void *)0;
+                                void* value_345 = f;
+                                String value_346 = StringLiteral("type %s %s\n\n");
+                                uint8_t* value_347 = (void *)0;
                                 {
-                                    String s = value_345;
-                                    value_346 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_346;
+                                    value_347 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_foreign_compiler_go_backend__fprintf(value_344, value_346, &(e->go_type[0]), backing);
-                                void* value_348 = f;
-                                String value_349 = StringLiteral("const (\n");
-                                uint8_t* value_350 = (void *)0;
+                                zir_foreign_compiler_go_backend__fprintf(value_345, value_347, &(e->go_type[0]), backing);
+                                void* value_349 = f;
+                                String value_350 = StringLiteral("const (\n");
+                                uint8_t* value_351 = (void *)0;
                                 {
-                                    String s = value_349;
-                                    value_350 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_350;
+                                    value_351 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_foreign_compiler_go_backend__fprintf(value_348, value_350);
+                                zir_foreign_compiler_go_backend__fprintf(value_349, value_351);
                                 {
                                     int32_t mI = 0;
                                     while (true) {
@@ -9299,69 +9300,69 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                             compiler_go_backend_tx_expr(ctx, m, &(mem->val[0]), &(buffers->val[0]), (8192) * (sizeof(uint8_t)));
                                         } else {
                                             if (mI == 0) {
-                                                String value_352 = StringLiteral("0");
-                                                uint8_t* value_353 = (void *)0;
+                                                String value_353 = StringLiteral("0");
+                                                uint8_t* value_354 = (void *)0;
                                                 {
-                                                    String s = value_352;
-                                                    value_353 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                                    String s = value_353;
+                                                    value_354 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                                 }
-                                                zir_foreign_compiler_go_backend__snprintf(&(buffers->val[0]), (8192) * (sizeof(uint8_t)), value_353);
+                                                zir_foreign_compiler_go_backend__snprintf(&(buffers->val[0]), (8192) * (sizeof(uint8_t)), value_354);
                                             } else {
-                                                String value_355 = StringLiteral("%s + 1");
-                                                uint8_t* value_356 = (void *)0;
+                                                String value_356 = StringLiteral("%s + 1");
+                                                uint8_t* value_357 = (void *)0;
                                                 {
-                                                    String s = value_355;
-                                                    value_356 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                                    String s = value_356;
+                                                    value_357 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                                 }
-                                                zir_foreign_compiler_go_backend__snprintf(&(buffers->val[0]), (8192) * (sizeof(uint8_t)), value_356, &(((e->members[((int32_t)((uint32_t)mI - 1u))]).go)[0]));
+                                                zir_foreign_compiler_go_backend__snprintf(&(buffers->val[0]), (8192) * (sizeof(uint8_t)), value_357, &(((e->members[((int32_t)((uint32_t)mI - 1u))]).go)[0]));
                                             }
                                         }
-                                        void* value_358 = f;
-                                        String value_359 = StringLiteral("\t%s = %s\n");
-                                        uint8_t* value_360 = (void *)0;
+                                        void* value_359 = f;
+                                        String value_360 = StringLiteral("\t%s = %s\n");
+                                        uint8_t* value_361 = (void *)0;
                                         {
-                                            String s = value_359;
-                                            value_360 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                            String s = value_360;
+                                            value_361 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
-                                        zir_foreign_compiler_go_backend__fprintf(value_358, value_360, &(mem->go[0]), &(buffers->val[0]));
+                                        zir_foreign_compiler_go_backend__fprintf(value_359, value_361, &(mem->go[0]), &(buffers->val[0]));
                                         mI = (int32_t)((uint32_t)mI + 1u);
                                     }
                                 }
-                                void* value_362 = f;
-                                String value_363 = StringLiteral(")\n\n");
-                                uint8_t* value_364 = (void *)0;
+                                void* value_363 = f;
+                                String value_364 = StringLiteral(")\n\n");
+                                uint8_t* value_365 = (void *)0;
                                 {
-                                    String s = value_363;
-                                    value_364 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_364;
+                                    value_365 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_foreign_compiler_go_backend__fprintf(value_362, value_364);
+                                zir_foreign_compiler_go_backend__fprintf(value_363, value_365);
                             } else {
-                                void* value_366 = f;
-                                String value_367 = StringLiteral("type %s %sstruct {\n");
-                                uint8_t* value_368 = (void *)0;
+                                void* value_367 = f;
+                                String value_368 = StringLiteral("type %s %sstruct {\n");
+                                uint8_t* value_369 = (void *)0;
                                 {
-                                    String s = value_367;
-                                    value_368 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_368;
+                                    value_369 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                uint8_t* value_370 = (void *)0;
+                                uint8_t* value_371 = (void *)0;
                                 if (t->is_go_anonymous != 0) {
-                                    String value_371 = StringLiteral("= ");
-                                    uint8_t* value_372 = (void *)0;
+                                    String value_372 = StringLiteral("= ");
+                                    uint8_t* value_373 = (void *)0;
                                     {
-                                        String s = value_371;
-                                        value_372 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_372;
+                                        value_373 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    value_370 = value_372;
+                                    value_371 = value_373;
                                 } else {
-                                    String value_374 = StringLiteral("");
-                                    uint8_t* value_375 = (void *)0;
+                                    String value_375 = StringLiteral("");
+                                    uint8_t* value_376 = (void *)0;
                                     {
-                                        String s = value_374;
-                                        value_375 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_375;
+                                        value_376 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    value_370 = value_375;
+                                    value_371 = value_376;
                                 }
-                                zir_foreign_compiler_go_backend__fprintf(value_366, value_368, &(native[0]), value_370);
+                                zir_foreign_compiler_go_backend__fprintf(value_367, value_369, &(native[0]), value_371);
                                 {
                                     size_t offset = (size_t)(0LL);
                                     ZirTypeField field = {0};
@@ -9375,43 +9376,43 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                         uint8_t gt[256] = {0};
                                         zir_foreign_compiler_go_backend__go_field_ident(&(field.name[0]), &(fname[0]), (256) * (sizeof(uint8_t)));
                                         compiler_go_backend_require_go_field_type(ctx, t, &(field), &(gt[0]), (256) * (sizeof(uint8_t)));
-                                        void* value_377 = f;
-                                        String value_378 = StringLiteral("\t%s %s");
-                                        uint8_t* value_379 = (void *)0;
+                                        void* value_378 = f;
+                                        String value_379 = StringLiteral("\t%s %s");
+                                        uint8_t* value_380 = (void *)0;
                                         {
-                                            String s = value_378;
-                                            value_379 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                            String s = value_379;
+                                            value_380 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
-                                        zir_foreign_compiler_go_backend__fprintf(value_377, value_379, &(fname[0]), &(gt[0]));
+                                        zir_foreign_compiler_go_backend__fprintf(value_378, value_380, &(fname[0]), &(gt[0]));
                                         compiler_go_backend_emit_field_tag(ctx, f, &(field), t->span);
                                         zir_foreign_compiler_go_backend__fputc(10, f);
                                     }
                                     if (status < 0) {
-                                        ZirSourceSpan value_381 = t->span;
-                                        String value_382 = StringLiteral("zir_go.type");
-                                        uint8_t* value_383 = (void *)0;
+                                        ZirSourceSpan value_382 = t->span;
+                                        String value_383 = StringLiteral("zir_go.type");
+                                        uint8_t* value_384 = (void *)0;
                                         {
-                                            String s = value_382;
-                                            value_383 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                            String s = value_383;
+                                            value_384 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
-                                        String value_385 = StringLiteral("malformed field in %s");
-                                        uint8_t* value_386 = (void *)0;
+                                        String value_386 = StringLiteral("malformed field in %s");
+                                        uint8_t* value_387 = (void *)0;
                                         {
-                                            String s = value_385;
-                                            value_386 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                            String s = value_386;
+                                            value_387 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                         }
-                                        zir_foreign_compiler_go_backend__Diagnostic(value_381, value_383, value_386, &(t->name[0]));
+                                        zir_foreign_compiler_go_backend__Diagnostic(value_382, value_384, value_387, &(t->name[0]));
                                         zir_foreign_compiler_go_backend__exit(1);
                                     }
                                 }
-                                void* value_388 = f;
-                                String value_389 = StringLiteral("}\n\n");
-                                uint8_t* value_390 = (void *)0;
+                                void* value_389 = f;
+                                String value_390 = StringLiteral("}\n\n");
+                                uint8_t* value_391 = (void *)0;
                                 {
-                                    String s = value_389;
-                                    value_390 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_390;
+                                    value_391 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_foreign_compiler_go_backend__fprintf(value_388, value_390);
+                                zir_foreign_compiler_go_backend__fprintf(value_389, value_391);
                             }
                             i = (int32_t)((uint32_t)i + 1u);
                         }
@@ -9432,14 +9433,14 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             if (zir_foreign_compiler_go_backend__ArrayTypeAlias(value) != 0) {
                                 uint8_t aliased[256] = {0};
                                 compiler_go_backend_require_go_type(ctx, value, &(aliased[0]), (256) * (sizeof(uint8_t)), (m->defines[i]).span);
-                                void* value_392 = f;
-                                String value_393 = StringLiteral("type %s %s\n");
-                                uint8_t* value_394 = (void *)0;
+                                void* value_393 = f;
+                                String value_394 = StringLiteral("type %s %s\n");
+                                uint8_t* value_395 = (void *)0;
                                 {
-                                    String s = value_393;
-                                    value_394 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_394;
+                                    value_395 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_foreign_compiler_go_backend__fprintf(value_392, value_394, &(cname[0]), &(aliased[0]));
+                                zir_foreign_compiler_go_backend__fprintf(value_393, value_395, &(cname[0]), &(aliased[0]));
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
@@ -9449,56 +9450,56 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             }
                             if (zir_foreign_compiler_go_backend__strlen(value) >= (size_t)(2048LL)) {
                                 size_t capacity = (zir_foreign_compiler_go_backend__strlen(value) * (size_t)(4LL)) + (size_t)(64LL);
-                                void* value_396 = zir_foreign_compiler_go_backend__malloc(capacity);
-                                uint8_t* literal = (uint8_t*)(value_396);
+                                void* value_397 = zir_foreign_compiler_go_backend__malloc(capacity);
+                                uint8_t* literal = (uint8_t*)(value_397);
                                 if (literal == (uint8_t*)(((void *)0))) {
                                     zir_foreign_compiler_go_backend__exit(1);
                                 }
-                                String value_397 = StringLiteral("string");
-                                uint8_t* value_398 = (void *)0;
+                                String value_398 = StringLiteral("string");
+                                uint8_t* value_399 = (void *)0;
                                 {
-                                    String s = value_397;
-                                    value_398 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_398;
+                                    value_399 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                bool value_400 = zir_foreign_compiler_go_backend__ScalarLiteral(value_398, value, (int32_t)(((ZirTarget)(1))), (m->defines[i]).span, literal, capacity) != 0;
-                                if (!value_400) {
-                                    ZirSourceSpan value_401 = (m->defines[i]).span;
-                                    String value_402 = StringLiteral("zir_go.global");
-                                    uint8_t* value_403 = (void *)0;
+                                bool value_401 = zir_foreign_compiler_go_backend__ScalarLiteral(value_399, value, (int32_t)(((ZirTarget)(1))), (m->defines[i]).span, literal, capacity) != 0;
+                                if (!value_401) {
+                                    ZirSourceSpan value_402 = (m->defines[i]).span;
+                                    String value_403 = StringLiteral("zir_go.global");
+                                    uint8_t* value_404 = (void *)0;
                                     {
-                                        String s = value_402;
-                                        value_403 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_403;
+                                        value_404 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    String value_405 = StringLiteral("cannot lower long constant %s");
-                                    uint8_t* value_406 = (void *)0;
+                                    String value_406 = StringLiteral("cannot lower long constant %s");
+                                    uint8_t* value_407 = (void *)0;
                                     {
-                                        String s = value_405;
-                                        value_406 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_406;
+                                        value_407 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_foreign_compiler_go_backend__Diagnostic(value_401, value_403, value_406, &(((m->defines[i]).name)[0]));
+                                    zir_foreign_compiler_go_backend__Diagnostic(value_402, value_404, value_407, &(((m->defines[i]).name)[0]));
                                     zir_foreign_compiler_go_backend__exit(1);
                                 }
-                                void* value_408 = f;
-                                String value_409 = StringLiteral("const %s = %s\n");
-                                uint8_t* value_410 = (void *)0;
+                                void* value_409 = f;
+                                String value_410 = StringLiteral("const %s = %s\n");
+                                uint8_t* value_411 = (void *)0;
                                 {
-                                    String s = value_409;
-                                    value_410 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_410;
+                                    value_411 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_foreign_compiler_go_backend__fprintf(value_408, value_410, &(cname[0]), literal);
+                                zir_foreign_compiler_go_backend__fprintf(value_409, value_411, &(cname[0]), literal);
                                 zir_foreign_compiler_go_backend__free((void*)(literal));
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
                             compiler_go_backend_tx_expr(ctx, m, (uint8_t*)(m->defines[i]).value, &(buffers->cval[0]), (8192) * (sizeof(uint8_t)));
-                            void* value_412 = f;
-                            String value_413 = StringLiteral("const %s = %s\n");
-                            uint8_t* value_414 = (void *)0;
+                            void* value_413 = f;
+                            String value_414 = StringLiteral("const %s = %s\n");
+                            uint8_t* value_415 = (void *)0;
                             {
-                                String s = value_413;
-                                value_414 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                String s = value_414;
+                                value_415 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_foreign_compiler_go_backend__fprintf(value_412, value_414, &(cname[0]), &(buffers->cval[0]));
+                            zir_foreign_compiler_go_backend__fprintf(value_413, value_415, &(cname[0]), &(buffers->cval[0]));
                             i = (int32_t)((uint32_t)i + 1u);
                         }
                     }
@@ -9513,118 +9514,118 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             uint8_t gt[256] = {0};
                             zir_foreign_compiler_go_backend__TargetGlobalName(m, (int32_t)(((ZirTarget)(1))), &(g->name[0]), &(gname[0]), (256) * (sizeof(uint8_t)));
                             compiler_go_backend_require_go_type(ctx, &(g->type[0]), &(gt[0]), (256) * (sizeof(uint8_t)), g->span);
-                            bool value_416 = zir_foreign_compiler_go_backend__strlen((uint8_t*)g->init) >= (size_t)(2048LL);
-                            bool value_417 = value_416;
-                            if (value_417) {
-                                String value_418 = StringLiteral("string");
-                                uint8_t* value_419 = (void *)0;
+                            bool value_417 = zir_foreign_compiler_go_backend__strlen((uint8_t*)g->init) >= (size_t)(2048LL);
+                            bool value_418 = value_417;
+                            if (value_418) {
+                                String value_419 = StringLiteral("string");
+                                uint8_t* value_420 = (void *)0;
                                 {
-                                    String s = value_418;
-                                    value_419 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_419;
+                                    value_420 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                bool value_421 = zir_foreign_compiler_go_backend__strcmp(&(g->type[0]), value_419) != 0;
-                                value_417 = !value_421;
+                                bool value_422 = zir_foreign_compiler_go_backend__strcmp(&(g->type[0]), value_420) != 0;
+                                value_418 = !value_422;
                             }
-                            if (value_417) {
+                            if (value_418) {
                                 size_t capacity = (zir_foreign_compiler_go_backend__strlen((uint8_t*)g->init) * (size_t)(4LL)) + (size_t)(64LL);
-                                void* value_422 = zir_foreign_compiler_go_backend__malloc(capacity);
-                                uint8_t* literal = (uint8_t*)(value_422);
+                                void* value_423 = zir_foreign_compiler_go_backend__malloc(capacity);
+                                uint8_t* literal = (uint8_t*)(value_423);
                                 if (literal == (uint8_t*)(((void *)0))) {
                                     zir_foreign_compiler_go_backend__exit(1);
                                 }
-                                bool value_423 = zir_foreign_compiler_go_backend__ScalarLiteral(&(g->type[0]), (uint8_t*)g->init, (int32_t)(((ZirTarget)(1))), g->span, literal, capacity) != 0;
-                                if (!value_423) {
-                                    ZirSourceSpan value_424 = g->span;
-                                    String value_425 = StringLiteral("zir_go.global");
-                                    uint8_t* value_426 = (void *)0;
+                                bool value_424 = zir_foreign_compiler_go_backend__ScalarLiteral(&(g->type[0]), (uint8_t*)g->init, (int32_t)(((ZirTarget)(1))), g->span, literal, capacity) != 0;
+                                if (!value_424) {
+                                    ZirSourceSpan value_425 = g->span;
+                                    String value_426 = StringLiteral("zir_go.global");
+                                    uint8_t* value_427 = (void *)0;
                                     {
-                                        String s = value_425;
-                                        value_426 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_426;
+                                        value_427 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    String value_428 = StringLiteral("cannot lower long global %s");
-                                    uint8_t* value_429 = (void *)0;
+                                    String value_429 = StringLiteral("cannot lower long global %s");
+                                    uint8_t* value_430 = (void *)0;
                                     {
-                                        String s = value_428;
-                                        value_429 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_429;
+                                        value_430 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_foreign_compiler_go_backend__Diagnostic(value_424, value_426, value_429, &(g->name[0]));
+                                    zir_foreign_compiler_go_backend__Diagnostic(value_425, value_427, value_430, &(g->name[0]));
                                     zir_foreign_compiler_go_backend__exit(1);
                                 }
-                                void* value_431 = f;
-                                String value_432 = StringLiteral("var %s %s = %s\n");
-                                uint8_t* value_433 = (void *)0;
+                                void* value_432 = f;
+                                String value_433 = StringLiteral("var %s %s = %s\n");
+                                uint8_t* value_434 = (void *)0;
                                 {
-                                    String s = value_432;
-                                    value_433 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_433;
+                                    value_434 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_foreign_compiler_go_backend__fprintf(value_431, value_433, &(gname[0]), &(gt[0]), literal);
+                                zir_foreign_compiler_go_backend__fprintf(value_432, value_434, &(gname[0]), &(gt[0]), literal);
                                 zir_foreign_compiler_go_backend__free((void*)(literal));
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
                             uint8_t* compound_text = (uint8_t*)(((void *)0));
-                            bool value_435 = zir_foreign_compiler_go_backend__ScalarLiteral(&(g->type[0]), (uint8_t*)g->init, (int32_t)(((ZirTarget)(1))), g->span, &(buffers->ginit[0]), (8192) * (sizeof(uint8_t))) != 0;
-                            if (!value_435) {
+                            bool value_436 = zir_foreign_compiler_go_backend__ScalarLiteral(&(g->type[0]), (uint8_t*)g->init, (int32_t)(((ZirTarget)(1))), g->span, &(buffers->ginit[0]), (8192) * (sizeof(uint8_t))) != 0;
+                            if (!value_436) {
                                 int32_t compound = 0;
                                 GlobalRewrite rewrite = {.state = ctx, .global = g};
                                 compound_text = zir_foreign_compiler_go_backend__EmitGlobalInitializerText(m, g, (int32_t)(((ZirTarget)(1))), compiler_go_backend_rewrite_global_scalar, compiler_go_backend_rewrite_global_type, compiler_go_backend_rewrite_global_field, (void*)(&(rewrite)), &(compound));
                                 if (compound < 0) {
-                                    ZirSourceSpan value_436 = g->span;
-                                    String value_437 = StringLiteral("zir_go.global");
-                                    uint8_t* value_438 = (void *)0;
+                                    ZirSourceSpan value_437 = g->span;
+                                    String value_438 = StringLiteral("zir_go.global");
+                                    uint8_t* value_439 = (void *)0;
                                     {
-                                        String s = value_437;
-                                        value_438 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_438;
+                                        value_439 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    String value_440 = StringLiteral("cannot lower compound global initializer: %s");
-                                    uint8_t* value_441 = (void *)0;
+                                    String value_441 = StringLiteral("cannot lower compound global initializer: %s");
+                                    uint8_t* value_442 = (void *)0;
                                     {
-                                        String s = value_440;
-                                        value_441 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_441;
+                                        value_442 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_foreign_compiler_go_backend__Diagnostic(value_436, value_438, value_441, &(g->name[0]));
+                                    zir_foreign_compiler_go_backend__Diagnostic(value_437, value_439, value_442, &(g->name[0]));
                                     zir_foreign_compiler_go_backend__exit(1);
                                 }
                                 if (compound == 0) {
                                     compiler_go_backend_tx_expr(ctx, m, (uint8_t*)g->init, &(buffers->ginit[0]), (8192) * (sizeof(uint8_t)));
                                 }
                             }
-                            uint8_t* value_443 = (void *)0;
+                            uint8_t* value_444 = (void *)0;
                             if (compound_text != (uint8_t*)(((void *)0))) {
-                                value_443 = compound_text;
+                                value_444 = compound_text;
                             } else {
-                                value_443 = &(buffers->ginit[0]);
+                                value_444 = &(buffers->ginit[0]);
                             }
-                            uint8_t* ginit = value_443;
+                            uint8_t* ginit = value_444;
                             if (ginit[0] != 0) {
                                 if (ginit[0] == 123) {
-                                    void* value_444 = f;
-                                    String value_445 = StringLiteral("var %s = %s%s\n");
-                                    uint8_t* value_446 = (void *)0;
+                                    void* value_445 = f;
+                                    String value_446 = StringLiteral("var %s = %s%s\n");
+                                    uint8_t* value_447 = (void *)0;
                                     {
-                                        String s = value_445;
-                                        value_446 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_446;
+                                        value_447 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_foreign_compiler_go_backend__fprintf(value_444, value_446, &(gname[0]), &(gt[0]), ginit);
+                                    zir_foreign_compiler_go_backend__fprintf(value_445, value_447, &(gname[0]), &(gt[0]), ginit);
                                 } else {
-                                    void* value_448 = f;
-                                    String value_449 = StringLiteral("var %s %s = %s\n");
-                                    uint8_t* value_450 = (void *)0;
+                                    void* value_449 = f;
+                                    String value_450 = StringLiteral("var %s %s = %s\n");
+                                    uint8_t* value_451 = (void *)0;
                                     {
-                                        String s = value_449;
-                                        value_450 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_450;
+                                        value_451 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_foreign_compiler_go_backend__fprintf(value_448, value_450, &(gname[0]), &(gt[0]), ginit);
+                                    zir_foreign_compiler_go_backend__fprintf(value_449, value_451, &(gname[0]), &(gt[0]), ginit);
                                 }
                             } else {
-                                void* value_452 = f;
-                                String value_453 = StringLiteral("var %s %s\n");
-                                uint8_t* value_454 = (void *)0;
+                                void* value_453 = f;
+                                String value_454 = StringLiteral("var %s %s\n");
+                                uint8_t* value_455 = (void *)0;
                                 {
-                                    String s = value_453;
-                                    value_454 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_454;
+                                    value_455 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                zir_foreign_compiler_go_backend__fprintf(value_452, value_454, &(gname[0]), &(gt[0]));
+                                zir_foreign_compiler_go_backend__fprintf(value_453, value_455, &(gname[0]), &(gt[0]));
                             }
                             zir_foreign_compiler_go_backend__free((void*)(compound_text));
                             i = (int32_t)((uint32_t)i + 1u);
@@ -9658,14 +9659,14 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         }
                     }
                     if (zir_foreign_compiler_go_backend__ModuleNeedsStartup(m) != 0) {
-                        void* value_456 = f;
-                        String value_457 = StringLiteral("var %s_ziranInitState uint8\nfunc %s_ziranInit() {\n\tif %s_ziranInitState == 2 { return }\n\tif %s_ziranInitState == 1 { panic(\"cyclic module startup\") }\n\t%s_ziranInitState = 1\n");
-                        uint8_t* value_458 = (void *)0;
+                        void* value_457 = f;
+                        String value_458 = StringLiteral("var %s_ziranInitState uint8\nfunc %s_ziranInit() {\n\tif %s_ziranInitState == 2 { return }\n\tif %s_ziranInitState == 1 { panic(\"cyclic module startup\") }\n\t%s_ziranInitState = 1\n");
+                        uint8_t* value_459 = (void *)0;
                         {
-                            String s = value_457;
-                            value_458 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_458;
+                            value_459 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_go_backend__fprintf(value_456, value_458, &(guard[0]), &(guard[0]), &(guard[0]), &(guard[0]), &(guard[0]));
+                        zir_foreign_compiler_go_backend__fprintf(value_457, value_459, &(guard[0]), &(guard[0]), &(guard[0]), &(guard[0]), &(guard[0]));
                         {
                             int32_t i = 0;
                             while (true) {
@@ -9676,14 +9677,14 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 if (zir_foreign_compiler_go_backend__ModuleNeedsStartup(dependency) != 0) {
                                     uint8_t dep_guard[256] = {0};
                                     zir_foreign_compiler_go_backend__NativeGoModuleIdentity(progs, prog_count, dependency, &(buffers->stem_2[0]), (1024) * (sizeof(uint8_t)), &(dep_guard[0]), (256) * (sizeof(uint8_t)));
-                                    void* value_460 = f;
-                                    String value_461 = StringLiteral("\t%s_ziranInit()\n");
-                                    uint8_t* value_462 = (void *)0;
+                                    void* value_461 = f;
+                                    String value_462 = StringLiteral("\t%s_ziranInit()\n");
+                                    uint8_t* value_463 = (void *)0;
                                     {
-                                        String s = value_461;
-                                        value_462 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_462;
+                                        value_463 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_foreign_compiler_go_backend__fprintf(value_460, value_462, &(dep_guard[0]));
+                                    zir_foreign_compiler_go_backend__fprintf(value_461, value_463, &(dep_guard[0]));
                                 }
                                 i = (int32_t)((uint32_t)i + 1u);
                             }
@@ -9697,35 +9698,35 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                                 if ((m->functions[i]).is_global_initializer != 0) {
                                     uint8_t name[256] = {0};
                                     zir_foreign_compiler_go_backend__camel_ident(&(((m->functions[i]).name)[0]), &(name[0]), (256) * (sizeof(uint8_t)));
-                                    void* value_464 = f;
-                                    String value_465 = StringLiteral("\t%s_%s()\n");
-                                    uint8_t* value_466 = (void *)0;
+                                    void* value_465 = f;
+                                    String value_466 = StringLiteral("\t%s_%s()\n");
+                                    uint8_t* value_467 = (void *)0;
                                     {
-                                        String s = value_465;
-                                        value_466 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                        String s = value_466;
+                                        value_467 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                     }
-                                    zir_foreign_compiler_go_backend__fprintf(value_464, value_466, &(guard[0]), &(name[0]));
+                                    zir_foreign_compiler_go_backend__fprintf(value_465, value_467, &(guard[0]), &(name[0]));
                                 }
                                 i = (int32_t)((uint32_t)i + 1u);
                             }
                         }
-                        void* value_468 = f;
-                        String value_469 = StringLiteral("\t%s_ziranInitState = 2\n}\n\n");
-                        uint8_t* value_470 = (void *)0;
+                        void* value_469 = f;
+                        String value_470 = StringLiteral("\t%s_ziranInitState = 2\n}\n\n");
+                        uint8_t* value_471 = (void *)0;
                         {
-                            String s = value_469;
-                            value_470 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_470;
+                            value_471 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_go_backend__fprintf(value_468, value_470, &(guard[0]));
+                        zir_foreign_compiler_go_backend__fprintf(value_469, value_471, &(guard[0]));
                         if (startup_count != 0) {
-                            void* value_472 = f;
-                            String value_473 = StringLiteral("func init() { %s_ziranInit() }\n\n");
-                            uint8_t* value_474 = (void *)0;
+                            void* value_473 = f;
+                            String value_474 = StringLiteral("func init() { %s_ziranInit() }\n\n");
+                            uint8_t* value_475 = (void *)0;
                             {
-                                String s = value_473;
-                                value_474 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                String s = value_474;
+                                value_475 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                             }
-                            zir_foreign_compiler_go_backend__fprintf(value_472, value_474, &(guard[0]));
+                            zir_foreign_compiler_go_backend__fprintf(value_473, value_475, &(guard[0]));
                         }
                     }
                     {
@@ -9736,20 +9737,20 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         zir_foreign_compiler_go_backend__free((void*)(tables));
                     }
                     if (zir_foreign_compiler_go_backend__TextStreamClose(&(stream)) != 0) {
-                        ZirSourceSpan value_476 = m->span;
-                        String value_477 = StringLiteral("zir_go.global");
-                        uint8_t* value_478 = (void *)0;
+                        ZirSourceSpan value_477 = m->span;
+                        String value_478 = StringLiteral("zir_go.global");
+                        uint8_t* value_479 = (void *)0;
                         {
-                            String s = value_477;
-                            value_478 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_478;
+                            value_479 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        String value_480 = StringLiteral("cannot finish Go output: %s");
-                        uint8_t* value_481 = (void *)0;
+                        String value_481 = StringLiteral("cannot finish Go output: %s");
+                        uint8_t* value_482 = (void *)0;
                         {
-                            String s = value_480;
-                            value_481 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_481;
+                            value_482 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_go_backend__Diagnostic(value_476, value_478, value_481, &(buffers->path[0]));
+                        zir_foreign_compiler_go_backend__Diagnostic(value_477, value_479, value_482, &(buffers->path[0]));
                         zir_foreign_compiler_go_backend__GoAssemblyClose(assembly);
                         return 1;
                     }
@@ -9759,20 +9760,20 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                     f = zir_foreign_compiler_go_backend__TextStreamOpen(&(helper_stream), &(helpers), &(helper_length));
                     if (f == ((void *)0)) {
                         zir_foreign_compiler_go_backend__free((void*)(text));
-                        ZirSourceSpan value_483 = m->span;
-                        String value_484 = StringLiteral("zir_go.global");
-                        uint8_t* value_485 = (void *)0;
+                        ZirSourceSpan value_484 = m->span;
+                        String value_485 = StringLiteral("zir_go.global");
+                        uint8_t* value_486 = (void *)0;
                         {
-                            String s = value_484;
-                            value_485 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_485;
+                            value_486 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        String value_487 = StringLiteral("cannot create Go output: %s");
-                        uint8_t* value_488 = (void *)0;
+                        String value_488 = StringLiteral("cannot create Go output: %s");
+                        uint8_t* value_489 = (void *)0;
                         {
-                            String s = value_487;
-                            value_488 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_488;
+                            value_489 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_go_backend__Diagnostic(value_483, value_485, value_488, &(buffers->path[0]));
+                        zir_foreign_compiler_go_backend__Diagnostic(value_484, value_486, value_489, &(buffers->path[0]));
                         zir_foreign_compiler_go_backend__GoAssemblyClose(assembly);
                         return 1;
                     }
@@ -9780,111 +9781,111 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                     zir_foreign_compiler_go_backend__GoSimdCollect(text);
                     if (zir_foreign_compiler_go_backend__TextStreamClose(&(helper_stream)) != 0) {
                         zir_foreign_compiler_go_backend__free((void*)(text));
-                        ZirSourceSpan value_490 = m->span;
-                        String value_491 = StringLiteral("zir_go.global");
-                        uint8_t* value_492 = (void *)0;
+                        ZirSourceSpan value_491 = m->span;
+                        String value_492 = StringLiteral("zir_go.global");
+                        uint8_t* value_493 = (void *)0;
                         {
-                            String s = value_491;
-                            value_492 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_492;
+                            value_493 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        String value_494 = StringLiteral("cannot finish Go output: %s");
-                        uint8_t* value_495 = (void *)0;
+                        String value_495 = StringLiteral("cannot finish Go output: %s");
+                        uint8_t* value_496 = (void *)0;
                         {
-                            String s = value_494;
-                            value_495 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_495;
+                            value_496 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_go_backend__Diagnostic(value_490, value_492, value_495, &(buffers->path[0]));
+                        zir_foreign_compiler_go_backend__Diagnostic(value_491, value_493, value_496, &(buffers->path[0]));
                         zir_foreign_compiler_go_backend__GoAssemblyClose(assembly);
                         return 1;
                     }
-                    uint8_t* value_497 = (void *)0;
+                    uint8_t* value_498 = (void *)0;
                     if (helper_length != 0) {
-                        value_497 = helpers;
+                        value_498 = helpers;
                     } else {
-                        value_497 = text;
+                        value_498 = text;
                     }
-                    uint8_t* tail = value_497;
-                    size_t* value_498 = (void *)0;
+                    uint8_t* tail = value_498;
+                    size_t* value_499 = (void *)0;
                     if (helper_length != 0) {
-                        value_498 = &(helper_length);
+                        value_499 = &(helper_length);
                     } else {
-                        value_498 = &(length);
+                        value_499 = &(length);
                     }
-                    size_t* remaining = value_498;
+                    size_t* remaining = value_499;
                     while (true) {
-                        bool value_499 = remaining[0] > (size_t)(1LL) && tail[(remaining[0] - (size_t)(2LL))] == 10 && tail[(remaining[0] - (size_t)(1LL))] == 10;
-                        if (!value_499) {
+                        bool value_500 = remaining[0] > (size_t)(1LL) && tail[(remaining[0] - (size_t)(2LL))] == 10 && tail[(remaining[0] - (size_t)(1LL))] == 10;
+                        if (!value_500) {
                             break;
                         }
-                        size_t* value_500 = &(remaining[0]);
-                        (*value_500) = (*value_500) - 1;
+                        size_t* value_501 = &(remaining[0]);
+                        (*value_501) = (*value_501) - 1;
                     }
                     zir_foreign_compiler_go_backend__GeneratedOutputRecord(&(buffers->path[0]));
-                    String value_501 = StringLiteral("wb");
-                    uint8_t* value_502 = (void *)0;
+                    String value_502 = StringLiteral("wb");
+                    uint8_t* value_503 = (void *)0;
                     {
-                        String s = value_501;
-                        value_502 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                        String s = value_502;
+                        value_503 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                     }
-                    void* output = zir_foreign_compiler_go_backend__fopen(&(buffers->path[0]), value_502);
+                    void* output = zir_foreign_compiler_go_backend__fopen(&(buffers->path[0]), value_503);
                     if (output == ((void *)0)) {
-                        ZirSourceSpan value_504 = m->span;
-                        String value_505 = StringLiteral("zir_go.global");
-                        uint8_t* value_506 = (void *)0;
+                        ZirSourceSpan value_505 = m->span;
+                        String value_506 = StringLiteral("zir_go.global");
+                        uint8_t* value_507 = (void *)0;
                         {
-                            String s = value_505;
-                            value_506 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_506;
+                            value_507 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        String value_508 = StringLiteral("cannot create Go output: %s");
-                        uint8_t* value_509 = (void *)0;
+                        String value_509 = StringLiteral("cannot create Go output: %s");
+                        uint8_t* value_510 = (void *)0;
                         {
-                            String s = value_508;
-                            value_509 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_509;
+                            value_510 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_go_backend__Diagnostic(value_504, value_506, value_509, &(buffers->path[0]));
+                        zir_foreign_compiler_go_backend__Diagnostic(value_505, value_507, value_510, &(buffers->path[0]));
                         zir_foreign_compiler_go_backend__free((void*)(text));
                         zir_foreign_compiler_go_backend__free((void*)(helpers));
                         zir_foreign_compiler_go_backend__GoAssemblyClose(assembly);
                         return 1;
                     }
-                    size_t value_511 = zir_foreign_compiler_go_backend__fwrite((void*)(text), (size_t)(1LL), length, output);
-                    int32_t value_512 = 0;
-                    if (value_511 != length) {
-                        value_512 = 1;
+                    size_t value_512 = zir_foreign_compiler_go_backend__fwrite((void*)(text), (size_t)(1LL), length, output);
+                    int32_t value_513 = 0;
+                    if (value_512 != length) {
+                        value_513 = 1;
                     }
-                    int32_t failed = value_512;
+                    int32_t failed = value_513;
                     if (!(failed != 0) && helper_length != 0) {
-                        size_t value_513 = zir_foreign_compiler_go_backend__fwrite((void*)(helpers), (size_t)(1LL), helper_length, output);
-                        int32_t value_514 = 0;
-                        if (value_513 != helper_length) {
-                            value_514 = 1;
+                        size_t value_514 = zir_foreign_compiler_go_backend__fwrite((void*)(helpers), (size_t)(1LL), helper_length, output);
+                        int32_t value_515 = 0;
+                        if (value_514 != helper_length) {
+                            value_515 = 1;
                         }
-                        failed = value_514;
+                        failed = value_515;
                     }
-                    int32_t value_515 = failed;
-                    bool value_516 = zir_foreign_compiler_go_backend__fclose(output) != 0;
-                    int32_t value_517 = 0;
-                    if (value_516) {
-                        value_517 = 1;
+                    int32_t value_516 = failed;
+                    bool value_517 = zir_foreign_compiler_go_backend__fclose(output) != 0;
+                    int32_t value_518 = 0;
+                    if (value_517) {
+                        value_518 = 1;
                     }
-                    failed = (int32_t)((uint32_t)value_515 | (uint32_t)value_517);
+                    failed = (int32_t)((uint32_t)value_516 | (uint32_t)value_518);
                     zir_foreign_compiler_go_backend__free((void*)(text));
                     zir_foreign_compiler_go_backend__free((void*)(helpers));
                     if (failed != 0) {
-                        ZirSourceSpan value_518 = m->span;
-                        String value_519 = StringLiteral("zir_go.global");
-                        uint8_t* value_520 = (void *)0;
+                        ZirSourceSpan value_519 = m->span;
+                        String value_520 = StringLiteral("zir_go.global");
+                        uint8_t* value_521 = (void *)0;
                         {
-                            String s = value_519;
-                            value_520 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_520;
+                            value_521 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        String value_522 = StringLiteral("cannot finish Go output: %s");
-                        uint8_t* value_523 = (void *)0;
+                        String value_523 = StringLiteral("cannot finish Go output: %s");
+                        uint8_t* value_524 = (void *)0;
                         {
-                            String s = value_522;
-                            value_523 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                            String s = value_523;
+                            value_524 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_compiler_go_backend__Diagnostic(value_518, value_520, value_523, &(buffers->path[0]));
+                        zir_foreign_compiler_go_backend__Diagnostic(value_519, value_521, value_524, &(buffers->path[0]));
                         zir_foreign_compiler_go_backend__GoAssemblyClose(assembly);
                         return 1;
                     }
@@ -9910,8 +9911,8 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
     if (zir_foreign_compiler_go_backend__GoSimdWrite(out_dir, pkg) != 0) {
         return 1;
     }
-    bool value_525 = assembly_present != 0 && prog_count != 0 && (progs[0])->module_count != 0;
-    if (value_525 && zir_foreign_compiler_go_backend__GoAssemblyAvailability(out_dir, pkg, (((progs[0])->modules)[0]).span) != 0) {
+    bool value_526 = assembly_present != 0 && prog_count != 0 && (progs[0])->module_count != 0;
+    if (value_526 && zir_foreign_compiler_go_backend__GoAssemblyAvailability(out_dir, pkg, (((progs[0])->modules)[0]).span) != 0) {
         return 1;
     }
     {
@@ -9933,19 +9934,19 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             if (!(i < module->import_count)) {
                                 break;
                             }
-                            bool value_526 = ((ZirImportKind)((module->imports[i]).kind)) == ((ZirImportKind)(3));
-                            bool value_527 = value_526;
-                            if (value_527) {
-                                String value_528 = StringLiteral("go:builtin.cgo_enabled");
-                                uint8_t* value_529 = (void *)0;
+                            bool value_527 = ((ZirImportKind)((module->imports[i]).kind)) == ((ZirImportKind)(3));
+                            bool value_528 = value_527;
+                            if (value_528) {
+                                String value_529 = StringLiteral("go:builtin.cgo_enabled");
+                                uint8_t* value_530 = (void *)0;
                                 {
-                                    String s = value_528;
-                                    value_529 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                                    String s = value_529;
+                                    value_530 = ((compiler_go_backend_StaticText*)(&(s)))->data;
                                 }
-                                bool value_531 = zir_foreign_compiler_go_backend__strcmp(&(((module->imports[i]).target)[0]), value_529) != 0;
-                                value_527 = !value_531;
+                                bool value_532 = zir_foreign_compiler_go_backend__strcmp(&(((module->imports[i]).target)[0]), value_530) != 0;
+                                value_528 = !value_532;
                             }
-                            if (value_527) {
+                            if (value_528) {
                                 return compiler_go_backend_emit_go_cgo_availability(ctx, module, out_dir, pkg);
                             }
                             i = (int32_t)((uint32_t)i + 1u);

@@ -307,7 +307,7 @@ compiler_portable_body_PortableExpression(ZirModule* module, ZirFunction* fn, in
         if (value_12) {
             return false;
         }
-    } else if (kind == ((ZirExprKind)(18)) || kind == ((ZirExprKind)(19))) {
+    } else if (kind == ((ZirExprKind)(18)) || kind == ((ZirExprKind)(22)) || kind == ((ZirExprKind)(19))) {
         ZirType* value_15 = zir_foreign_compiler_portable_body__CFindType(module, (uint8_t*)expr->name, (void *)0);
         bool value_16 = value_15 == ((void *)0);
         if (value_16 || compiler_portable_body_MemoType(module, (uint8_t*)expr->name) == 0) {

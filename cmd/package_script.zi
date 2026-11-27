@@ -156,7 +156,7 @@ FingerprintTree :: (path: string, state: *string, seen: *Vec(string), depth: s32
 }
 
 CacheKey :: (binary: string, source: string, root: string, entry: string,
-    options: []string, search: []string, map: string, libraries: string,
+    options: []string, search: []string, map: string, libraries: string, links_file: string,
     ignored: string, valid: *bool) -> string {
     state := Hash(PkgJoin3(Hash(source), Hash(root), Hash(entry)))
     state = Hash(PkgJoin3(state, Hash(PkgGetenv("ZIRAN_STD")), Hash(libraries)))
@@ -164,6 +164,7 @@ CacheKey :: (binary: string, source: string, root: string, entry: string,
     seen: Vec(string)
     <<valid = FingerprintFile(binary, *state) && FingerprintFile(source, *state)
     if map.count > 0 { <<valid = <<valid && FingerprintFile(map, *state) }
+    if links_file.count > 0 { <<valid = <<valid && FingerprintFile(links_file, *state) }
     for path: search {
         if path.count > 0 && !FingerprintTree(path, *state, *seen, 0, ignored) { <<valid = false }
     }
@@ -190,7 +191,7 @@ ScriptArgumentEnd :: (arguments: []string) -> s32 {
 // The caller supplies the pinned project's import map and search roots.
 ScriptRun :: (arguments: []string, binary: string, project_root: string,
     program_root: string, program_file: string, roots: []string,
-    map: string, libraries: string, cache_root: string) -> s32 {
+    map: string, libraries: string, links_file: string, cache_root: string) -> s32 {
     source := program_file
     root := program_root
     entry := ""
@@ -259,7 +260,7 @@ ScriptRun :: (arguments: []string, binary: string, project_root: string,
     ignored := PkgCanonical(cache_root)
     valid: bool
     state := CacheKey(binary, source, root, entry, VecSlice(options, 0, options.count),
-        VecSlice(search, 0, search.count), map, libraries, ignored, *valid)
+        VecSlice(search, 0, search.count), map, libraries, links_file, ignored, *valid)
     directory = PkgJoin3(directory, "/", state)
     lock := Trees.LockPath(PkgJoin(native, "/.maintenance"))
     if lock < 0 { return PkgFail("cannot lock the script cache") }
@@ -288,14 +289,14 @@ ScriptRun :: (arguments: []string, binary: string, project_root: string,
         VecPush(build, "-o"); VecPush(build, directory)
         for option: VecSlice(options, 0, options.count) { VecPush(build, option) }
         VecPush(build, source)
-        names: [2]string = .["ZIRAN_PACKAGE_MAP", "LDLIBS"]
-        values: [2]string = .[map, libraries]
+        names: [3]string = .["ZIRAN_PACKAGE_MAP", "LDLIBS", "ZIRAN_PACKAGE_LINKS"]
+        values: [3]string = .[map, libraries, links_file]
         result := PkgRun(VecSlice(build, 0, build.count), "", names[:], values[:])
         VecFree(build)
         if result != 0 { return result }
         stable: bool
         after := CacheKey(binary, source, root, entry, VecSlice(options, 0, options.count),
-            VecSlice(search, 0, search.count), map, libraries, ignored, *stable)
+            VecSlice(search, 0, search.count), map, libraries, links_file, ignored, *stable)
         // Never publish output under a key calculated from different inputs.
         if !stable || after != state { valid = false }
         if cache && valid { PkgWrite(ready, state) }

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Native script runs select dependency libraries from the modules they include,
+  matching native builds. Unused optional codecs no longer become link
+  requirements, and script caches track the dependency link metadata.
+
 - Preserve architecture-specific assembly in ZX revision 29 through source and
   saved-IR builds. Native ZX selects compatible templates by architecture,
   OS, ABI and usable CPU features, with the portable body as the default.

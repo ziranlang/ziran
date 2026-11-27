@@ -28,6 +28,17 @@ main :: (argc: s32, argv: **u8) -> s32 {
     }
     source := "libc :: #system_library \"libc\";\nmanifest_value :: () -> s32 #foreign libc;\ncaller_value :: () -> s32 #foreign libc;\n#program_export\nmain :: () -> s32 {\nif manifest_value() + caller_value() != 42 { return 1 }\nprint(\"native links ok\\n\")\nreturn 0\n}\n"
     if !NativeWrite(*test, CheckPath(app, "src/main.zi"), source) || !NativeWrite(*test, CheckPath(app, "src/probe.zi"), source) { return 1 }
+    optional := CheckPath(test.work, "optional")
+    if !FixtureInit(*test, optional) { return 1 }
+    optional_manifest := "[package]\nname = \"OptionalLinks\"\nmodule_roots = [\"src\"]\nlinks = [\"ziran_missing_optional-2.0\"]\n[exports]\nvalue = \"src/value.zi\"\n"
+    optional_source := "libc :: #system_library \"libc\";\nNativeValue :: () -> s32 #foreign libc \"optional_value\";\nValue :: () -> s32 { return NativeValue() }\n"
+    if !NativeWrite(*test, CheckPath(optional, "ziran.toml"), optional_manifest) ||
+        !NativeWrite(*test, CheckPath(optional, "src/value.zi"), optional_source) { return 1 }
+    unused FixtureCommit(*test, optional, "optional native link fixture")
+    manifest = CheckConcat(manifest, "[dependencies.optional]\ngit = \"https://git.waozi.xyz/ziranlang/native-link-fixture.git\"\nref = \"master\"\n")
+    if !NativeWrite(*test, CheckPath(app, "ziran.toml"), manifest) { return 1 }
+    all_aliases := string.["ziran", "optional"]; all_paths := string.[test.repo, optional]
+    if !FixtureOverrides(*test, app, all_aliases[:], all_paths[:]) { return 1 }
     NativeSet(*test, "LDLIBS", "-lcaller"); NativeSet(*test, "LDFLAGS", CheckConcat("-L", app))
     lock := string.["lock", "--offline"]; unused PackageCommand(*test, app, lock[:])
     build := string.["build", "--offline"]; unused PackageCommand(*test, app, build[:])
@@ -42,9 +53,16 @@ main :: (argc: s32, argv: **u8) -> s32 {
     for index: cast(s64)0..explicit.count - 2 { VecPush(saved, explicit[index]) }
     VecPush(saved, "--root"); VecPush(saved, ir); VecPush(saved, CheckPath(ir, "probe.zir"))
     unused PackageCommand(*test, app, saved[:]); unused NativeExpect(*test, execute[:], "native links ok\n", app)
+    script := string.["run", "--offline", "--target=c", "src/probe.zi"]
+    script_output := PackageCommand(*test, app, script[:])
+    if !NativeAssert(*test, TextContains(script_output, "native links ok"), "native script linked an unused dependency") { return 1 }
+    if !NativeWrite(*test, CheckPath(app, "src/probe.zi"), "Optional :: #import \"optional/value\";\nmain :: () -> s32 { return Optional.Value() }\n") { return 1 }
+    used_optional := PackageCommand(*test, app, script[:], false)
+    if !NativeAssert(*test, TextContains(used_optional, "ziran_missing_optional-2.0"), CheckConcat("native script omitted an imported dependency's libraries:\n", used_optional)) { return 1 }
+    if !NativeWrite(*test, CheckPath(app, "src/probe.zi"), source) { return 1 }
     if !NativeWrite(*test, CheckPath(app, "ziran.toml"), TextReplace(manifest, "ziran_link-2.0_fixture", "ziran_missing-2.0")) { return 1 }
     missing := PackageCommand(*test, app, explicit[:], false)
     if !NativeAssert(*test, TextContains(missing, "ziran_missing-2.0"), "missing library was not diagnosed by the native linker") || test.failed { return 1 }
-    print("Local project native links: manifest libraries, inherited LDLIBS and source/saved explicit executables passed\n")
+    print("Local project native links: manifest libraries, inherited LDLIBS, source/saved executables and selective script dependencies passed\n")
     return 0
 }

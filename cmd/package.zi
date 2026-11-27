@@ -229,58 +229,17 @@ ApiOptionValue :: (option: string) -> bool {
     return false
 }
 
-// The `-l` list the compiler child links for a build: the caller's LDLIBS,
-// then the root manifest's [package] links. A dependency's links are not
-// listed here: they travel in ZIRAN_PACKAGE_LINKS, so the native link adds
-// only the dependencies whose modules the build includes. The run --target=c
-// script lane still links the declared list because its scripts see no map.
-PkgNativeLibraries :: (locked: *PkgLock, current: *PkgManifest) -> string {
+// Native invocations link the caller's LDLIBS and the root manifest's links.
+// Dependency links travel in the checked module sidecar and are credited only
+// when their modules are included, for both build and native script run.
+PkgNativeLibraries :: (current: *PkgManifest) -> string {
     libraries: string = PkgGetenv("LDLIBS")
-    seen: [64]string
-    seen_count: s32 = 0
     if current != null {
         index: s32 = 0
         while index < current.link_count {
-            seen[seen_count] = current.links[index]
-            seen_count += 1
             if libraries.count > 0 { libraries = PkgJoin(libraries, " ") }
             libraries = PkgJoin3(libraries, "-l", current.links[index])
             index += 1
-        }
-    }
-    if locked != null {
-        package: s32 = 0
-        while package < locked.count {
-            direct := false
-            edge: s32 = 0
-            while edge < locked.root_edge_count {
-                if locked.packages[package].id == locked.root_edges[edge].value {
-                    direct = true
-                }
-                edge += 1
-            }
-            if direct {
-                link: s32 = 0
-                while link < locked.packages[package].manifest.link_count {
-                    name := locked.packages[package].manifest.links[link]
-                    duplicate := false
-                    seen_index: s32 = 0
-                    while seen_index < seen_count {
-                        if name == seen[seen_index] { duplicate = true }
-                        seen_index += 1
-                    }
-                    if !duplicate {
-                        if seen_count < 64 {
-                            seen[seen_count] = name
-                            seen_count += 1
-                        }
-                        if libraries.count > 0 { libraries = PkgJoin(libraries, " ") }
-                        libraries = PkgJoin3(libraries, "-l", name)
-                    }
-                    link += 1
-                }
-            }
-            package += 1
         }
     }
     return libraries
@@ -370,7 +329,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     // dependency's links travel in the sidecar file instead: the native link
     // adds them only for the dependencies whose modules the build includes.
     if project && build {
-        libraries := PkgNativeLibraries(null, current)
+        libraries := PkgNativeLibraries(current)
         if libraries.count > 0 {
             if environment >= 8 { return PkgFail("too many build environment values") }
             names[environment] = "LDLIBS"
@@ -1511,6 +1470,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         program_file := ""
         map := ""
         libraries := PkgGetenv("LDLIBS")
+        links_file := ""
         search_count: s64 = 1
         if current != null { search_count += current.root_count }
         if locked != null { search_count += locked.count }
@@ -1538,7 +1498,8 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
                 }
                 index += 1
             }
-            libraries = PkgNativeLibraries(locked, current)
+            libraries = PkgNativeLibraries(current)
+            links_file = PkgWriteLinksFile(root, locked)
         }
         standard := PkgGetenv("ZIRAN_STD")
         if standard.count == 0 {
@@ -1549,7 +1510,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             search[searches] = standard; searches += 1
         }
         return ScriptRun(filtered[0:count], binary, root, program_root, program_file,
-            search[0:searches], map, libraries, PkgCacheRoot())
+            search[0:searches], map, libraries, links_file, PkgCacheRoot())
     }
     // `ziran api kryon/button` names a dependency by its alias; the API tool
     // knows modules by their dependency-name namespace.

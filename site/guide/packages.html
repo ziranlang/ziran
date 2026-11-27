@@ -68,13 +68,12 @@ letter, digit or underscore and may then contain letters, digits, underscores,
 hyphens, dots and plus signs. Paths, options and shell syntax are rejected.</p>
 <p>System links also apply when building an explicit source file with
 <code>ziran build --project --target=c --exe</code>, alongside the caller's <code>LDLIBS</code>.</p>
-<p>System links apply to the root manifest that declares them; they are not
-inherited from a dependency's <code>[package]</code> table. For example, a native consumer
-of <code>audio/pipeline</code> and <code>audio/resample</code> declares
-<code>links = ["opus", "samplerate", "m"]</code> in its own <code>[package]</code> table.
-An <code>audio/opus</code> codec-only consumer needs <code>links = ["opus", "m"]</code>.
-Portable <code>audio/ogg</code> inspection and <code>audio/wav</code> conversion need no codec
-libraries. A custom native host supplies the corresponding linker flags.</p>
+<p>The root manifest's links apply to every native build and <code>run --target=c</code>.
+A dependency's links apply when generated modules from that dependency are
+included. Declaring an unused optional dependency adds no native libraries.
+The package import map carries the library metadata into native compilation;
+native script caches invalidate when that metadata changes. A custom native
+host supplies the corresponding linker flags when it compiles generated C.</p>
 <p><code>ziran install --prefix DIR</code> installs under <code>DIR/bin</code>; <code>[install] bin</code> changes
 the command name. The copy replaces an installed program in one step.</p>
 <p>A project whose <code>[package] tool</code> names a dependency hands these four commands

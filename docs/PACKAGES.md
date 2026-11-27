@@ -84,13 +84,12 @@ hyphens, dots and plus signs. Paths, options and shell syntax are rejected.
 System links also apply when building an explicit source file with
 `ziran build --project --target=c --exe`, alongside the caller's `LDLIBS`.
 
-System links apply to the root manifest that declares them; they are not
-inherited from a dependency's `[package]` table. For example, a native consumer
-of `audio/pipeline` and `audio/resample` declares
-`links = ["opus", "samplerate", "m"]` in its own `[package]` table.
-An `audio/opus` codec-only consumer needs `links = ["opus", "m"]`.
-Portable `audio/ogg` inspection and `audio/wav` conversion need no codec
-libraries. A custom native host supplies the corresponding linker flags.
+The root manifest's links apply to every native build and `run --target=c`.
+A dependency's links apply when generated modules from that dependency are
+included. Declaring an unused optional dependency adds no native libraries.
+The package import map carries the library metadata into native compilation;
+native script caches invalidate when that metadata changes. A custom native
+host supplies the corresponding linker flags when it compiles generated C.
 
 `ziran install --prefix DIR` installs under `DIR/bin`; `[install] bin` changes
 the command name. The copy replaces an installed program in one step.

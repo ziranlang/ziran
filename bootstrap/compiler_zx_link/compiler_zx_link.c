@@ -7744,15 +7744,167 @@ compiler_zx_link_ResolveBindingModule(ZirProgram* program, uint8_t* module)
     return true;
 }
 
+bool
+compiler_zx_link_PrivateSourceMatches(ZirModule* module, uint8_t* wanted)
+{
+    bool value_0 = !StringEqual(compiler_ir_CText(&(module->package[0])), StringLiteral("root"));
+    bool value_1 = value_0;
+    if (!value_1) {
+        String value_2 = StringLiteral("root__source_");
+        uint8_t* value_3 = (void *)0;
+        {
+            String s = value_2;
+            value_3 = ((StaticText*)(&(s)))->data;
+        }
+        bool value_5 = zir_foreign_compiler_zx_link__strncmp(&(module->name[0]), value_3, 13) != 0;
+        value_1 = value_5;
+    }
+    if (value_1) {
+        return false;
+    }
+    String value_6 = compiler_zx_link_BindingSourceName(module);
+    if (compiler_zx_link_SourceSpellingMatches(value_6, wanted)) {
+        return true;
+    }
+    String source = compiler_ir_CText(&(module->source_path[0]));
+    bool value_7 = (int64_t)(source).length > 4LL;
+    if (value_7) {
+        bool value_8 = StringEqual(StringRangeAt(source, (int64_t)((int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(4))), (int64_t)source.length), StringLiteral(".tsx"));
+        bool value_9 = value_8 || StringEqual(StringRangeAt(source, (int64_t)((int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(4))), (int64_t)source.length), StringLiteral(".zir"));
+        value_7 = value_9;
+    }
+    if (value_7) {
+        source = StringRangeAt(source, (int64_t)0, (int64_t)((int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(4))));
+    } else {
+        bool value_10 = (int64_t)(source).length > 3LL;
+        if (value_10) {
+            bool value_11 = StringEqual(StringRangeAt(source, (int64_t)((int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(3))), (int64_t)source.length), StringLiteral(".zi"));
+            bool value_12 = value_11 || StringEqual(StringRangeAt(source, (int64_t)((int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(3))), (int64_t)source.length), StringLiteral(".ts"));
+            value_10 = value_12;
+        }
+        if (value_10) {
+            source = StringRangeAt(source, (int64_t)0, (int64_t)((int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(3))));
+        }
+    }
+    return compiler_zx_link_SourceSpellingMatches(source, wanted);
+}
+
+bool
+compiler_zx_link_SourceSpellingMatches(String source, uint8_t* wanted)
+{
+    String name = compiler_ir_CText(wanted);
+    if (StringEqual(source, name)) {
+        return true;
+    }
+    int64_t leaf = 0LL;
+    {
+        int64_t range_first_5 = 0LL;
+        int64_t range_last_5 = (int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(1));
+        int64_t i = range_first_5;
+        if (i <= range_last_5) for (;;) {
+            if ((uint8_t)source.data[i] == 47) {
+                leaf = (int64_t)((uint64_t)i + UINT64_C(1));
+            }
+            if (i == range_last_5) {
+                break;
+            }
+            i = (int64_t)((uint64_t)i + UINT64_C(1));
+        }
+    }
+    if (StringEqual(StringRangeAt(source, (int64_t)leaf, (int64_t)source.length), name)) {
+        return true;
+    }
+    if ((int64_t)(source).length != (int64_t)(name).length) {
+        return false;
+    }
+    {
+        int64_t range_first_16 = 0LL;
+        int64_t range_last_16 = (int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(1));
+        int64_t i = range_first_16;
+        if (i <= range_last_16) for (;;) {
+            uint8_t value_0 = 0;
+            if ((uint8_t)source.data[i] == 47) {
+                value_0 = 95;
+            } else {
+                value_0 = (uint8_t)source.data[i];
+            }
+            uint8_t byte = value_0;
+            if (byte != (uint8_t)name.data[i]) {
+                return false;
+            }
+            if (i == range_last_16) {
+                break;
+            }
+            i = (int64_t)((uint64_t)i + UINT64_C(1));
+        }
+    }
+    return true;
+}
+
 int32_t
 ResolveProgramModule(ZirProgram* program, uint8_t* module)
 {
-    bool value_0 = compiler_zx_link_ResolveBindingModule(program, module);
-    int32_t value_1 = 0;
-    if (value_0) {
-        value_1 = 1;
+    uint8_t* value_0 = zir_foreign_compiler_zx_link__strchr(module, 47);
+    if (value_0 == ((void *)0)) {
+        ZirModule* matched = (void *)0;
+        {
+            int32_t range_first_2 = 0;
+            int32_t range_last_2 = (int32_t)((uint32_t)(program->module_count) - 1u);
+            int32_t m = range_first_2;
+            if (m <= range_last_2) for (;;) {
+                ZirProgram* value_1 = program;
+                ZirModule* value_2 = (void *)0;
+                {
+                    ZirProgram* program = value_1;
+                    int32_t index = m;
+                    value_2 = &(program->modules[index]);
+                }
+                ZirModule* candidate = value_2;
+                bool value_4 = compiler_zx_link_PrivateSourceMatches(candidate, module);
+                if (!value_4) {
+                    if (m == range_last_2) {
+                        break;
+                    }
+                    m = (int32_t)((uint32_t)m + 1u);
+                    continue;
+                }
+                if (matched != ((void *)0)) {
+                    ZirSourceSpan value_5 = compiler_zx_link_CommandSpan();
+                    String value_6 = StringLiteral("module.ambiguous");
+                    uint8_t* value_7 = (void *)0;
+                    {
+                        String s = value_6;
+                        value_7 = ((StaticText*)(&(s)))->data;
+                    }
+                    String value_9 = StringLiteral("source module %s is ambiguous between %s and %s; select its source path");
+                    uint8_t* value_10 = (void *)0;
+                    {
+                        String s = value_9;
+                        value_10 = ((StaticText*)(&(s)))->data;
+                    }
+                    uint8_t* value_12 = module;
+                    uint8_t* value_13 = zir_foreign_compiler_zx_link__SpanPath(matched->span);
+                    zir_foreign_compiler_zx_link__Diagnostic(value_5, value_7, value_10, value_12, value_13, zir_foreign_compiler_zx_link__SpanPath(candidate->span));
+                    return 0;
+                }
+                matched = candidate;
+                if (m == range_last_2) {
+                    break;
+                }
+                m = (int32_t)((uint32_t)m + 1u);
+            }
+        }
+        if (matched != ((void *)0)) {
+            zir_foreign_compiler_zx_link__strcpy(module, &(matched->name[0]));
+            return 1;
+        }
     }
-    return value_1;
+    bool value_14 = compiler_zx_link_ResolveBindingModule(program, module);
+    int32_t value_15 = 0;
+    if (value_14) {
+        value_15 = 1;
+    }
+    return value_15;
 }
 
 void

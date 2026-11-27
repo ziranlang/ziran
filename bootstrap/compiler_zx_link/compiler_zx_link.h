@@ -534,6 +534,8 @@ bool compiler_zx_link_SplitBindingName(uint8_t* text, uint8_t* module, uint8_t* 
 String compiler_zx_link_BindingSourceName(ZirModule* module);
 bool compiler_zx_link_BindingModuleMatches(ZirModule* module, uint8_t* wanted);
 bool compiler_zx_link_ResolveBindingModule(ZirProgram* program, uint8_t* module);
+bool compiler_zx_link_PrivateSourceMatches(ZirModule* module, uint8_t* wanted);
+bool compiler_zx_link_SourceSpellingMatches(String source, uint8_t* wanted);
 int32_t ResolveProgramModule(ZirProgram* program, uint8_t* module);
 void compiler_zx_link_BindImport(ZirImport* matched, uint8_t* provider_module, uint8_t* function);
 bool compiler_zx_link_HostProviderMatches(ZirModule* module, ZirImport* imported, ZirModule* provider, ZirFunction* function);

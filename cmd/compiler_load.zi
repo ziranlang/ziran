@@ -369,6 +369,34 @@ package_identity :: (package: *u8, module: *u8, output: *u8, size: usize) -> s32
 }
 
 
+// Sources outside the manifest module roots belong to the root package, but
+// their filename is not an exported module identity. Keep that namespace
+// separate and stable across --root choices and project relocations.
+#scope_file
+private_source_identity :: (map: *Packages.ZirPackageMap, path: *u8, module: *IR.ZirModule) -> s32 {
+    relative: *u8 = null
+    for index: 0..map.root_count - 1 {
+        root := *map.roots[index]
+        if IR.CText(root.id) != "root" { continue }
+        length := strlen(root.path)
+        if strncmp(path, root.path, length) == 0 && path[length] == #char "/" {
+            relative = cast(*u8)(cast(usize)path + length + 1)
+            break
+        }
+    }
+    if relative == null { return 0 }
+    hash: CacheHash
+    digest: CacheDigest
+    hex: CacheHex
+    Sha256Begin(cast(*void)*hash)
+    Sha256Add(cast(*void)*hash, relative, strlen(relative))
+    Sha256End(cast(*void)*hash, *digest.bytes[0])
+    cache_hex_encode(*digest, *hex)
+    return cast(s32)(snprintf(*module.name[0], IR.ZIR_NAME_MAX,
+        ParserCString("root__source_%s"), *hex.items[0]) < IR.ZIR_NAME_MAX)
+}
+
+
 #scope_file
 import_loaded :: (context_local: *LoadContext, import_local: *IR.ZirImport, path: *u8) {
     canonical: *u8 = CanonicalPath(path)
@@ -498,7 +526,14 @@ add_program_named :: (context_local: *LoadContext, path: *u8, root: *u8, identit
             CompilerFree(cast(*void)(canonical))
             return 0
         }
-        if (mapped != cast(*u8)((null))) {
+        if mapped == null {
+            if program.module_count != 1 || private_source_identity(context_local.packages, canonical, *program.modules[0]) == 0 {
+                Diagnostic(Span(path, 1, 1), ParserCString("package.identity"), ParserCString("cannot assign a private source module identity: %s"), path)
+                ProgramFree(program)
+                CompilerFree(cast(*void)canonical)
+                return 0
+            }
+        } else {
             if ((((program).module_count != 1) || (snprintf(cast(*u8)(*((((program).modules)[0]).name)), cast(usize)size_of(ParserArray128_u8), ParserCString("%s"), mapped) >= cast(s32)(cast(usize)size_of(ParserArray128_u8)))) || (snprintf(cast(*u8)(*((((program).modules)[0]).source_path)), cast(usize)size_of(ParserArray1024_u8), ParserCString("%s.zi"), mapped) >= cast(s32)(cast(usize)size_of(ParserArray1024_u8)))) {
                 Diagnostic(Span(path, 1, 1), ParserCString("package.identity"), ParserCString("invalid mapped module identity"))
                 ProgramFree(program)
@@ -947,6 +982,38 @@ load_import_with_buffers :: (context_local: *LoadContext, owner_source: *u8, own
     owner_path: *u8 = owner_source
     prefer_ir: s32 = Serial.PathIsIR(owner_source)
     explicit_path: s32 = cast(s32)((strncmp(cast(*u8)(*((import_local).signature)), ParserCString("file:"), cast(usize)(5)) == 0) || (strncmp(cast(*u8)(*((import_local).signature)), ParserCString("dir:"), cast(usize)(4)) == 0))
+    // Checked imports retain a relative filename when their module identity
+    // differs from the authored IR output path. Never substitute its identity.
+    saved_file_import := prefer_ir != 0 && strncmp(*import_local.signature[0], ParserCString("ir:"), 3) == 0
+    if saved_file_import && context_local.packages != null &&
+        Packages.PackageModuleName(context_local.packages, owner_source) != null {
+        owner := Packages.PackageOwner(context_local.packages, owner_source)
+        // Declared saved modules still resolve through their dependency map.
+        // Only root-package private source imports need a saved filename.
+        saved_file_import = owner != null && IR.CText(owner) == "root" &&
+            strncmp(target, ParserCString("root__source_"), 13) == 0
+    }
+    if saved_file_import {
+        slash := strrchr(owner_source, #char "/")
+        if slash == null { return 0 }
+        length := cast(s32)(cast(usize)slash - cast(usize)owner_source)
+        candidate := *buffers.candidate.items[0]
+        if snprintf(candidate, size_of(ParserArray3072_u8), ParserCString("%.*s/%s"),
+            length, owner_source, *import_local.signature[3]) >= cast(s32)size_of(ParserArray3072_u8) { return 0 }
+        if Serial.PathIsIR(candidate) == 0 || add_program(context_local, candidate, owner_root) == 0 { return 0 }
+        canonical := CanonicalPath(candidate)
+        defer { CompilerFree(cast(*void)canonical) }
+        for p: 0..set.count - 1 {
+            if canonical == null || strcmp(set.paths[p], canonical) != 0 { continue }
+            program := set.programs[p]
+            for m: 0..program.module_count - 1 {
+                if strcmp(*program.modules[m].name[0], target) == 0 { return 1 }
+            }
+        }
+        Diagnostic(import_local.span, ParserCString("module.identity"),
+            ParserCString("saved import %s does not declare module identity %s"), candidate, target)
+        return 0
+    }
     if ((((context_local).packages != cast(*Packages.ZirPackageMap)((null))) && (prefer_ir != 0)) && (Packages.PackageModuleName((context_local).packages, owner_source) != cast(*u8)((null)))) {
         owner: *u8 = Packages.PackageOwner((context_local).packages, owner_source)
         if ((owner == cast(*u8)((null))) || !(Packages.PackageResolveSaved((context_local).packages, owner, target, cast(*u8)(*(((buffers).mapped_path).items)), cast(usize)size_of(ParserArray3072_u8)) != 0)) {
@@ -975,9 +1042,8 @@ load_import_with_buffers :: (context_local: *LoadContext, owner_source: *u8, own
             return 0
         }
         snprintf(cast(*u8)(*((import_local).target)), cast(usize)size_of(ParserArray1024_u8), ParserCString("%s"), cast(*u8)(*((mapped_name).items)))
-        if (module_loaded(set, cast(*u8)(*((mapped_name).items))) != 0) {
-            return 1
-        }
+        // Reuse is decided by the mapped canonical file in add_program_named,
+        // never by an unrelated source that happens to have the same name.
         snprintf(cast(*u8)(*(((buffers).parent).items)), cast(usize)size_of(ParserArray3072_u8), ParserCString("%s"), cast(*u8)(*(((buffers).mapped_path).items)))
         slash: *u8 = strrchr(cast(*u8)(*(((buffers).parent).items)), 47)
         if (slash == cast(*u8)((null))) {

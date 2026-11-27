@@ -573,7 +573,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         }
     }
     if entry != null {
-        if CLI.CommandMergePrograms(*set, *merged) == 0 { return result }
+        if CLI.CommandMergePrograms(*set, *merged, *entry_module[0], argc - first_file) == 0 { return result }
         merged_ptr := *merged
         if LinkImports(*merged_ptr, 1) == 0 { return result }
         b: s32 = 0
@@ -707,6 +707,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
         result = 1
     }
     if exe != 0 {
+        // Linking uses the checked identity; the executable keeps the command's
+        // authored spelling, which the project run launcher also selects.
+        unused CLI.SplitEntry(entry, *entry_module[0], *entry_function[0])
         name := strrchr(*entry_module[0], #char "/")
         leaf := cast(*u8)*entry_module[0]
         if name != null { leaf = cast(*u8)(cast(usize)name + 1) }

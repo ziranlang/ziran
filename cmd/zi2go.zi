@@ -209,7 +209,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     progs := set.programs
     if CheckCanonical(progs, file_count, set.paths) == 0 { return result }
     if entry != null {
-        if CLI.CommandMergePrograms(*set, *merged) == 0 { return result }
+        if CLI.CommandMergePrograms(*set, *merged, *entry_module[0], argc - first_file) == 0 { return result }
         merged_ptr := *merged
         if LinkImports(*merged_ptr, 1) == 0 { return result }
         b: s32 = 0

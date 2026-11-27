@@ -53,6 +53,11 @@ ptrdiff_t zir_foreign_compiler_cli__strtol(uint8_t* text, uint8_t** end, int32_t
 ptrdiff_t zir_foreign_compiler_cli__strtol(uint8_t* text, uint8_t** end, int32_t base) __asm__("strtol");
 #endif
 #ifdef __APPLE__
+uint8_t* zir_foreign_compiler_cli__strchr(uint8_t* text, int32_t byte) __asm__("_strchr");
+#else
+uint8_t* zir_foreign_compiler_cli__strchr(uint8_t* text, int32_t byte) __asm__("strchr");
+#endif
+#ifdef __APPLE__
 void* zir_foreign_compiler_cli__calloc(size_t count, size_t size) __asm__("_calloc");
 #else
 void* zir_foreign_compiler_cli__calloc(size_t count, size_t size) __asm__("calloc");
@@ -222,7 +227,7 @@ void compiler_cli_CommandModulePathsRelease(void);
 void compiler_cli_CommandLowerPriority(void);
 uint8_t** compiler_cli_CommandModulePaths(int32_t argc);
 int32_t compiler_cli_ReadCommandOptions(int32_t argc, uint8_t** argv, CommandOption* options, size_t option_count);
-int32_t compiler_cli_CommandMergePrograms(ProgramSet* set, ZirProgram* merged);
+int32_t compiler_cli_CommandMergePrograms(ProgramSet* set, ZirProgram* merged, uint8_t* entry_module, int32_t input_count);
 int32_t compiler_cli_CommandRetainFunctions(ZirProgram* program, uint8_t** roots, int32_t count, uint8_t* code);
 int32_t compiler_cli_CommandConfigureTarget(int32_t backend, uint8_t* os_name, uint8_t* cpu_name, int32_t* os);
 uint8_t* compiler_cli_CommandReadBounded(uint8_t* path, int64_t limit, size_t* size);

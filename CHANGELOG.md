@@ -2,11 +2,17 @@
 
 ## [Unreleased]
 
+- Keep project source entry identities separate from declared package modules.
+  Preserve authored entry spellings and checked IR filenames, disambiguate actual
+  output collisions, and retain relative saved imports independently of identity.
+
 - Share native assets, clock, process and file services between portable-program
   hosts through `std/guest_host`, with reply storage owned by each instance.
   Expose typed process identity, accounting units, signals and shell execution
   through `std/guest_process`. Reject embedded NUL in shell commands and reclaim
   temporary file-read storage after copying host replies.
+  Reuse the native civil-clock provider for wall milliseconds, including its
+  checked platform-specific timestamp layout instead of a duplicate fixed-width ABI.
 
 - Save entry-selected checked IR without native-only folding or record-field
   pruning. Preserve canonical expression graphs and host providers so direct

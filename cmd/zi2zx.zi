@@ -603,7 +603,7 @@ BuildTo :: (argc: s32, argv: **u8, into: *void) -> s32 {
         return result
     }
     if CheckCanonicalPrograms(set.programs, set.count, cast(**u8)set.paths) == 0 ||
-       CLI.CommandMergePrograms(*set, *merged) == 0 || merged.module_count == 0 { return result }
+       CLI.CommandMergePrograms(*set, *merged, ifx library == null then *entry_module[0] else null, argc - first_file) == 0 || merged.module_count == 0 { return result }
     merged.checks = checks
     if checks != 0 { CLI.CommandEnableChecks(*set) }
     merged_ptr := *merged

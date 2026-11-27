@@ -137,7 +137,7 @@ compiler_cli_ReadCommandOptions(int32_t argc, uint8_t** argv, CommandOption* opt
 }
 
 int32_t
-compiler_cli_CommandMergePrograms(ProgramSet* set, ZirProgram* merged)
+compiler_cli_CommandMergePrograms(ProgramSet* set, ZirProgram* merged, uint8_t* entry_module, int32_t input_count)
 {
     int32_t* value_0 = &(merged->module_count);
     (*value_0) = 0;
@@ -189,7 +189,58 @@ compiler_cli_CommandMergePrograms(ProgramSet* set, ZirProgram* merged)
             index = (int32_t)((uint32_t)index + 1u);
         }
     }
-    return 1;
+    if (entry_module == ((void *)0)) {
+        return 1;
+    }
+    bool value_6 = input_count > 0;
+    if (value_6) {
+        uint8_t* value_7 = zir_foreign_compiler_cli__strchr(entry_module, 47);
+        value_6 = (value_7 == ((void *)0));
+    }
+    if (value_6) {
+        ZirProgram selected = merged[0];
+        int32_t* value_8 = &(selected.module_count);
+        (*value_8) = 0;
+        {
+            int32_t range_first_23 = 0;
+            int32_t range_last_23 = (int32_t)((uint32_t)input_count - 1u);
+            int32_t index = range_first_23;
+            if (index <= range_last_23) for (;;) {
+                if (index >= set->count) {
+                    break;
+                }
+                int32_t* value_9 = &(selected.module_count);
+                (*value_9) = (int32_t)((uint32_t)((*value_9)) + (uint32_t)((set->programs[(size_t)(index)])->module_count));
+                if (index == range_last_23) {
+                    break;
+                }
+                index = (int32_t)((uint32_t)index + 1u);
+            }
+        }
+        {
+            int32_t range_first_29 = 0;
+            int32_t range_last_29 = (int32_t)((uint32_t)(selected.module_count) - 1u);
+            int32_t index = range_first_29;
+            if (index <= range_last_29) for (;;) {
+                if (zir_foreign_compiler_cli__strcmp(&(((selected.modules[index]).name)[0]), entry_module) == 0) {
+                    return 1;
+                }
+                if (index == range_last_29) {
+                    break;
+                }
+                index = (int32_t)((uint32_t)index + 1u);
+            }
+        }
+        uint8_t spelling[128] = {0};
+        zir_foreign_compiler_cli__strcpy(&(spelling[0]), entry_module);
+        if (zir_foreign_compiler_cli__ResolveProgramModule(&(selected), entry_module) == 0) {
+            return 0;
+        }
+        if (zir_foreign_compiler_cli__strcmp(&(spelling[0]), entry_module) != 0) {
+            return 1;
+        }
+    }
+    return zir_foreign_compiler_cli__ResolveProgramModule(merged, entry_module);
 }
 
 int32_t

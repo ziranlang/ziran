@@ -1949,7 +1949,7 @@ main(int argc, char **arguments)
         }
     }
     if (entry != ((void *)0)) {
-        if (compiler_cli_CommandMergePrograms(&(set), &(merged)) == 0) {
+        if (compiler_cli_CommandMergePrograms(&(set), &(merged), &(entry_module[0]), (int32_t)((uint32_t)argc - (uint32_t)first_file)) == 0) {
             int32_t cleanup_return_11 = result;
             {
                 zir_foreign_zi2c__ProgramsFree(&(set));
@@ -2970,6 +2970,7 @@ main(int argc, char **arguments)
         result = 1;
     }
     if (exe != 0) {
+        compiler_cli_SplitEntry(entry, &(entry_module[0]), &(entry_function[0]));
         uint8_t* name = zir_foreign_zi2c__strrchr(&(entry_module[0]), 47);
         uint8_t* leaf = (uint8_t*)(&(entry_module[0]));
         if (name != ((void *)0)) {

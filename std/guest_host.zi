@@ -5,6 +5,7 @@
 #import "bundle_host"
 #import "byte_text_linux"
 #import "c_string"
+CivilTime :: #import "date_time_linux";
 #import "environment_linux"
 #import "file"
 #import "file_linux"
@@ -43,8 +44,6 @@ Provides :: (module: string, function: string) -> bool {
 #scope_file
 using HostValueKind;
 libc :: #system_library "libc";
-WallClock :: struct { seconds: s64; nanoseconds: s64 }
-ClockGetTime :: (clock: s32, value: *WallClock) -> s32 #foreign libc "clock_gettime";
 ProcessIdRaw :: () -> s32 #foreign libc "getpid";
 ProcessPageSizeRaw :: () -> s32 #foreign libc "getpagesize";
 ProcessConfigurationRaw :: (name: s32) -> isize #foreign libc "sysconf";
@@ -57,7 +56,6 @@ ProcessShellRaw :: (command: *u8) -> s32 #foreign libc "system";
 } else {
     ClockTicksConfiguration :: 2;
 }
-REALTIME_CLOCK :: 0;
 
 #scope_export
 Text :: (value: HostValue) -> string {
@@ -113,9 +111,9 @@ ClockCall :: (function: string, count: s32, result: *HostValue) -> s32 {
     if count != 0 { return 0 }
     if function == "MonotonicNanosecondsHost" { return Integer(result, MonotonicNanoseconds()) }
     if function == "WallMillisecondsHost" {
-        now: WallClock
-        if ClockGetTime(REALTIME_CLOCK, *now) != 0 { return 0 }
-        return Integer(result, now.seconds * 1000 + now.nanoseconds / 1000000)
+        now := CivilTime.UnixMilliseconds()
+        if now < 0 { return 0 }
+        return Integer(result, now)
     }
     return 0
 }

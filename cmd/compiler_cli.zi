@@ -14,6 +14,7 @@ OptionValid :: #type (name: *u8) -> s32 #c_call;
 
 getenv :: (name: *u8) -> *u8 #foreign libc "getenv";
 strtol :: (text: *u8, end: **u8, base: s32) -> isize #foreign libc "strtol";
+strchr :: (text: *u8, byte: s32) -> *u8 #foreign libc "strchr";
 calloc :: (count: usize, size: usize) -> *void #foreign libc "calloc";
 malloc :: (size: usize) -> *void #foreign libc "malloc";
 free :: (memory: *void) #foreign libc "free";
@@ -136,7 +137,7 @@ ReadCommandOptions :: (argc: s32, argv: **u8, options: *CommandOption, option_co
 
 // A command's entry linker borrows every loaded module. The caller frees
 // only merged->modules; ProgramsFree retains ownership of their contents.
-CommandMergePrograms :: (set: *IR.ProgramSet, merged: *IR.ZirProgram) -> s32 {
+CommandMergePrograms :: (set: *IR.ProgramSet, merged: *IR.ZirProgram, entry_module: *u8 = null, input_count: s32 = 0) -> s32 {
     merged.module_count = 0
     for index: 0..set.count - 1 {
         merged.module_count += set.programs[cast(usize)index].module_count
@@ -152,7 +153,25 @@ CommandMergePrograms :: (set: *IR.ProgramSet, merged: *IR.ZirProgram) -> s32 {
             position += 1
         }
     }
-    return 1
+    if entry_module == null { return 1 }
+    // ProgramsLoad promotes direct inputs before imported programs. Give an
+    // authored input's spelling priority over a same-named imported provider.
+    if input_count > 0 && strchr(entry_module, #char "/") == null {
+        selected := merged[0]
+        selected.module_count = 0
+        for index: 0..input_count - 1 {
+            if index >= set.count { break }
+            selected.module_count += set.programs[cast(usize)index].module_count
+        }
+        for index: 0..selected.module_count - 1 {
+            if strcmp(*selected.modules[index].name[0], entry_module) == 0 { return 1 }
+        }
+        spelling: [IR.ZIR_NAME_MAX]u8
+        unused strcpy(*spelling[0], entry_module)
+        if ResolveProgramModule(*selected, entry_module) == 0 { return 0 }
+        if strcmp(*spelling[0], entry_module) != 0 { return 1 }
+    }
+    return ResolveProgramModule(merged, entry_module)
 }
 
 // Native host entries and portable retained entries use the same checked

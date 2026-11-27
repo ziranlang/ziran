@@ -13,11 +13,15 @@ the command output, and [tests/compiler_inventory_cases.zi](../tests/compiler_in
   for every advertised supported or experimental target; and
 - rejection of every negative example.
 
+After changing the registry, regenerate `docs/FEATURES.json` with
+`build/bin/ziran features --json > docs/FEATURES.json` from a rebuilt checkout.
+
 The registry is intentionally incremental. Its 16 contracts cover compile-time
 assertions, laws and execution, CPU parallelism and the explicit GPU device Gap,
 checked printing, heap allocation, named imports, integer width conformance
 and implicit widening, automatic vector cleanup, local `TextView` mutation
-checks, record-field vector moves, procedure defaults, procedure values, and
+checks, vector moves through record fields, indexed paths, and checked record
+references, procedure defaults, procedure values, and
 architecture-specific assembly with a portable body.
 ZX preserves that assembly through saved IR and supports optional native
 selection and explicit target-only procedures. Supported native template

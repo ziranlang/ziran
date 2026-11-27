@@ -578,8 +578,12 @@ one independently initialized instance with a positive step budget. Handles
 become stale when their generation is replaced or their component closes, and
 running a stale handle fails without touching the current instance.
 
-`BundleInstanceExportState` snapshots the module globals the interface section
-names as recursive `BundleStateValue` data, by module, name and declared type.
+`BundleInstanceExportState` snapshots public module globals named by the
+interface section as recursive `BundleStateValue` data, by module, name and
+declared type. Globals under `#scope_module` or `#scope_file` remain local to the
+instance and are not exported or migrated. Their storage indices remain
+independent of the state interface's ordinals. Guest libraries use private
+storage for callbacks and resources, and dispose them before closing the guest.
 Strings, fixed arrays, records, enums and vectors are deep-copied; pointers,
 procedure values, slices and other borrowed or host resources are rejected.
 Snapshots are bounded in depth and by 16 MiB of copied payload, which

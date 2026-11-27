@@ -1756,7 +1756,7 @@ contextual_owned_closure :: (c: *Checker, index: s32, expected: *u8, owned: *IR.
 
 #scope_export
 #program_export "private_check_owned_call_slot"
-owned_call_slot :: (c: *Checker, index: s32, slot_owner: **IR.ZirModule) -> *IR.ZirType {
+owned_call_slot :: (c: *Checker, index: s32, operand_type: *u8, slot_owner: **IR.ZirModule) -> *IR.ZirType {
     call := c.fn.exprs[index]
     written := call.slot_type
     owned: *IR.ZirType = null
@@ -1764,7 +1764,11 @@ owned_call_slot :: (c: *Checker, index: s32, slot_owner: **IR.ZirModule) -> *IR.
     if written != null && written[0] != 0 { owned = FindType(c.module, written, *owner) }
     if owned == null || owned.is_owned_callable == 0 {
         if call.name[0] != 0 { written = lookup(c, call.name) }
-        else if call.left >= 0 { written = c.fn.exprs[call.left].type }
+        else if call.left >= 0 {
+            // The caller has already checked this operand, including saved IR
+            // whose expression caches were cleared. Reuse that current result.
+            written = operand_type
+        }
         else { return null }
         owned = FindType(c.module, written, *owner)
     }

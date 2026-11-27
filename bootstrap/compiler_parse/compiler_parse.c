@@ -446,6 +446,45 @@ ExpressionOwners(ZirFunction* fn)
     return cleanup_return_1;
 }
 
+int32_t
+ExpressionLexicalCallTarget(ZirFunction* fn, int32_t index, int32_t statement, uint8_t* output, size_t capacity)
+{
+    if (index < 0 || index >= fn->expr_count) {
+        return 0;
+    }
+    ZirExpr* call = &(fn->exprs[index]);
+    if (((ZirExprKind)(call->kind)) != ((ZirExprKind)(5))) {
+        return 0;
+    }
+    uint8_t buffer[128] = {0};
+    String target = compiler_ir_CText((uint8_t*)call->name);
+    if ((int64_t)(target).length == 0LL && call->left >= 0) {
+        Slice value_0 = {buffer, 128};
+        target = compiler_parse_CallTarget(fn, call->left, value_0);
+    }
+    if ((int64_t)(target).length == 0LL) {
+        return 0;
+    }
+    int64_t dot = compiler_parse_ByteIndex(target, 46);
+    String value_1 = StringView(NULL, 0);
+    if (dot < 0LL) {
+        value_1 = target;
+    } else {
+        value_1 = StringRangeAt(target, (int64_t)0LL, (int64_t)dot);
+    }
+    String base = value_1;
+    if (compiler_parse_CallNameShadowed(fn, statement, base)) {
+        return 0;
+    }
+    Slice value_2 = compiler_ir_CBuffer(output, capacity);
+    bool value_3 = compiler_ir_CopyText(value_2, target);
+    int32_t value_4 = 0;
+    if (value_3) {
+        value_4 = 1;
+    }
+    return value_4;
+}
+
 size_t
 ExprSavedCursorLength(ExprStatementCursor* cursor, void* text, int32_t line)
 {

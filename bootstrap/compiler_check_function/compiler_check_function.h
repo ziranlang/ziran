@@ -10,6 +10,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+int32_t private_check_reference_owned_field(ZirModule* module, ZirFunction* fn, int32_t index);
 int32_t private_check_check_go_method(Checker* c, ZirFunction* fn);
 int32_t private_check_check_function(Checker* c, ZirFunction* fn);
 int32_t private_check_check_template_declaration(Checker* c, ZirFunction* fn);

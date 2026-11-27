@@ -49,11 +49,24 @@ State :: struct {
 $extra_state
 }
 state: State = State.{.count = $version, .first = Item.{.title = "old", .weight = 3}, .history = s64.[1, 2, 3]};
+#scope_file
+PrivateAction :: #type (value: s64) -> s64;
+private_action: PrivateAction;
+Keep :: (value: s64) -> s64 { return value }
+#scope_export
 bonus: s64 = 2;
+#scope_file
+private_resource: *void;
+#scope_export
 schema_version: s64 = $schema;
 #program_export
 Next :: () -> s64 {
+    // Referenced private procedure/pointer storage must remain live, while the
+    // existing host test migrates the public globals on either side of it.
+    if private_resource != null { return -1 }
+    private_action = Keep
     state.count = Adjust(state.count)
+    state.count = private_action(state.count)
     result := state.count * 10 + state.first.weight +
         state.history[0] + cast(s64)state.first.title.count + bonus
 $open_body

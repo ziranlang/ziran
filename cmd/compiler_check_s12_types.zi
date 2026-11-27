@@ -122,6 +122,7 @@ BorrowMutation :: struct {
     path: *BorrowPath
     next: *BorrowMutation
     next_same_root: *BorrowMutation
+    owned_transfer: s32
 }
 
 BorrowPath :: struct {

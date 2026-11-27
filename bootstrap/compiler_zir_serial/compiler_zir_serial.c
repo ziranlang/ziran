@@ -6541,20 +6541,33 @@ compiler_zir_serial_validate_program(ZirProgram* program)
                             return 0;
                         }
                         ZirType* invoke = zir_foreign_compiler_zir_serial__FindType(module, &(field.type[0]), (void *)0);
-                        if (invoke == ((void *)0) || invoke->is_procedure_type == 0) {
+                        if (invoke == ((void *)0)) {
+                            uint8_t* value_59 = zir_foreign_compiler_zir_serial__strchr(&(field.type[0]), 46);
+                            if (value_59 == ((void *)0)) {
+                                return 0;
+                            }
+                        } else if (invoke->is_procedure_type == 0) {
                             return 0;
                         }
-                        bool value_59 = zir_foreign_compiler_zir_serial__TypeNextField(type, &(offset), &(field)) != 1;
-                        if (value_59 || !StringEqual(compiler_ir_CText(&(field.name[0])), StringLiteral("release"))) {
+                        bool value_60 = zir_foreign_compiler_zir_serial__TypeNextField(type, &(offset), &(field)) != 1;
+                        if (value_60 || !StringEqual(compiler_ir_CText(&(field.name[0])), StringLiteral("release"))) {
                             return 0;
                         }
                         ZirType* release = zir_foreign_compiler_zir_serial__FindType(module, &(field.type[0]), (void *)0);
-                        bool value_60 = release == ((void *)0) || release->is_procedure_type == 0;
-                        bool value_61 = value_60 || !StringEqual(compiler_ir_CText(&(release->body[0])), StringLiteral("__tsx_state: *u8"));
-                        bool value_62 = value_61;
-                        bool value_63 = value_62 || !StringEqual(compiler_ir_CText(&(release->procedure_return_type[0])), StringLiteral("void"));
-                        bool value_64 = value_63;
-                        if (value_64 || zir_foreign_compiler_zir_serial__TypeNextField(type, &(offset), &(field)) != 0) {
+                        if (release == ((void *)0)) {
+                            uint8_t* value_61 = zir_foreign_compiler_zir_serial__strchr(&(field.type[0]), 46);
+                            if (value_61 == ((void *)0)) {
+                                return 0;
+                            }
+                        } else {
+                            bool value_62 = release->is_procedure_type == 0;
+                            bool value_63 = value_62 || !StringEqual(compiler_ir_CText(&(release->body[0])), StringLiteral("__tsx_state: *u8"));
+                            bool value_64 = value_63;
+                            if (value_64 || !StringEqual(compiler_ir_CText(&(release->procedure_return_type[0])), StringLiteral("void"))) {
+                                return 0;
+                            }
+                        }
+                        if (zir_foreign_compiler_zir_serial__TypeNextField(type, &(offset), &(field)) != 0) {
                             return 0;
                         }
                     }

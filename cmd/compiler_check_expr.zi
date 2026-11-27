@@ -73,7 +73,7 @@ check_moved_path_use :: (c: *Checker, index: s32) #foreign compiler "private_che
 check_simd_call :: (c: *Checker, index: s32, type: **u8) -> s32 #foreign compiler "private_check_check_simd_call";
 compatible_checked :: (c: *Checker, to: *u8, from: *u8) -> s32 #foreign compiler "private_check_compatible_checked";
 contains_vec :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 #foreign compiler "private_check_contains_vec";
-owned_call_slot :: (c: *Checker, index: s32, slot_owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "private_check_owned_call_slot";
+owned_call_slot :: (c: *Checker, index: s32, operand_type: *u8, slot_owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "private_check_owned_call_slot";
 contextual_slot :: (c: *Checker, index: s32, expected: *u8) #foreign compiler "private_check_contextual_slot";
 copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
 error :: (c: *Checker, span: IR.ZirSourceSpan, message: *u8, detail: *u8) #foreign compiler "private_check_error";
@@ -271,13 +271,14 @@ fit_bits :: (type: *u8) -> s32 {
 }
 
 #scope_file
-bind_from_application :: (c: *Checker, parameters: *u8, wanted: *u8, argument: *u8, bound: *CheckArray128_u8) {
+bind_from_application :: (c: *Checker, declaration_owner: *IR.ZirModule, parameters: *u8, wanted: *u8, argument: *u8, bound: *CheckArray128_u8) {
     while check_loop_199 := ((cast(s32)(cast(s8)((wanted)[0])) == 42) && (cast(s32)(cast(s8)((argument)[0])) == 42)) {
         wanted = skip_ws(cast(*u8)(cast(usize)(wanted) + cast(usize)(1) * size_of(u8)))
         argument = skip_ws(cast(*u8)(cast(usize)(argument) + cast(usize)(1) * size_of(u8)))
     }
     open: *u8 = strchr(wanted, 40)
-    instance: *IR.ZirType = FindType((c).module, argument, null)
+    instance_owner: *IR.ZirModule = null
+    instance: *IR.ZirType = FindType((c).module, argument, *instance_owner)
     if (((open == cast(*u8)((null))) || (instance == cast(*IR.ZirType)((null)))) || !((instance).is_synthetic_application != 0)) {
         return
     }
@@ -285,9 +286,14 @@ bind_from_application :: (c: *Checker, parameters: *u8, wanted: *u8, argument: *
     while check_loop_200 := ((base_length > cast(usize)(0)) && (isspace(cast(s32)(cast(u8)((wanted)[(base_length - cast(usize)(1))]))) != 0)) {
         CheckPost15(*(base_length))
     }
-    if ((CheckCStringLength(cast(*u8)(*((instance).template_name))) != cast(u64)(base_length)) || (strncmp(cast(*u8)(*((instance).template_name)), wanted, base_length) != 0)) {
-        return
-    }
+    // Compare declaring templates, rather than the caller's import spelling.
+    base: [128]u8
+    if base_length >= size_of(type_of(base)) { return }
+    memcpy(cast(*void)*base[0], cast(*void)wanted, base_length)
+    base[base_length] = 0
+    expected_template := FindType(declaration_owner, *base[0], null)
+    actual_template := FindType(instance_owner, *instance.template_name[0], null)
+    if expected_template == null || expected_template != actual_template { return }
     inner_storage_0 := cast(*CheckArray4096_u8)AllocateOrExit(size_of(CheckArray4096_u8))
     defer CompilerFree(cast(*void)inner_storage_0)
     memset(cast(*void)inner_storage_0, 0, size_of(CheckArray4096_u8))
@@ -2982,7 +2988,11 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                 break check_switch_243
             }
             owned_slot_owner: *IR.ZirModule = null
-            owned_slot := owned_call_slot(c, index, *owned_slot_owner)
+            owned_errors := c.errors
+            owned_slot := owned_call_slot(c, index, left, *owned_slot_owner)
+            // A callable operand may itself be invalid. Do not infer the same
+            // failed member again through the ordinary call path.
+            if c.errors != owned_errors { return CheckCString("") }
             if owned_slot == null { select_overload(c, index) }
             e = cast(*IR.ZirExpr)(cast(usize)(((c).fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
             binding: *u8 = (ifx ((e).is_this != 0) then CheckCString("") else lookup(c, (e).name))
@@ -3000,6 +3010,20 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                 if ((ResolveFunctionAt((c).module, (e).name, SpanPath((e).span), *(callee_owner), *(resolved)) != 1) || (resolved != callee)) {
                     callee_owner = null
                 }
+            }
+            if callee != null {
+                // Structured frontends reach this checker without native parser
+                // expansion. Apply the declaration's defaults for every direct
+                // call; already supplied arguments make this idempotent.
+                default_alias: [128]u8
+                default_alias[0] = 0
+                default_dot := strrchr(e.name, 46)
+                if default_dot != null {
+                    snprintf(*default_alias[0], size_of(type_of(default_alias)), CheckCString("%.*s"),
+                        cast(s32)(cast(usize)default_dot - cast(usize)e.name), e.name)
+                }
+                append_overload_defaults(c, index, callee, *default_alias[0])
+                e = *c.fn.exprs[index]
             }
             ((buffers).specialized_args).items[0] = cast(u8)(0)
             specialized_return_storage_30 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
@@ -3055,7 +3079,7 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                         prefix: s32 = TemplateBinderPrefix(parameter_type)
                         which: s32 = (ifx (prefix < 0) then (-1) else TemplateParameterIndex(cast(*u8)(*((callee).template_param)), cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(parameter_type) + cast(usize)(prefix) * size_of(u8))) + cast(usize)(1) * size_of(u8)), cast(usize)(CheckCStringLength(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(parameter_type) + cast(usize)(prefix) * size_of(u8))) + cast(usize)(1) * size_of(u8))))))
                         if ((prefix < 0) && (strchr(parameter_type, 40) != cast(*u8)((null)))) {
-                            bind_from_application(c, cast(*u8)(*((callee).template_param)), parameter_type, expression_type(c, child), bound)
+                            bind_from_application(c, owner, cast(*u8)(*((callee).template_param)), parameter_type, expression_type(c, child), bound)
                             e = cast(*IR.ZirExpr)(cast(usize)(((c).fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
                             child = ((((c).fn).exprs)[child]).next_sibling
                             continue check_loop_256

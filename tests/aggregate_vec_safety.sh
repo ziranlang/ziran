@@ -11,6 +11,7 @@ cat > "$work/owned.zi" <<'ZI'
 Inner :: struct { items: Vec(s32); }
 Outer :: struct { inners: [2]Inner; empty: [0]Inner; extra: Vec(s32); }
 FieldOuter :: struct { inner: Inner; other: Vec(s32); }
+FieldReference :: struct { inner: *Inner; }
 Make :: () -> Outer {
     value: Outer
     VecPush(value.inners[0].items, 3)
@@ -39,6 +40,24 @@ BranchMove :: (value: Inner) -> s32 {
     }
     return 0
 }
+IndexedMove :: () -> s32 {
+    value: Outer
+    index: s64 = 1
+    VecPush(value.inners[index].items, 17)
+    VecPush(value.inners[0].items, 18)
+    moved := value.inners[index].items
+    if value.inners[index].items.count != 0 { return -1 }
+    return moved[0] + value.inners[0].items[0]
+}
+StoredReferenceMove :: () -> s32 {
+    storage: Inner
+    VecPush(storage.items, 19)
+    value: FieldReference
+    value.inner = *storage
+    moved := value.inner.items
+    if storage.items.count != 0 { return -1 }
+    return moved[0]
+}
 #program_export
 Check :: () -> s32 {
     made := Make()
@@ -63,7 +82,7 @@ Check :: () -> s32 {
     branch := BranchMove(branch_source)
     return Take(first) + Take(grown) + branch + field.items[0] +
            literal.items[0] + cast(s32)Count(field_first) +
-           cast(s32)Count(field_second)
+           cast(s32)Count(field_second) + IndexedMove() + StoredReferenceMove()
 }
 ZI
 cat > "$work/field_use_after_move.zi" <<'ZI'
@@ -114,32 +133,6 @@ Check :: () -> s32 {
 }
 ZI
 
-cat > "$work/indexed_field_move.zi" <<'ZI'
-#import "vec"
-Inner :: struct { items: Vec(s32); }
-Box :: struct { inners: [2]Inner; }
-Check :: () -> s32 {
-    value: Box
-    VecPush(value.inners[0].items, 1)
-    moved := value.inners[0].items
-    return moved[0]
-}
-ZI
-
-cat > "$work/pointer_field_move.zi" <<'ZI'
-#import "vec"
-Inner :: struct { items: Vec(s32); }
-Box :: struct { inner: *Inner; }
-Check :: () -> s32 {
-    storage: Inner
-    VecPush(storage.items, 1)
-    value: Box
-    value.inner = *storage
-    moved := value.inner.items
-    return moved[0]
-}
-ZI
-
 cat > "$work/global_field_move.zi" <<'ZI'
 #import "vec"
 Inner :: struct { items: Vec(s32); }
@@ -176,7 +169,7 @@ Check :: () -> s32 {
 }
 ZI
 
-for name in field_use_after_move field_sibling_and_use_after_move field_move_enclosing_record indexed_field_move pointer_field_move global_field_move global_nested_field_move use_after_move; do
+for name in field_use_after_move field_sibling_and_use_after_move field_move_enclosing_record global_field_move global_nested_field_move use_after_move; do
     if "$ziran" check --diagnostics=json --root "$work" \
     --module-path "$repo/std" "$work/$name.zi" \
     > "$work/$name.out" 2> "$work/$name.err"; then
@@ -194,8 +187,6 @@ fi
     "$work/field_use_after_move.err" "used after moving" \
     "$work/field_sibling_and_use_after_move.err" "owned record field is used after moving" \
     "$work/field_move_enclosing_record.err" "owned aggregate is used after moving" \
-    "$work/indexed_field_move.err" "moves a binding or takes a call result" \
-    "$work/pointer_field_move.err" "moves a binding or takes a call result" \
     "$work/global_field_move.err" "move into the call and empty the global" \
     "$work/global_nested_field_move.err" "move into the Vec and empty the global" \
     "$work/use_after_move.err" "used after moving" "$work/overwrite.err" "leaks it"
@@ -213,7 +204,7 @@ for kind in source saved; do
     fi
     "$ziran" bundle --entry owned:Check --root "$root" \
         --module-path "$repo/std" -o "$work/$kind.zx" "$module"
-    test "$("$ziran" run "$work/$kind.zx")" = 117
+    test "$("$ziran" run "$work/$kind.zx")" = 171
 
     c_output=$work/$kind-c
     "$ziran" build --target=c --entry owned:Check --root "$root" \
@@ -235,7 +226,7 @@ void __wrap_free(void *p) {
     __real_free(p);
 }
 int main(void) {
-    if (Check() != 117) return 1;
+    if (Check() != 171) return 1;
     return outstanding == 0 ? 0 : 2;
 }
 C
@@ -250,7 +241,7 @@ C
         -o "$go_output" "$module"
     cat > "$go_output/main.go" <<'GO'
 package main
-func main() { if Owned_Check() != 117 { panic("aggregate Vec ownership") } }
+func main() { if Owned_Check() != 171 { panic("aggregate Vec ownership") } }
 GO
     GO111MODULE=off go run "$go_output"/*.go
 done

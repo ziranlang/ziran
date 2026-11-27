@@ -52,6 +52,8 @@ re-exports and JavaScript packages are unsupported.
   silently substituted for TypeScript `number`.
 - `boolean` is native `bool`. `string` is an immutable borrowed UTF-8 byte view,
   with native `.count`; it is not a JavaScript UTF-16 string object.
+- `*Native.Record` names an explicit checked native pointer type. It follows
+  the native borrow rules and cannot be captured by an owned callback.
 - `s8` through `s64`, `u8` through `u64`, `isize`, `usize`, `float32` and
   `float64` name explicit native scalar types. Conversions use `s32(value)`,
   `u64(value)` and the other native type names. These follow the existing
@@ -101,6 +103,13 @@ the loop's scope and released on exit. Mutating or moving a borrowed vector
 is rejected. The iteration binding holds an element value; changing a `let`
 binding does not replace the element in its collection. Array literals
 currently require a typed backing binding before iteration.
+
+Module `let` bindings require an explicit native type and initializer. They
+use native global storage and run their initializers once, in source order,
+after imported modules initialize. `export` makes the slot visible to other
+modules; other slots are private. Module `const` currently supports only
+explicit `string` bindings with literal initializers; other types are rejected
+until typed readonly storage is implemented in the common IR.
 
 Native procedure signatures can appear as field/parameter types or named aliases:
 

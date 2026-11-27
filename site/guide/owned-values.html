@@ -26,11 +26,25 @@ every reachable vector field in native targets, while the portable engine clones
 the destination boundary and relies on the checker to make the source
 unreachable. Moving a plain record-member path clears only that field in native
 targets and invalidates only the corresponding engine storage slot. An aggregate
-move source must be a whole local binding or fresh call result; a member move
-must be rooted at a local aggregate. A record literal can initialize a
+move source can also be an owned record field reached through a checked typed
+record reference or Vec element. Such a move empties the source's owned storage,
+as a global move does, while retaining copyable scalar fields. Other aliases
+observe that emptied storage. A record literal can initialize a
 vector-bearing field from a local vector or fresh call result; using that
-source again is rejected. Indexed and pointer-backed member paths, and paths
-rooted at a global, remain whole-aggregate/global move errors. A direct or
+source again is rejected. Whole indexed owned elements still cannot be copied.
+Reference-backed field paths require a proved backing lifetime and repeatable
+address evaluation: scalar identifiers or integer literals may index Vecs and
+fixed arrays; calls and pointer arithmetic are not move paths. Replacing a
+checked record field completes the new value before dropping its old value.
+In a function that transfers owned fields through references, each local
+reference borrows its containing record and allocation until its lexical scope
+closes. Moving that record, reallocating its Vec, or letting the reference
+outlive its backing is rejected. Pointer parameters retain the caller's
+backing identity through pointer casts; opaque pointer results cannot transfer
+owned fields. Checked calls propagate this requirement for implicit owned
+field transfers; scalar writes and explicit native memory operations retain
+their existing pointer contracts.
+A direct or
 record-held <code>TextView</code> rejects mutation of its local backing place until the
 view leaves scope, including views returned by checked calls and views nested
 in their result records. The check is field-sensitive: sibling record fields
@@ -113,11 +127,14 @@ respectively.</p>
 <h2 id="values-and-ownership">Values and ownership</h2>
 <p>Scalars, immutable strings, and aggregates whose members are copyable retain
 value-copy semantics. An owned value, including <code>Vec(T)</code>, moves on assignment,
-argument passing, and return. A move source must be a local binding, a plain
-record-member path rooted at a local aggregate, or a fresh call result. The
+argument passing, and return. A move source can be a local binding, a plain
+record-member path rooted at a local aggregate, or a fresh call result. Owned
+field declarations, assignments and returns also accept checked typed record
+references and Vec-element member paths, emptying that dynamic field's owned storage. The
 member can be a Vec or a record holding Vecs, as in <code>last := popped.value</code>. The
-checker rejects moving indexed or pointer-backed member storage and moving a
-global, because their aliases cannot yet be represented precisely enough. The
+checker rejects whole indexed-element copies and transfers through opaque
+references. Global moves also leave their storage empty; passing global storage
+directly to an owning call remains rejected. The
 checker rejects use after move and assignment over a direct or aggregate-held
 owned vector; moves inside an <code>if</code> whose every arm returns do not reach the
 join. Every supported path drops each owned local exactly once,

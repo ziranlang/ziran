@@ -3426,14 +3426,39 @@ DropBindings :: (program: *AssemblyProgram, function: *AssemblyFunction, first: 
     }
 }
 
-// Empty the source of a move. Only a local or a global, or a member path
-// rooted at one, can be moved from; the checker rejects every other source.
+// Match native clear_owned_value: transfer owned storage while retaining
+// copyable scalar fields in an aggregate, observable through a dynamic alias.
+ClearedOwned :: (program: *AssemblyProgram, function: *AssemblyFunction,
+    value: s32, identity: s32, span: IR.ZirSourceSpan, depth: s32) -> s32 {
+    if program.failed != 0 || depth > 32 || TypeOwned(program, identity, 0) == false { return value }
+    if OwnedCallable(program, identity) || VecElement(program, identity) >= 0 {
+        return Zero(program, function, identity, span, 0)
+    }
+    ty := TypeAt(program, identity)
+    members := ty.fields.count
+    if ty.kind == LirTypeKind.Array { members = ty.count }
+    for member: cast(s64)0..members - 1 {
+        member_type := ty.element
+        if ty.kind != LirTypeKind.Array { member_type = ty.fields[member] }
+        if TypeOwned(program, member_type, 0) == false { continue }
+        item := Indexed(program, function, LirOp.Extract, member_type, *value, 1,
+            cast(u64)member, span)
+        operands: [2]s32 = .[value, ClearedOwned(program, function, item, member_type, span, depth + 1)]
+        value = Indexed(program, function, LirOp.Insert, identity, *operands[0], 2, cast(u64)member, span)
+    }
+    return value
+}
+
+// Empty the source's owned storage after a checked move, including a field
+// reached through a typed record reference. The checker proves its backing.
 MoveOut :: (program: *AssemblyProgram, function: *AssemblyFunction, root: s32,
-            identity: s32, span: IR.ZirSourceSpan) {
+            identity: s32, value: s32, span: IR.ZirSourceSpan) {
     if program.failed != 0 || function.current < 0 || TypeOwned(program, identity, 0) == false { return }
     at := root
     while at >= 0 && at < function.source.expr_count &&
-          function.source.exprs[at].kind == ZirExprKind.MEMBER {
+          (function.source.exprs[at].kind == ZirExprKind.MEMBER ||
+           function.source.exprs[at].kind == ZirExprKind.POINTER_MEMBER ||
+           function.source.exprs[at].kind == ZirExprKind.INDEX) {
         at = function.source.exprs[at].left
     }
     if at < 0 || at >= function.source.expr_count { return }
@@ -3448,7 +3473,7 @@ MoveOut :: (program: *AssemblyProgram, function: *AssemblyFunction, root: s32,
     } else {
         place.local = CaptureLocal(program, function, root, 0)
     }
-    VecWrite(program, function, *place, Zero(program, function, identity, span, 0), span)
+    VecWrite(program, function, *place, ClearedOwned(program, function, value, identity, span, 0), span)
 }
 
 // An unnamed binding carries a value through block parameters.
@@ -4867,7 +4892,7 @@ Expression :: (program: *AssemblyProgram, function: *AssemblyFunction, root: s32
        root >= function.source.expr_count || function.source.exprs[root].is_move == 0 {
         return value
     }
-    MoveOut(program, function, root, function.values.data[value],
+    MoveOut(program, function, root, function.values.data[value], value,
             function.source.exprs[root].span)
     return value
 }
@@ -6966,22 +6991,22 @@ Sequence :: (program: *AssemblyProgram, function: *AssemblyFunction, begin: s32,
             }
             if address >= 0 {
                 value = Convert(program, function, value, identity, statement.span)
-                // An owned global, or a member of one, can be assigned while
-                // it holds storage; the old value is dropped once the new one
-                // is made, as the other targets do. The checker requires a
-                // local to be empty first.
+                // Checked owned fields and globals drop their old value once
+                // the new value is complete, including reference-backed fields.
+                // A whole local still has to be empty first.
                 base := place
                 while base >= 0 && base < function.source.expr_count &&
                       (function.source.exprs[base].kind == ZirExprKind.MEMBER ||
                        function.source.exprs[base].kind == ZirExprKind.INDEX) {
                     base = function.source.exprs[base].left
                 }
-                global_base: bool = false
+                frees_old := function.source.exprs[place].kind == ZirExprKind.MEMBER ||
+                    function.source.exprs[place].kind == ZirExprKind.POINTER_MEMBER
                 if base >= 0 && base < function.source.expr_count &&
                    function.source.exprs[base].kind == ZirExprKind.IDENT &&
-                   function.source.exprs[base].is_global_value != 0 { global_base = true }
+                   function.source.exprs[base].is_global_value != 0 { frees_old = true }
                 if IR.CText(*statement.assignment_op[0]) == "=" &&
-                   TypeOwned(program, identity, 0) == true && global_base == true {
+                   TypeOwned(program, identity, 0) == true && frees_old == true {
                     old := Emit(program, function, LirOp.Load, identity, *address, 1, -1,
                                 statement.span)
                     DropValue(program, function, old, identity, statement.span, 0)
@@ -8218,12 +8243,15 @@ HostInterface :: (program: *AssemblyProgram, length: *usize) -> *u8 {
         PutNewline(*hosts)
         index += 1
     }
-    // Module globals; string bytes have no declaration.
+    // Public module globals form the portable state interface. Private
+    // resources still occupy their ordinary storage slots, but stay owned by
+    // this instance. Keep the actual slot index: state ordinals can have gaps.
     globals := program.globals.data
     index = 0
     while index < program.globals.count && text.failed == 0 {
         global := *globals[index]
-        if global.source == null { index += 1; continue }
+        if global.source == null || global.source.is_static != 0 ||
+            global.source.is_file_private != 0 { index += 1; continue }
         span = global.source.span
         node := DescribeNode(program, *text, *nodes, global.module,
                              *global.source.type[0], 0)

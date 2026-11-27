@@ -27,6 +27,8 @@ SimdOpChecked :: (name: *u8) -> *SimdOp #foreign compiler "SimdOpChecked";
 SliceElementType :: (type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "SliceElementType";
 TypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
 VecElementType :: (module: *IR.ZirModule, type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "VecElementType";
+contains_vec :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 #foreign compiler "private_check_contains_vec";
+reference_owned_field :: (module: *IR.ZirModule, fn: *IR.ZirFunction, index: s32) -> s32 #foreign compiler "private_check_reference_owned_field";
 copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
 memset :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memset";
 snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, varargs: ..any) -> s32 #foreign libc "snprintf";
@@ -753,6 +755,10 @@ storage_place :: (check: *BorrowCheck, index: s32, follow_address: s32) -> Borro
     if (cast(s32)((expression).kind) == 16) {
         return storage_place(check, (expression).left, 1)
     }
+    if expression.kind == .CAST && expression.type != null && expression.type[0] == #char "*" &&
+        expression.right >= 0 && check.current.fn.exprs[expression.right].type[0] == #char "*" {
+        return storage_place(check, expression.right, follow_address)
+    }
     return BorrowPlace.{}
 }
 
@@ -870,7 +876,7 @@ reserve_mutation_root :: (function: *BorrowFunction) -> s32 {
 }
 
 #scope_file
-record_mutation :: (check: *BorrowCheck, place: BorrowPlace) {
+record_mutation :: (check: *BorrowCheck, place: BorrowPlace, owned_transfer: s32) {
     if ((place).root == cast(*BorrowBinding)((null))) {
         return
     }
@@ -889,6 +895,11 @@ record_mutation :: (check: *BorrowCheck, place: BorrowPlace) {
         known: *BorrowMutation = (ifx (root != cast(*MutationRoot)((null))) then (root).items else null)
         while check_loop_228 := (known != cast(*BorrowMutation)((null))) {
             if (((known).path == cast(*BorrowPath)((null))) || (same_path((known).path, path) != 0)) {
+                if owned_transfer != 0 && known.owned_transfer == 0 {
+                    known.owned_transfer = 1
+                    check.changed = 1
+                    summary_changed(check)
+                }
                 return
             }
             known = (known).next_same_root
@@ -907,7 +918,7 @@ record_mutation :: (check: *BorrowCheck, place: BorrowPlace) {
         reject(check, ((function).fn).span, CheckCString("out of memory checking text mutation effects"))
         return
     }
-    S12Set16(item, BorrowMutation.{parameter, global, path, (function).mutations, (root).items})
+    S12Set16(item, BorrowMutation.{parameter, global, path, (function).mutations, (root).items, owned_transfer})
     if ((root).items == cast(*BorrowMutation)((null))) {
         S12Post5(*((function).mutation_root_count))
     }
@@ -924,7 +935,7 @@ check_mutation :: (check: *BorrowCheck, destination: BorrowPlace, span: IR.ZirSo
         reject(check, span, CheckCString("callback captures are immutable snapshots"))
         return
     }
-    record_mutation(check, destination)
+    record_mutation(check, destination, 0)
     if ((destination).root == cast(*BorrowBinding)((null))) {
         return
     }
@@ -1113,6 +1124,15 @@ check_call_mutations :: (check: *BorrowCheck, expression: *IR.ZirExpr) {
                     }
                 }
                 (destination_storage_0[0]).path = join_path(check, (destination_storage_0[0]).path, (item).path)
+                if item.owned_transfer != 0 && item.parameter >= 0 {
+                    root := destination_storage_0[0].root
+                    if root == null || (root.type.items[0] == #char "*" &&
+                        root.address_known == 0 && direct_pointer_parameter(root) == 0) {
+                        reject(check, expression.span,
+                            CheckCString("owned field transfer requires a record reference with a proved backing lifetime"))
+                    }
+                }
+                record_mutation(check, destination_storage_0[0], item.owned_transfer)
                 check_mutation(check, destination_storage_0[0], (expression).span)
                 item = (item).next
             }
@@ -1137,6 +1157,12 @@ address_backing :: (check: *BorrowCheck, index: s32, known: *s32) -> BorrowPlace
         return BorrowPlace.{}
     }
     expression: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((((check).current).fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    // A pointer cast changes its view of the pointee, not the lent storage's
+    // lifetime or identity. Opaque call results still have no known backing.
+    if expression.kind == .CAST && expression.type != null && expression.type[0] == #char "*" &&
+        expression.right >= 0 && check.current.fn.exprs[expression.right].type[0] == #char "*" {
+        return address_backing(check, expression.right, known)
+    }
     if ((cast(s32)((expression).kind) == 7) && !(strcmp(cast(*u8)(*((expression).op)), CheckCString("&")) != 0)) {
         backing_storage_0 := cast(*BorrowPlace)AllocateOrExit(size_of(BorrowPlace))
         defer CompilerFree(cast(*void)backing_storage_0)
@@ -1639,8 +1665,18 @@ check_ranges :: (check: *BorrowCheck, index: s32) {
     if (((cast(s32)((expression).kind) == 16) && (strcmp((((((check).current).fn).exprs)[(expression).left]).type, CheckCString("string")) != 0)) && ((expression_origin(check, index)).invalid != 0)) {
         reject(check, (expression).span, CheckCString("slice range requires live owned backing storage"))
     }
-    if (((expression).is_move != 0) && (text_backing_conflict(check, storage_place(check, index, 1)) != 0)) {
-        reject(check, (expression).span, CheckCString("moving owned storage while its text view is live"))
+    if expression.is_move != 0 {
+        if reference_owned_field(check.current.module, check.current.fn, index) != 0 {
+            check_reference_owned_field(check, index)
+        }
+        destination := storage_place(check, index, 1)
+        if vec_view_conflict(check, destination) != 0 {
+            reject(check, expression.span, CheckCString("cannot move a Vec with a live borrowed view or record reference"))
+        } else if text_backing_conflict(check, destination) != 0 {
+            reject(check, expression.span, CheckCString("moving owned storage while its text view is live"))
+        }
+        record_mutation(check, destination,
+            reference_owned_field(check.current.module, check.current.fn, index))
     }
     check_ranges(check, (expression).left)
     check_ranges(check, (expression).right)
@@ -1749,14 +1785,78 @@ inputs_changed :: (check: *BorrowCheck, function: *BorrowFunction) -> s32 {
 }
 
 #scope_file
+check_reference_owned_field :: (check: *BorrowCheck, index: s32) {
+    place := storage_place(check, index, 1)
+    if place.root == null || (place.root.type.items[0] == #char "*" &&
+        place.root.address_known == 0 && direct_pointer_parameter(place.root) == 0) {
+        reject(check, check.current.fn.exprs[index].span,
+            CheckCString("owned field transfer requires a record reference with a proved backing lifetime"))
+    }
+}
+
+// Reference-backed field transfers leave their cells empty, so aliases can
+// observe the empty value. Keep each reference's containing record and Vec
+// allocation in place until its lexical scope closes.
+#scope_file
+protect_owned_reference :: (check: *BorrowCheck, reference: *BorrowBinding,
+    span: IR.ZirSourceSpan) {
+    if reference == null || reference.type.items[0] != #char "*" ||
+        contains_vec(check.current.module, *reference.type.items[1], 0) == 0 ||
+        reference.address_known == 0 || reference.address_backing.root == null { return }
+    backing := reference.address_backing
+    if backing.root == reference { return }
+    if backing.root.depth > reference.depth {
+        reject(check, span, CheckCString("record reference outlives its backing storage"))
+        return
+    }
+    source: BorrowSource
+    source.place = backing
+    first := check.active_count
+    add_active_text_borrows(check, *source, reference.depth)
+    for at: first..check.active_count - 1 { check.active[at].vec = 1 }
+}
+
+#scope_file
+has_reference_owned_fields :: (check: *BorrowCheck) -> bool {
+    module := check.current.module
+    fn := check.current.fn
+    for at: cast(s32)0..fn.stmt_count - 1 {
+        statement := *fn.stmts[at]
+        if statement.kind == .ASSIGN && reference_owned_field(module, fn, statement.lhs_root) != 0 {
+            return true
+        }
+    }
+    for at: cast(s32)0..fn.expr_count - 1 {
+        if fn.exprs[at].is_move != 0 && reference_owned_field(module, fn, at) != 0 { return true }
+        // Only implicit ownership transfers need the new place capability.
+        // Scalar writes and explicit native Vec operations retain their
+        // existing pointer contracts.
+        if fn.exprs[at].kind == .CALL {
+            owner: *IR.ZirModule
+            callee: *IR.ZirFunction
+            ResolveFunction(module, fn.exprs[at].name, *owner, *callee)
+            summary := function_summary(check, callee)
+            if summary == null { continue }
+            item := summary.mutations
+            while item != null {
+                if item.owned_transfer != 0 { return true }
+                item = item.next
+            }
+        }
+    }
+    return false
+}
+
+#scope_file
 check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
     fn: *IR.ZirFunction = (function).fn
     (check).current = function
     (function).checked_at = (check).clock
     ((function).callees).count = 0
     ((function).globals_read).count = 0
-    (function).scanned_views = 0
     S12Post17(*((check).checks))
+    reference_fields := has_reference_owned_fields(check)
+    (function).scanned_views = 0
     (check).binding_count = 0
     (check).active_count = 0
     (check).depth = 1
@@ -1818,6 +1918,10 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
             check_ranges(check, (statement).lhs_root)
             check_ranges(check, (statement).expr_root)
             if ((cast(s32)((statement).kind) == 4) && ((statement).lhs_root >= 0)) {
+                if reference_owned_field(function.module, fn, statement.lhs_root) != 0 {
+                    check_reference_owned_field(check, statement.lhs_root)
+                    record_mutation(check, storage_place(check, statement.lhs_root, 1), 1)
+                }
                 destination_storage_1 := cast(*BorrowPlace)AllocateOrExit(size_of(BorrowPlace))
                 defer CompilerFree(cast(*void)destination_storage_1)
                 memset(cast(*void)destination_storage_1, 0, size_of(BorrowPlace))
@@ -1849,6 +1953,7 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                     declared.address_known = 1
                     declared.address_backing = root_place(declared)
                 }
+                if reference_fields { protect_owned_reference(check, declared, statement.span) }
                 if (text_view_type(check, (statement).type) != 0) {
                     add_active_text_borrows(check, (declared).text_backings, (check).depth)
                 }
@@ -1864,6 +1969,7 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                         memset(cast(*void)before_storage_3, 0, size_of(BorrowBinding))
                         before_storage_3[0] = (assignment_target)[0]
                         (assignment_target).address_backing = address_backing(check, (statement).expr_root, *((assignment_target).address_known))
+                        if reference_fields { protect_owned_reference(check, assignment_target, statement.span) }
                         if ((((assignment_target).global_index >= 0) && (((assignment_target).address_backing).root != cast(*BorrowBinding)((null)))) && ((((assignment_target).address_backing).root).global_index < 0)) {
                             (assignment_target).address_backing = BorrowPlace.{}
                             (assignment_target).address_known = 0

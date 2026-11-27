@@ -46,6 +46,8 @@ re-exports and JavaScript packages are unsupported.</p>
   silently substituted for TypeScript <code>number</code>.</li>
 <li><code>boolean</code> is native <code>bool</code>. <code>string</code> is an immutable borrowed UTF-8 byte view,
   with native <code>.count</code>; it is not a JavaScript UTF-16 string object.</li>
+<li><code>*Native.Record</code> names an explicit checked native pointer type. It follows
+  the native borrow rules and cannot be captured by an owned callback.</li>
 <li><code>s8</code> through <code>s64</code>, <code>u8</code> through <code>u64</code>, <code>isize</code>, <code>usize</code>, <code>float32</code> and
   <code>float64</code> name explicit native scalar types. Conversions use <code>s32(value)</code>,
   <code>u64(value)</code> and the other native type names. These follow the existing
@@ -93,6 +95,12 @@ the loop's scope and released on exit. Mutating or moving a borrowed vector
 is rejected. The iteration binding holds an element value; changing a <code>let</code>
 binding does not replace the element in its collection. Array literals
 currently require a typed backing binding before iteration.</p>
+<p>Module <code>let</code> bindings require an explicit native type and initializer. They
+use native global storage and run their initializers once, in source order,
+after imported modules initialize. <code>export</code> makes the slot visible to other
+modules; other slots are private. Module <code>const</code> currently supports only
+explicit <code>string</code> bindings with literal initializers; other types are rejected
+until typed readonly storage is implemented in the common IR.</p>
 <p>Native procedure signatures can appear as field/parameter types or named aliases:</p>
 <pre><code class="language-tsx">type Transform = (value: number) =&gt; number;
 function Calculate(): number {

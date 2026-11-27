@@ -15,6 +15,18 @@ using Vectors :: #import "std/vec"
 using Callables :: #import "std/callable"
 Model :: struct { value: float64; id: u64; }
 Box :: struct($T: Type) { value: T; }
+InspectBox :: (box: Box($T)) -> T { return box.value }
+Instance :: struct { id: s64; }
+RecordAction :: #type (instance: Instance) -> void;
+seen_record: s64;
+MarkRecord :: (value: s64) { seen_record = value }
+SeenRecord :: () -> s64 { return seen_record }
+InvokeRecord :: (action: Owned(RecordAction), instance: Instance) { action(instance) }
+DefaultValue :: () -> s32 { return 7 }
+WithDefaults :: (value: s32, extra: s32 = DefaultValue(), location: Source_Code_Location = #caller_location) -> s32 {
+    if location.line_number <= 0 || location.fully_pathed_filename.count == 0 { return -1 }
+    return value + extra
+}
 Snapshot :: () -> Model { return .{value = 42, id = 18446744073709551615} }
 Wrapped :: () -> Box(float64) { return .{value = 6} }
 number_calls: s32;
@@ -40,22 +52,42 @@ ZI
 TSX_PRIVATE_A :: "#scope_file\nCell :: struct($T: Type) { first: T; }\nLeaf :: struct { first: s32; }\n#scope_export\nPrivateA :: () -> s32 { item: Cell(Box(Leaf)) = .{first = .{value = .{first = 11}}}; return item.first.value.first }\n"
 TSX_PRIVATE_B :: "#scope_file\nCell :: struct($T: Type) { second: T; }\nLeaf :: struct { second: s32; }\n#scope_export\nPrivateB :: () -> s32 { item: Cell(Box(Leaf)) = .{second = .{value = .{second = 12}}}; return item.second.value.second }\n"
 
-TSX_LOGIC :: "export interface Box<T> { other: T; }\nexport function Wrapped(): Box<number> { return {other: 9}; }\nfunction HalfImpl(value: number): number { return value / 2; }\nexport function Half(value: number): number { return HalfImpl(value); }\n"
+TSX_LOGIC :: #string TS
+export interface Box<T> { other: T; }
+export function Wrapped(): Box<number> { return {other: 9}; }
+function HalfImpl(value: number): number { return value / 2; }
+export function Half(value: number): number { return HalfImpl(value); }
+let starts: s32 = s32(0);
+function Seed(): s32 { starts = starts + s32(1); return starts; }
+export let publicValue: s32 = Seed();
+let nextValue: s32 = Seed();
+export function Globals(): s32 { return starts * s32(10) + publicValue + nextValue; }
+export function BumpGlobals(): s32 { publicValue = publicValue + s32(1); return publicValue; }
+TS
+
+TSX_GENERIC_PROPS :: #string TS
+import * as DomainTypes from "domain";
+export interface WidgetProps<T> { model: DomainTypes.Model; props: T; }
+export function Read(props: WidgetProps<DomainTypes.Model>): number { return props.model.value + props.props.value; }
+TS
 
 TSX_FACADE :: "using Export :: #import \"generic_widget\";\n"
+TSX_GENERIC_SUPPORT :: "Step :: (value: s32) -> s32 { return value }\n"
 TSX_GENERIC_WIDGET :: #string ZI
+Support :: #import "generic_support";
 Props :: struct { value: s32; }
 #scope_file
 Hidden :: (value: s32) -> s32 { return value }
 #scope_export
 DrawSession :: (value: s32, props: Props) -> s32 { return value + props.value }
-Draw :: (frame: $T, props: Props) -> s32 { return DrawSession(frame.slot, props) + Hidden(1) }
+Draw :: (frame: $T, props: Props) -> s32 { return Support.Step(DrawSession(frame.slot, props) + Hidden(1)) }
 ZI
 
 TSX_APP :: #string TSX
 import * as Domain from "domain";
 import * as OtherAlias from "domain";
 import * as Facade from "generic_facade";
+import * as GenericProps from "generic_props";
 import { Vec } from "std/vec";
 import { Owned } from "std/callable";
 import { Text, TextCopy } from "std/vec";
@@ -84,9 +116,18 @@ function TextAction(): Owned<Domain.Action> {
 }
 function Wrap(value: number): Holder<number> { return {value: value}; }
 export function main(): s32 {
+    if (Logic.Globals() !== s32(23) || Logic.BumpGlobals() !== s32(2) || Logic.Globals() !== s32(24)) { return s32(30); }
     const genericFrame: GenericFrame = {slot: s32(40)};
     if (Facade.Draw(genericFrame, {value: s32(1)}) !== s32(42)) { return s32(25); }
     const snapshot: Domain.Model = Domain.Snapshot();
+    if (Domain.WithDefaults(s32(2)) !== s32(9) || Domain.WithDefaults(s32(2), s32(3)) !== s32(5)) { return s32(26); }
+    if (GenericProps.Read({model: snapshot, props: snapshot}) !== snapshot.value * 2) { return s32(27); }
+    let genericBox: Domain.Box<number> = Domain.Wrapped();
+    if (Domain.InspectBox(genericBox) !== 6) { return s32(28); }
+    const recordDelta: s64 = s64(8);
+    const recordAction: Owned<OtherAlias.RecordAction> = (instance: OtherAlias.Instance): void => { Domain.MarkRecord(recordDelta); };
+    Domain.InvokeRecord(recordAction, {id: s64(1)});
+    if (OtherAlias.SeenRecord() !== recordDelta) { return s32(29); }
     let value: number = <Echo other={0} value={snapshot.value}/>;
     let count: number = 0;
     while (count < 3) { count += 1; }
@@ -249,6 +290,8 @@ TsxProject :: (test: *NativeTest) -> bool {
         !NativeWrite(test, CheckPath(project, "src/private_b.zi"), TSX_PRIVATE_B) ||
         !NativeWrite(test, CheckPath(project, "src/generic_facade.zi"), TSX_FACADE) ||
         !NativeWrite(test, CheckPath(project, "src/generic_widget.zi"), TSX_GENERIC_WIDGET) ||
+        !NativeWrite(test, CheckPath(project, "src/generic_support.zi"), TSX_GENERIC_SUPPORT) ||
+        !NativeWrite(test, CheckPath(project, "src/generic_props.ts"), TSX_GENERIC_PROPS) ||
         !NativeWrite(test, CheckPath(project, "src/logic.ts"), logic) ||
         !NativeWrite(test, CheckPath(project, "src/label.tsx"), "export interface Props { value: number; } export function Label(props: Props): number { return props.value; }\n") { return false }
     lock := string.["lock", "--offline"]; unused PackageCommand(test, project, lock[:])
@@ -289,6 +332,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
         !NativeWrite(*test, CheckPath(root, "private_b.zi"), TSX_PRIVATE_B) ||
         !NativeWrite(*test, CheckPath(root, "generic_facade.zi"), TSX_FACADE) ||
         !NativeWrite(*test, CheckPath(root, "generic_widget.zi"), TSX_GENERIC_WIDGET) ||
+        !NativeWrite(*test, CheckPath(root, "generic_support.zi"), TSX_GENERIC_SUPPORT) ||
+        !NativeWrite(*test, CheckPath(root, "generic_props.ts"), TSX_GENERIC_PROPS) ||
         !NativeWrite(*test, CheckPath(root, "logic.ts"), TSX_LOGIC) { return 1 }
     warm := string.[test.ziran, "check", "--root", root, source]
     unused NativeRun(*test, warm[:])

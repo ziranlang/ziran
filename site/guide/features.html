@@ -17,11 +17,14 @@ the command output, and <a href="https://github.com/ziranlang/ziran/blob/master/
   for every advertised supported or experimental target; and</li>
 <li>rejection of every negative example.</li>
 </ul>
+<p>After changing the registry, regenerate <code>docs/FEATURES.json</code> with
+<code>build/bin/ziran features --json &gt; docs/FEATURES.json</code> from a rebuilt checkout.</p>
 <p>The registry is intentionally incremental. Its 16 contracts cover compile-time
 assertions, laws and execution, CPU parallelism and the explicit GPU device Gap,
 checked printing, heap allocation, named imports, integer width conformance
 and implicit widening, automatic vector cleanup, local <code>TextView</code> mutation
-checks, record-field vector moves, procedure defaults, procedure values, and
+checks, vector moves through record fields, indexed paths, and checked record
+references, procedure defaults, procedure values, and
 architecture-specific assembly with a portable body.
 ZX preserves that assembly through saved IR and supports optional native
 selection and explicit target-only procedures. Supported native template

@@ -197,12 +197,12 @@ Features :: (arguments: []string) -> s32 {
     .{
         id = "ownership.record-vec-field-move",
         status = "implemented",
-        syntax = "record.field Vec moves from local aggregate paths",
-        limits = "Indexed fields, pointer-backed fields, global storage, and repeated moves in one expression remain rejected.",
-        accepted_example = "#import \"vec\"\nInner :: struct { items: Vec(s32); other: Vec(s32); }\nCheck :: () -> s32 {\n    value: Inner\n    VecPush(value.items, 1)\n    VecPush(value.other, 2)\n    moved := value.items\n    return moved[0] + value.other[0]\n}\n",
-        rejected_example = "#import \"vec\"\nInner :: struct { items: Vec(s32); }\nBox :: struct { inners: [2]Inner; }\nCheck :: () -> s32 {\n    value: Box\n    VecPush(value.inners[0].items, 1)\n    moved := value.inners[0].items\n    return moved[0]\n}\n",
-        rejection = "Indexed aggregate fields do not yet have a precise per-element ownership transfer.",
-        evidence = "tests/aggregate_vec_safety.sh\ntests/vec_move_expression.sh\ntests/compiler_inventory_cases.zi\n",
+        syntax = "move an owned field with record.field, records[index].field, or reference.field",
+        limits = "Indexed fields require a literal or scalar index binding. Reference-backed moves require a proved backing lifetime and leave the source field empty. Whole indexed owned elements cannot be copied, references cannot escape their backing storage, and a live view prevents moving its backing field. Move global storage into a local before passing it to an owning call or inserting it into a Vec.",
+        accepted_example = "#import \"vec\"\nEntry :: struct { items: Vec(s32); }\nTable :: struct { entries: [2]Entry; }\nCheck :: () -> s32 {\n    table: Table\n    index: s64 = 1\n    unused VecPush(table.entries[index].items, 40)\n    indexed := table.entries[index].items\n    entry: Entry\n    unused VecPush(entry.items, 2)\n    reference := *entry\n    moved := reference.items\n    return indexed[0] + moved[0] + cast(s32)reference.items.count\n}\n",
+        rejected_example = "#import \"vec\"\nEntry :: struct { items: Vec(s32); }\nopaque :: #system_library \"opaque\";\nOpaque :: () -> *Entry #foreign opaque \"Opaque\";\nCheck :: () -> s64 {\n    reference := Opaque()\n    moved := reference.items\n    return moved.count\n}\n",
+        rejection = "An opaque pointer result has no proved backing lifetime for transferring owned fields.",
+        evidence = "tests/aggregate_vec_safety.sh\ntests/local_owned_fields.sh\ntests/vec_move_expression.sh\ntests/compiler_inventory_cases.zi\n",
         targets = record_targets
     },
     ]

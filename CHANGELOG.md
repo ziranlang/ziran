@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Keep owned callable ABIs tied to their checked signature declarations across
+  import aliases and linked builds. Preserve nominal generic arguments and
+  lexical helper dependencies in saved and entry-linked IR. Native TSX module
+  `let` bindings use typed storage and initialize once in source order.
+  Portable component state exports include public slots only; private runtime
+  storage stays local to its instance.
+
 - Preserve decimal exponents across native floating-point formatting trials,
   and keep full normal and subnormal float output in portable and hosted runs.
 

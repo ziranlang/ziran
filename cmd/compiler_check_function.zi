@@ -27,6 +27,7 @@ TargetTypeZiran :: (type: *void, target: s32) -> *void #foreign compiler "Target
 TemplateBinderPrefix :: (type: *u8) -> s32 #foreign compiler "TemplateBinderPrefix";
 TemplateParameterIndex :: (list: *u8, name: *u8, length: usize) -> s32 #foreign compiler "TemplateParameterIndex";
 TypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
+VecElementType :: (module: *IR.ZirModule, type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "VecElementType";
 activate_using :: (c: *State.Checker, path: *u8, span: IR.ZirSourceSpan) #foreign compiler "private_check_activate_using";
 activate_using_filtered :: (c: *State.Checker, path: *u8, filter: *u8, span: IR.ZirSourceSpan) #foreign compiler "private_check_activate_using_filtered";
 all_arms_return :: (fn: *IR.ZirFunction, begin: s32, last: *s32) -> s32 #foreign compiler "private_check_all_arms_return";
@@ -94,6 +95,40 @@ validate_loop_targets :: (c: *State.Checker, fn: *IR.ZirFunction) -> s32 #foreig
 vec_place_root :: (c: *State.Checker, index: s32) -> *State.Binding #foreign compiler "private_check_vec_place_root";
 ScratchKey_check_function: u8;
 ScratchKey_normalize_function_arrays: u8;
+
+// Dynamic record fields have a concrete storage cell which a move empties.
+// Keep address evaluation repeatable; arbitrary calls and pointer arithmetic
+// are not places, and a whole indexed owned element still cannot be copied.
+#scope_export
+#program_export "private_check_reference_owned_field"
+reference_owned_field :: (module: *IR.ZirModule, fn: *IR.ZirFunction, index: s32) -> s32 {
+    if index < 0 || index >= fn.expr_count { return 0 }
+    field := *fn.exprs[index]
+    if (field.kind != .MEMBER && field.kind != .POINTER_MEMBER) ||
+        field.type == null || contains_vec(module, field.type, 0) == 0 { return 0 }
+    referenced := false
+    while index >= 0 && index < fn.expr_count {
+        place := *fn.exprs[index]
+        if place.kind == .IDENT { return cast(s32)referenced }
+        if place.kind == .MEMBER || place.kind == .POINTER_MEMBER {
+            if place.left < 0 { return 0 }
+            base := *fn.exprs[place.left]
+            if base.type == null { return 0 }
+            if base.type[0] == #char "*" { referenced = true }
+            index = place.left
+        } else if place.kind == .INDEX {
+            if place.left < 0 || place.right < 0 { return 0 }
+            subscript := *fn.exprs[place.right]
+            if subscript.kind != .IDENT && subscript.kind != .INT { return 0 }
+            base := *fn.exprs[place.left]
+            if base.type == null || (VecElementType(module, base.type, null, 0) == 0 &&
+                ArrayElementType(base.type, null, 0, null) == 0) { return 0 }
+            referenced = true
+            index = place.left
+        } else { return 0 }
+    }
+    return 0
+}
 
 #scope_file
 assignment_declaration :: (c: *State.Checker, index: s32) -> IR.ZirSourceSpan {
@@ -580,6 +615,11 @@ check_function_with_buffers :: (c: *State.Checker, fn: *IR.ZirFunction, buffers:
                         ((((c).fn).exprs)[(st).expr_root]).is_move = 1
                         consumed_root = 1
                     }
+                    if consumed_root == 0 && (st.kind == .DECL || st.kind == .ASSIGN ||
+                        st.kind == .RETURN) && reference_owned_field(c.module, c.fn, st.expr_root) != 0 {
+                        c.fn.exprs[st.expr_root].is_move = 1
+                        consumed_root = 1
+                    }
                     if !(consumed_root != 0) {
                         mark_expr_moves(c, (st).expr_root)
                         reject_read_of_moved(c, (st).expr_root, (st).expr_root)
@@ -659,7 +699,7 @@ check_function_with_buffers :: (c: *State.Checker, fn: *IR.ZirFunction, buffers:
                     if ((((st).expr_root >= 0) && (contains_vec((c).module, (st).type, 0) != 0)) && (cast(s32)(((((c).fn).exprs)[(st).expr_root]).kind) == 10)) {
                         error(c, (st).span, CheckCString("owned Vec elements cannot be copied; index in place or iterate with for *"), ((st).names).name)
                     } else {
-                        if ((((((st).expr_root >= 0) && (contains_vec((c).module, (st).type, 0) != 0)) && (cast(s32)(((((c).fn).exprs)[(st).expr_root]).kind) != 1)) && (cast(s32)(((((c).fn).exprs)[(st).expr_root]).kind) != 5)) && !(owned_transfer_shape(c, (st).expr_root) != 0)) {
+                        if ((((((st).expr_root >= 0) && (contains_vec((c).module, (st).type, 0) != 0)) && (cast(s32)(((((c).fn).exprs)[(st).expr_root]).kind) != 1)) && (cast(s32)(((((c).fn).exprs)[(st).expr_root]).kind) != 5)) && !(owned_transfer_shape(c, (st).expr_root) != 0)) && reference_owned_field(c.module, c.fn, st.expr_root) == 0 {
                             error(c, (st).span, CheckCString("Vec initialization moves a binding or takes a call result"), ((st).names).name)
                         }
                     }
@@ -685,7 +725,7 @@ check_function_with_buffers :: (c: *State.Checker, fn: *IR.ZirFunction, buffers:
                             path_storage_1 := cast(*S12Array4096_u8)AllocateOrExit(size_of(S12Array4096_u8))
                             defer CompilerFree(cast(*void)path_storage_1)
                             memset(cast(*void)path_storage_1, 0, size_of(S12Array4096_u8))
-                            freed_place: s32 = cast(s32)((global_owned_place(c, (st).lhs_root) != 0) || (local_owned_place(c, (st).lhs_root, cast(*u8)(*((path_storage_1[0]).items)), cast(usize)(cast(u64)size_of(S12Array4096_u8))) != cast(*State.Binding)((null))))
+                            freed_place: s32 = cast(s32)((global_owned_place(c, (st).lhs_root) != 0) || (local_owned_place(c, (st).lhs_root, cast(*u8)(*((path_storage_1[0]).items)), cast(usize)(cast(u64)size_of(S12Array4096_u8))) != cast(*State.Binding)((null))) || reference_owned_field(c.module, c.fn, st.lhs_root) != 0)
                             if (strcmp(cast(*u8)(*((st).assignment_op)), CheckCString("=")) != 0) {
                                 error(c, (st).span, CheckCString("Vec compound assignment is not supported"), cast(*u8)(*((st).assignment_op)))
                             } else {
@@ -695,7 +735,7 @@ check_function_with_buffers :: (c: *State.Checker, fn: *IR.ZirFunction, buffers:
                                     if (!(freed_place != 0) && (lexical_owned_binding(c, (st).lhs_root) == cast(*State.Binding)((null)))) {
                                         error(c, (st).span, CheckCString("Vec assignment requires an owned local or global destination"), (st).text)
                                     } else {
-                                        if (((((st).expr_root >= 0) && (cast(s32)(((((c).fn).exprs)[(st).expr_root]).kind) != 1)) && (cast(s32)(((((c).fn).exprs)[(st).expr_root]).kind) != 5)) && !(owned_transfer_shape(c, (st).expr_root) != 0)) {
+                                        if (((((st).expr_root >= 0) && (cast(s32)(((((c).fn).exprs)[(st).expr_root]).kind) != 1)) && (cast(s32)(((((c).fn).exprs)[(st).expr_root]).kind) != 5)) && !(owned_transfer_shape(c, (st).expr_root) != 0)) && reference_owned_field(c.module, c.fn, st.expr_root) == 0 {
                                             error(c, (st).span, CheckCString("Vec assignment moves a binding or takes a call result"), (st).text)
                                         } else {
                                             if (!(freed_place != 0) && ((c).destination_was_moved == 0)) {
@@ -735,7 +775,7 @@ check_function_with_buffers :: (c: *State.Checker, fn: *IR.ZirFunction, buffers:
                         }
                     } else {
                         if (cast(s32)((st).kind) == 10) {
-                            if ((((((contains_vec((c).module, cast(*u8)(*(((c).fn).return_type)), 0) != 0) && ((st).expr_root >= 0)) && (compatible_checked(c, cast(*u8)(*(((c).fn).return_type)), type) != 0)) && (cast(s32)((((fn).exprs)[(st).expr_root]).kind) != 1)) && (cast(s32)((((fn).exprs)[(st).expr_root]).kind) != 5)) && !(owned_transfer_shape(c, (st).expr_root) != 0)) {
+                            if ((((((contains_vec((c).module, cast(*u8)(*(((c).fn).return_type)), 0) != 0) && ((st).expr_root >= 0)) && (compatible_checked(c, cast(*u8)(*(((c).fn).return_type)), type) != 0)) && (cast(s32)((((fn).exprs)[(st).expr_root]).kind) != 1)) && (cast(s32)((((fn).exprs)[(st).expr_root]).kind) != 5)) && !(owned_transfer_shape(c, (st).expr_root) != 0)) && reference_owned_field(c.module, c.fn, st.expr_root) == 0 {
                                 error(c, (st).span, CheckCString("owned return moves a binding or takes a call result"), cast(*u8)(*(((c).fn).name)))
                             }
                             if !(compatible_checked(c, cast(*u8)(*(((c).fn).return_type)), type) != 0) {

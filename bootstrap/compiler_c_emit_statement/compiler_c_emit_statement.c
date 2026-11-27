@@ -3715,28 +3715,33 @@ static bool
 compiler_c_emit_statement_OwnedDestinationFrees(Emitter* e, int32_t index)
 {
     ZirExpr* place = &(e->fn->exprs[index]);
-    bool field = ((ZirExprKind)(place->kind)) == ((ZirExprKind)(8));
+    bool field = ((ZirExprKind)(place->kind)) == ((ZirExprKind)(8)) || ((ZirExprKind)(place->kind)) == ((ZirExprKind)(9));
     if (zir_foreign_compiler_c_emit_statement__CEmitterTypeContainsVec(e->module, (uint8_t*)place->type, 0) == 0) {
         return false;
     }
-    while (((ZirExprKind)(place->kind)) == ((ZirExprKind)(8)) && place->left >= 0) {
+    while (true) {
+        bool value_0 = ((ZirExprKind)(place->kind)) == ((ZirExprKind)(8)) || ((ZirExprKind)(place->kind)) == ((ZirExprKind)(9));
+        if (!((value_0 || ((ZirExprKind)(place->kind)) == ((ZirExprKind)(10))) && place->left >= 0)) { break; }
         place = &(e->fn->exprs[place->left]);
-        if (((uint8_t*)place->type) == ((void *)0) || place->type[0] == 42) {
+        if (((uint8_t*)place->type) == ((void *)0)) {
             return false;
+        }
+        if (place->type[0] == 42) {
+            return field;
         }
     }
     if (((ZirExprKind)(place->kind)) != ((ZirExprKind)(1))) {
         return false;
     }
     {
-        int32_t range_first_14 = 0;
-        int32_t range_last_14 = (int32_t)((uint32_t)(e->local_count) - 1u);
-        int32_t i = range_first_14;
-        if (i <= range_last_14) for (;;) {
+        int32_t range_first_17 = 0;
+        int32_t range_last_17 = (int32_t)((uint32_t)(e->local_count) - 1u);
+        int32_t i = range_first_17;
+        if (i <= range_last_17) for (;;) {
             if (zir_foreign_compiler_c_emit_statement__strcmp(&(((e->locals[i]).name)[0]), (uint8_t*)place->name) == 0) {
                 return field;
             }
-            if (i == range_last_14) {
+            if (i == range_last_17) {
                 break;
             }
             i = (int32_t)((uint32_t)i + 1u);

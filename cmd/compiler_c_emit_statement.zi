@@ -1373,11 +1373,13 @@ EmitSwitch :: (e: *Emitter, declaration: s32, end: s32) -> s32 {
 
 OwnedDestinationFrees :: (e: *Emitter, index: s32) -> bool {
     place := *e.fn.exprs[index]
-    field := place.kind == .MEMBER
+    field := place.kind == .MEMBER || place.kind == .POINTER_MEMBER
     if CEmitterTypeContainsVec(e.module, place.type, 0) == 0 { return false }
-    while place.kind == .MEMBER && place.left >= 0 {
+    while (place.kind == .MEMBER || place.kind == .POINTER_MEMBER ||
+        place.kind == .INDEX) && place.left >= 0 {
         place = *e.fn.exprs[place.left]
-        if place.type == null || place.type[0] == #char "*" { return false }
+        if place.type == null { return false }
+        if place.type[0] == #char "*" { return field }
     }
     if place.kind != .IDENT { return false }
     for i: cast(s32)0..e.local_count - 1 {

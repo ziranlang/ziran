@@ -46,6 +46,16 @@ void zir_foreign_compiler_check_link__CompilerStructureFunction(ZirFunction* arg
 void zir_foreign_compiler_check_link__CompilerStructureFunction(ZirFunction* arg0, ZirModule* arg1) __asm__("CompilerStructureFunction");
 #endif
 #ifdef __APPLE__
+int32_t* zir_foreign_compiler_check_link__ExpressionOwners(ZirFunction* fn) __asm__("_ExpressionOwners");
+#else
+int32_t* zir_foreign_compiler_check_link__ExpressionOwners(ZirFunction* fn) __asm__("ExpressionOwners");
+#endif
+#ifdef __APPLE__
+int32_t zir_foreign_compiler_check_link__ExpressionLexicalCallTarget(ZirFunction* fn, int32_t index, int32_t statement, uint8_t* output, size_t capacity) __asm__("_ExpressionLexicalCallTarget");
+#else
+int32_t zir_foreign_compiler_check_link__ExpressionLexicalCallTarget(ZirFunction* fn, int32_t index, int32_t statement, uint8_t* output, size_t capacity) __asm__("ExpressionLexicalCallTarget");
+#endif
+#ifdef __APPLE__
 void zir_foreign_compiler_check_link__Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("_Diagnostic");
 #else
 void zir_foreign_compiler_check_link__Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("Diagnostic");
@@ -84,6 +94,11 @@ uint8_t* zir_foreign_compiler_check_link__KeepText(uint8_t* text) __asm__("KeepT
 ZirFunction* zir_foreign_compiler_check_link__ModuleAddFunction(ZirModule* module, uint8_t* name, uint8_t* args, uint8_t* return_type, int32_t exported, ZirSourceSpan span) __asm__("_ModuleAddFunction");
 #else
 ZirFunction* zir_foreign_compiler_check_link__ModuleAddFunction(ZirModule* module, uint8_t* name, uint8_t* args, uint8_t* return_type, int32_t exported, ZirSourceSpan span) __asm__("ModuleAddFunction");
+#endif
+#ifdef __APPLE__
+ZirImport* zir_foreign_compiler_check_link__ModuleAddImport(ZirModule* module, ZirImportKind kind, uint8_t* name, uint8_t* target, uint8_t* signature, int32_t required, ZirSourceSpan span) __asm__("_ModuleAddImport");
+#else
+ZirImport* zir_foreign_compiler_check_link__ModuleAddImport(ZirModule* module, ZirImportKind kind, uint8_t* name, uint8_t* target, uint8_t* signature, int32_t required, ZirSourceSpan span) __asm__("ModuleAddImport");
 #endif
 #ifdef __APPLE__
 ZirType* zir_foreign_compiler_check_link__ModuleAddType(ZirModule* module, uint8_t* name, ZirSourceSpan span) __asm__("_ModuleAddType");
@@ -1020,8 +1035,24 @@ compiler_check_link_rewrite_function_type_applications_with_buffers(ZirModule* m
             int32_t e = range_first_35;
             if (e <= range_last_35) for (;;) {
                 ZirExpr* expression = &(fn->exprs[e]);
-                bool value_22 = ((ZirExprKind)(expression->kind)) != ((ZirExprKind)(11)) && ((ZirExprKind)(expression->kind)) != ((ZirExprKind)(12));
-                if (value_22 && ((ZirExprKind)(expression->kind)) != ((ZirExprKind)(13))) {
+                if (((uint8_t*)expression->type) != ((void *)0) && expression->type[0] != 0) {
+                    if (private_check_rewrite_type_applications(module, (uint8_t*)expression->type, expanded, sizeof(S12Array8192_u8), expression->span, 0) == 0) {
+                        return 0;
+                    }
+                    const char ** value_22 = &((fn->exprs[e]).type);
+                    uint8_t* value_23 = zir_foreign_compiler_check_link__KeepName(expanded);
+                    (*value_22) = (const char *)(value_23);
+                }
+                if (((uint8_t*)expression->slot_type) != ((void *)0) && expression->slot_type[0] != 0) {
+                    if (private_check_rewrite_type_applications(module, (uint8_t*)expression->slot_type, expanded, sizeof(S12Array8192_u8), expression->span, 0) == 0) {
+                        return 0;
+                    }
+                    const char ** value_24 = &((fn->exprs[e]).slot_type);
+                    uint8_t* value_25 = zir_foreign_compiler_check_link__KeepName(expanded);
+                    (*value_24) = (const char *)(value_25);
+                }
+                bool value_26 = ((ZirExprKind)(expression->kind)) != ((ZirExprKind)(11)) && ((ZirExprKind)(expression->kind)) != ((ZirExprKind)(12));
+                if (value_26 && ((ZirExprKind)(expression->kind)) != ((ZirExprKind)(13))) {
                     if (e == range_last_35) {
                         break;
                     }
@@ -1038,9 +1069,9 @@ compiler_check_link_rewrite_function_type_applications_with_buffers(ZirModule* m
                 if (private_check_rewrite_type_applications(module, (uint8_t*)expression->name, expanded, sizeof(S12Array8192_u8), expression->span, 0) == 0) {
                     return 0;
                 }
-                const char ** value_23 = &((fn->exprs[e]).name);
-                uint8_t* value_24 = zir_foreign_compiler_check_link__KeepName(expanded);
-                (*value_23) = (const char *)(value_24);
+                const char ** value_27 = &((fn->exprs[e]).name);
+                uint8_t* value_28 = zir_foreign_compiler_check_link__KeepName(expanded);
+                (*value_27) = (const char *)(value_28);
                 if (e == range_last_35) {
                     break;
                 }
@@ -1058,28 +1089,28 @@ compiler_check_link_rewrite_function_type_applications_with_buffers(ZirModule* m
                     break;
                 }
                 ZirStmt* statement = (ZirStmt*)(((size_t)(fn->stmts) + ((size_t)(s) * sizeof(ZirStmt))));
-                uint8_t* value_25 = zir_foreign_compiler_check_link__strchr((uint8_t*)statement->text, 40);
-                if (value_25 == (uint8_t*)(((void *)0))) {
+                uint8_t* value_29 = zir_foreign_compiler_check_link__strchr((uint8_t*)statement->text, 40);
+                if (value_29 == (uint8_t*)(((void *)0))) {
                     compiler_check_s12_types_S12Post2(&(s));
                     goto zir_loop_continue_3;
                 }
-                size_t value_26 = zir_foreign_compiler_check_link__strlen((uint8_t*)statement->text);
-                size_t length = (size_t)((uint64_t)(value_26));
+                size_t value_30 = zir_foreign_compiler_check_link__strlen((uint8_t*)statement->text);
+                size_t length = (size_t)((uint64_t)(value_30));
                 size_t capacity = (size_t)((uint64_t)(sizeof(S12Array8192_u8)));
                 uint8_t* expanded = (uint8_t*)(&(buffers->expanded.items));
                 if ((length * (size_t)(2LL)) + (size_t)(256LL) > capacity) {
                     capacity = (length * (size_t)(2LL)) + (size_t)(256LL);
-                    void* value_27 = zir_foreign_compiler_check_link__CompilerMalloc(capacity);
-                    expanded = (uint8_t*)(value_27);
+                    void* value_31 = zir_foreign_compiler_check_link__CompilerMalloc(capacity);
+                    expanded = (uint8_t*)(value_31);
                     if (expanded == (uint8_t*)(((void *)0))) {
                         return 0;
                     }
                 }
                 int32_t ok = private_check_rewrite_type_applications(module, (uint8_t*)statement->text, expanded, capacity, statement->span, 0);
                 if (ok != 0) {
-                    const char ** value_28 = &(statement->text);
-                    uint8_t* value_29 = zir_foreign_compiler_check_link__KeepText(expanded);
-                    (*value_28) = (const char *)(value_29);
+                    const char ** value_32 = &(statement->text);
+                    uint8_t* value_33 = zir_foreign_compiler_check_link__KeepText(expanded);
+                    (*value_32) = (const char *)(value_33);
                 }
                 if (expanded != (uint8_t*)(&(buffers->expanded.items))) {
                     zir_foreign_compiler_check_link__CompilerFree((void*)(expanded));
@@ -2114,6 +2145,12 @@ compiler_check_link_instantiate_specializations_with_buffers(Checker* checker, I
                 }
             }
             {
+                int32_t* expression_owners = zir_foreign_compiler_check_link__ExpressionOwners(instance);
+                if (instance->expr_count > 0 && expression_owners == ((void *)0)) {
+                    int32_t cleanup_return_1 = 0;
+                    zir_foreign_compiler_check_link__CompilerFree((void*)(expression_owners));
+                    return cleanup_return_1;
+                }
                 int32_t x = 0;
                 while (true) {
                     bool check_loop_181 = x < instance->expr_count;
@@ -2155,10 +2192,11 @@ compiler_check_link_instantiate_specializations_with_buffers(Checker* checker, I
                         value_61 = !value_62;
                     }
                     if (value_61) {
-                        int32_t cleanup_return_1 = 0;
+                        int32_t cleanup_return_2 = 0;
                         zir_foreign_compiler_check_link__CompilerFree((void*)(slot_type_storage_2));
                         zir_foreign_compiler_check_link__CompilerFree((void*)(type_storage_1));
-                        return cleanup_return_1;
+                        zir_foreign_compiler_check_link__CompilerFree((void*)(expression_owners));
+                        return cleanup_return_2;
                     }
                     const char ** value_63 = &(expression->type);
                     uint8_t* value_64 = zir_foreign_compiler_check_link__KeepName((uint8_t*)(&((type_storage_1[0]).items)));
@@ -2198,88 +2236,139 @@ compiler_check_link_instantiate_specializations_with_buffers(Checker* checker, I
                             value_78 = value_80;
                         }
                         if (value_78) {
-                            int32_t cleanup_return_2 = 0;
+                            int32_t cleanup_return_3 = 0;
                             zir_foreign_compiler_check_link__CompilerFree((void*)(name_storage_3));
                             zir_foreign_compiler_check_link__CompilerFree((void*)(slot_type_storage_2));
                             zir_foreign_compiler_check_link__CompilerFree((void*)(type_storage_1));
-                            return cleanup_return_2;
+                            zir_foreign_compiler_check_link__CompilerFree((void*)(expression_owners));
+                            return cleanup_return_3;
                         }
                         const char ** value_82 = &(expression->name);
                         uint8_t* value_83 = zir_foreign_compiler_check_link__KeepName((uint8_t*)(&((name_storage_3[0]).items)));
                         (*value_82) = (const char *)(value_83);
                         zir_foreign_compiler_check_link__CompilerFree((void*)(name_storage_3));
                     }
-                    bool value_84 = owner != template_owner && (int32_t)(((ZirExprKind)(expression->kind))) == 5;
-                    bool value_85 = value_84;
-                    if (value_85) {
-                        uint8_t* value_86 = zir_foreign_compiler_check_link__strchr((uint8_t*)expression->name, 46);
-                        value_85 = (value_86 == (uint8_t*)(((void *)0)));
-                    }
-                    if (value_85) {
+                    if (owner != template_owner && ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(5))) {
+                        uint8_t lexical_target[128] = {0};
                         ZirModule* callee_owner = (void *)0;
                         ZirFunction* callee = (void *)0;
-                        ZirModule* value_87 = template_owner;
-                        uint8_t* value_88 = (uint8_t*)expression->name;
-                        bool value_89 = zir_foreign_compiler_check_link__ResolveFunctionAt(value_87, value_88, zir_foreign_compiler_check_link__SpanPath(buffers->original.span), &(callee_owner), &(callee)) == 1;
-                        if (value_89 && callee_owner == template_owner && callee != (ZirFunction*)(((void *)0))) {
-                            uint8_t* qualifier = (uint8_t*)(&(template_owner->name));
+                        bool value_84 = zir_foreign_compiler_check_link__ExpressionLexicalCallTarget(instance, x, expression_owners[x], &(lexical_target[0]), (128) * (sizeof(uint8_t))) != 0;
+                        bool value_85 = value_84;
+                        if (value_85) {
+                            ZirModule* value_86 = template_owner;
+                            bool value_87 = zir_foreign_compiler_check_link__ResolveFunctionAt(value_86, &(lexical_target[0]), zir_foreign_compiler_check_link__SpanPath(buffers->original.span), &(callee_owner), &(callee)) == 1;
+                            value_85 = value_87;
+                        }
+                        if (value_85 && callee != ((void *)0) && callee_owner != ((void *)0)) {
+                            uint8_t* qualifier = (void *)0;
                             {
-                                int32_t range_first_116 = 0;
-                                int32_t range_last_116 = (int32_t)((uint32_t)(owner->import_count) - 1u);
-                                int32_t import_index = range_first_116;
-                                if (import_index <= range_last_116) for (;;) {
+                                int32_t range_first_125 = 0;
+                                int32_t range_last_125 = (int32_t)((uint32_t)(owner->import_count) - 1u);
+                                int32_t import_index = range_first_125;
+                                if (import_index <= range_last_125) for (;;) {
                                     ZirImport* imported = &(owner->imports[import_index]);
-                                    bool value_90 = (int32_t)(((ZirImportKind)(imported->kind))) == 2 && ((ZirModule*)imported->resolved_module) == template_owner;
-                                    bool value_91 = value_90;
-                                    bool value_92 = value_91;
-                                    if (value_92) {
-                                        bool value_93 = imported->is_file_private == 0;
-                                        bool value_94 = value_93;
-                                        if (!value_94) {
-                                            uint8_t* value_95 = zir_foreign_compiler_check_link__SpanPath(imported->span);
-                                            bool value_96 = zir_foreign_compiler_check_link__strcmp(value_95, zir_foreign_compiler_check_link__SpanPath(instance->span)) == 0;
-                                            value_94 = value_96;
+                                    bool value_88 = (int32_t)(((ZirImportKind)(imported->kind))) == 2 && ((ZirModule*)imported->resolved_module) == callee_owner;
+                                    bool value_89 = value_88;
+                                    bool value_90 = value_89;
+                                    if (value_90) {
+                                        bool value_91 = imported->is_file_private == 0;
+                                        bool value_92 = value_91;
+                                        if (!value_92) {
+                                            uint8_t* value_93 = zir_foreign_compiler_check_link__SpanPath(imported->span);
+                                            bool value_94 = zir_foreign_compiler_check_link__strcmp(value_93, zir_foreign_compiler_check_link__SpanPath(instance->span)) == 0;
+                                            value_92 = value_94;
                                         }
-                                        value_92 = value_94;
+                                        value_90 = value_92;
                                     }
-                                    if (value_92) {
+                                    if (value_90) {
                                         qualifier = (uint8_t*)(&(imported->name));
                                         break;
                                     }
-                                    if (import_index == range_last_116) {
+                                    if (import_index == range_last_125) {
                                         break;
                                     }
                                     import_index = (int32_t)((uint32_t)import_index + 1u);
                                 }
                             }
-                            void* value_97 = zir_foreign_compiler_check_link__AllocateOrExit(sizeof(S12Array128_u8));
-                            S12Array128_u8* dependency = (S12Array128_u8*)(value_97);
-                            uint8_t* callee_name = (uint8_t*)expression->name;
+                            if (qualifier == ((void *)0)) {
+                                uint8_t alias[128] = {0};
+                                uint8_t* value_95 = compiler_check_types_CheckCString(StringLiteral("__zi_lexical_%016llx"));
+                                ZirModule* value_96 = callee_owner;
+                                ZirModule* value_97 = callee_owner;
+                                ZirFunction* value_98 = callee;
+                                uint64_t value_99 = zir_foreign_compiler_check_link__specialization_hash(value_96, value_97, value_98, compiler_check_types_CheckCString(StringLiteral("")));
+                                int32_t written = zir_foreign_compiler_check_link__snprintf(&(alias[0]), (128) * (sizeof(uint8_t)), value_95, value_99);
+                                if (written < 0 || (size_t)(written) >= ((128) * (sizeof(uint8_t)))) {
+                                    int32_t cleanup_return_4 = 0;
+                                    zir_foreign_compiler_check_link__CompilerFree((void*)(slot_type_storage_2));
+                                    zir_foreign_compiler_check_link__CompilerFree((void*)(type_storage_1));
+                                    zir_foreign_compiler_check_link__CompilerFree((void*)(expression_owners));
+                                    return cleanup_return_4;
+                                }
+                                {
+                                    int32_t range_first_142 = 0;
+                                    int32_t range_last_142 = (int32_t)((uint32_t)(owner->import_count) - 1u);
+                                    int32_t import_index = range_first_142;
+                                    if (import_index <= range_last_142) for (;;) {
+                                        if (zir_foreign_compiler_check_link__strcmp(&(((owner->imports[import_index]).name)[0]), &(alias[0])) == 0) {
+                                            int32_t cleanup_return_5 = 0;
+                                            zir_foreign_compiler_check_link__CompilerFree((void*)(slot_type_storage_2));
+                                            zir_foreign_compiler_check_link__CompilerFree((void*)(type_storage_1));
+                                            zir_foreign_compiler_check_link__CompilerFree((void*)(expression_owners));
+                                            return cleanup_return_5;
+                                        }
+                                        if (import_index == range_last_142) {
+                                            break;
+                                        }
+                                        import_index = (int32_t)((uint32_t)import_index + 1u);
+                                    }
+                                }
+                                ZirModule* value_100 = owner;
+                                uint8_t* value_101 = compiler_check_types_CheckCString(StringLiteral(""));
+                                ZirImport* imported = zir_foreign_compiler_check_link__ModuleAddImport(value_100, (ZirImportKind)(2), &(alias[0]), &(callee_owner->name[0]), value_101, 0, instance->span);
+                                if (imported == ((void *)0)) {
+                                    int32_t cleanup_return_6 = 0;
+                                    zir_foreign_compiler_check_link__CompilerFree((void*)(slot_type_storage_2));
+                                    zir_foreign_compiler_check_link__CompilerFree((void*)(type_storage_1));
+                                    zir_foreign_compiler_check_link__CompilerFree((void*)(expression_owners));
+                                    return cleanup_return_6;
+                                }
+                                const struct ZirModule ** value_102 = &(imported->resolved_module);
+                                (*value_102) = (const struct ZirModule *)(callee_owner);
+                                qualifier = (uint8_t*)(&(imported->name[0]));
+                            }
+                            void* value_103 = zir_foreign_compiler_check_link__AllocateOrExit(sizeof(S12Array128_u8));
+                            S12Array128_u8* dependency = (S12Array128_u8*)(value_103);
+                            uint8_t* callee_name = (uint8_t*)(&(callee->name));
                             if (callee->is_public == 0 || callee->is_file_private != 0) {
-                                if (compiler_check_link_retain_template_dependency(template_owner, callee, &(dependency->items[0]), sizeof(S12Array128_u8)) == 0) {
-                                    int32_t cleanup_return_3 = 0;
+                                if (compiler_check_link_retain_template_dependency(callee_owner, callee, &(dependency->items[0]), sizeof(S12Array128_u8)) == 0) {
+                                    int32_t cleanup_return_7 = 0;
                                     zir_foreign_compiler_check_link__CompilerFree((void*)(dependency));
                                     zir_foreign_compiler_check_link__CompilerFree((void*)(slot_type_storage_2));
                                     zir_foreign_compiler_check_link__CompilerFree((void*)(type_storage_1));
-                                    return cleanup_return_3;
+                                    zir_foreign_compiler_check_link__CompilerFree((void*)(expression_owners));
+                                    return cleanup_return_7;
                                 }
                                 callee_name = &(dependency->items[0]);
                             }
-                            void* value_98 = zir_foreign_compiler_check_link__AllocateOrExit(sizeof(S12Array128_u8));
-                            S12Array128_u8* qualified = (S12Array128_u8*)(value_98);
-                            uint8_t* value_99 = compiler_check_types_CheckCString(StringLiteral("%s.%s"));
-                            int32_t written = zir_foreign_compiler_check_link__snprintf(&(qualified->items[0]), sizeof(S12Array128_u8), value_99, qualifier, callee_name);
+                            void* value_104 = zir_foreign_compiler_check_link__AllocateOrExit(sizeof(S12Array128_u8));
+                            S12Array128_u8* qualified = (S12Array128_u8*)(value_104);
+                            uint8_t* value_105 = compiler_check_types_CheckCString(StringLiteral("%s.%s"));
+                            int32_t written = zir_foreign_compiler_check_link__snprintf(&(qualified->items[0]), sizeof(S12Array128_u8), value_105, qualifier, callee_name);
                             if (written < 0 || (size_t)(written) >= sizeof(S12Array128_u8)) {
-                                int32_t cleanup_return_4 = 0;
+                                int32_t cleanup_return_8 = 0;
                                 zir_foreign_compiler_check_link__CompilerFree((void*)(qualified));
                                 zir_foreign_compiler_check_link__CompilerFree((void*)(dependency));
                                 zir_foreign_compiler_check_link__CompilerFree((void*)(slot_type_storage_2));
                                 zir_foreign_compiler_check_link__CompilerFree((void*)(type_storage_1));
-                                return cleanup_return_4;
+                                zir_foreign_compiler_check_link__CompilerFree((void*)(expression_owners));
+                                return cleanup_return_8;
                             }
-                            const char ** value_100 = &(expression->name);
-                            uint8_t* value_101 = zir_foreign_compiler_check_link__KeepName(&(qualified->items[0]));
-                            (*value_100) = (const char *)(value_101);
+                            const char ** value_106 = &(expression->name);
+                            uint8_t* value_107 = zir_foreign_compiler_check_link__KeepName(&(qualified->items[0]));
+                            (*value_106) = (const char *)(value_107);
+                            int32_t* value_108 = &(expression->left);
+                            (*value_108) = -1;
                             zir_foreign_compiler_check_link__CompilerFree((void*)(qualified));
                             zir_foreign_compiler_check_link__CompilerFree((void*)(dependency));
                         }
@@ -2288,12 +2377,13 @@ compiler_check_link_instantiate_specializations_with_buffers(Checker* checker, I
                     zir_foreign_compiler_check_link__CompilerFree((void*)(slot_type_storage_2));
                     zir_foreign_compiler_check_link__CompilerFree((void*)(type_storage_1));
                 }
+                zir_foreign_compiler_check_link__CompilerFree((void*)(expression_owners));
             }
             compiler_check_s12_types_S12Post2(&(request_index));
         }
     }
-    int32_t* value_102 = &(checker->specialization_count);
-    (*value_102) = 0;
+    int32_t* value_109 = &(checker->specialization_count);
+    (*value_109) = 0;
     return 1;
 }
 

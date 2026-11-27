@@ -3841,7 +3841,7 @@ compiler_check_value_contextual_owned_closure(Checker* c, int32_t index, uint8_t
 }
 
 ZirType*
-private_check_owned_call_slot(Checker* c, int32_t index, ZirModule** slot_owner)
+private_check_owned_call_slot(Checker* c, int32_t index, uint8_t* operand_type, ZirModule** slot_owner)
 {
     ZirExpr call = c->fn->exprs[index];
     uint8_t* written = (uint8_t*)call.slot_type;
@@ -3854,7 +3854,7 @@ private_check_owned_call_slot(Checker* c, int32_t index, ZirModule** slot_owner)
         if (call.name[0] != 0) {
             written = private_check_lookup(c, (uint8_t*)call.name);
         } else if (call.left >= 0) {
-            written = (uint8_t*)(c->fn->exprs[call.left]).type;
+            written = operand_type;
         } else {
             return (void *)0;
         }

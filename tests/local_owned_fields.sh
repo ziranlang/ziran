@@ -5,7 +5,9 @@
 # out can be assigned again. By-value parameters own their fields too. A whole
 # local still has to be moved before it is replaced. Replacing a field while a
 # view of it is live, assigning into a moved binding or below a moved field,
-# and storing through a pointer stay rejected. Source and saved IR agree; C
+# and transfers through unproved pointers stay rejected. Checked record
+# references support field replacement and moves that leave an empty field;
+# their backing record and Vec allocation remain borrowed. Source and saved IR agree; C
 # runs allocation-counted and under AddressSanitizer, and native and VM
 # bundles give the same results.
 set -eu
@@ -17,7 +19,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 cat > "$work/fields.zi" <<'ZI'
 #import "std/vec"
-Bag :: struct { items: Text; counts: Vec(s32); }
+Bag :: struct { items: Text; counts: Vec(s32); tag: s64; }
 Shelf :: struct { bag: Bag; label: Text; }
 Width :: (s: string) -> s64 { return s.count }
 Make :: (a: string) -> Bag { return Bag.{.items = TextCopy(a)} }
@@ -26,11 +28,59 @@ Relabel :: (shelf: Shelf, label: string) -> Shelf {
     return shelf
 }
 
+RefTake :: (bag: *Bag) -> Text { return bag.items }
+RefTakeLent :: (argument: *void) -> Text {
+    bag := cast(*Bag)argument
+    return RefTake(bag)
+}
+ReferenceFields :: () -> s64 {
+    bag: Bag
+    p := *bag
+    alias := p
+    p.items = TextCopy("abc")
+    p.items = TextCopy("de")
+    moved := p.items
+    if alias.items.bytes.count != 0 { return 1000 }
+    alias.items = moved
+    if p.items.bytes.count != 2 { return 1000 }
+    shelf: Shelf
+    shelf.bag.items = TextCopy("owned")
+    shelf.bag.tag = 17
+    reference := *shelf
+    nested := reference.bag
+    if reference.bag.items.bytes.count != 0 || reference.bag.tag != 17 ||
+        nested.tag != 17 || nested.items.bytes.count != 5 { return 1000 }
+    entries: Vec(Bag)
+    unused VecResize(entries, 2)
+    {
+        entry := *entries[0]
+        other := entry
+        entry.items = TextCopy("xyz")
+        taken: Text = RefTake(entry)
+        if other.items.bytes.count != 0 { return 1000 }
+        other.items = taken
+        counts: Vec(s32)
+        unused VecPush(counts, 7)
+        entry.counts = counts
+        taken_counts := other.counts
+        if entry.counts.count != 0 || taken_counts.count != 1 { return 1000 }
+        entry.counts = taken_counts
+    }
+    // Closing the reference scope allows growth again.
+    unused VecResize(entries, 3)
+    taken := entries[0].items
+    entries[1].items = taken
+    entries[1].items = TextCopy("again")
+    if entries[0].items.bytes.count != 0 || entries[1].items.bytes.count != 5 { return 1000 }
+    return 0
+}
+
 #program_export
 Fill :: (rounds: s64) -> s64 {
     total: s64 = 0
     round: s64 = 0
     while round < rounds {
+        total += ReferenceFields()
         shelf: Shelf
         shelf.label = TextCopy("abc")
         shelf.label = TextCopy("de")
@@ -150,14 +200,123 @@ Main :: () -> s64 {
     return Width(taken.items)
 }
 ZI
-reject pointer 'Vec assignment requires a binding, a field path of one or a global destination' <<'ZI'
+reject pointer 'owned field transfer requires a record reference with a proved backing lifetime' <<'ZI'
+#import "std/vec"
+Bag :: struct { items: Text; }
+opaque :: #system_library "opaque";
+Opaque :: () -> *Bag #foreign opaque "Opaque";
+Main :: () -> s64 {
+    p := Opaque()
+    p.items = TextCopy("de")
+    return 0
+}
+ZI
+reject reference_view 'mutating text backing storage while its view is live' <<'ZI'
 #import "std/vec"
 Bag :: struct { items: Text; }
 Main :: () -> s64 {
     bag: Bag
     p := *bag
+    alias := p
+    p.items = TextCopy("abc")
+    view := TextView(alias.items)
     p.items = TextCopy("de")
+    return view.count
+}
+ZI
+reject reference_move_view 'moving owned storage while its text view is live' <<'ZI'
+#import "std/vec"
+Bag :: struct { items: Text; }
+Main :: () -> s64 {
+    bag: Bag
+    p := *bag
+    p.items = TextCopy("abc")
+    view := TextView(bag.items)
+    moved := p.items
+    return view.count + moved.bytes.count
+}
+ZI
+reject reference_growth 'cannot mutate a Vec with a live borrowed view' <<'ZI'
+#import "std/vec"
+Bag :: struct { items: Text; }
+Main :: () -> s64 {
+    entries: Vec(Bag)
+    unused VecResize(entries, 1)
+    p := *entries[0]
+    p.items = TextCopy("abc")
+    unused VecResize(entries, 100)
+    return p.items.bytes.count
+}
+ZI
+reject reference_owner_move 'cannot move a Vec with a live borrowed view or record reference' <<'ZI'
+#import "std/vec"
+Bag :: struct { items: Text; }
+Main :: () -> s64 {
+    bag: Bag
+    p := *bag
+    p.items = TextCopy("abc")
+    moved := bag
+    return p.items.bytes.count + moved.items.bytes.count
+}
+ZI
+reject reference_call_growth 'cannot mutate a Vec with a live borrowed view' <<'ZI'
+#import "std/vec"
+Bag :: struct { items: Text; }
+Take :: (bag: *Bag) -> Text { return bag.items }
+Main :: () -> s64 {
+    entries: Vec(Bag)
+    unused VecResize(entries, 1)
+    p := *entries[0]
+    unused VecResize(entries, 100)
+    moved: Text = Take(p)
+    return moved.bytes.count
+}
+ZI
+reject reference_opaque_call 'owned field transfer requires a record reference with a proved backing lifetime' <<'ZI'
+#import "std/vec"
+Bag :: struct { items: Text; }
+opaque :: #system_library "opaque";
+Opaque :: () -> *Bag #foreign opaque "Opaque";
+Take :: (bag: *Bag) -> Text { return bag.items }
+Main :: () -> s64 {
+    p := Opaque()
+    moved: Text = Take(p)
+    return moved.bytes.count
+}
+ZI
+reject reference_opaque_cast 'owned field transfer requires a record reference with a proved backing lifetime' <<'ZI'
+#import "std/vec"
+Bag :: struct { items: Text; }
+opaque :: #system_library "opaque";
+Opaque :: () -> *void #foreign opaque "Opaque";
+Take :: (bag: *Bag) -> Text { return bag.items }
+Main :: () -> s64 {
+    p := cast(*Bag)Opaque()
+    moved: Text = Take(p)
+    return moved.bytes.count
+}
+ZI
+reject reference_escape 'record reference outlives its backing storage' <<'ZI'
+#import "std/vec"
+Bag :: struct { items: Text; }
+Main :: () -> s64 {
+    p: *Bag
+    {
+        bag: Bag
+        p = *bag
+    }
+    p.items = TextCopy("abc")
     return 0
 }
 ZI
-echo 'local record field stores: the old value is freed, moved fields are assigned again, 0 allocations left; whole locals, live views, moved bindings and pointers are rejected; source and saved IR, native and VM agree; ASan clean'
+reject element_copy 'owned Vec elements cannot be copied' <<'ZI'
+#import "std/vec"
+Bag :: struct { items: Text; }
+Main :: () -> s64 {
+    entries: Vec(Bag)
+    unused VecResize(entries, 1)
+    moved := entries[0]
+    return moved.items.bytes.count
+}
+ZI
+echo 'owned record fields: checked reference moves empty the source, replacement drops the old value, invalid aliases and live views are rejected; 0 allocations left; source and saved IR, native and VM agree; ASan clean'

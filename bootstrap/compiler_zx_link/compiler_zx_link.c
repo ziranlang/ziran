@@ -1464,7 +1464,8 @@ compiler_zx_link_MarkModuleFields(ZirModule* module, uint8_t* entry_module, uint
                 value_1 = &(module->types[index]);
             }
             ZirType* type = value_1;
-            if (zir_foreign_compiler_zx_link__VecElementType(module, &(type->name[0]), (void *)0, 0) != 0) {
+            bool value_3 = type->is_owned_callable != 0;
+            if (value_3 || zir_foreign_compiler_zx_link__VecElementType(module, &(type->name[0]), (void *)0, 0) != 0) {
                 compiler_zx_link_MarkAllFields(module, &(type->name[0]), uses);
             }
             if (t == range_last_0) {
@@ -1478,14 +1479,14 @@ compiler_zx_link_MarkModuleFields(ZirModule* module, uint8_t* entry_module, uint
         int32_t range_last_6 = (int32_t)((uint32_t)(module->type_count) - 1u);
         int32_t t = range_first_6;
         if (t <= range_last_6) for (;;) {
-            ZirModule* value_3 = module;
-            ZirType* value_4 = (void *)0;
+            ZirModule* value_4 = module;
+            ZirType* value_5 = (void *)0;
             {
-                ZirModule* module = value_3;
+                ZirModule* module = value_4;
                 int32_t index = t;
-                value_4 = &(module->types[index]);
+                value_5 = &(module->types[index]);
             }
-            ZirType* type = value_4;
+            ZirType* type = value_5;
             if (type->is_procedure_type != 0 && type->is_c_call != 0) {
                 compiler_zx_link_MarkSignatureFields(module, &(type->body[0]), &(type->procedure_return_type[0]), uses);
             }
@@ -1500,14 +1501,14 @@ compiler_zx_link_MarkModuleFields(ZirModule* module, uint8_t* entry_module, uint
         int32_t range_last_12 = (int32_t)((uint32_t)(module->import_count) - 1u);
         int32_t i = range_first_12;
         if (i <= range_last_12) for (;;) {
-            ZirModule* value_6 = module;
-            ZirImport* value_7 = (void *)0;
+            ZirModule* value_7 = module;
+            ZirImport* value_8 = (void *)0;
             {
-                ZirModule* module = value_6;
+                ZirModule* module = value_7;
                 int32_t index = i;
-                value_7 = &(module->imports[index]);
+                value_8 = &(module->imports[index]);
             }
-            ZirImport* imported = value_7;
+            ZirImport* imported = value_8;
             if (((ZirImportKind)(imported->kind)) == ((ZirImportKind)(3))) {
                 compiler_zx_link_MarkSignatureFields(module, &(imported->args[0]), &(imported->return_type[0]), uses);
             }
@@ -1522,14 +1523,14 @@ compiler_zx_link_MarkModuleFields(ZirModule* module, uint8_t* entry_module, uint
         int32_t range_last_18 = (int32_t)((uint32_t)(module->global_count) - 1u);
         int32_t g = range_first_18;
         if (g <= range_last_18) for (;;) {
-            ZirModule* value_9 = module;
-            ZirGlobal* value_10 = (void *)0;
+            ZirModule* value_10 = module;
+            ZirGlobal* value_11 = (void *)0;
             {
-                ZirModule* module = value_9;
+                ZirModule* module = value_10;
                 int32_t index = g;
-                value_10 = &(module->globals[index]);
+                value_11 = &(module->globals[index]);
             }
-            ZirGlobal* global = value_10;
+            ZirGlobal* global = value_11;
             if (global->init[0] != 0) {
                 compiler_zx_link_MarkAllFields(module, &(global->type[0]), uses);
             }
@@ -1544,37 +1545,37 @@ compiler_zx_link_MarkModuleFields(ZirModule* module, uint8_t* entry_module, uint
         int32_t range_last_24 = (int32_t)((uint32_t)(module->law_count) - 1u);
         int32_t l = range_first_24;
         if (l <= range_last_24) for (;;) {
-            ZirModule* value_12 = module;
-            ZirLaw* value_13 = (void *)0;
+            ZirModule* value_13 = module;
+            ZirLaw* value_14 = (void *)0;
             {
-                ZirModule* module = value_12;
+                ZirModule* module = value_13;
                 int32_t index = l;
-                value_13 = &(module->laws[index]);
+                value_14 = &(module->laws[index]);
             }
-            ZirLaw* law = value_13;
+            ZirLaw* law = value_14;
             uint8_t* kind = &(law->kind[0]);
             uint8_t name[128] = {0};
-            uint8_t* value_15 = kind;
-            String value_16 = StringLiteral("size");
-            uint8_t* value_17 = (void *)0;
+            uint8_t* value_16 = kind;
+            String value_17 = StringLiteral("size");
+            uint8_t* value_18 = (void *)0;
             {
-                String s = value_16;
-                value_17 = ((StaticText*)(&(s)))->data;
+                String s = value_17;
+                value_18 = ((StaticText*)(&(s)))->data;
             }
-            bool value_19 = compiler_zx_link_Same(value_15, value_17);
-            bool value_20 = value_19;
-            if (!value_20) {
-                uint8_t* value_21 = kind;
-                String value_22 = StringLiteral("type");
-                uint8_t* value_23 = (void *)0;
+            bool value_20 = compiler_zx_link_Same(value_16, value_18);
+            bool value_21 = value_20;
+            if (!value_21) {
+                uint8_t* value_22 = kind;
+                String value_23 = StringLiteral("type");
+                uint8_t* value_24 = (void *)0;
                 {
-                    String s = value_22;
-                    value_23 = ((StaticText*)(&(s)))->data;
+                    String s = value_23;
+                    value_24 = ((StaticText*)(&(s)))->data;
                 }
-                bool value_25 = compiler_zx_link_Same(value_21, value_23);
-                value_20 = value_25;
+                bool value_26 = compiler_zx_link_Same(value_22, value_24);
+                value_21 = value_26;
             }
-            if (value_20 && compiler_zx_link_LawSubject(law, &(name[0]))) {
+            if (value_21 && compiler_zx_link_LawSubject(law, &(name[0]))) {
                 compiler_zx_link_MarkAllFields(module, &(name[0]), uses);
             }
             if (l == range_last_24) {
@@ -1588,104 +1589,104 @@ compiler_zx_link_MarkModuleFields(ZirModule* module, uint8_t* entry_module, uint
         int32_t range_last_32 = (int32_t)((uint32_t)(module->function_count) - 1u);
         int32_t f = range_first_32;
         if (f <= range_last_32) for (;;) {
-            ZirModule* value_26 = module;
-            ZirFunction* value_27 = (void *)0;
+            ZirModule* value_27 = module;
+            ZirFunction* value_28 = (void *)0;
             {
-                ZirModule* module = value_26;
+                ZirModule* module = value_27;
                 int32_t index = f;
-                value_27 = &(module->functions[index]);
+                value_28 = &(module->functions[index]);
             }
-            ZirFunction* fn = value_27;
-            bool value_29 = compiler_zx_link_Same(&(module->name[0]), entry_module);
-            if (value_29 && compiler_zx_link_Same(&(fn->name[0]), entry_function)) {
-                ZirModule* value_30 = module;
-                ZirFunction* value_31 = fn;
-                uint8_t* value_32 = (void *)0;
+            ZirFunction* fn = value_28;
+            bool value_30 = compiler_zx_link_Same(&(module->name[0]), entry_module);
+            if (value_30 && compiler_zx_link_Same(&(fn->name[0]), entry_function)) {
+                ZirModule* value_31 = module;
+                ZirFunction* value_32 = fn;
+                uint8_t* value_33 = (void *)0;
                 {
-                    ZirFunction* fn = value_31;
-                    uint8_t* value_34 = (void *)0;
+                    ZirFunction* fn = value_32;
+                    uint8_t* value_35 = (void *)0;
                     if (((uint8_t*)fn->args_text) != ((void *)0)) {
-                        value_34 = (uint8_t*)fn->args_text;
+                        value_35 = (uint8_t*)fn->args_text;
                     } else {
-                        String value_35 = StringLiteral("");
-                        uint8_t* value_36 = (void *)0;
+                        String value_36 = StringLiteral("");
+                        uint8_t* value_37 = (void *)0;
                         {
-                            String s = value_35;
-                            value_36 = ((StaticText*)(&(s)))->data;
+                            String s = value_36;
+                            value_37 = ((StaticText*)(&(s)))->data;
                         }
-                        value_34 = value_36;
+                        value_35 = value_37;
                     }
-                    value_32 = value_34;
+                    value_33 = value_35;
                 }
-                compiler_zx_link_MarkSignatureFields(value_30, value_32, &(fn->return_type[0]), uses);
+                compiler_zx_link_MarkSignatureFields(value_31, value_33, &(fn->return_type[0]), uses);
             }
             {
                 int32_t range_first_37 = 0;
                 int32_t range_last_37 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
                 int32_t e = range_first_37;
                 if (e <= range_last_37) for (;;) {
-                    ZirFunction* value_38 = fn;
-                    ZirExpr* value_39 = (void *)0;
+                    ZirFunction* value_39 = fn;
+                    ZirExpr* value_40 = (void *)0;
                     {
-                        ZirFunction* fn = value_38;
+                        ZirFunction* fn = value_39;
                         int32_t index = e;
-                        value_39 = &(fn->exprs[index]);
+                        value_40 = &(fn->exprs[index]);
                     }
-                    ZirExpr* expr = value_39;
-                    bool value_41 = ((ZirExprKind)(expr->kind)) == ((ZirExprKind)(8)) || ((ZirExprKind)(expr->kind)) == ((ZirExprKind)(9));
-                    if (value_41 && expr->left >= 0 && expr->left < fn->expr_count) {
-                        ZirFunction* value_42 = fn;
-                        int32_t value_43 = expr->left;
-                        ZirExpr* value_44 = (void *)0;
+                    ZirExpr* expr = value_40;
+                    bool value_42 = ((ZirExprKind)(expr->kind)) == ((ZirExprKind)(8)) || ((ZirExprKind)(expr->kind)) == ((ZirExprKind)(9));
+                    if (value_42 && expr->left >= 0 && expr->left < fn->expr_count) {
+                        ZirFunction* value_43 = fn;
+                        int32_t value_44 = expr->left;
+                        ZirExpr* value_45 = (void *)0;
                         {
-                            ZirFunction* fn = value_42;
-                            int32_t index = value_43;
-                            value_44 = &(fn->exprs[index]);
+                            ZirFunction* fn = value_43;
+                            int32_t index = value_44;
+                            value_45 = &(fn->exprs[index]);
                         }
-                        ZirExpr* record = value_44;
+                        ZirExpr* record = value_45;
                         compiler_zx_link_MarkMemberField(module, (uint8_t*)record->type, (uint8_t*)expr->name, uses);
                     } else if (((ZirExprKind)(expr->kind)) == ((ZirExprKind)(12))) {
                         compiler_zx_link_MarkAllFields(module, (uint8_t*)expr->name, uses);
                     } else {
-                        bool value_46 = ((ZirExprKind)(expr->kind)) == ((ZirExprKind)(5));
-                        bool value_47 = value_46;
-                        if (value_47) {
-                            uint8_t* value_48 = (uint8_t*)expr->name;
-                            String value_49 = StringLiteral("VecPop");
-                            uint8_t* value_50 = (void *)0;
+                        bool value_47 = ((ZirExprKind)(expr->kind)) == ((ZirExprKind)(5));
+                        bool value_48 = value_47;
+                        if (value_48) {
+                            uint8_t* value_49 = (uint8_t*)expr->name;
+                            String value_50 = StringLiteral("VecPop");
+                            uint8_t* value_51 = (void *)0;
                             {
-                                String s = value_49;
-                                value_50 = ((StaticText*)(&(s)))->data;
+                                String s = value_50;
+                                value_51 = ((StaticText*)(&(s)))->data;
                             }
-                            bool value_52 = compiler_zx_link_Same(value_48, value_50);
-                            bool value_53 = value_52;
-                            if (!value_53) {
-                                uint8_t* value_54 = (uint8_t*)expr->name;
-                                String value_55 = StringLiteral("VecGet");
-                                uint8_t* value_56 = (void *)0;
+                            bool value_53 = compiler_zx_link_Same(value_49, value_51);
+                            bool value_54 = value_53;
+                            if (!value_54) {
+                                uint8_t* value_55 = (uint8_t*)expr->name;
+                                String value_56 = StringLiteral("VecGet");
+                                uint8_t* value_57 = (void *)0;
                                 {
-                                    String s = value_55;
-                                    value_56 = ((StaticText*)(&(s)))->data;
+                                    String s = value_56;
+                                    value_57 = ((StaticText*)(&(s)))->data;
                                 }
-                                bool value_58 = compiler_zx_link_Same(value_54, value_56);
-                                value_53 = value_58;
+                                bool value_59 = compiler_zx_link_Same(value_55, value_57);
+                                value_54 = value_59;
                             }
-                            value_47 = value_53;
+                            value_48 = value_54;
                         }
-                        if (value_47) {
+                        if (value_48) {
                             compiler_zx_link_MarkAllFields(module, (uint8_t*)expr->type, uses);
                         } else if (((ZirExprKind)(expr->kind)) == ((ZirExprKind)(13)) && expr->name[0] != 0) {
                             compiler_zx_link_MarkAllFields(module, (uint8_t*)expr->name, uses);
                         } else if (((ZirExprKind)(expr->kind)) == ((ZirExprKind)(11)) && expr->right >= 0 && expr->right < fn->expr_count) {
-                            ZirFunction* value_59 = fn;
-                            int32_t value_60 = expr->right;
-                            ZirExpr* value_61 = (void *)0;
+                            ZirFunction* value_60 = fn;
+                            int32_t value_61 = expr->right;
+                            ZirExpr* value_62 = (void *)0;
                             {
-                                ZirFunction* fn = value_59;
-                                int32_t index = value_60;
-                                value_61 = &(fn->exprs[index]);
+                                ZirFunction* fn = value_60;
+                                int32_t index = value_61;
+                                value_62 = &(fn->exprs[index]);
                             }
-                            ZirExpr* operand = value_61;
+                            ZirExpr* operand = value_62;
                             if (expr->type[0] == 42 || operand->type[0] == 42) {
                                 compiler_zx_link_MarkAllFields(module, (uint8_t*)expr->type, uses);
                                 compiler_zx_link_MarkAllFields(module, (uint8_t*)operand->type, uses);
@@ -5701,30 +5702,47 @@ compiler_zx_link_MarkTypeDependencies(LinkState* state, ZirModule* module, ZirTy
 {
     ZirProgram* program = state->program;
     uint8_t** keep_types = state->keep_types;
-    bool value_0 = type->is_synthetic_application != 0;
-    bool value_1 = value_0;
-    if (value_1) {
-        bool value_2 = compiler_zx_link_MarkType(program, module, &(type->template_name[0]), keep_types, changed);
-        value_1 = !value_2;
-    }
-    if (value_1) {
-        return false;
+    if (type->is_synthetic_application != 0) {
+        bool value_0 = compiler_zx_link_MarkType(program, module, &(type->template_name[0]), keep_types, changed);
+        if (!value_0) {
+            return false;
+        }
+        uint8_t arguments[16][128] = {0};
+        int32_t count = zir_foreign_compiler_zx_link__split_top_level(&(type->template_args[0]), &(arguments[0][0]), 16, 128);
+        if (count < 0 || count >= 16) {
+            return false;
+        }
+        {
+            int32_t range_first_11 = 0;
+            int32_t range_last_11 = (int32_t)((uint32_t)count - 1u);
+            int32_t i = range_first_11;
+            if (i <= range_last_11) for (;;) {
+                bool value_1 = compiler_zx_link_MarkType(program, module, &(arguments[i][0]), keep_types, changed);
+                if (!value_1) {
+                    return false;
+                }
+                if (i == range_last_11) {
+                    break;
+                }
+                i = (int32_t)((uint32_t)i + 1u);
+            }
+        }
     }
     if (type->is_record_template != 0) {
         return true;
     }
     if (type->is_procedure_type != 0) {
-        bool value_3 = compiler_zx_link_MarkType(program, module, &(type->procedure_return_type[0]), keep_types, changed);
-        if (!value_3) {
+        bool value_2 = compiler_zx_link_MarkType(program, module, &(type->procedure_return_type[0]), keep_types, changed);
+        if (!value_2) {
             return false;
         }
         zir_foreign_compiler_zx_link__memset((uint8_t*)(state->signature), 0, sizeof(ZirFunction));
         if (zir_foreign_compiler_zx_link__strlen(&(type->body[0])) >= 4096) {
             return false;
         }
-        const char ** value_4 = &(state->signature->args_text);
-        uint8_t* value_5 = zir_foreign_compiler_zx_link__KeepParameters(&(type->body[0]));
-        (*value_4) = (const char *)(value_5);
+        const char ** value_3 = &(state->signature->args_text);
+        uint8_t* value_4 = zir_foreign_compiler_zx_link__KeepParameters(&(type->body[0]));
+        (*value_3) = (const char *)(value_4);
         return compiler_zx_link_MarkParameters(program, module, state->signature, keep_types, changed);
     }
     if (type->is_enum != 0) {
@@ -5738,8 +5756,8 @@ compiler_zx_link_MarkTypeDependencies(LinkState* state, ZirModule* module, ZirTy
         if (status != 1) {
             break;
         }
-        bool value_6 = compiler_zx_link_MarkType(program, module, &(field.type[0]), keep_types, changed);
-        if (!value_6) {
+        bool value_5 = compiler_zx_link_MarkType(program, module, &(field.type[0]), keep_types, changed);
+        if (!value_5) {
             return false;
         }
     }

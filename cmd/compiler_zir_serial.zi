@@ -1961,13 +1961,20 @@ validate_program :: (program: *IR.ZirProgram) -> s32 {
                            IR.CText(*field.type[0]) != "*u8" { return 0 }
                         if TypeNextField(type, *offset, *field) != 1 || IR.CText(*field.name[0]) != "invoke" { return 0 }
                         invoke := FindType(module, *field.type[0], null)
-                        if invoke == null || invoke.is_procedure_type == 0 { return 0 }
+                        // A saved module's imports are resolved after structural
+                        // loading. Qualified ABI types are checked again by the
+                        // common declaration checker once that graph is loaded.
+                        if invoke == null {
+                            if strchr(*field.type[0], #char ".") == null { return 0 }
+                        } else if invoke.is_procedure_type == 0 { return 0 }
                         if TypeNextField(type, *offset, *field) != 1 || IR.CText(*field.name[0]) != "release" { return 0 }
                         release := FindType(module, *field.type[0], null)
-                        if release == null || release.is_procedure_type == 0 ||
+                        if release == null {
+                            if strchr(*field.type[0], #char ".") == null { return 0 }
+                        } else if release.is_procedure_type == 0 ||
                            IR.CText(*release.body[0]) != "__tsx_state: *u8" ||
-                           IR.CText(*release.procedure_return_type[0]) != "void" ||
-                           TypeNextField(type, *offset, *field) != 0 { return 0 }
+                           IR.CText(*release.procedure_return_type[0]) != "void" { return 0 }
+                        if TypeNextField(type, *offset, *field) != 0 { return 0 }
                     }
                     if ((((type).is_go_anonymous != 0) && ((type).is_go_anonymous != 1)) || (((type).is_go_anonymous != 0) && ((((((((type).is_enum != 0) || ((type).is_union != 0)) || ((type).is_extern != 0)) || ((type).is_procedure_type != 0)) || ((type).is_abi_incomplete != 0)) || ((type).is_map != 0)) || ((type).is_owned_vec != 0)))) {
                         return 0

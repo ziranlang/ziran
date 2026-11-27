@@ -1979,11 +1979,18 @@ qualify_generic_field_type :: (type: *u8, out: *u8, size: usize, params: *Parser
                     ParserPost0(*(i))
                 }
             }
-            if (!(parameter != 0) && (strchr(cast(*u8)(*((name_storage_0[0]).items)), 46) == cast(*u8)((null)))) {
+            if parameter == 0 {
+                // Import aliases belong to the template declaration's module.
+                // A qualified field such as Models.Session must be remapped
+                // just like an unqualified type when instantiated elsewhere.
                 declared_in: *IR.ZirModule = null
-                declared: *IR.ZirType = FindType(owner, cast(*u8)(*((name_storage_0[0]).items)), *(declared_in))
-                if (((((declared != cast(*IR.ZirType)((null))) && (declared_in != cast(*IR.ZirModule)((null)))) && (FindType(user, cast(*u8)(*((name_storage_0[0]).items)), null) != declared)) && (snprintf(cast(*u8)(*((qualified_storage_1[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("%s.%s"), cast(*u8)(*((declared_in).name)), cast(*u8)(*((name_storage_0[0]).items))) < cast(s32)(cast(usize)size_of(ParserArray128_u8)))) && (FindType(user, cast(*u8)(*((qualified_storage_1[0]).items)), null) == declared)) {
-                    spelled = cast(*u8)(*((qualified_storage_1[0]).items))
+                declared := FindType(owner, spelled, *declared_in)
+                if declared != null && declared_in != null && FindType(user, spelled, null) != declared {
+                    written := snprintf(*qualified_storage_1[0].items[0], size_of(ParserArray128_u8),
+                        ParserCString("%s.%s"), *declared_in.name[0], *declared.name[0])
+                    if written < 0 || cast(usize)written >= size_of(ParserArray128_u8) ||
+                        FindType(user, *qualified_storage_1[0].items[0], null) != declared { return 0 }
+                    spelled = *qualified_storage_1[0].items[0]
                 }
             }
             spelled_length: usize = strlen(spelled)
@@ -2032,7 +2039,6 @@ InstantiateOwnedCallable :: (instance: *IR.ZirType, user: *IR.ZirModule) -> s32 
         parameter := parameters.items.items[i]
         type: [128]u8
         copy_text(*type[0], size_of(type_of(type)), parameter.type)
-        if record_field_type_at_use(user, signature_owner, signature_name, *type[0], size_of(type_of(type))) == 0 { return 0 }
         length := snprintf(*args[used], 8192 - cast(usize)used,
             ParserCString(", %s: %s"), parameter.name, *type[0])
         if length < 0 || cast(usize)length >= 8192 - cast(usize)used { return 0 }
@@ -2040,24 +2046,39 @@ InstantiateOwnedCallable :: (instance: *IR.ZirType, user: *IR.ZirModule) -> s32 
     }
     result: [128]u8
     copy_text(*result[0], size_of(type_of(result)), *signature_copy.procedure_return_type[0])
-    if record_field_type_at_use(user, signature_owner, signature_name, *result[0], size_of(type_of(result))) == 0 { return 0 }
+    // Equivalent applications imported through different aliases share one
+    // private native ABI. The nominal signature declaration owns that ABI;
+    // the importing module and local application spelling do not.
     hash: u64 = 14695981039346656037
-    for byte: IR.CText(*user.name[0]) { hash = (hash ^ cast(u64)byte) * 1099511628211 }
-    for byte: IR.CText(*value.name[0]) { hash = (hash ^ cast(u64)byte) * 1099511628211 }
+    for byte: IR.CText(*signature_owner.name[0]) { hash = (hash ^ cast(u64)byte) * 1099511628211 }
+    hash = hash * 1099511628211
+    for byte: IR.CText(*signature_copy.name[0]) { hash = (hash ^ cast(u64)byte) * 1099511628211 }
     invoke_name: [128]u8
     release_name: [128]u8
     unused snprintf(*invoke_name[0], size_of(type_of(invoke_name)), ParserCString("__owned_invoke_%016llx"), hash)
     unused snprintf(*release_name[0], size_of(type_of(release_name)), ParserCString("__owned_release_%016llx"), hash)
-    invoke := ModuleAddType(user, *invoke_name[0], value.span)
-    if invoke == null { return 0 }
-    invoke.is_procedure_type = 1
-    unused IR.CopyText(invoke.body[:], IR.CText(*args[0]))
-    unused IR.CopyText(invoke.procedure_return_type[:], IR.CText(*result[0]))
-    release := ModuleAddType(user, *release_name[0], value.span)
-    if release == null { return 0 }
-    release.is_procedure_type = 1
-    unused IR.CopyText(release.body[:], "__tsx_state: *u8")
-    unused IR.CopyText(release.procedure_return_type[:], "void")
+    invoke := FindType(signature_owner, *invoke_name[0], null)
+    if invoke == null {
+        invoke = ModuleAddType(signature_owner, *invoke_name[0], signature_copy.span)
+        if invoke == null { return 0 }
+        invoke.is_procedure_type = 1
+        unused IR.CopyText(invoke.body[:], IR.CText(*args[0]))
+        unused IR.CopyText(invoke.procedure_return_type[:], IR.CText(*result[0]))
+    } else if invoke.is_procedure_type == 0 ||
+        strcmp(*invoke.body[0], *args[0]) != 0 ||
+        strcmp(*invoke.procedure_return_type[0], *result[0]) != 0 { return 0 }
+    release := FindType(signature_owner, *release_name[0], null)
+    if release == null {
+        release = ModuleAddType(signature_owner, *release_name[0], signature_copy.span)
+        if release == null { return 0 }
+        release.is_procedure_type = 1
+        unused IR.CopyText(release.body[:], "__tsx_state: *u8")
+        unused IR.CopyText(release.procedure_return_type[:], "void")
+    } else if release.is_procedure_type == 0 ||
+        IR.CText(*release.body[0]) != "__tsx_state: *u8" ||
+        IR.CText(*release.procedure_return_type[0]) != "void" { return 0 }
+    if record_field_type_at_use(user, signature_owner, signature_name, *invoke_name[0], size_of(type_of(invoke_name))) == 0 ||
+       record_field_type_at_use(user, signature_owner, signature_name, *release_name[0], size_of(type_of(release_name))) == 0 { return 0 }
     value.is_type_instance = 0
     value.is_owned_callable = 1
     unused snprintf(*value.body[0], size_of(type_of(value.body)),

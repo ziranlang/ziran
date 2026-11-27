@@ -407,7 +407,8 @@ static void compiler_zir_lower_VecRelease(AssemblyProgram* program, AssemblyFunc
 static void compiler_zir_lower_DropElements(AssemblyProgram* program, AssemblyFunction* function, int32_t vector, int32_t identity, ZirSourceSpan span, int32_t depth) ZIRAN_MAYBE_UNUSED;
 static void compiler_zir_lower_DropValue(AssemblyProgram* program, AssemblyFunction* function, int32_t value, int32_t identity, ZirSourceSpan span, int32_t depth) ZIRAN_MAYBE_UNUSED;
 static void compiler_zir_lower_DropBindings(AssemblyProgram* program, AssemblyFunction* function, int32_t first, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
-static void compiler_zir_lower_MoveOut(AssemblyProgram* program, AssemblyFunction* function, int32_t root, int32_t identity, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_zir_lower_ClearedOwned(AssemblyProgram* program, AssemblyFunction* function, int32_t value, int32_t identity, ZirSourceSpan span, int32_t depth) ZIRAN_MAYBE_UNUSED;
+static void compiler_zir_lower_MoveOut(AssemblyProgram* program, AssemblyFunction* function, int32_t root, int32_t identity, int32_t value, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_Carry(AssemblyProgram* program, AssemblyFunction* function, int32_t type, int32_t value) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_Carried(AssemblyFunction* function, int32_t index) ZIRAN_MAYBE_UNUSED;
 static AssemblyBinding* compiler_zir_lower_Template(AssemblyProgram* program, AssemblyBinding* before, int32_t count, int32_t type) ZIRAN_MAYBE_UNUSED;
@@ -5152,7 +5153,7 @@ compiler_zir_lower_Member(AssemblyProgram* program, AssemblyFunction* function, 
             value_85 = value;
             goto value_86;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_85 = value;
     value_86: ;
     }
@@ -5373,7 +5374,7 @@ compiler_zir_lower_Member(AssemblyProgram* program, AssemblyFunction* function, 
                     value_159 = value;
                     goto value_160;
                 }
-                compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
                 value_159 = value;
             value_160: ;
             }
@@ -5473,7 +5474,7 @@ compiler_zir_lower_Member(AssemblyProgram* program, AssemblyFunction* function, 
                     value_193 = value;
                     goto value_194;
                 }
-                compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
                 value_193 = value;
             value_194: ;
             }
@@ -6010,7 +6011,7 @@ compiler_zir_lower_AddressOf(AssemblyProgram* program, AssemblyFunction* functio
                 value_35 = value;
                 goto value_36;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_35 = value;
         value_36: ;
         }
@@ -6039,7 +6040,7 @@ compiler_zir_lower_AddressOf(AssemblyProgram* program, AssemblyFunction* functio
                 value_43 = value;
                 goto value_44;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_43 = value;
         value_44: ;
         }
@@ -6110,7 +6111,7 @@ compiler_zir_lower_AddressOf(AssemblyProgram* program, AssemblyFunction* functio
                 value_66 = value;
                 goto value_67;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_66 = value;
         value_67: ;
         }
@@ -6318,7 +6319,7 @@ compiler_zir_lower_AddressOf(AssemblyProgram* program, AssemblyFunction* functio
                 value_136 = value;
                 goto value_137;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_136 = value;
         value_137: ;
         }
@@ -6392,7 +6393,7 @@ compiler_zir_lower_AddressOf(AssemblyProgram* program, AssemblyFunction* functio
                 value_162 = value;
                 goto value_163;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_162 = value;
         value_163: ;
         }
@@ -6419,7 +6420,7 @@ compiler_zir_lower_AddressOf(AssemblyProgram* program, AssemblyFunction* functio
                 value_170 = value;
                 goto value_171;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_170 = value;
         value_171: ;
         }
@@ -6584,7 +6585,7 @@ compiler_zir_lower_AddressOf(AssemblyProgram* program, AssemblyFunction* functio
                 value_230 = value;
                 goto value_231;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_230 = value;
         value_231: ;
         }
@@ -7888,7 +7889,7 @@ compiler_zir_lower_Compound(AssemblyProgram* program, AssemblyFunction* function
                     value_51 = value;
                     goto value_52;
                 }
-                compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
                 value_51 = value;
             value_52: ;
             }
@@ -8367,7 +8368,7 @@ compiler_zir_lower_BoundsDisjunction(AssemblyProgram* program, AssemblyFunction*
             value_74 = value;
             goto value_75;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_74 = value;
     value_75: ;
     }
@@ -8605,7 +8606,7 @@ compiler_zir_lower_BoundsConjunction(AssemblyProgram* program, AssemblyFunction*
             value_61 = value;
             goto value_62;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_61 = value;
     value_62: ;
     }
@@ -8673,7 +8674,7 @@ compiler_zir_lower_Select(AssemblyProgram* program, AssemblyFunction* function, 
                 value_3 = value;
                 goto value_4;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_3 = value;
         value_4: ;
         }
@@ -8721,7 +8722,7 @@ compiler_zir_lower_Select(AssemblyProgram* program, AssemblyFunction* function, 
                 value_16 = value;
                 goto value_17;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_16 = value;
         value_17: ;
         }
@@ -8959,7 +8960,7 @@ compiler_zir_lower_LowerSlice(AssemblyProgram* program, AssemblyFunction* functi
                 value_42 = value;
                 goto value_43;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_42 = value;
         value_43: ;
         }
@@ -9170,7 +9171,7 @@ compiler_zir_lower_LowerSlice(AssemblyProgram* program, AssemblyFunction* functi
                 value_112 = value;
                 goto value_113;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_112 = value;
         value_113: ;
         }
@@ -9202,7 +9203,7 @@ compiler_zir_lower_LowerSlice(AssemblyProgram* program, AssemblyFunction* functi
                 value_120 = value;
                 goto value_121;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_120 = value;
         value_121: ;
         }
@@ -9585,7 +9586,7 @@ compiler_zir_lower_AsTextView(AssemblyProgram* program, AssemblyFunction* functi
             value_9 = value;
             goto value_10;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_9 = value;
     value_10: ;
     }
@@ -9853,7 +9854,7 @@ compiler_zir_lower_Print(AssemblyProgram* program, AssemblyFunction* function, Z
                 value_18 = value;
                 goto value_19;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_18 = value;
         value_19: ;
         }
@@ -10605,8 +10606,137 @@ compiler_zir_lower_DropBindings(AssemblyProgram* program, AssemblyFunction* func
     }
 }
 
+static int32_t
+compiler_zir_lower_ClearedOwned(AssemblyProgram* program, AssemblyFunction* function, int32_t value, int32_t identity, ZirSourceSpan span, int32_t depth)
+{
+    bool value_0 = program->failed != 0 || depth > 32;
+    bool value_1 = value_0;
+    if (!value_1) {
+        bool value_2 = compiler_zir_lower_TypeOwned(program, identity, 0);
+        value_1 = (value_2 == false);
+    }
+    if (value_1) {
+        return value;
+    }
+    bool value_3 = compiler_zir_lower_OwnedCallable(program, identity);
+    if (value_3 || compiler_zir_lower_VecElement(program, identity) >= 0) {
+        return compiler_zir_lower_Zero(program, function, identity, span, 0);
+    }
+    AssemblyProgram* value_4 = program;
+    int32_t value_5 = identity;
+    LirType* value_6 = (void *)0;
+    {
+        AssemblyProgram* program = value_4;
+        int32_t identity = value_5;
+        value_6 = &(program->types.data[identity]);
+    }
+    LirType* ty = value_6;
+    int64_t members = (int64_t)(ty->fields).length;
+    if (((LirTypeKind)(ty->kind)) == ((LirTypeKind)(6))) {
+        members = ty->count;
+    }
+    {
+        int64_t range_first_11 = 0LL;
+        int64_t range_last_11 = (int64_t)((uint64_t)members - UINT64_C(1));
+        int64_t member = range_first_11;
+        if (member <= range_last_11) for (;;) {
+            int32_t member_type = ty->element;
+            if (((LirTypeKind)(ty->kind)) != ((LirTypeKind)(6))) {
+                member_type = ((int32_t *)ty->fields.data)[member];
+            }
+            bool value_8 = compiler_zir_lower_TypeOwned(program, member_type, 0);
+            if (value_8 == false) {
+                if (member == range_last_11) {
+                    break;
+                }
+                member = (int64_t)((uint64_t)member + UINT64_C(1));
+                continue;
+            }
+            AssemblyProgram* value_9 = program;
+            AssemblyFunction* value_10 = function;
+            LirOp value_11 = (LirOp)((LirOp)(26));
+            int32_t* value_12 = &(value);
+            uint64_t value_13 = (uint64_t)(member);
+            ZirSourceSpan value_14 = span;
+            int32_t value_15 = 0;
+            {
+                AssemblyProgram* program = value_9;
+                AssemblyFunction* function = value_10;
+                LirOp op = (LirOp)(value_11);
+                int32_t type = member_type;
+                int32_t* operands = value_12;
+                int32_t count = 1;
+                uint64_t index = value_13;
+                ZirSourceSpan span = value_14;
+                int32_t result = compiler_zir_lower_Emit(program, function, op, type, operands, count, -1, span);
+                if (program->failed == 0 && function->current >= 0) {
+                    AssemblyFunction* value_17 = function;
+                    int32_t value_18 = function->current;
+                    AssemblyBlock* value_19 = (void *)0;
+                    {
+                        AssemblyFunction* function = value_17;
+                        int32_t index = value_18;
+                        value_19 = &(function->blocks.data[index]);
+                    }
+                    AssemblyBlock* block = value_19;
+                    LirInstruction* instructions = block->instructions.data;
+                    uint64_t* value_21 = &((instructions[((int32_t)((uint32_t)(block->instructions.count) - 1u))]).immediate);
+                    (*value_21) = index;
+                }
+                value_15 = result;
+            }
+            int32_t item = value_15;
+            int32_t value_22[2] = {0};
+            value_22[0] = value;
+            int32_t value_23 = compiler_zir_lower_ClearedOwned(program, function, item, member_type, span, (int32_t)((uint32_t)depth + 1u));
+            value_22[1] = value_23;
+            int32_t operands[2] = {0};
+            memmove(operands, value_22, sizeof(operands));
+            AssemblyProgram* value_24 = program;
+            AssemblyFunction* value_25 = function;
+            LirOp value_26 = (LirOp)((LirOp)(27));
+            int32_t* value_27 = &(operands[0]);
+            uint64_t value_28 = (uint64_t)(member);
+            ZirSourceSpan value_29 = span;
+            int32_t value_30 = 0;
+            {
+                AssemblyProgram* program = value_24;
+                AssemblyFunction* function = value_25;
+                LirOp op = (LirOp)(value_26);
+                int32_t type = identity;
+                int32_t* operands = value_27;
+                int32_t count = 2;
+                uint64_t index = value_28;
+                ZirSourceSpan span = value_29;
+                int32_t result = compiler_zir_lower_Emit(program, function, op, type, operands, count, -1, span);
+                if (program->failed == 0 && function->current >= 0) {
+                    AssemblyFunction* value_32 = function;
+                    int32_t value_33 = function->current;
+                    AssemblyBlock* value_34 = (void *)0;
+                    {
+                        AssemblyFunction* function = value_32;
+                        int32_t index = value_33;
+                        value_34 = &(function->blocks.data[index]);
+                    }
+                    AssemblyBlock* block = value_34;
+                    LirInstruction* instructions = block->instructions.data;
+                    uint64_t* value_36 = &((instructions[((int32_t)((uint32_t)(block->instructions.count) - 1u))]).immediate);
+                    (*value_36) = index;
+                }
+                value_30 = result;
+            }
+            value = value_30;
+            if (member == range_last_11) {
+                break;
+            }
+            member = (int64_t)((uint64_t)member + UINT64_C(1));
+        }
+    }
+    return value;
+}
+
 static void
-compiler_zir_lower_MoveOut(AssemblyProgram* program, AssemblyFunction* function, int32_t root, int32_t identity, ZirSourceSpan span)
+compiler_zir_lower_MoveOut(AssemblyProgram* program, AssemblyFunction* function, int32_t root, int32_t identity, int32_t value, ZirSourceSpan span)
 {
     bool value_0 = program->failed != 0 || function->current < 0;
     bool value_1 = value_0;
@@ -10618,79 +10748,85 @@ compiler_zir_lower_MoveOut(AssemblyProgram* program, AssemblyFunction* function,
         return;
     }
     int32_t at = root;
-    while (at >= 0 && at < function->source->expr_count && ((ZirExprKind)((function->source->exprs[at]).kind)) == ((ZirExprKind)(8))) {
+    while (true) {
+        bool value_3 = at >= 0 && at < function->source->expr_count;
+        if (value_3) {
+            bool value_4 = ((ZirExprKind)((function->source->exprs[at]).kind)) == ((ZirExprKind)(8)) || ((ZirExprKind)((function->source->exprs[at]).kind)) == ((ZirExprKind)(9));
+            value_3 = (value_4 || ((ZirExprKind)((function->source->exprs[at]).kind)) == ((ZirExprKind)(10)));
+        }
+        if (!value_3) { break; }
         at = (function->source->exprs[at]).left;
     }
     if (at < 0 || at >= function->source->expr_count) {
         return;
     }
     ZirExpr* base = &(function->source->exprs[at]);
-    bool value_3 = ((ZirExprKind)(base->kind)) != ((ZirExprKind)(1));
-    bool value_4 = value_3;
-    if (!value_4) {
-        bool value_5 = base->is_global_value == 0;
-        bool value_6 = value_5 && compiler_zir_lower_Binding(function, (uint8_t*)base->name) < 0;
-        value_4 = value_6;
+    bool value_5 = ((ZirExprKind)(base->kind)) != ((ZirExprKind)(1));
+    bool value_6 = value_5;
+    if (!value_6) {
+        bool value_7 = base->is_global_value == 0;
+        bool value_8 = value_7 && compiler_zir_lower_Binding(function, (uint8_t*)base->name) < 0;
+        value_6 = value_8;
     }
-    if (value_4) {
+    if (value_6) {
         return;
     }
     AssemblyVecPlace place = {.address = -1, .local = (void *)0};
     if (compiler_zir_lower_Addressable(program, function, root, 0) != 0) {
-        int32_t* value_7 = &(place.address);
-        AssemblyProgram* value_8 = program;
-        AssemblyFunction* value_9 = function;
-        int32_t value_10 = 0;
+        int32_t* value_9 = &(place.address);
+        AssemblyProgram* value_10 = program;
+        AssemblyFunction* value_11 = function;
+        int32_t value_12 = 0;
         {
-            AssemblyProgram* program = value_8;
-            AssemblyFunction* function = value_9;
+            AssemblyProgram* program = value_10;
+            AssemblyFunction* function = value_11;
             int32_t index = root;
             int32_t depth = 0;
             bool saved = function->checking;
             if (index >= 0 && index < function->source->expr_count && (function->source->exprs[index]).checked != 0) {
-                bool* value_12 = &(function->checking);
-                (*value_12) = true;
+                bool* value_14 = &(function->checking);
+                (*value_14) = true;
             }
             int32_t result = compiler_zir_lower_AddressOf(program, function, index, depth);
-            bool* value_13 = &(function->checking);
-            (*value_13) = saved;
-            value_10 = result;
+            bool* value_15 = &(function->checking);
+            (*value_15) = saved;
+            value_12 = result;
         }
-        (*value_7) = value_10;
+        (*value_9) = value_12;
     } else {
-        AssemblyLocalPlace** value_14 = &(place.local);
-        AssemblyLocalPlace* value_15 = compiler_zir_lower_CaptureLocal(program, function, root, 0);
-        (*value_14) = value_15;
+        AssemblyLocalPlace** value_16 = &(place.local);
+        AssemblyLocalPlace* value_17 = compiler_zir_lower_CaptureLocal(program, function, root, 0);
+        (*value_16) = value_17;
     }
-    AssemblyProgram* value_16 = program;
-    AssemblyFunction* value_17 = function;
-    AssemblyVecPlace* value_18 = &(place);
-    int32_t value_19 = compiler_zir_lower_Zero(program, function, identity, span, 0);
-    ZirSourceSpan value_20 = span;
+    AssemblyProgram* value_18 = program;
+    AssemblyFunction* value_19 = function;
+    AssemblyVecPlace* value_20 = &(place);
+    int32_t value_21 = compiler_zir_lower_ClearedOwned(program, function, value, identity, span, 0);
+    ZirSourceSpan value_22 = span;
     {
-        AssemblyProgram* program = value_16;
-        AssemblyFunction* function = value_17;
-        AssemblyVecPlace* place = value_18;
-        int32_t value = value_19;
-        ZirSourceSpan span = value_20;
+        AssemblyProgram* program = value_18;
+        AssemblyFunction* function = value_19;
+        AssemblyVecPlace* place = value_20;
+        int32_t value = value_21;
+        ZirSourceSpan span = value_22;
         if (program->failed != 0) {
-            goto value_21;
+            goto value_23;
         }
         if (place->address >= 0) {
-            void* value_22 = compiler_zir_lower_Allocate(program, 2, sizeof(int32_t));
-            int32_t* operands = (int32_t*)(value_22);
+            void* value_24 = compiler_zir_lower_Allocate(program, 2, sizeof(int32_t));
+            int32_t* operands = (int32_t*)(value_24);
             if (operands == ((void *)0)) {
-                goto value_21;
+                goto value_23;
             }
-            int32_t* value_23 = &(operands[0]);
-            (*value_23) = place->address;
-            int32_t* value_24 = &(operands[1]);
-            (*value_24) = value;
+            int32_t* value_25 = &(operands[0]);
+            (*value_25) = place->address;
+            int32_t* value_26 = &(operands[1]);
+            (*value_26) = value;
             compiler_zir_lower_Emit(program, function, (LirOp)(30), 0, operands, 2, -1, span);
-            goto value_21;
+            goto value_23;
         }
         compiler_zir_lower_StoreCaptured(program, function, place->local, value, span);
-    value_21: ;
+    value_23: ;
     }
 }
 
@@ -10995,7 +11131,7 @@ compiler_zir_lower_CaptureLocal(AssemblyProgram* program, AssemblyFunction* func
                     value_68 = value;
                     goto value_69;
                 }
-                compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
                 value_68 = value;
             value_69: ;
             }
@@ -12022,7 +12158,7 @@ compiler_zir_lower_AppendBuilder(AssemblyProgram* program, AssemblyFunction* fun
             value_21 = value;
             goto value_22;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_21 = value;
     value_22: ;
     }
@@ -13499,7 +13635,7 @@ compiler_zir_lower_OwnedClosure(AssemblyProgram* program, AssemblyFunction* func
             value_10 = value;
             goto value_11;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_10 = value;
     value_11: ;
     }
@@ -13620,7 +13756,7 @@ compiler_zir_lower_OwnedClosure(AssemblyProgram* program, AssemblyFunction* func
             value_52 = value;
             goto value_53;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_52 = value;
     value_53: ;
     }
@@ -13648,7 +13784,7 @@ compiler_zir_lower_OwnedClosure(AssemblyProgram* program, AssemblyFunction* func
             value_61 = value;
             goto value_62;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_61 = value;
     value_62: ;
     }
@@ -13699,7 +13835,7 @@ compiler_zir_lower_DropCapture(AssemblyProgram* program, AssemblyFunction* funct
             value_10 = value;
             goto value_11;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_10 = value;
     value_11: ;
     }
@@ -13813,7 +13949,7 @@ compiler_zir_lower_FreePointer(AssemblyProgram* program, AssemblyFunction* funct
             value_10 = value;
             goto value_11;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_10 = value;
     value_11: ;
     }
@@ -14194,7 +14330,7 @@ compiler_zir_lower_VecReserveCall(AssemblyProgram* program, AssemblyFunction* fu
             value_21 = value;
             goto value_22;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_21 = value;
     value_22: ;
     }
@@ -14227,7 +14363,7 @@ compiler_zir_lower_VecReserveCall(AssemblyProgram* program, AssemblyFunction* fu
                 value_28 = value;
                 goto value_29;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_28 = value;
         value_29: ;
         }
@@ -15482,7 +15618,7 @@ compiler_zir_lower_Bit(AssemblyProgram* program, AssemblyFunction* function, Zir
             value_10 = value;
             goto value_11;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_10 = value;
     value_11: ;
     }
@@ -15971,7 +16107,7 @@ compiler_zir_lower_VectorClone(AssemblyProgram* program, AssemblyFunction* funct
             value_28 = value;
             goto value_29;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_28 = value;
     value_29: ;
     }
@@ -16698,7 +16834,7 @@ compiler_zir_lower_VectorTake(AssemblyProgram* program, AssemblyFunction* functi
                 value_35 = value;
                 goto value_36;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_35 = value;
         value_36: ;
         }
@@ -17555,7 +17691,7 @@ compiler_zir_lower_VectorSlice(AssemblyProgram* program, AssemblyFunction* funct
             value_9 = value;
             goto value_10;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_9 = value;
     value_10: ;
     }
@@ -17671,7 +17807,7 @@ compiler_zir_lower_VectorSlice(AssemblyProgram* program, AssemblyFunction* funct
             value_46 = value;
             goto value_47;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_46 = value;
     value_47: ;
     }
@@ -17697,7 +17833,7 @@ compiler_zir_lower_VectorSlice(AssemblyProgram* program, AssemblyFunction* funct
             value_53 = value;
             goto value_54;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_53 = value;
     value_54: ;
     }
@@ -17856,7 +17992,7 @@ compiler_zir_lower_VectorCall(AssemblyProgram* program, AssemblyFunction* functi
                 value_27 = value;
                 goto value_28;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_27 = value;
         value_28: ;
         }
@@ -18729,7 +18865,7 @@ compiler_zir_lower_Expression(AssemblyProgram* program, AssemblyFunction* functi
     if (program->failed != 0 || value < 0 || root < 0 || root >= function->source->expr_count || (function->source->exprs[root]).is_move == 0) {
         return value;
     }
-    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
     return value;
 }
 
@@ -23556,7 +23692,7 @@ compiler_zir_lower_SimdMemory(AssemblySimd* s, SimdOp* op, int32_t* roots, int32
             value_10 = value;
             goto value_11;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_10 = value;
     value_11: ;
     }
@@ -23586,7 +23722,7 @@ compiler_zir_lower_SimdMemory(AssemblySimd* s, SimdOp* op, int32_t* roots, int32
                 value_19 = value;
                 goto value_20;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_19 = value;
         value_20: ;
         }
@@ -23627,7 +23763,7 @@ compiler_zir_lower_SimdMemory(AssemblySimd* s, SimdOp* op, int32_t* roots, int32
                 value_29 = value;
                 goto value_30;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_29 = value;
         value_30: ;
         }
@@ -24262,7 +24398,7 @@ compiler_zir_lower_Simd(AssemblyProgram* program, AssemblyFunction* function, Zi
                 value_19 = value;
                 goto value_20;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_19 = value;
         value_20: ;
         }
@@ -31923,7 +32059,7 @@ compiler_zir_lower_ExpressionFor(AssemblyProgram* program, AssemblyFunction* fun
             value_11 = value;
             goto value_12;
         }
-        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
         value_11 = value;
     value_12: ;
     }
@@ -32225,7 +32361,7 @@ compiler_zir_lower_ExpressionValue(AssemblyProgram* program, AssemblyFunction* f
                     value_80 = value;
                     goto value_81;
                 }
-                compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
                 value_80 = value;
             value_81: ;
             }
@@ -32378,7 +32514,7 @@ compiler_zir_lower_ExpressionValue(AssemblyProgram* program, AssemblyFunction* f
                 value_117 = value;
                 goto value_118;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_117 = value;
         value_118: ;
         }
@@ -32458,7 +32594,7 @@ compiler_zir_lower_ExpressionValue(AssemblyProgram* program, AssemblyFunction* f
                 value_143 = value;
                 goto value_144;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_143 = value;
         value_144: ;
         }
@@ -32537,7 +32673,7 @@ compiler_zir_lower_ExpressionValue(AssemblyProgram* program, AssemblyFunction* f
                 value_161 = value;
                 goto value_162;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_161 = value;
         value_162: ;
         }
@@ -32581,7 +32717,7 @@ compiler_zir_lower_ExpressionValue(AssemblyProgram* program, AssemblyFunction* f
                         value_177 = value;
                         goto value_178;
                     }
-                    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
                     value_177 = value;
                 value_178: ;
                 }
@@ -32672,7 +32808,7 @@ compiler_zir_lower_ExpressionValue(AssemblyProgram* program, AssemblyFunction* f
                 value_203 = value;
                 goto value_204;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_203 = value;
         value_204: ;
         }
@@ -32751,7 +32887,7 @@ compiler_zir_lower_ExpressionValue(AssemblyProgram* program, AssemblyFunction* f
                     value_228 = value;
                     goto value_229;
                 }
-                compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
                 value_228 = value;
             value_229: ;
             }
@@ -33248,7 +33384,7 @@ compiler_zir_lower_ExpressionValue(AssemblyProgram* program, AssemblyFunction* f
                         value_374 = value;
                         goto value_375;
                     }
-                    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
                     value_374 = value;
                 value_375: ;
                 }
@@ -33401,7 +33537,7 @@ compiler_zir_lower_ExpressionValue(AssemblyProgram* program, AssemblyFunction* f
                         value_421 = value;
                         goto value_422;
                     }
-                    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
                     value_421 = value;
                 value_422: ;
                 }
@@ -33663,7 +33799,7 @@ compiler_zir_lower_ExpressionValue(AssemblyProgram* program, AssemblyFunction* f
                         value_500 = value;
                         goto value_501;
                     }
-                    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
                     value_500 = value;
                 value_501: ;
                 }
@@ -34035,7 +34171,7 @@ compiler_zir_lower_AssemblyIf(AssemblyProgram* program, AssemblyFunction* functi
                 value_9 = value;
                 goto value_10;
             }
-            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
             value_9 = value;
         value_10: ;
         }
@@ -34174,7 +34310,7 @@ compiler_zir_lower_AssemblyIf(AssemblyProgram* program, AssemblyFunction* functi
                         value_41 = value;
                         goto value_42;
                     }
-                    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
                     value_41 = value;
                 value_42: ;
                 }
@@ -34556,7 +34692,7 @@ compiler_zir_lower_Sequence(AssemblyProgram* program, AssemblyFunction* function
                             value_46 = value;
                             goto value_47;
                         }
-                        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
                         value_46 = value;
                     value_47: ;
                     }
@@ -34779,7 +34915,7 @@ compiler_zir_lower_Sequence(AssemblyProgram* program, AssemblyFunction* function
                         value_102 = value;
                         goto value_103;
                     }
-                    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
                     value_102 = value;
                 value_103: ;
                 }
@@ -34937,10 +35073,10 @@ compiler_zir_lower_Sequence(AssemblyProgram* program, AssemblyFunction* function
                 while (base >= 0 && base < function->source->expr_count && (((ZirExprKind)((function->source->exprs[base]).kind)) == ((ZirExprKind)(8)) || ((ZirExprKind)((function->source->exprs[base]).kind)) == ((ZirExprKind)(10)))) {
                     base = (function->source->exprs[base]).left;
                 }
-                bool global_base = false;
+                bool frees_old = ((ZirExprKind)((function->source->exprs[place]).kind)) == ((ZirExprKind)(8)) || ((ZirExprKind)((function->source->exprs[place]).kind)) == ((ZirExprKind)(9));
                 bool value_140 = base >= 0 && base < function->source->expr_count && ((ZirExprKind)((function->source->exprs[base]).kind)) == ((ZirExprKind)(1));
                 if (value_140 && (function->source->exprs[base]).is_global_value != 0) {
-                    global_base = true;
+                    frees_old = true;
                 }
                 bool value_141 = StringEqual(compiler_ir_CText(&(statement->assignment_op[0])), StringLiteral("="));
                 bool value_142 = value_141;
@@ -34948,7 +35084,7 @@ compiler_zir_lower_Sequence(AssemblyProgram* program, AssemblyFunction* function
                     bool value_143 = compiler_zir_lower_TypeOwned(program, identity, 0);
                     value_142 = (value_143 == true);
                 }
-                if (value_142 && global_base == true) {
+                if (value_142 && frees_old == true) {
                     int32_t old = compiler_zir_lower_Emit(program, function, (LirOp)(29), identity, &(address), 1, -1, statement->span);
                     compiler_zir_lower_DropValue(program, function, old, identity, statement->span, 0);
                 }
@@ -34984,7 +35120,7 @@ compiler_zir_lower_Sequence(AssemblyProgram* program, AssemblyFunction* function
                         value_149 = value;
                         goto value_150;
                     }
-                    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
                     value_149 = value;
                 value_150: ;
                 }
@@ -35049,7 +35185,7 @@ compiler_zir_lower_Sequence(AssemblyProgram* program, AssemblyFunction* function
                             value_171 = value;
                             goto value_172;
                         }
-                        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                        compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
                         value_171 = value;
                     value_172: ;
                     }
@@ -35162,7 +35298,7 @@ compiler_zir_lower_Sequence(AssemblyProgram* program, AssemblyFunction* function
                     value_196 = value;
                     goto value_197;
                 }
-                compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
                 value_196 = value;
             value_197: ;
             }
@@ -36875,7 +37011,7 @@ compiler_zir_lower_LowerBody(AssemblyProgram* program, AssemblyFunction* builder
                     value_18 = value;
                     goto value_19;
                 }
-                compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], value, (function->source->exprs[root]).span);
                 value_18 = value;
             value_19: ;
             }
@@ -37896,7 +38032,7 @@ AssemblyHostInterface(AssemblyProgram* program, size_t* length)
     index = 0;
     while (index < program->globals.count && text.failed == 0) {
         AssemblyGlobal* global = &(globals[index]);
-        if (global->source == ((void *)0)) {
+        if (global->source == ((void *)0) || global->source->is_static != 0 || global->source->is_file_private != 0) {
             index = (int32_t)((uint32_t)index + 1u);
             continue;
         }

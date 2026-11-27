@@ -14,6 +14,8 @@ CompilerContextSelect :: (context: *u8) -> *u8 #foreign compiler "CompilerContex
 CompilerFree :: (pointer: *void) #foreign compiler "CompilerFree";
 CompilerMalloc :: (size: usize) -> *void #foreign compiler "CompilerMalloc";
 CompilerStructureFunction :: (arg0: *IR.ZirFunction, arg1: *IR.ZirModule) #foreign compiler "CompilerStructureFunction";
+ExpressionOwners :: (fn: *IR.ZirFunction) -> *s32 #foreign compiler "ExpressionOwners";
+ExpressionLexicalCallTarget :: (fn: *IR.ZirFunction, index: s32, statement: s32, output: *u8, capacity: usize) -> s32 #foreign compiler "ExpressionLexicalCallTarget";
 Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, varargs: ..any) #foreign compiler "Diagnostic";
 EnumMemberValue :: (type: *IR.ZirType, name: *u8, value: *s64) -> s32 #foreign compiler "EnumMemberValue";
 FindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
@@ -22,6 +24,7 @@ KeepName :: (text: *u8) -> *u8 #foreign compiler "KeepName";
 KeepParameters :: (text: *u8) -> *u8 #foreign compiler "KeepParameters";
 KeepText :: (text: *u8) -> *u8 #foreign compiler "KeepText";
 ModuleAddFunction :: (module: *IR.ZirModule, name: *u8, args: *u8, return_type: *u8, exported: s32, span: IR.ZirSourceSpan) -> *IR.ZirFunction #foreign compiler "ModuleAddFunction";
+ModuleAddImport :: (module: *IR.ZirModule, kind: IR.ZirImportKind, name: *u8, target: *u8, signature: *u8, required: s32, span: IR.ZirSourceSpan) -> *IR.ZirImport #foreign compiler "ModuleAddImport";
 ModuleAddType :: (module: *IR.ZirModule, name: *u8, span: IR.ZirSourceSpan) -> *IR.ZirType #foreign compiler "ModuleAddType";
 ResolveFunctionAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8, owner: **IR.ZirModule, function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunctionAt";
 ScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
@@ -492,6 +495,16 @@ rewrite_function_type_applications_with_buffers :: (module: *IR.ZirModule, fn: *
         }
         for e: cast(s32)0..fn.expr_count - 1 {
             expression := *fn.exprs[e]
+            if expression.type != null && expression.type[0] != 0 {
+                if rewrite_type_applications(module, expression.type, expanded,
+                    size_of(S12Array8192_u8), expression.span, 0) == 0 { return 0 }
+                fn.exprs[e].type = KeepName(expanded)
+            }
+            if expression.slot_type != null && expression.slot_type[0] != 0 {
+                if rewrite_type_applications(module, expression.slot_type, expanded,
+                    size_of(S12Array8192_u8), expression.span, 0) == 0 { return 0 }
+                fn.exprs[e].slot_type = KeepName(expanded)
+            }
             if expression.kind != .CAST && expression.kind != .COMPOUND && expression.kind != .SIZE_OF { continue }
             if expression.name == null || expression.name[0] == 0 { continue }
             if rewrite_type_applications(module, expression.name, expanded,
@@ -1115,6 +1128,9 @@ instantiate_specializations_with_buffers :: (checker: *State.Checker, buffers: *
                 }
             }
             {
+                expression_owners := ExpressionOwners(instance)
+                defer CompilerFree(cast(*void)expression_owners)
+                if instance.expr_count > 0 && expression_owners == null { return 0 }
                 x: s32 = 0
                 while check_loop_181 := (x < (instance).expr_count) {
                     expression: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((instance).exprs) + cast(usize)(x) * size_of(IR.ZirExpr))
@@ -1141,27 +1157,45 @@ instantiate_specializations_with_buffers :: (checker: *State.Checker, buffers: *
                         }
                         (expression).name = KeepName(cast(*u8)(*((name_storage_3[0]).items)))
                     }
-                    if (((owner != template_owner) && (cast(s32)((expression).kind) == 5)) && (strchr((expression).name, 46) == cast(*u8)((null)))) {
+                    if owner != template_owner && expression.kind == .CALL {
+                        lexical_target: [128]u8
                         callee_owner: *IR.ZirModule = null
                         callee: *IR.ZirFunction = null
-                        if (((ResolveFunctionAt(template_owner, (expression).name, SpanPath(((buffers).original).span), *(callee_owner), *(callee)) == 1) && (callee_owner == template_owner)) && (callee != cast(*IR.ZirFunction)((null)))) {
-                            // Re-exported templates need not have a direct import
-                            // alias in the caller. Their defining module is still
-                            // reachable through that export graph.
-                            qualifier := cast(*u8)*template_owner.name
+                        if ExpressionLexicalCallTarget(instance, x, expression_owners[x], *lexical_target[0],
+                            size_of(type_of(lexical_target))) != 0 &&
+                            ResolveFunctionAt(template_owner, *lexical_target[0], SpanPath(buffers.original.span),
+                            *callee_owner, *callee) == 1 && callee != null && callee_owner != null {
+                            // The body keeps the template's lexical imports,
+                            // including aliases absent or shadowed in the caller.
+                            qualifier: *u8 = null
                             for import_index: 0..owner.import_count - 1 {
                                 imported := *owner.imports[import_index]
-                                if cast(s32)imported.kind == 2 && imported.resolved_module == template_owner &&
+                                if cast(s32)imported.kind == 2 && imported.resolved_module == callee_owner &&
                                    (imported.is_file_private == 0 || strcmp(SpanPath(imported.span), SpanPath(instance.span)) == 0) {
                                     qualifier = cast(*u8)*imported.name
                                     break
                                 }
                             }
+                            if qualifier == null {
+                                alias: [128]u8
+                                written := snprintf(*alias[0], size_of(type_of(alias)),
+                                    CheckCString("__zi_lexical_%016llx"),
+                                    specialization_hash(callee_owner, callee_owner, callee, CheckCString("")))
+                                if written < 0 || cast(usize)written >= size_of(type_of(alias)) { return 0 }
+                                for import_index: 0..owner.import_count - 1 {
+                                    if strcmp(*owner.imports[import_index].name[0], *alias[0]) == 0 { return 0 }
+                                }
+                                imported := ModuleAddImport(owner, cast(IR.ZirImportKind)2, *alias[0],
+                                    *callee_owner.name[0], CheckCString(""), 0, instance.span)
+                                if imported == null { return 0 }
+                                imported.resolved_module = callee_owner
+                                qualifier = cast(*u8)*imported.name[0]
+                            }
                             dependency := cast(*S12Array128_u8)AllocateOrExit(size_of(S12Array128_u8))
                             defer CompilerFree(cast(*void)dependency)
-                            callee_name := expression.name
+                            callee_name := cast(*u8)*callee.name
                             if callee.is_public == 0 || callee.is_file_private != 0 {
-                                if retain_template_dependency(template_owner, callee, *dependency.items[0],
+                                if retain_template_dependency(callee_owner, callee, *dependency.items[0],
                                     size_of(S12Array128_u8)) == 0 { return 0 }
                                 callee_name = *dependency.items[0]
                             }
@@ -1171,6 +1205,7 @@ instantiate_specializations_with_buffers :: (checker: *State.Checker, buffers: *
                                 CheckCString("%s.%s"), qualifier, callee_name)
                             if written < 0 || cast(usize)written >= size_of(S12Array128_u8) { return 0 }
                             expression.name = KeepName(*qualified.items[0])
+                            expression.left = -1
                         }
                     }
                     S12Post2(*(x))

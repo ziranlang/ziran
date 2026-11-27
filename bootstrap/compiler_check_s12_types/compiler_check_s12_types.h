@@ -179,6 +179,7 @@ struct BorrowMutation {
     BorrowPath* path;
     struct BorrowMutation* next;
     struct BorrowMutation* next_same_root;
+    int32_t owned_transfer;
 };
 
 struct BorrowPath {

@@ -60,6 +60,22 @@ ExprStatementOwners :: (fn: *IR.ZirFunction) -> *s32 {
     return owners
 }
 
+#program_export "ExpressionLexicalCallTarget"
+ExprLexicalCallTarget :: (fn: *IR.ZirFunction, index: s32, statement: s32,
+    output: *u8, capacity: usize) -> s32 {
+    if index < 0 || index >= fn.expr_count { return 0 }
+    call := *fn.exprs[index]
+    if call.kind != .CALL { return 0 }
+    buffer: [IR.ZIR_NAME_MAX]u8
+    target := IR.CText(call.name)
+    if target.count == 0 && call.left >= 0 { target = CallTarget(fn, call.left, buffer[:]) }
+    if target.count == 0 { return 0 }
+    dot := ByteIndex(target, #char ".")
+    base := ifx dot < 0 then target else target[0:dot]
+    if CallNameShadowed(fn, statement, base) { return 0 }
+    return cast(s32)IR.CopyText(IR.CBuffer(output, capacity), target)
+}
+
 // Cache the statement's length and resume line walks at the previous offset.
 ExprStatementCursor :: struct {
     text: *void

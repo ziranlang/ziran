@@ -12,6 +12,8 @@ ProgramNew :: () -> *IR.ZirProgram #foreign compiler "ProgramNew";
 ProgramFree :: (program: *IR.ZirProgram) #foreign compiler "ProgramFree";
 ProgramAddModule :: (program: *IR.ZirProgram, name: *u8, path: *u8, span: IR.ZirSourceSpan) -> *IR.ZirModule #foreign compiler "ProgramAddModule";
 ModuleAddFunction :: (module: *IR.ZirModule, name: *u8, args: *u8, result: *u8, exported: s32, span: IR.ZirSourceSpan) -> *IR.ZirFunction #foreign compiler "ModuleAddFunction";
+ModuleAddGlobal :: (module: *IR.ZirModule, name: *u8, type: *u8, init: *u8, span: IR.ZirSourceSpan) #foreign compiler "ModuleAddGlobal";
+ModuleAddDefine :: (module: *IR.ZirModule, name: *u8, value: *u8, span: IR.ZirSourceSpan) -> *IR.ZirDefine #foreign compiler "ModuleAddDefine";
 ModuleAddType :: (module: *IR.ZirModule, name: *u8, span: IR.ZirSourceSpan) -> *IR.ZirType #foreign compiler "ModuleAddType";
 FunctionAddStmt :: (fn: *IR.ZirFunction, kind: IR.ZirStmtKind, text: *u8, span: IR.ZirSourceSpan) -> *IR.ZirStmt #foreign compiler "FunctionAddStmt";
 Span :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan #foreign compiler "Span";
@@ -175,6 +177,7 @@ TypeClose :: (p: *Parser) {
     else { p.token.begin += 1; p.token.column += 1 }
 }
 TypePrimary :: (p: *Parser) -> string {
+    if Take(p, "*") { return Join("*", TypeName(p)) }
     if Token(p) == "(" {
         span := Location(p)
         name := GeneratedName("type", span)
@@ -993,6 +996,70 @@ Function :: (p: *Parser, public: bool) {
     unused VecResize(p.locals, previous)
     p.fn = null
 }
+ModuleBinding :: (p: *Parser, public: bool) {
+    immutable := Token(p) == "const"
+    Advance(p)
+    span := Location(p)
+    name := Identifier(p)
+    Expect(p, ":")
+    type := TypeName(p)
+    Expect(p, "=")
+    if p.failed { return }
+    for imported: p.imports {
+        if imported.alias == name { Fail(p, "module binding conflicts with an import"); return }
+    }
+    for i: cast(s32)0..p.module.global_count - 1 {
+        if IR.CText(*p.module.globals[i].name[0]) == name { Fail(p, "duplicate module binding"); return }
+    }
+    for i: cast(s32)0..p.module.define_count - 1 {
+        if IR.CText(*p.module.defines[i].name[0]) == name { Fail(p, "duplicate module binding"); return }
+    }
+    initializer := Location(p)
+    if immutable {
+        // The shared constant representation preserves the native string type.
+        // Other native types need a typed readonly slot in the common IR.
+        if type != "string" || (p.token.kind != .String && p.token.kind != .Char) {
+            Fail(p, "module const currently requires a string literal and the string type")
+            return
+        }
+        value := Quoted(p)
+        if !p.failed {
+            definition := ModuleAddDefine(p.module, Services.KeepName(name), Services.Keep(value), span)
+            if definition == null { Fail(p, "cannot allocate module constant"); return }
+            definition.is_public = ifx public then 1 else 0
+            definition.is_file_private = ifx public then 0 else 1
+        }
+    } else {
+        index := p.module.global_count
+        ModuleAddGlobal(p.module, Services.KeepName(name), Services.KeepName(type), Services.Keep(""), span)
+        if p.module.global_count != index + 1 { Fail(p, "cannot allocate module global"); return }
+        p.module.globals[index].is_file_private = ifx public then 0 else 1
+        p.module.globals[index].is_static = ifx public then 0 else 1
+
+        // Emit the same startup routine as a native runtime initializer, with
+        // the authored expression graph and span already attached.
+        startup := GeneratedName("global_init", span)
+        p.fn = ModuleAddFunction(p.module, Services.KeepName(startup), Services.KeepParameters(""), Services.KeepName("void"), 0, initializer)
+        if p.fn == null { Fail(p, "cannot allocate global initializer"); return }
+        p.fn.from_ir = 1
+        p.fn.is_global_initializer = 1
+        p.fn.is_public = 0
+        p.fn.is_file_private = 1
+        left := NameNode(p, name, span)
+        value := Expression(p)
+        if !p.failed {
+            st := Statement(p, .ASSIGN, Join(name, " = ", TextOf(p, value)), initializer)
+            if st == null { Fail(p, "cannot allocate global assignment") }
+            else {
+                st.lhs_root = left
+                st.expr_root = value
+                unused IR.CopyText(st.assignment_op[:], "=")
+            }
+        }
+        p.fn = null
+    }
+    unused Take(p, ";")
+}
 Interface :: (p: *Parser, public: bool) {
     span := Location(p)
     name := Identifier(p)
@@ -1108,6 +1175,7 @@ Parse :: (path: *u8, root: *u8, source: *u8) -> *IR.ZirProgram {
         if Take(*p, "function") { Function(*p, public) }
         else if Take(*p, "interface") { Interface(*p, public) }
         else if Take(*p, "type") { TypeAlias(*p, public) }
+        else if Token(*p) == "let" || Token(*p) == "const" { ModuleBinding(*p, public) }
         else if !public && Take(*p, "import") { Import(*p, false) }
         else { Fail(*p, "unsupported native TypeScript declaration") }
     }

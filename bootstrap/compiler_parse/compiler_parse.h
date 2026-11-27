@@ -85,6 +85,7 @@ int32_t CompilerParseExprTyped(ZirFunction* fn, ZirModule* module, void* text, Z
 int32_t CompilerDefineIsAggregate(ZirModule* module, ZirDefine* definition);
 int32_t CompilerCallerLocationLiteral(ZirModule* module, ZirSourceSpan span, void* output, size_t capacity);
 int32_t* ExpressionOwners(ZirFunction* fn);
+int32_t ExpressionLexicalCallTarget(ZirFunction* fn, int32_t index, int32_t statement, uint8_t* output, size_t capacity);
 size_t ExprSavedCursorLength(ExprStatementCursor* cursor, void* text, int32_t line);
 int64_t ExprSavedSourceOffset(ExprStatementCursor* cursor, void* text, ZirSourceSpan base, ZirSourceSpan span);
 void CompilerStructureFunction(ZirFunction* fn, ZirModule* module);

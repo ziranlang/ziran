@@ -3871,39 +3871,38 @@ compiler_parse_discover_qualify_generic_field_type(uint8_t* type, uint8_t* out, 
                         compiler_parse_types_ParserPost0(&(i));
                     }
                 }
-                bool value_16 = !(parameter != 0);
-                bool value_17 = value_16;
-                if (value_17) {
-                    uint8_t* value_18 = zir_foreign_compiler_parse_discover__strchr((uint8_t*)(&((name_storage_0[0]).items)), 46);
-                    value_17 = (value_18 == (uint8_t*)(((void *)0)));
-                }
-                if (value_17) {
+                if (parameter == 0) {
                     ZirModule* declared_in = (void *)0;
-                    ZirType* declared = zir_foreign_compiler_parse_discover__FindType(owner, (uint8_t*)(&((name_storage_0[0]).items)), &(declared_in));
-                    bool value_19 = declared != (ZirType*)(((void *)0)) && declared_in != (ZirModule*)(((void *)0));
-                    bool value_20 = value_19;
-                    if (value_20) {
-                        ZirType* value_21 = zir_foreign_compiler_parse_discover__FindType(user, (uint8_t*)(&((name_storage_0[0]).items)), (void *)0);
-                        value_20 = (value_21 != declared);
+                    ZirType* declared = zir_foreign_compiler_parse_discover__FindType(owner, spelled, &(declared_in));
+                    bool value_16 = declared != ((void *)0) && declared_in != ((void *)0);
+                    bool value_17 = value_16;
+                    if (value_17) {
+                        ZirType* value_18 = zir_foreign_compiler_parse_discover__FindType(user, spelled, (void *)0);
+                        value_17 = (value_18 != declared);
                     }
-                    bool value_22 = value_20;
-                    bool value_23 = value_22 && zir_foreign_compiler_parse_discover__snprintf((uint8_t*)(&((qualified_storage_1[0]).items)), (size_t)(sizeof(ParserArray128_u8)), compiler_parse_types_ParserCString(StringLiteral("%s.%s")), (uint8_t*)(&(declared_in->name)), (uint8_t*)(&((name_storage_0[0]).items))) < (int32_t)((size_t)(sizeof(ParserArray128_u8)));
-                    bool value_24 = value_23;
-                    bool value_25 = value_24;
-                    if (value_25) {
-                        ZirType* value_26 = zir_foreign_compiler_parse_discover__FindType(user, (uint8_t*)(&((qualified_storage_1[0]).items)), (void *)0);
-                        value_25 = (value_26 == declared);
-                    }
-                    if (value_25) {
-                        spelled = (uint8_t*)(&((qualified_storage_1[0]).items));
+                    if (value_17) {
+                        int32_t written = zir_foreign_compiler_parse_discover__snprintf(&(((qualified_storage_1[0]).items)[0]), sizeof(ParserArray128_u8), compiler_parse_types_ParserCString(StringLiteral("%s.%s")), &(declared_in->name[0]), &(declared->name[0]));
+                        bool value_19 = written < 0 || (size_t)(written) >= sizeof(ParserArray128_u8);
+                        bool value_20 = value_19;
+                        if (!value_20) {
+                            ZirType* value_21 = zir_foreign_compiler_parse_discover__FindType(user, &(((qualified_storage_1[0]).items)[0]), (void *)0);
+                            value_20 = (value_21 != declared);
+                        }
+                        if (value_20) {
+                            int32_t cleanup_return_1 = 0;
+                            zir_foreign_compiler_parse_discover__CompilerFree((void*)(qualified_storage_1));
+                            zir_foreign_compiler_parse_discover__CompilerFree((void*)(name_storage_0));
+                            return cleanup_return_1;
+                        }
+                        spelled = &(((qualified_storage_1[0]).items)[0]);
                     }
                 }
                 size_t spelled_length = zir_foreign_compiler_parse_discover__strlen(spelled);
                 if (used + spelled_length >= size) {
-                    int32_t cleanup_return_1 = 0;
+                    int32_t cleanup_return_2 = 0;
                     zir_foreign_compiler_parse_discover__CompilerFree((void*)(qualified_storage_1));
                     zir_foreign_compiler_parse_discover__CompilerFree((void*)(name_storage_0));
-                    return cleanup_return_1;
+                    return cleanup_return_2;
                 }
                 zir_foreign_compiler_parse_discover__memcpy((void*)((uint8_t*)(((size_t)(out) + ((size_t)(used) * sizeof(uint8_t))))), (void*)(spelled), spelled_length);
                 used = used + spelled_length;
@@ -3914,8 +3913,8 @@ compiler_parse_discover_qualify_generic_field_type(uint8_t* type, uint8_t* out, 
         }
         zir_loop_break_1: ;
     }
-    uint8_t* value_27 = &(out[used]);
-    (*value_27) = 0;
+    uint8_t* value_22 = &(out[used]);
+    (*value_22) = 0;
     return 1;
 }
 
@@ -3957,18 +3956,13 @@ compiler_parse_discover_InstantiateOwnedCallable(ZirType* instance, ZirModule* u
             ZirParameter parameter = (parameters->items.items)[i];
             uint8_t type[128] = {0};
             zir_foreign_compiler_parse_discover__copy_text(&(type[0]), (128) * (sizeof(uint8_t)), parameter.type);
-            if (zir_foreign_compiler_parse_discover__record_field_type_at_use(user, signature_owner, signature_name, &(type[0]), (128) * (sizeof(uint8_t))) == 0) {
-                int32_t cleanup_return_1 = 0;
-                zir_foreign_compiler_parse_discover__CompilerFree((void*)(buffers));
-                return cleanup_return_1;
-            }
             size_t value_4 = 8192 - (size_t)(used);
             uint8_t* value_5 = compiler_parse_types_ParserCString(StringLiteral(", %s: %s"));
             int32_t length = zir_foreign_compiler_parse_discover__snprintf(&(args[used]), value_4, value_5, parameter.name, &(type[0]));
             if (length < 0 || (size_t)(length) >= 8192 - (size_t)(used)) {
-                int32_t cleanup_return_2 = 0;
+                int32_t cleanup_return_1 = 0;
                 zir_foreign_compiler_parse_discover__CompilerFree((void*)(buffers));
-                return cleanup_return_2;
+                return cleanup_return_1;
             }
             used = (int32_t)((uint32_t)used + (uint32_t)length);
             if (i == range_last_17) {
@@ -3979,34 +3973,30 @@ compiler_parse_discover_InstantiateOwnedCallable(ZirType* instance, ZirModule* u
     }
     uint8_t result[128] = {0};
     zir_foreign_compiler_parse_discover__copy_text(&(result[0]), (128) * (sizeof(uint8_t)), &(signature_copy->procedure_return_type[0]));
-    if (zir_foreign_compiler_parse_discover__record_field_type_at_use(user, signature_owner, signature_name, &(result[0]), (128) * (sizeof(uint8_t))) == 0) {
-        int32_t cleanup_return_3 = 0;
-        zir_foreign_compiler_parse_discover__CompilerFree((void*)(buffers));
-        return cleanup_return_3;
-    }
     uint64_t hash = 14695981039346656037ULL;
     {
-        String loop_items_42 = compiler_ir_CText(&(user->name[0]));
-        String loop_view_42 = StringRangeAt(loop_items_42, (int64_t)0, (int64_t)loop_items_42.length);
-        int64_t loop_count_42 = (int64_t)(loop_view_42).length;
-        int64_t loop_cursor_42 = 0LL;
-        while (loop_cursor_42 < loop_count_42) {
-            int64_t loop_index_42 = loop_cursor_42;
-            uint8_t byte = (uint8_t)loop_view_42.data[loop_index_42];
+        String loop_items_32 = compiler_ir_CText(&(signature_owner->name[0]));
+        String loop_view_32 = StringRangeAt(loop_items_32, (int64_t)0, (int64_t)loop_items_32.length);
+        int64_t loop_count_32 = (int64_t)(loop_view_32).length;
+        int64_t loop_cursor_32 = 0LL;
+        while (loop_cursor_32 < loop_count_32) {
+            int64_t loop_index_32 = loop_cursor_32;
+            uint8_t byte = (uint8_t)loop_view_32.data[loop_index_32];
             hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)(byte)) * UINT64_C(1099511628211));
-            loop_cursor_42 = (int64_t)((uint64_t)loop_cursor_42 + UINT64_C(1));
+            loop_cursor_32 = (int64_t)((uint64_t)loop_cursor_32 + UINT64_C(1));
         }
     }
+    hash = (uint64_t)((uint64_t)hash * UINT64_C(1099511628211));
     {
-        String loop_items_45 = compiler_ir_CText(&(value->name[0]));
-        String loop_view_45 = StringRangeAt(loop_items_45, (int64_t)0, (int64_t)loop_items_45.length);
-        int64_t loop_count_45 = (int64_t)(loop_view_45).length;
-        int64_t loop_cursor_45 = 0LL;
-        while (loop_cursor_45 < loop_count_45) {
-            int64_t loop_index_45 = loop_cursor_45;
-            uint8_t byte = (uint8_t)loop_view_45.data[loop_index_45];
+        String loop_items_36 = compiler_ir_CText(&(signature_copy->name[0]));
+        String loop_view_36 = StringRangeAt(loop_items_36, (int64_t)0, (int64_t)loop_items_36.length);
+        int64_t loop_count_36 = (int64_t)(loop_view_36).length;
+        int64_t loop_cursor_36 = 0LL;
+        while (loop_cursor_36 < loop_count_36) {
+            int64_t loop_index_36 = loop_cursor_36;
+            uint8_t byte = (uint8_t)loop_view_36.data[loop_index_36];
             hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)(byte)) * UINT64_C(1099511628211));
-            loop_cursor_45 = (int64_t)((uint64_t)loop_cursor_45 + UINT64_C(1));
+            loop_cursor_36 = (int64_t)((uint64_t)loop_cursor_36 + UINT64_C(1));
         }
     }
     uint8_t invoke_name[128] = {0};
@@ -4015,49 +4005,79 @@ compiler_parse_discover_InstantiateOwnedCallable(ZirType* instance, ZirModule* u
     zir_foreign_compiler_parse_discover__snprintf(&(invoke_name[0]), (128) * (sizeof(uint8_t)), value_6, hash);
     uint8_t* value_7 = compiler_parse_types_ParserCString(StringLiteral("__owned_release_%016llx"));
     zir_foreign_compiler_parse_discover__snprintf(&(release_name[0]), (128) * (sizeof(uint8_t)), value_7, hash);
-    ZirType* invoke = zir_foreign_compiler_parse_discover__ModuleAddType(user, &(invoke_name[0]), value->span);
+    ZirType* invoke = zir_foreign_compiler_parse_discover__FindType(signature_owner, &(invoke_name[0]), (void *)0);
     if (invoke == ((void *)0)) {
-        int32_t cleanup_return_4 = 0;
-        zir_foreign_compiler_parse_discover__CompilerFree((void*)(buffers));
-        return cleanup_return_4;
+        invoke = zir_foreign_compiler_parse_discover__ModuleAddType(signature_owner, &(invoke_name[0]), signature_copy->span);
+        if (invoke == ((void *)0)) {
+            int32_t cleanup_return_2 = 0;
+            zir_foreign_compiler_parse_discover__CompilerFree((void*)(buffers));
+            return cleanup_return_2;
+        }
+        int32_t* value_8 = &(invoke->is_procedure_type);
+        (*value_8) = 1;
+        Slice value_9 = {invoke->body, 8192};
+        Slice value_10 = value_9;
+        compiler_ir_CopyText(value_10, compiler_ir_CText(&(args[0])));
+        Slice value_11 = {invoke->procedure_return_type, 128};
+        Slice value_12 = value_11;
+        compiler_ir_CopyText(value_12, compiler_ir_CText(&(result[0])));
+    } else {
+        bool value_13 = invoke->is_procedure_type == 0;
+        bool value_14 = value_13 || zir_foreign_compiler_parse_discover__strcmp(&(invoke->body[0]), &(args[0])) != 0;
+        bool value_15 = value_14;
+        if (value_15 || zir_foreign_compiler_parse_discover__strcmp(&(invoke->procedure_return_type[0]), &(result[0])) != 0) {
+            int32_t cleanup_return_3 = 0;
+            zir_foreign_compiler_parse_discover__CompilerFree((void*)(buffers));
+            return cleanup_return_3;
+        }
     }
-    int32_t* value_8 = &(invoke->is_procedure_type);
-    (*value_8) = 1;
-    Slice value_9 = {invoke->body, 8192};
-    Slice value_10 = value_9;
-    compiler_ir_CopyText(value_10, compiler_ir_CText(&(args[0])));
-    Slice value_11 = {invoke->procedure_return_type, 128};
-    Slice value_12 = value_11;
-    compiler_ir_CopyText(value_12, compiler_ir_CText(&(result[0])));
-    ZirType* release = zir_foreign_compiler_parse_discover__ModuleAddType(user, &(release_name[0]), value->span);
+    ZirType* release = zir_foreign_compiler_parse_discover__FindType(signature_owner, &(release_name[0]), (void *)0);
     if (release == ((void *)0)) {
-        int32_t cleanup_return_5 = 0;
-        zir_foreign_compiler_parse_discover__CompilerFree((void*)(buffers));
-        return cleanup_return_5;
+        release = zir_foreign_compiler_parse_discover__ModuleAddType(signature_owner, &(release_name[0]), signature_copy->span);
+        if (release == ((void *)0)) {
+            int32_t cleanup_return_4 = 0;
+            zir_foreign_compiler_parse_discover__CompilerFree((void*)(buffers));
+            return cleanup_return_4;
+        }
+        int32_t* value_16 = &(release->is_procedure_type);
+        (*value_16) = 1;
+        Slice value_17 = {release->body, 8192};
+        compiler_ir_CopyText(value_17, StringLiteral("__tsx_state: *u8"));
+        Slice value_18 = {release->procedure_return_type, 128};
+        compiler_ir_CopyText(value_18, StringLiteral("void"));
+    } else {
+        bool value_19 = release->is_procedure_type == 0;
+        bool value_20 = value_19 || !StringEqual(compiler_ir_CText(&(release->body[0])), StringLiteral("__tsx_state: *u8"));
+        bool value_21 = value_20;
+        if (value_21 || !StringEqual(compiler_ir_CText(&(release->procedure_return_type[0])), StringLiteral("void"))) {
+            int32_t cleanup_return_5 = 0;
+            zir_foreign_compiler_parse_discover__CompilerFree((void*)(buffers));
+            return cleanup_return_5;
+        }
     }
-    int32_t* value_13 = &(release->is_procedure_type);
-    (*value_13) = 1;
-    Slice value_14 = {release->body, 8192};
-    compiler_ir_CopyText(value_14, StringLiteral("__tsx_state: *u8"));
-    Slice value_15 = {release->procedure_return_type, 128};
-    compiler_ir_CopyText(value_15, StringLiteral("void"));
-    int32_t* value_16 = &(value->is_type_instance);
-    (*value_16) = 0;
-    int32_t* value_17 = &(value->is_owned_callable);
-    (*value_17) = 1;
+    bool value_22 = zir_foreign_compiler_parse_discover__record_field_type_at_use(user, signature_owner, signature_name, &(invoke_name[0]), (128) * (sizeof(uint8_t))) == 0;
+    if (value_22 || zir_foreign_compiler_parse_discover__record_field_type_at_use(user, signature_owner, signature_name, &(release_name[0]), (128) * (sizeof(uint8_t))) == 0) {
+        int32_t cleanup_return_6 = 0;
+        zir_foreign_compiler_parse_discover__CompilerFree((void*)(buffers));
+        return cleanup_return_6;
+    }
+    int32_t* value_23 = &(value->is_type_instance);
+    (*value_23) = 0;
+    int32_t* value_24 = &(value->is_owned_callable);
+    (*value_24) = 1;
     zir_foreign_compiler_parse_discover__snprintf(&(value->body[0]), (8192) * (sizeof(uint8_t)), compiler_parse_types_ParserCString(StringLiteral("state: *u8; invoke: %s; release: %s;")), &(invoke_name[0]), &(release_name[0]));
     if (value->is_synthetic_application == 0) {
-        uint8_t* value_18 = &(value->template_name[0]);
-        (*value_18) = 0;
-        uint8_t* value_19 = &(value->template_args[0]);
-        (*value_19) = 0;
+        uint8_t* value_25 = &(value->template_name[0]);
+        (*value_25) = 0;
+        uint8_t* value_26 = &(value->template_args[0]);
+        (*value_26) = 0;
     }
-    ZirType* value_20 = &(user->types[index]);
-    (*value_20) = value[0];
+    ZirType* value_27 = &(user->types[index]);
+    (*value_27) = value[0];
     compiler_services_LookupsChanged();
-    int32_t cleanup_return_6 = 1;
+    int32_t cleanup_return_7 = 1;
     zir_foreign_compiler_parse_discover__CompilerFree((void*)(buffers));
-    return cleanup_return_6;
+    return cleanup_return_7;
 }
 
 int32_t

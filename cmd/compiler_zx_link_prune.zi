@@ -466,7 +466,11 @@ StartFieldUses :: (program: *IR.ZirProgram, uses: *FieldUses, owners: **IR.ZirMo
 MarkModuleFields :: (module: *IR.ZirModule, entry_module: *u8, entry_function: *u8, uses: *FieldUses) {
     for t: 0..module.type_count - 1 {
         type := TypeAt(module, t)
-        if VecElementType(module, *type.name[0], null, 0) != 0 { MarkAllFields(module, *type.name[0], uses) }
+        // Callable fields are read by the checked closure/call/drop ABI,
+        // rather than explicit authored member expressions.
+        if type.is_owned_callable != 0 || VecElementType(module, *type.name[0], null, 0) != 0 {
+            MarkAllFields(module, *type.name[0], uses)
+        }
     }
     // A native callback's records cross the foreign ABI even when the only
     // ordinary extern parameter is the callback or its containing record.

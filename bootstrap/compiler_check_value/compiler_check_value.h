@@ -69,7 +69,7 @@ int32_t private_check_assignable(Checker* c, int32_t index);
 int32_t private_check_readonly_text_destination(Checker* c, int32_t index);
 int32_t private_check_callback_type_equal(ZirModule* left_module, uint8_t* left, ZirModule* right_module, uint8_t* right, int32_t depth);
 bool private_check_capture_safe(ZirModule* module, uint8_t* type, int32_t depth);
-ZirType* private_check_owned_call_slot(Checker* c, int32_t index, ZirModule** slot_owner);
+ZirType* private_check_owned_call_slot(Checker* c, int32_t index, uint8_t* operand_type, ZirModule** slot_owner);
 void private_check_contextual_slot(Checker* c, int32_t index, uint8_t* expected);
 int32_t TypeOfOperand(uint8_t* source, uint8_t* operand, size_t capacity);
 int32_t private_check_rewrite_checked_text(Checker* c, ZirExpr* expr, uint8_t* replacement);

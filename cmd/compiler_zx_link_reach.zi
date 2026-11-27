@@ -825,7 +825,18 @@ MarkFunctionTypes :: (state: *LinkState, module: *IR.ZirModule, function: *IR.Zi
 MarkTypeDependencies :: (state: *LinkState, module: *IR.ZirModule, type: *IR.ZirType, changed: *s32) -> bool {
     program := state.program
     keep_types := state.keep_types
-    if type.is_synthetic_application != 0 && !MarkType(program, module, *type.template_name[0], keep_types, changed) { return false }
+    if type.is_synthetic_application != 0 {
+        if !MarkType(program, module, *type.template_name[0], keep_types, changed) { return false }
+        // Nominal arguments are part of the checked application's identity,
+        // even when its concrete fields no longer mention those declarations.
+        // Rechecking saved or entry-linked IR must resolve the same arguments.
+        arguments: [16][128]u8
+        count := split_top_level(*type.template_args[0], *arguments[0][0], 16, 128)
+        if count < 0 || count >= 16 { return false }
+        for i: 0..count - 1 {
+            if !MarkType(program, module, *arguments[i][0], keep_types, changed) { return false }
+        }
+    }
     if type.is_record_template != 0 { return true }
     if type.is_procedure_type != 0 {
         // A retained callback may never be invoked. Its result still belongs

@@ -14,7 +14,15 @@
 
 const char *CompilerBuiltinDirectory(int kind)
 {
+#ifdef __ANDROID__
+    /* Build-host paths cannot locate modules on an Android device and make
+     * independently built APKs differ. The loader still accepts explicit
+     * ZIRAN_STD/ZIRAN_INCLUDE and directories beside the installed runner. */
+    (void)kind;
+    return "";
+#else
     return kind == 0 ? ZIRAN_STD_DIR : ZIRAN_INCLUDE_DIR;
+#endif
 }
 
 int CompilerMemoryStreams(void)

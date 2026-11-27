@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Share C compiler annotations in `ziran_compiler.h` instead of repeating
+  portability macros throughout generated sources and inline headers.
+
 - Resolve imported global record and callable types in their declaration module,
   including pointer, array and generic storage. Keep TSX loop identities and
   continue steps local to each function and nested callback.

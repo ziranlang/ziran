@@ -1996,7 +1996,7 @@ EmitInliningAttributes :: (out: *void, m: *IR.ZirModule) {
         }
     }
     if !found { return }
-    fputs(CStr("#ifndef ZIRAN_ALWAYS_INLINE\n#if defined(__GNUC__) || defined(__clang__)\n#define ZIRAN_ALWAYS_INLINE __attribute__((always_inline))\n#define ZIRAN_COLD __attribute__((noinline, cold))\n#else\n#define ZIRAN_ALWAYS_INLINE\n#define ZIRAN_COLD\n#endif\n#endif\n"), out)
+    fputs(CStr("#include \"ziran_compiler.h\"\n"), out)
 }
 
 InliningPrefix :: (fn: *IR.ZirFunction) -> *u8 {
@@ -2528,7 +2528,7 @@ LowerModuleWithBuffers :: (m: *IR.ZirModule, restab: *ZirCModuleSyms, restab_cou
         }
     }
     if has_private_fn {
-        fputs(CStr("#ifndef ZIRAN_MAYBE_UNUSED\n#if defined(__GNUC__) || defined(__clang__)\n#define ZIRAN_MAYBE_UNUSED __attribute__((unused))\n#else\n#define ZIRAN_MAYBE_UNUSED\n#endif\n#endif\n"), c)
+        fputs(CStr("#include \"ziran_compiler.h\"\n"), c)
     }
     for i: cast(s32)0..m.function_count - 1 {
         fn := *m.functions[i]

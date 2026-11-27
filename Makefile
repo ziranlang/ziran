@@ -735,7 +735,7 @@ $(BIN_DIR)/zi-inspect: cmd/inspect.zi cmd/compiler_ir.zi $(BIN_DIR)/zi2c $(FRONT
 	$(BIN_DIR)/zi2c --entry inspect:main $(ZIRAN_DEFINES) --root cmd -o $(INSPECT_C) cmd/inspect.zi
 	$(NICE) $(CC) $(CFLAGS) -I$(INSPECT_C) -o $@ $(INSPECT_C)/inspect.c $(FRONTEND_OBJECTS) $(BUNDLE_OBJECT) -lm
 
-RUNTIME_HEADERS := include/zir_bounds.h include/zir_string_types.h include/zir_string.h include/zir_slice.h \
+RUNTIME_HEADERS := include/ziran_compiler.h include/zir_bounds.h include/zir_string_types.h include/zir_string.h include/zir_slice.h \
     include/zir_vec.h include/ziran_parallel.h include/ziran_simd.h \
     $(SIMD_DIR)/ziran_simd_types.h $(SIMD_DIR)/ziran_simd_ops.h
 

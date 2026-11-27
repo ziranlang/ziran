@@ -114,7 +114,11 @@ EM_JS(int, zx_wasm_web_set_budget, (unsigned long handle, long long budget), {
     return 0;
 });
 
-EM_JS(int, zx_wasm_web_call, (unsigned long handle, long long *result), {
+/* These imports can unwind through the module's host callback. Emscripten's
+ * Asyncify pass recognizes __asyncjs__ imports and must save their C callers
+ * too. The module already forwards unwind/rewind, so no Promise wrapper is
+ * needed here. */
+EM_JS(int, __asyncjs__zx_wasm_web_call, (unsigned long handle, long long *result), {
     const entry = globalThis.zxWasmTier.instances.get(handle);
     if(entry === undefined)
         return 1;
@@ -182,7 +186,7 @@ EM_JS(size_t, zx_wasm_web_allocate_state,
     }
 });
 
-EM_JS(int, zx_wasm_web_initialize, (unsigned long handle), {
+EM_JS(int, __asyncjs__zx_wasm_web_initialize, (unsigned long handle), {
     const entry = globalThis.zxWasmTier.instances.get(handle);
     if(entry === undefined)
         return 1;
@@ -268,7 +272,7 @@ static int
 web_call(void *context, unsigned long handle, long long *result)
 {
     (void)context;
-    return zx_wasm_web_call(handle, result);
+    return __asyncjs__zx_wasm_web_call(handle, result);
 }
 
 static int
@@ -298,7 +302,7 @@ static int
 web_initialize(void *context, unsigned long handle)
 {
     (void)context;
-    return zx_wasm_web_initialize(handle);
+    return __asyncjs__zx_wasm_web_initialize(handle);
 }
 
 static int

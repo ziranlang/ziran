@@ -1,12 +1,13 @@
 # Target-neutral machine IR contract
 
-Status: implemented for Linux x86-64 SysV as the verified pre-allocation boundary for the
-current lowered-IR subset, deterministic [register allocation](#register-allocation), a
-separate allocated-program verifier, and a [direct x86-64 encoder](#machine-code-encoder)
-that turns a verified allocated program into an in-memory code image with relocations.
-`zx2native` selects this encoder for its native executable path, and the same pipeline compiles verified ZX for the in-process loader on linux-x86_64, linux-aarch64 and linux-armv7 ([`zir_host_native.c`](../bootstrap/runtime/zir_host_native.c), [native_load.sh](../tests/native_load.sh)). The implemented native call ABI is general-register only; float and
-vector call arguments and results and stack-passed arguments are [unsupported
-forms](#supported-call-forms) that fail with a stable diagnostic.
+The pipeline verifies machine IR before and after deterministic [register
+allocation](#register-allocation). The target encoder turns the allocated
+program into an in-memory code image with relocations. `zx2native` uses this
+pipeline for AOT. The in-process loader uses it on Linux x86-64 and on AArch64
+and ARMv7 under Linux or Android. The implemented native call ABI uses general
+registers. Float and vector call arguments and results and stack-passed
+arguments are [unsupported forms](#supported-call-forms) that fail with a stable
+diagnostic. See [native loader](../bootstrap/runtime/zir_host_native.c) and [native load checks](../tests/native_load.sh).
 
 ## Public boundary and ownership
 
@@ -15,8 +16,9 @@ The target surface is defined by `compiler_target.zi`:
 - `TargetDescribe` describes supported architecture/OS combinations.
 - `TargetValid` checks that a description is canonical rather than accepting a caller-modified
   register or ABI model.
-- `TargetMachineLoweringSupported` separately states whether the current machine lowerer can
-  execute that description. At present this is Linux x86-64 SysV only.
+- `TargetMachineLoweringSupported` separately states whether the current machine lowerer
+  supports that description. It accepts Linux x86-64 SysV, Windows x86-64 Win64,
+  and AAPCS64 AArch64 and AAPCS32 ARMv7 on Linux and Android.
 
 The owned machine-IR surface is defined by `compiler_machine_ir.zi`,
 `compiler_machine_lower.zi`, `compiler_machine_verify.zi`, `compiler_abi.zi`,

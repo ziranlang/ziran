@@ -186,12 +186,12 @@ bundle file. Zero-argument entries returning an integer, `bool` or nothing
 run; the command prints a non-void result on its own line, unsigned results
 over their full range.
 
-On Linux x86-64, AArch64 and ARMv7, `ziran run app.zx`, `zi2zx run` and the embedding API run a
-bundle as native code compiled from its verified instructions; in a browser
-it runs on the Wasm tier and on other CPUs on the portable instruction engine.
-The platform makes that choice, never the bundle: a bundle native code cannot
-run fails before it starts with a named gap. `--backend engine` picks the
-engine explicitly. The Linux i386 packed engine can compile short runs of
+Linux x86-64, Linux and Android AArch64, and Linux and Android ARMv7 default to
+in-process native compilation for `ziran run app.zx`, `zi2zx run` and the
+embedding API. The browser uses the Wasm tier. Other native-host configurations
+default to the portable instruction engine. `--backend engine` selects it
+explicitly. If the requested backend cannot run a bundle, it reports a named
+gap before initialization. The Linux i386 packed engine can compile short runs of
 scalar integer instructions once a block becomes hot. It uses a bounded
 cache of executable pages. The interpreter handles memory, calls, control
 flow and checked failures. Both paths apply the same instruction work and

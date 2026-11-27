@@ -11,16 +11,17 @@ installed tool with <code>ziran version</code>, <code>ziran features --json</cod
 <p>Source → ZIR → LIR → optimized LIR → ZX → native (ELF/PE, x86-64/AArch64/ARMv7). WebAssembly lowers from verified ZX through <code>zx2wasm</code>. C and Go export from ZIR through <code>zi2c</code> and <code>zi2go</code>.</p>
 <p><code>ziran build FILE.zi</code> defaults to direct native output. Explicit targets are
 <code>--target=c</code>, <code>--target=go</code>, <code>--target=wasm</code> and <code>--target=zx</code>.
-<code>ziran run FILE.zi</code> checks and runs the entry; Linux x86-64, AArch64 and ARMv7
-use native execution. Native lowering failures report a named gap before
-execution. They do not retry on the instruction engine.</p>
+<code>ziran run FILE.zi</code> checks and runs the entry. In-process native execution is
+the default on Linux x86-64 and on AArch64 and ARMv7 under Linux or Android.
+A native lowering failure reports a named gap before initialization.</p>
 <p>ZX is revision 29 executable output. <code>zi2zx --emit lir</code> exposes the linked
 inspection view; <code>--opt --emit lir</code> exposes optimized LIR and
 <code>--opt --emit opt-report</code> reports optimizations. Optimization precedes ZX
 emission. <code>zx2native</code> consumes decoded and verified ZX; <code>zx2wasm</code> emits wasm32.
-ZX retains <code>#asm</code> templates alongside portable bodies. Native targets select
-compatible implementations at compilation or load. The engine and Wasm use
-portable bodies and reject target-only programs before initialization.
+ZX retains <code>#asm</code> templates alongside portable bodies. In-process native
+loading selects by usable CPU features. AOT uses the target's baseline ISA and
+also supports Windows x86-64 PE. The engine and Wasm use portable bodies and
+reject target-only programs before initialization.
 See <a href="zx.html">ZX</a>, <a href="zir.html">ZIR</a> and <a href="architecture.html">architecture</a>.</p>
 <h2 id="language-and-library-reference">Language and library reference</h2>
 <p>The checker supports procedures, records, enums, generic specialization,

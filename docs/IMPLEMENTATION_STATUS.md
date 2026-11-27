@@ -10,17 +10,18 @@ Source → ZIR → LIR → optimized LIR → ZX → native (ELF/PE, x86-64/AArch
 
 `ziran build FILE.zi` defaults to direct native output. Explicit targets are
 `--target=c`, `--target=go`, `--target=wasm` and `--target=zx`.
-`ziran run FILE.zi` checks and runs the entry; Linux x86-64, AArch64 and ARMv7
-use native execution. Native lowering failures report a named gap before
-execution. They do not retry on the instruction engine.
+`ziran run FILE.zi` checks and runs the entry. In-process native execution is
+the default on Linux x86-64 and on AArch64 and ARMv7 under Linux or Android.
+A native lowering failure reports a named gap before initialization.
 
 ZX is revision 29 executable output. `zi2zx --emit lir` exposes the linked
 inspection view; `--opt --emit lir` exposes optimized LIR and
 `--opt --emit opt-report` reports optimizations. Optimization precedes ZX
 emission. `zx2native` consumes decoded and verified ZX; `zx2wasm` emits wasm32.
-ZX retains `#asm` templates alongside portable bodies. Native targets select
-compatible implementations at compilation or load. The engine and Wasm use
-portable bodies and reject target-only programs before initialization.
+ZX retains `#asm` templates alongside portable bodies. In-process native
+loading selects by usable CPU features. AOT uses the target's baseline ISA and
+also supports Windows x86-64 PE. The engine and Wasm use portable bodies and
+reject target-only programs before initialization.
 See [ZX](ZX.md), [ZIR](ZIR.md) and [architecture](ARCHITECTURE.md).
 
 ## Language and library reference

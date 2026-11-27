@@ -22,10 +22,10 @@ compiled-code cache by executable identity and usable target features. When
 no optional template matches, the same backend compiles the portable LIR.
 A target-only procedure requires a matching native target before initialization.
 
-`ziran run` uses native execution on Linux x86-64, AArch64 and ARMv7. The
-instruction engine can be selected explicitly with `--backend engine` on
-`zi2zx run`. A failed native lowering does not retry on another engine.
-Browser execution uses the Wasm tier. See [ZX](ZX.md).
+In-process native execution is the default on Linux x86-64 and on AArch64 and
+ARMv7 under Linux or Android. Use `zi2zx run --backend engine` to select the instruction
+engine explicitly. A failed native lowering stops at preflight. Browser
+execution uses the Wasm tier. See [ZX](ZX.md).
 
 Native instances retain globals, heap and checked pointer slots between calls.
 Temporary frame storage lives only during an active outermost invocation,

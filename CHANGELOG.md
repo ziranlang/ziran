@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Add checked defaults to named TypeScript functions and preserve authored
+  caller columns through native and saved IR, including JSX component calls.
+  Rebuild checked IR with format 69 for the expanded source-location record.
+
 - Check borrowed callbacks and views through deeply nested and recursive record
   declarations without a depth cutoff. Keep bound native provider names when
   saved modules are emitted as separate C programs, including a TSX `main`

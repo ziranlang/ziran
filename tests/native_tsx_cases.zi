@@ -65,6 +65,13 @@ export let publicValue: s32 = Seed();
 let nextValue: s32 = Seed();
 export function Globals(): s32 { return starts * s32(10) + publicValue + nextValue; }
 export function BumpGlobals(): s32 { publicValue = publicValue + s32(1); return publicValue; }
+export let defaultStarts: s32 = s32(0);
+function DefaultSeed(): s32 { defaultStarts = defaultStarts + s32(1); return s32(5); }
+export function Defaulted(value: s32, extra: s32 = DefaultSeed()): s32 { return value + extra; }
+export interface OriginProps {}
+export function Located(props: OriginProps, origin: Source_Code_Location = #caller_location): Source_Code_Location {
+    return origin;
+}
 TS
 
 TSX_GENERIC_PROPS :: #string TS
@@ -132,6 +139,10 @@ function TextAction(): Owned<Domain.Action> {
 function Wrap(value: number): Holder<number> { return {value: value}; }
 export function main(): s32 {
     if (Logic.Globals() !== s32(23) || Logic.BumpGlobals() !== s32(2) || Logic.Globals() !== s32(24)) { return s32(30); }
+    if (Logic.Defaulted(s32(2)) !== s32(7) || Logic.Defaulted(s32(2), s32(1)) !== s32(3) || Logic.defaultStarts !== s32(1)) { return s32(36); }
+    const firstSite = <Logic.Located/>; const secondSite = <Logic.Located/>;
+    if (firstSite.line_number !== secondSite.line_number || firstSite.fully_pathed_filename !== secondSite.fully_pathed_filename ||
+        firstSite.column_number <= s64(0) || secondSite.column_number <= firstSite.column_number) { return s32(37); }
     const genericFrame: GenericFrame = {slot: s32(40)};
     if (Facade.Draw(genericFrame, {value: s32(1)}) !== s32(42)) { return s32(25); }
     const snapshot: Domain.Model = Domain.Snapshot();
@@ -445,7 +456,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !NativeAssert(*test, foreign_result.code > 0 && foreign_result.code < 124 &&
         TextContains(foreign_result.error, "Scoped parameters require a checked nonescaping procedure body") &&
         TextContains(foreign_result.error, "foreign_scoped.zi:"), "foreign procedure accepted a scoped callback without a checked body") { return 1 }
-    if !TsxNestedBorrows(*test, root) || !TsxProject(*test) { return 1 }
+    if !TsxReject(*test, root, "default_type", "export function Value(extra: s32 = true): s32 { return extra; }", "type") ||
+       !TsxReject(*test, root, "default_location_type", "export function Value(extra: s32 = #caller_location): s32 { return extra; }", "#caller_location requires a Source_Code_Location parameter") ||
+       !TsxNestedBorrows(*test, root) || !TsxProject(*test) { return 1 }
     print("native TSX: typed imports, JSX, cache/project invalidation and source/saved C, Go, engine, native executable and Wasm parity passed\n")
     return 0
 }

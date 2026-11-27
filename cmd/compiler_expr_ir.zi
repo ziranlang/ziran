@@ -408,6 +408,20 @@ ManifestPackageName :: (folder: string, name: []u8) -> bool {
     return false
 }
 
+LocationNumber :: (value: s32, output: []u8) -> string {
+    i := output.count
+    remaining := cast(s64)value
+    if remaining < 0 { remaining = -remaining }
+    while true {
+        i -= 1
+        output[i] = cast(u8)(48 + remaining % 10)
+        remaining /= 10
+        if remaining == 0 { break }
+    }
+    if value < 0 { i -= 1; output[i] = #char "-" }
+    return TextView(output[i:])
+}
+
 CallerLocationText :: (module: *IR.ZirModule, span: IR.ZirSourceSpan, output: []u8) -> string {
     candidate: [IR.ZIR_PATH_MAX * 2]u8
     path := Services.SpanPath(span)
@@ -430,21 +444,15 @@ CallerLocationText :: (module: *IR.ZirModule, span: IR.ZirSourceSpan, output: []
     length := Text.EscapeCString(text, escaped[:])
     if length >= escaped.count - 1 { return "" }
     line: [12]u8
-    i := cast(s64)line.count
-    remaining := cast(s64)span.line
-    if remaining < 0 { remaining = -remaining }
-    while true {
-        i -= 1
-        line[i] = cast(u8)(48 + remaining % 10)
-        remaining /= 10
-        if remaining == 0 { break }
-    }
-    if span.line < 0 { i -= 1; line[i] = #char "-" }
+    column: [12]u8
     used: s64 = 0
     if !ExprAppend(output, *used, "Source_Code_Location.{.fully_pathed_filename = \"") ||
         !ExprAppend(output, *used, TextView(escaped[0:length])) ||
         !ExprAppend(output, *used, "\", .line_number = ") ||
-        !ExprAppend(output, *used, TextView(line[i:line.count])) || !ExprAppend(output, *used, "}") { return "" }
+        !ExprAppend(output, *used, LocationNumber(span.line, line[:])) ||
+        !ExprAppend(output, *used, ", .column_number = ") ||
+        !ExprAppend(output, *used, LocationNumber(span.column, column[:])) ||
+        !ExprAppend(output, *used, "}") { return "" }
     return TextView(output[0:used])
 }
 

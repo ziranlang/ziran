@@ -7221,7 +7221,7 @@ compiler_zir_serial_write_program(ZirProgram* program, Writer* out, int32_t vali
     bool value_9 = value_7;
     bool value_10 = value_9;
     if (!value_10) {
-        bool value_11 = compiler_zir_serial_write_version(out, 68) != 0;
+        bool value_11 = compiler_zir_serial_write_version(out, 69) != 0;
         value_10 = !value_11;
     }
     bool value_12 = value_10 || program->module_count < 0;
@@ -7330,7 +7330,7 @@ compiler_zir_serial_ProgramWriteQuiet(ZirProgram* program, void* out)
 int32_t
 compiler_zir_serial_ZirFormatVersion(void)
 {
-    return 68;
+    return 69;
 }
 
 static ZirProgram*
@@ -7382,7 +7382,7 @@ compiler_zir_serial_ProgramRead_in_context(void* in, uint8_t* path, int32_t vali
             if (!value_12) {
                 goto zir_loop_break_1;
             }
-            if (version != 68) {
+            if (version != 69) {
                 compiler_zir_serial_ParserArray1024_u8 reader_path = {0};
                 bool value_13 = zir_foreign_compiler_zir_serial__ExecutablePath((uint8_t*)(&(reader_path.items)), (size_t)(sizeof(compiler_zir_serial_ParserArray1024_u8))) != 0;
                 if (!value_13) {
@@ -7408,7 +7408,7 @@ compiler_zir_serial_ProgramRead_in_context(void* in, uint8_t* path, int32_t vali
                     uint8_t* value_22 = compiler_parse_types_ParserCString(StringLiteral(""));
                     value_21 = value_22;
                 }
-                zir_foreign_compiler_zir_serial__snprintf((uint8_t*)(&(mismatch.items)), (size_t)(sizeof(ParserArray2560_u8)), value_15, value_16, (uint8_t*)(&(reader_path.items)), 68, value_20, value_21);
+                zir_foreign_compiler_zir_serial__snprintf((uint8_t*)(&(mismatch.items)), (size_t)(sizeof(ParserArray2560_u8)), value_15, value_16, (uint8_t*)(&(reader_path.items)), 69, value_20, value_21);
                 uint8_t** value_23 = &(reader.problem);
                 (*value_23) = (uint8_t*)(&(mismatch.items));
                 goto zir_loop_break_1;

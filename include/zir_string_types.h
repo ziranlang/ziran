@@ -10,6 +10,7 @@ typedef struct String { const char *data; size_t length; } String;
 typedef struct Source_Code_Location {
     String fully_pathed_filename;
     int64_t line_number;
+    int64_t column_number;
 } Source_Code_Location;
 
 static inline String StringView(const char *data, size_t length) {

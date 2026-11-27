@@ -39,6 +39,13 @@ export function main(): s32 {
 <p>Imports have module scope regardless of declaration order. Namespace imports
 and named imports with <code>as</code> aliases are supported. Default imports,
 re-exports and JavaScript packages are unsupported.</p>
+<p>Named functions support typed parameter defaults, evaluated only when omitted.
+Initializers use declaration-module scope and can call checked native procedures;
+they cannot read the function's parameters. This follows native Ziran defaults.
+The native default <code>origin: Source_Code_Location = #caller_location</code> receives
+the authored caller's filename, line and column, including ordinary JSX calls.
+Two components on the same source line have distinct columns. Defaults on
+arrow functions and procedure type signatures are currently rejected.</p>
 <h2 id="types-and-values">Types and values</h2>
 <ul>
 <li><code>number</code> is native IEEE 754 binary64 (<code>float64</code>). Integer-spelled ordinary
@@ -159,9 +166,9 @@ declaration share its identity.</p>
 knows no widget names and does not choose a UI library. Qualified component
 names, nested components, expression props and children use ordinary checked
 calls. The library defines the props and result types. Unknown and incorrectly typed fields are checked against those declarations.
-Props currently use native record initialization, including native defaults for
-omitted fields; TypeScript required-field enforcement remains open work. Duplicate props
-and mismatched closing tags are errors.
+TS interfaces require every declared field. Native Ziran records retain their
+declared initialization rules for omitted fields. Duplicate props and mismatched
+closing tags are errors.
 Empty paired tags and indentation-only content do not add a <code>children</code> property.</p>
 <p>Inline JSX text preserves spaces around expressions. Multiline text removes
 line indentation and joins nonempty lines with a space. The declared <code>children</code>

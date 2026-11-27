@@ -1719,8 +1719,8 @@ compiler_c_emit_MarkNativeMacroCollisions(ZirProgram** programs, int32_t count)
         }
     }
     if (ok != 0) {
-        String members[4] = {StringLiteral("data"), StringLiteral("length"), StringLiteral("fully_pathed_filename"), StringLiteral("line_number")};
-        for (int64_t it_index = 0LL; it_index < 4; it_index++) {
+        String members[5] = {StringLiteral("data"), StringLiteral("length"), StringLiteral("fully_pathed_filename"), StringLiteral("line_number"), StringLiteral("column_number")};
+        for (int64_t it_index = 0LL; it_index < 5; it_index++) {
             String member = (members)[it_index];
             uint8_t* value_3 = (void *)0;
             {

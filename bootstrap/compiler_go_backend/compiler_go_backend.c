@@ -8843,7 +8843,7 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                     }
                     bool value_216 = pi == 0 && mi == 0;
                     if (value_216 && compiler_go_backend_go_uses_caller_location(ctx, progs, prog_count) != 0) {
-                        String value_217 = StringLiteral("type Source_Code_Location struct {\n\tFullyPathedFilename string\n\tLineNumber int64\n}\n\n");
+                        String value_217 = StringLiteral("type Source_Code_Location struct {\n\tFullyPathedFilename string\n\tLineNumber int64\n\tColumnNumber int64\n}\n\n");
                         uint8_t* value_218 = (void *)0;
                         {
                             String s = value_217;

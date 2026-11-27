@@ -3242,7 +3242,7 @@ go_lower_with_buffers :: (ctx: *GoLowerState, progs: **IR.ZirProgram, prog_count
                         fputs(CStr("var _ unsafe.Pointer\n\n"), f)
                     }
                     if (((pi == 0) && (mi == 0)) && (go_uses_caller_location(ctx, progs, prog_count) != 0)) {
-                        fputs(CStr("type Source_Code_Location struct {\n\tFullyPathedFilename string\n\tLineNumber int64\n}\n\n"), f)
+                        fputs(CStr("type Source_Code_Location struct {\n\tFullyPathedFilename string\n\tLineNumber int64\n\tColumnNumber int64\n}\n\n"), f)
                     }
                     {
                         i: s32 = 0

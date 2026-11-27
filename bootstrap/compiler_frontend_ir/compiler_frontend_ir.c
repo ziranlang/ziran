@@ -405,7 +405,7 @@ static String bit_builtins[5] = {{"", sizeof("") - 1}, {"zi_clz", sizeof("zi_clz
 static ZirType builtin_types[4] = {0};
 static uint8_t builtin_types_lock = {0};
 static String builtin_names[4] = {{"Source_Code_Location", sizeof("Source_Code_Location") - 1}, {"OS", sizeof("OS") - 1}, {"CPU", sizeof("CPU") - 1}, {"TARGET", sizeof("TARGET") - 1}};
-static String builtin_bodies[4] = {{"fully_pathed_filename: string;\nline_number: s64;\n", sizeof("fully_pathed_filename: string;\nline_number: s64;\n") - 1}, {"NONE,\nLINUX,\nWINDOWS,\nMACOS,\nANDROID,\nWEB\n", sizeof("NONE,\nLINUX,\nWINDOWS,\nMACOS,\nANDROID,\nWEB\n") - 1}, {"NONE,\nX64,\nARM64,\nWASM32\n", sizeof("NONE,\nX64,\nARM64,\nWASM32\n") - 1}, {"C,\nGO,\nWASM,\nZX\n", sizeof("C,\nGO,\nWASM,\nZX\n") - 1}};
+static String builtin_bodies[4] = {{"fully_pathed_filename: string;\nline_number: s64;\ncolumn_number: s64;\n", sizeof("fully_pathed_filename: string;\nline_number: s64;\ncolumn_number: s64;\n") - 1}, {"NONE,\nLINUX,\nWINDOWS,\nMACOS,\nANDROID,\nWEB\n", sizeof("NONE,\nLINUX,\nWINDOWS,\nMACOS,\nANDROID,\nWEB\n") - 1}, {"NONE,\nX64,\nARM64,\nWASM32\n", sizeof("NONE,\nX64,\nARM64,\nWASM32\n") - 1}, {"C,\nGO,\nWASM,\nZX\n", sizeof("C,\nGO,\nWASM,\nZX\n") - 1}};
 
 static int32_t
 compiler_frontend_ir_ParserSet0(int32_t* p, int32_t value)

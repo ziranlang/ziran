@@ -5,7 +5,7 @@ Expr :: #import "compiler_parse"
 Check :: #import "compiler_check_types"
 
 #scope_file
-ZIR_FORMAT_VERSION :: 68
+ZIR_FORMAT_VERSION :: 69
 
 compiler :: #system_library "ziran";
 libc :: #system_library "libc";

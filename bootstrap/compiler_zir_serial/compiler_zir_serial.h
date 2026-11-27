@@ -13,7 +13,7 @@
 extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-#define ZIR_FORMAT_VERSION 68
+#define ZIR_FORMAT_VERSION 69
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
 typedef struct compiler_zir_serial_ParserArray8192_u8 compiler_zir_serial_ParserArray8192_u8;
@@ -283,7 +283,7 @@ static inline int32_t compiler_zir_serial_ZirFormatVersion_ziran_inline(void);
 static inline int32_t
 compiler_zir_serial_ZirFormatVersion_ziran_inline(void)
 {
-    return 68;
+    return 69;
 }
 #endif
 

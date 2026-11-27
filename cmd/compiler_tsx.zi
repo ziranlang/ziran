@@ -12,6 +12,7 @@ ProgramNew :: () -> *IR.ZirProgram #foreign compiler "ProgramNew";
 ProgramFree :: (program: *IR.ZirProgram) #foreign compiler "ProgramFree";
 ProgramAddModule :: (program: *IR.ZirProgram, name: *u8, path: *u8, span: IR.ZirSourceSpan) -> *IR.ZirModule #foreign compiler "ProgramAddModule";
 ModuleAddFunction :: (module: *IR.ZirModule, name: *u8, args: *u8, result: *u8, exported: s32, span: IR.ZirSourceSpan) -> *IR.ZirFunction #foreign compiler "ModuleAddFunction";
+FunctionDefaultHelperName :: (function: *IR.ZirFunction, parameter: s32, output: *u8, size: usize) #foreign compiler "FunctionDefaultHelperName";
 ModuleAddGlobal :: (module: *IR.ZirModule, name: *u8, type: *u8, init: *u8, span: IR.ZirSourceSpan) #foreign compiler "ModuleAddGlobal";
 ModuleAddDefine :: (module: *IR.ZirModule, name: *u8, value: *u8, span: IR.ZirSourceSpan) -> *IR.ZirDefine #foreign compiler "ModuleAddDefine";
 ModuleAddType :: (module: *IR.ZirModule, name: *u8, span: IR.ZirSourceSpan) -> *IR.ZirType #foreign compiler "ModuleAddType";
@@ -125,19 +126,52 @@ Decimal :: (value: s64) -> string {
 GeneratedName :: (kind: string, span: IR.ZirSourceSpan) -> string {
     return Join("__tsx_", kind, Join("_", Decimal(span.line), Join("_", Decimal(span.column))))
 }
-Parameters :: (p: *Parser, bind: bool) -> string {
+ParameterDefault :: (p: *Parser, declaration: *IR.ZirFunction, index: s32, type: string) -> string {
+    if Take(p, "#caller_location") {
+        if type != "Source_Code_Location" { Fail(p, "#caller_location requires a Source_Code_Location parameter") }
+        return "#caller_location"
+    }
+    span := Location(p)
+    name: [IR.ZIR_NAME_MAX]u8
+    FunctionDefaultHelperName(declaration, index, *name[0], cast(usize)name.count)
+    p.fn = ModuleAddFunction(p.module, Services.KeepName(IR.BufferText(name[:])), Services.KeepParameters(""),
+        Services.KeepName(type), 0, span)
+    if p.fn == null { Fail(p, "cannot allocate default parameter"); return "" }
+    p.fn.from_ir = 1
+    p.fn.is_public = declaration.is_public
+    value := Expression(p)
+    text := TextOf(p, value)
+    statement := Statement(p, .RETURN, Join("return ", text), span)
+    if statement != null { statement.expr_root = value }
+    p.fn = null
+    return text
+}
+Parameters :: (p: *Parser, bind: bool, defaults: *string = null, declaration: *IR.ZirFunction = null) -> string {
     Expect(p, "(")
     args := ""
+    full := ""
+    index: s32 = 0
+    has_defaults := false
     while !p.failed && Token(p) != ")" {
         arg := Identifier(p)
         if bind && !VecPush(p.locals, .{name = arg}) { Fail(p, "cannot allocate parameter binding"); return "" }
         Expect(p, ":")
         type := TypeName(p)
-        if args.count > 0 { args = Join(args, ", ") }
-        args = Join(args, arg, Join(": ", type))
+        parameter := Join(arg, ": ", type)
+        value := ""
+        if Take(p, "=") {
+            if defaults == null { Fail(p, "parameter defaults require a named function declaration"); return "" }
+            has_defaults = true
+            value = ParameterDefault(p, declaration, index, type)
+        }
+        if args.count > 0 { args = Join(args, ", "); full = Join(full, ", ") }
+        args = Join(args, parameter)
+        full = Join(full, parameter, ifx value.count > 0 then Join(" = ", value) else "")
+        index += 1
         if !Take(p, ",") { break }
     }
     Expect(p, ")")
+    if defaults != null { <<defaults = ifx has_defaults then full else "" }
     return args
 }
 ProcedureType :: (p: *Parser, name: string, public: bool, span: IR.ZirSourceSpan) {
@@ -1091,12 +1125,18 @@ Function :: (p: *Parser, public: bool) {
     span := Location(p)
     name := Identifier(p)
     previous := p.locals.count
-    args := Parameters(p, true)
+    defaults := ""
+    declaration: IR.ZirFunction
+    unused IR.CopyText(declaration.name[:], name)
+    declaration.span = span
+    declaration.is_public = ifx public then 1 else 0
+    args := Parameters(p, true, *defaults, *declaration)
     result := "void"
     if Take(p, ":") { result = TypeName(p) }
     p.fn = ModuleAddFunction(p.module, Services.KeepName(name), Services.KeepParameters(args), Services.KeepName(result), 0, span)
     if p.fn == null { Fail(p, "cannot allocate function"); return }
     p.fn.is_public = ifx public then 1 else 0
+    if defaults.count > 0 { p.fn.default_args_text = Services.KeepParameters(defaults); p.fn.default_helpers_created = 1 }
     // The expression graph is already structured. The common checker consumes
     // it with exactly the same contract as saved ZIR, without source reparsing.
     p.fn.from_ir = 1

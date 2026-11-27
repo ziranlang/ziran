@@ -45,6 +45,14 @@ Imports have module scope regardless of declaration order. Namespace imports
 and named imports with `as` aliases are supported. Default imports,
 re-exports and JavaScript packages are unsupported.
 
+Named functions support typed parameter defaults, evaluated only when omitted.
+Initializers use declaration-module scope and can call checked native procedures;
+they cannot read the function's parameters. This follows native Ziran defaults.
+The native default `origin: Source_Code_Location = #caller_location` receives
+the authored caller's filename, line and column, including ordinary JSX calls.
+Two components on the same source line have distinct columns. Defaults on
+arrow functions and procedure type signatures are currently rejected.
+
 ## Types and values
 
 - `number` is native IEEE 754 binary64 (`float64`). Integer-spelled ordinary
@@ -179,9 +187,9 @@ JSX calls an ordinary typed component value with one props record. The compiler
 knows no widget names and does not choose a UI library. Qualified component
 names, nested components, expression props and children use ordinary checked
 calls. The library defines the props and result types. Unknown and incorrectly typed fields are checked against those declarations.
-Props currently use native record initialization, including native defaults for
-omitted fields; TypeScript required-field enforcement remains open work. Duplicate props
-and mismatched closing tags are errors.
+TS interfaces require every declared field. Native Ziran records retain their
+declared initialization rules for omitted fields. Duplicate props and mismatched
+closing tags are errors.
 Empty paired tags and indentation-only content do not add a `children` property.
 
 Inline JSX text preserves spaces around expressions. Multiline text removes

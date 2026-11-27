@@ -118,6 +118,7 @@ static String compiler_parse_StableLocationPath(String absolute, String root, Sl
 static int64_t compiler_parse_CachedPackageFolder(String directory) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_parse_PackageForDirectory(String directory, Slice name) ZIRAN_MAYBE_UNUSED;
 static bool compiler_parse_ManifestPackageName(String folder, Slice name) ZIRAN_MAYBE_UNUSED;
+static String compiler_parse_LocationNumber(int32_t value, Slice output) ZIRAN_MAYBE_UNUSED;
 static String compiler_parse_CallerLocationText(ZirModule* module, ZirSourceSpan span, Slice output) ZIRAN_MAYBE_UNUSED;
 static String compiler_parse_CallTarget(ZirFunction* fn, int32_t callee, Slice output) ZIRAN_MAYBE_UNUSED;
 static String compiler_parse_ParameterName(String declaration) ZIRAN_MAYBE_UNUSED;
@@ -1190,6 +1191,33 @@ compiler_parse_ManifestPackageName(String folder, Slice name)
 }
 
 static String
+compiler_parse_LocationNumber(int32_t value, Slice output)
+{
+    int64_t i = (int64_t)(output).length;
+    int64_t remaining = (int64_t)(value);
+    if (remaining < 0LL) {
+        remaining = (int64_t)(UINT64_C(0) - (uint64_t)remaining);
+    }
+    while (true) {
+        i = (int64_t)((uint64_t)i - UINT64_C(1));
+        uint8_t* value_0 = &(((uint8_t *)output.data)[i]);
+        (*value_0) = (uint8_t)(((int64_t)(UINT64_C(48) + (uint64_t)((remaining % 10LL)))));
+        remaining = remaining / 10LL;
+        if (remaining == 0LL) {
+            break;
+        }
+    }
+    if (value < 0) {
+        i = (int64_t)((uint64_t)i - UINT64_C(1));
+        uint8_t* value_1 = &(((uint8_t *)output.data)[i]);
+        (*value_1) = 45;
+    }
+    Slice value_2 = output;
+    Slice value_3 = SliceRangeAt(value_2, (int64_t)i, (int64_t)value_2.length, sizeof(uint8_t));
+    return StringView((const char *)(value_3).data, (size_t)(value_3).length);
+}
+
+static String
 compiler_parse_CallerLocationText(ZirModule* module, ZirSourceSpan span, Slice output)
 {
     uint8_t candidate[2048] = {0};
@@ -1247,61 +1275,54 @@ compiler_parse_CallerLocationText(ZirModule* module, ZirSourceSpan span, Slice o
         return cleanup_return_2;
     }
     uint8_t line[12] = {0};
-    int64_t i = 12LL;
-    int64_t remaining = (int64_t)(span.line);
-    if (remaining < 0LL) {
-        remaining = (int64_t)(UINT64_C(0) - (uint64_t)remaining);
-    }
-    while (true) {
-        i = (int64_t)((uint64_t)i - UINT64_C(1));
-        uint8_t* value_14 = &(line[i]);
-        (*value_14) = (uint8_t)(((int64_t)(UINT64_C(48) + (uint64_t)((remaining % 10LL)))));
-        remaining = remaining / 10LL;
-        if (remaining == 0LL) {
-            break;
-        }
-    }
-    if (span.line < 0) {
-        i = (int64_t)((uint64_t)i - UINT64_C(1));
-        uint8_t* value_15 = &(line[i]);
-        (*value_15) = 45;
-    }
+    uint8_t column[12] = {0};
     int64_t used = 0LL;
-    bool value_16 = compiler_parse_ExprAppend(output, &(used), StringLiteral("Source_Code_Location.{.fully_pathed_filename = \""));
-    bool value_17 = !value_16;
-    if (!value_17) {
-        Slice value_18 = output;
-        Slice value_19 = {escaped, 4096};
-        Slice value_20 = SliceRangeAt(value_19, (int64_t)0LL, (int64_t)length, sizeof(uint8_t));
-        bool value_21 = compiler_parse_ExprAppend(value_18, &(used), StringView((const char *)(value_20).data, (size_t)(value_20).length));
-        value_17 = !value_21;
+    bool value_14 = compiler_parse_ExprAppend(output, &(used), StringLiteral("Source_Code_Location.{.fully_pathed_filename = \""));
+    bool value_15 = !value_14;
+    if (!value_15) {
+        Slice value_16 = output;
+        Slice value_17 = {escaped, 4096};
+        Slice value_18 = SliceRangeAt(value_17, (int64_t)0LL, (int64_t)length, sizeof(uint8_t));
+        bool value_19 = compiler_parse_ExprAppend(value_16, &(used), StringView((const char *)(value_18).data, (size_t)(value_18).length));
+        value_15 = !value_19;
     }
-    bool value_22 = value_17;
+    bool value_20 = value_15;
+    if (!value_20) {
+        bool value_21 = compiler_parse_ExprAppend(output, &(used), StringLiteral("\", .line_number = "));
+        value_20 = !value_21;
+    }
+    bool value_22 = value_20;
     if (!value_22) {
-        bool value_23 = compiler_parse_ExprAppend(output, &(used), StringLiteral("\", .line_number = "));
-        value_22 = !value_23;
+        Slice value_23 = output;
+        Slice value_24 = {line, 12};
+        bool value_25 = compiler_parse_ExprAppend(value_23, &(used), compiler_parse_LocationNumber(span.line, value_24));
+        value_22 = !value_25;
     }
-    bool value_24 = value_22;
-    if (!value_24) {
-        Slice value_25 = output;
-        Slice value_26 = {line, 12};
-        Slice value_27 = SliceRangeAt(value_26, (int64_t)i, (int64_t)12, sizeof(uint8_t));
-        bool value_28 = compiler_parse_ExprAppend(value_25, &(used), StringView((const char *)(value_27).data, (size_t)(value_27).length));
-        value_24 = !value_28;
+    bool value_26 = value_22;
+    if (!value_26) {
+        bool value_27 = compiler_parse_ExprAppend(output, &(used), StringLiteral(", .column_number = "));
+        value_26 = !value_27;
     }
-    bool value_29 = value_24;
-    if (!value_29) {
-        bool value_30 = compiler_parse_ExprAppend(output, &(used), StringLiteral("}"));
-        value_29 = !value_30;
+    bool value_28 = value_26;
+    if (!value_28) {
+        Slice value_29 = output;
+        Slice value_30 = {column, 12};
+        bool value_31 = compiler_parse_ExprAppend(value_29, &(used), compiler_parse_LocationNumber(span.column, value_30));
+        value_28 = !value_31;
     }
-    if (value_29) {
+    bool value_32 = value_28;
+    if (!value_32) {
+        bool value_33 = compiler_parse_ExprAppend(output, &(used), StringLiteral("}"));
+        value_32 = !value_33;
+    }
+    if (value_32) {
         String cleanup_return_3 = StringLiteral("");
         zir_foreign_compiler_parse__ExprFree((void*)(canonical));
         return cleanup_return_3;
     }
-    Slice value_31 = output;
-    Slice value_32 = SliceRangeAt(value_31, (int64_t)0LL, (int64_t)used, sizeof(uint8_t));
-    String cleanup_return_4 = StringView((const char *)(value_32).data, (size_t)(value_32).length);
+    Slice value_34 = output;
+    Slice value_35 = SliceRangeAt(value_34, (int64_t)0LL, (int64_t)used, sizeof(uint8_t));
+    String cleanup_return_4 = StringView((const char *)(value_35).data, (size_t)(value_35).length);
     zir_foreign_compiler_parse__ExprFree((void*)(canonical));
     return cleanup_return_4;
 }

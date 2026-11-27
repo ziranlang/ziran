@@ -170,6 +170,8 @@ LocalFlag :: 1;
 LocalFlag :: 0;
 }
 #assert LocalFlag == 1;
+CompileColumn :: #run Library.Captured().column_number;
+#assert CompileColumn > 0;
 #program_export
 Answer :: () -> s32 {
     if Captured().line_number != #line { return 0 }
@@ -186,6 +188,8 @@ Answer :: () -> s32 {
     continued: bool =
         Captured().line_number == #line
     if !continued { return 0 }
+    if Captured().column_number <= 0 { return 0 }
+    if Captured().column_number == Captured().column_number { return 0 }
     return 42
 }
 FIXTURE_END;

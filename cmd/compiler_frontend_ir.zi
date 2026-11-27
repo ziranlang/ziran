@@ -365,7 +365,7 @@ builtin_types: [4]IR.ZirType;
 builtin_types_lock: u8;
 builtin_names: [4]string = .{"Source_Code_Location", "OS", "CPU", "TARGET"};
 builtin_bodies: [4]string = .{
-    "fully_pathed_filename: string;\nline_number: s64;\n",
+    "fully_pathed_filename: string;\nline_number: s64;\ncolumn_number: s64;\n",
     "NONE,\nLINUX,\nWINDOWS,\nMACOS,\nANDROID,\nWEB\n",
     "NONE,\nX64,\nARM64,\nWASM32\n",
     "C,\nGO,\nWASM,\nZX\n"

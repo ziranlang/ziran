@@ -727,7 +727,7 @@ MarkNativeMacroCollisions :: (programs: **IR.ZirProgram, count: s32) -> s32 {
         }
     }
     if ok != 0 {
-        members := string.["data", "length", "fully_pathed_filename", "line_number"]
+        members := string.["data", "length", "fully_pathed_filename", "line_number", "column_number"]
         for member: members { NativeNamesMark(*defines, CStr(member)) }
         for p: cast(s32)0..count - 1 {
             for m: cast(s32)0..programs[p].module_count - 1 {

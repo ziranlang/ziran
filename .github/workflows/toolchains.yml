@@ -14,7 +14,7 @@ on:
         required: false
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: toolchains-${{ inputs.commit || github.sha }}
@@ -26,29 +26,27 @@ env:
   KEEP_COMMITS: 200
 
 jobs:
-  # One job creates the prerelease, so the builds never race to create it.
-  # It only holds these archives and is never the latest Ziran release.
+  # Gitea owns refs and releases. GitHub only attaches build assets to the
+  # mirrored prerelease; it must never create an implicit tag on GitHub.
   release:
-    name: Prepare the toolchains prerelease
+    name: Verify the mirrored toolchains prerelease
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Check the commit
         run: printf '%s' "$COMMIT" | grep -Eq '^[0-9a-f]{40}$'
 
-      - name: Create the prerelease
+      - name: Require the mirrored tag and prerelease
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view toolchains -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            exit 0
-          fi
-          gh release create toolchains -R "$GITHUB_REPOSITORY" --prerelease --latest=false \
-            --target "$COMMIT" --title "Prebuilt toolchains" \
-            --notes "Build trees of recent master commits for .github/actions/setup."
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/toolchains" > /dev/null
+          gh release view toolchains -R "$GITHUB_REPOSITORY" > /dev/null
 
   build:
     name: Build ${{ matrix.platform }}
+    permissions:
+      contents: write
     needs: release
     strategy:
       fail-fast: false
@@ -161,6 +159,8 @@ jobs:
 
   prune:
     name: Keep the newest build trees
+    permissions:
+      contents: write
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10

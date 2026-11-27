@@ -7,6 +7,8 @@ in a committed `ziran.lock`. A Ziran application is itself a package with a
 commands build and use the compiler pinned by the application lock, and hand
 the command to that toolchain's own launcher, so an installed `ziran` that is
 older or newer than the lock behaves exactly like the pinned one.
+Concurrent commands share one compiler build for a newly selected pin and
+wait until that build finishes before starting its tools.
 
 ## Starting a project
 

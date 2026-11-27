@@ -28,6 +28,25 @@ VersionText :: #import "version"
     PkgHostNativeTarget :: "x86_64"
 }
 
+// Package commands can resolve the same new pin concurrently. Serialize the
+// complete compiler build, then recheck the requested binary while locked.
+// Even an existing launcher may have appeared before another build finished.
+PkgEnsureToolBinary :: (tool_root: string, binary: string) -> bool {
+    directory := PkgJoin(tool_root, "/build")
+    if !PkgMkdirs(directory) { unused PkgFail("cannot create pinned compiler build directory"); return false }
+    lock := PkgLockEntry(PkgJoin(directory, "/.package-build.lock"))
+    if !lock.valid { unused PkgFail("cannot lock pinned compiler build"); return false }
+    defer PkgUnlockEntry(lock)
+    if PathExists(binary) { return true }
+    // BUILD_DIR belongs to this pin, regardless of the caller's make settings.
+    arguments := string.["make", "-C", tool_root, "all", "BUILD_DIR=build"]
+    if PkgRunToStderr(arguments[:], "") != 0 || !PathExists(binary) {
+        unused PkgFail("cannot build pinned Ziran compiler")
+        return false
+    }
+    return true
+}
+
 // `ziran compile-commands [--compiler CC] [--include DIR] [-o FILE] DIR`
 // describes the generated C in DIR to editors. The include directory
 // defaults to the pinned toolchain's under --project, otherwise to the one
@@ -303,21 +322,9 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
         environment += 1
     }
     if project {
-        if !PathExists(binary) {
-            if current_toolchain { return PkgFail("cannot find zi-api beside the current Ziran launcher") }
-            make_args: [5]string
-            make_args[0] = "make"
-            make_args[1] = "-C"
-            make_args[2] = locked.tool_path
-            make_args[3] = "all"
-            // The pinned launcher is build/bin/ziran whatever BUILD_DIR the
-            // calling make passed down, such as the sanitizer build's.
-            make_args[4] = "BUILD_DIR=build"
-            empty: [0]string
-            if PkgRunToStderr(make_args[:], "") != 0 {
-                return PkgFail("cannot build pinned Ziran compiler")
-            }
-        }
+        if current_toolchain {
+            if !PathExists(binary) { return PkgFail("cannot find zi-api beside the current Ziran launcher") }
+        } else if !PkgEnsureToolBinary(locked.tool_path, binary) { return 2 }
         values[0] = PkgWriteMap(root, locked, current)
         if values[0].count == 0 {
             if pkg_failure_reported { return 2 }
@@ -1270,20 +1277,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             own[0:tool_root.count] == tool_root
         if !current_toolchain && PkgGetenv("ZIRAN_PINNED_LAUNCHER") != "1" && !inside &&
            own != PkgCanonical(pinned) {
-            if !PathExists(pinned) {
-                make_args: [5]string
-                make_args[0] = "make"
-                make_args[1] = "-C"
-                make_args[2] = locked.tool_path
-                make_args[3] = "all"
-                // The pinned launcher is build/bin/ziran whatever BUILD_DIR the
-                // calling make passed down, such as the sanitizer build's.
-                make_args[4] = "BUILD_DIR=build"
-                none: [0]string
-                if PkgRunToStderr(make_args[:], "") != 0 {
-                    return PkgFail("cannot build pinned Ziran compiler")
-                }
-            }
+            if !PkgEnsureToolBinary(locked.tool_path, pinned) { return 2 }
             forwarded := PkgStrings(arguments.count + 1)
             if forwarded.count != arguments.count + 1 { return PkgFail("cannot allocate arguments") }
             forwarded[0] = pinned
@@ -1479,10 +1473,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         searches: s64 = 0
         if project {
             binary = PkgJoin3(PkgToolDirectory(launcher, locked.tool_path, compiler), "/", compiler)
-            if !PathExists(binary) {
-                make_args: [5]string = .["make", "-C", locked.tool_path, "all", "BUILD_DIR=build"]
-                if PkgRunToStderr(make_args[:], "") != 0 { return PkgFail("cannot build pinned Ziran compiler") }
-            }
+            if !PkgEnsureToolBinary(locked.tool_path, binary) { return 2 }
             program_root = PkgJoin3(root, "/", current.roots[0])
             if !PkgHasSource(flags[1:]) { program_file = PkgJoin3(root, "/", current.entry) }
             map = PkgWriteMap(root, locked, current)

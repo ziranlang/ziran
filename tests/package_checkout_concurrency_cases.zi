@@ -4,6 +4,7 @@
 #import "std/byte_text_linux"
 #import "std/file"
 #import "std/file_tree_linux"
+#import "std/environment_linux"
 #import "std/process_run_linux"
 #import "std/text_tools"
 #import "std/timer_linux"
@@ -50,6 +51,50 @@ CheckoutHealthy :: (test: *NativeTest, path: string, sources: string, commit: st
         "published checkout is incomplete, dirty or at the wrong revision")
 }
 
+// A fresh compiler pin is shared just like a source checkout. Its recipe
+// deliberately fails on overlap, and publishes its launcher before finishing.
+ToolchainBuildAll :: (test: *NativeTest, root: string) -> bool {
+    if !FixtureIsolation(test, root) { return false }
+    launcher := test.ziran
+    test.ziran = EnvironmentText("ZIRAN_COMPILER_UNDER_TEST")
+    defer test.ziran = launcher
+    if !NativeAssert(test, test.ziran != "", "missing compiler under test") { return false }
+    tool := CheckPath(root, "tool"); app := CheckPath(root, "app")
+    if !FixtureInit(test, tool) ||
+        !NativeWrite(test, CheckPath(tool, "ziran.toml"), "[package]\nname = \"ConcurrentCompiler\"\n") ||
+        !NativeWrite(test, CheckPath(tool, ".gitignore"), "build/\n.building\nbuild-count\n") { return false }
+    recipe := "all:\n\t@set -eu; mkdir .building; trap 'rmdir .building' EXIT; sleep 0.1; mkdir -p build/bin; cp -- \"$$ZIRAN_FIXTURE_LAUNCHER\" build/bin/ziran; sleep 0.1; printf 'built\\n' >> build-count\n"
+    if !NativeWrite(test, CheckPath(tool, "Makefile"), recipe) { return false }
+    pin := FixtureCommit(test, tool, "concurrent toolchain build fixture")
+    manifest := string.["[package]\nname = \"ConcurrentConsumer\"\n[toolchain]\ngit = ", FixtureQuote(FixtureUri(tool)), "\nref = ", FixtureQuote(pin), "\n"]
+    if !NativeWrite(test, CheckPath(app, "ziran.toml"), TextJoin(manifest[:], "")) { return false }
+    NativeSet(test, "ZIRAN_PINNED_LAUNCHER", "1")
+    lock := string.["lock"]; unused PackageCommand(test, app, lock[:])
+    NativeUnset(test, "ZIRAN_PINNED_LAUNCHER")
+    NativeSet(test, "ZIRAN_FIXTURE_LAUNCHER", test.ziran)
+    children: Vec(NativeChild)
+    defer NativeChildrenStop(*children)
+    command := string.[test.ziran, "pkg", "path", "ziran", "--locked"]
+    for index: cast(s64)0..11 { unused index; VecPush(children, NativeSpawn(test, command[:], "toolchain", app)) }
+    complete := false
+    while !complete && !test.failed {
+        complete = true
+        for index: cast(s64)0..children.count - 1 {
+            if !NativeAssert(test, !TerminationRequested() && MonotonicMilliseconds() - children[index].started < 120000, "parallel toolchain build timed out or was interrupted") { return false }
+            if !PollProcess(*children[index].run) { complete = false; continue }
+            if !NativeAssert(test, children[index].run.code == 0, CheckConcat(CheckTail(children[index].output), CheckTail(children[index].error))) { return false }
+        }
+        if !complete { unused SleepMilliseconds(2) }
+    }
+    path := ""
+    for index: cast(s64)0..children.count - 1 {
+        selected := TextDetach(TextCopy(TextTrim(NativeRead(test, children[index].output))))
+        if path == "" { path = selected }
+        if !NativeAssert(test, selected != "" && selected == path, "parallel compiler consumers selected distinct pins") { return false }
+    }
+    return NativeAssert(test, NativeRead(test, CheckPath(path, "build-count")) == "built\n" && !PathExists(CheckPath(path, ".building")), "compiler build was duplicated or left its recipe active")
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "package-checkout-concurrency-")
@@ -86,7 +131,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
                 !NativeAssert(*test, IsDirectory(stale), "another checkout removed a stale sibling it does not own") { return 1 }
         }
     }
-    if test.failed { return 1 }
-    print("Local package checkout tests: 12 parallel fresh/repair consumers share a healthy pinned entry and preserve stale siblings\n")
+    if !ToolchainBuildAll(*test, CheckPath(test.work, "compiler")) || test.failed { return 1 }
+    print("Local package checkout tests: parallel fresh/repair consumers share healthy entries, compiler pins build once, and stale siblings survive\n")
     return 0
 }

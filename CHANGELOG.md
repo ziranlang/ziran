@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Serialize package-triggered builds of a pinned compiler. Concurrent project
+  commands wait for the same complete build instead of racing generated files
+  or starting a launcher while its companion tools are still being built.
+
 - Native script runs select dependency libraries from the modules they include,
   matching native builds. Unused optional codecs no longer become link
   requirements, and script caches track the dependency link metadata.

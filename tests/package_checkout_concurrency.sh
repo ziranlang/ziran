@@ -15,4 +15,4 @@ output=$work/c
     --module-path cmd --module-path std --target=c --no-main --entry "$entry:main" \
     -o "$output" "tests/$entry.zi"
 "${CC:-cc}" -O2 -std=c11 -I"$repo/include" "$output"/*.c -o "$output/probe" -lcrypto -lm
-"$ziran" run --target=c --root "$repo/tests" "$repo/tests/package_checkout_concurrency_cases.zi" -- "$output/probe"
+ZIRAN_COMPILER_UNDER_TEST="$ziran" "$ziran" run --target=c --root "$repo/tests" "$repo/tests/package_checkout_concurrency_cases.zi" -- "$output/probe"

@@ -2,7 +2,7 @@
  * zir_zx_wasm_web.c - the WebAssembly execution tier's web provider.
  *
  * Compiled only by Emscripten builds of libziran: the provider reaches the
- * browser's WebAssembly engine through EM_JS, installs itself when the
+ * browser's WebAssembly engine, installs itself when the
  * module loads (unless ZIRAN_WASM_TIER=0 or a JSPI runtime, which leave
  * bundles to the instruction engine), and memoizes compiled modules per
  * page session
@@ -30,9 +30,12 @@
 #include <emscripten.h>
 #include <stddef.h>
 
-/* Returns a nonzero instance handle, or 0 when the module is invalid. */
+/* Returns a nonzero instance handle, or 0 when the module is invalid.
+ * The async wrapper calls this JavaScript helper directly with asynchronous=1;
+ * C callers use the synchronous branch. Asyncify hosts await both compilation
+ * and instantiation to avoid browsers' 8 MiB main-thread limits. */
 EM_JS(unsigned long, zx_wasm_web_instantiate,
-      (const unsigned char *bytes, size_t size, void *host), {
+      (const unsigned char *bytes, size_t size, void *host, int asynchronous), {
     if(globalThis.zxWasmTier === undefined)
         globalThis.zxWasmTier = {modules: new Map(), instances: new Map(), next: 1};
     const tier = globalThis.zxWasmTier;
@@ -45,15 +48,11 @@ EM_JS(unsigned long, zx_wasm_web_instantiate,
     let compiled;
     try {
         compiled = tier.modules.get(key);
-        if(compiled === undefined) {
-            compiled = new WebAssembly.Module(view.slice());
-            tier.modules.set(key, compiled);
-        }
         const budget = new WebAssembly.Global({value: 'i64', mutable: true}, 0n);
         const entry = {instance: null, budget: budget};
         const unwinding = () => typeof Asyncify !== 'undefined' && Asyncify.State !== undefined &&
                                 Asyncify.state === Asyncify.State.Unwinding;
-        const instance = new WebAssembly.Instance(compiled, {
+        const imports = {
             zx: {
                 overrun: () => { throw new Error('zx budget spent'); },
                 host_i64: (index, value) => {
@@ -70,15 +69,41 @@ EM_JS(unsigned long, zx_wasm_web_instantiate,
                 },
                 budget: budget,
             },
-        });
-        entry.instance = instance;
-        const id = tier.next++;
-        tier.instances.set(id, entry);
-        return id;
+        };
+        const finish = instance => {
+            entry.instance = instance;
+            const id = tier.next++;
+            tier.instances.set(id, entry);
+            return id;
+        };
+        if(asynchronous) {
+            // Copy before suspending: the page may grow its linear memory.
+            const image = compiled === undefined ? view.slice() : null;
+            return (async () => {
+                if(compiled === undefined) {
+                    compiled = await WebAssembly.compile(image);
+                    tier.modules.set(key, compiled);
+                }
+                return finish(await WebAssembly.instantiate(compiled, imports));
+            })().catch(error => {
+                console.error('zx wasm tier: ' + error);
+                return 0;
+            });
+        }
+        if(compiled === undefined) {
+            compiled = new WebAssembly.Module(view.slice());
+            tier.modules.set(key, compiled);
+        }
+        return finish(new WebAssembly.Instance(compiled, imports));
     } catch(error) {
         console.error('zx wasm tier: ' + error);
         return 0;
     }
+});
+
+EM_ASYNC_JS(unsigned long, zx_wasm_web_instantiate_async,
+            (const unsigned char *bytes, size_t size, void *host), {
+    return await zx_wasm_web_instantiate(bytes, size, host, 1);
 });
 
 EM_JS(int, zx_wasm_web_set_budget, (unsigned long handle, long long budget), {
@@ -227,7 +252,9 @@ zx_wasm_provider_call(void *host, unsigned index, unsigned record)
 static unsigned long
 web_instantiate(void *context, const unsigned char *bytes, size_t size)
 {
-    return zx_wasm_web_instantiate(bytes, size, context);
+    if(zx_wasm_web_suspends())
+        return zx_wasm_web_instantiate_async(bytes, size, context);
+    return zx_wasm_web_instantiate(bytes, size, context, 0);
 }
 
 static int

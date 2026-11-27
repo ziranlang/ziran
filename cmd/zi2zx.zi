@@ -602,62 +602,13 @@ BuildTo :: (argc: s32, argv: **u8, into: *void) -> s32 {
                                cast(**u8)*defines, define_count, inputs, argc - first_file) == 0 {
         return result
     }
-    count := set.count
-    programs := set.programs
-    i: s32 = 0
-    while i < count {
-        merged.module_count += programs[cast(usize)i].module_count
-        i += 1
-    }
-    if merged.module_count == 0 || CheckCanonicalPrograms(programs, count, cast(**u8)set.paths) == 0 {
-        return result
-    }
-    merged.context = set.context
+    if CheckCanonicalPrograms(set.programs, set.count, cast(**u8)set.paths) == 0 ||
+       CLI.CommandMergePrograms(*set, *merged) == 0 || merged.module_count == 0 { return result }
     merged.checks = checks
     if checks != 0 { CLI.CommandEnableChecks(*set) }
-    merged.modules = cast(*IR.ZirModule)calloc(cast(usize)merged.module_count, size_of(IR.ZirModule))
-    if merged.modules == null { return result }
-    position: s32 = 0
-    i = 0
-    while i < count {
-        m: s32 = 0
-        while m < programs[cast(usize)i].module_count {
-            merged.modules[cast(usize)position] = programs[cast(usize)i].modules[cast(usize)m]
-            position += 1
-            m += 1
-        }
-        i += 1
-    }
     merged_ptr := *merged
     if LinkImports(*merged_ptr, 1) == 0 { return result }
-    r: s32 = 0
-    while r < retained_count {
-        module: [IR.ZIR_NAME_MAX]u8
-        function: [IR.ZIR_NAME_MAX]u8
-        found: s32 = 0
-        if CLI.SplitEntry(retained[cast(usize)r], *module[0], *function[0]) != 0 {
-            m: s32 = 0
-            while m < merged.module_count {
-                if strcmp(cast(*u8)*merged.modules[cast(usize)m].name, *module[0]) == 0 {
-                    f: s32 = 0
-                    while f < merged.modules[cast(usize)m].function_count {
-                        if strcmp(cast(*u8)*merged.modules[cast(usize)m].functions[cast(usize)f].name, *function[0]) == 0 {
-                            merged.modules[cast(usize)m].functions[cast(usize)f].retained_root = 1
-                            found = 1
-                        }
-                        f += 1
-                    }
-                }
-                m += 1
-            }
-        }
-        if found == 0 {
-            Diagnostic(Span(CStr("<command>"), 1, 1), CStr("zx.entry"),
-                       CStr("retained function not found: %s"), retained[cast(usize)r])
-            return result
-        }
-        r += 1
-    }
+    if CLI.CommandRetainFunctions(*merged, cast(**u8)*retained, retained_count, CStr("zx.entry")) == 0 { return result }
     b: s32 = 0
     while b < binding_count {
         if BindHostProvider(*merged, bindings[cast(usize)b]) == 0 { return result }

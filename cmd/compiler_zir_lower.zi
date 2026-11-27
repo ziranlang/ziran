@@ -773,11 +773,22 @@ VecElement :: (program: *AssemblyProgram, identity: s32) -> s32 {
     return -1
 }
 
-// Whether values of a type own heap storage: a vector, or a record or
+OwnedCallable :: (program: *AssemblyProgram, identity: s32) -> bool {
+    index: s32 = 0
+    while index < program.type_names.count {
+        named := program.type_names.data[index]
+        if named.identity == identity && named.record != null &&
+           named.record.is_owned_callable != 0 { return true }
+        index += 1
+    }
+    return false
+}
+
+// Whether values of a type own heap storage: a vector, callable, or a record or
 // fixed array that holds one. Pointers and views own nothing.
 OwnsStorage :: (program: *AssemblyProgram, identity: s32, depth: s32) -> s32 {
     if depth > 32 || identity <= 0 || identity >= program.types.count { return 0 }
-    if VecElement(program, identity) >= 0 { return 1 }
+    if VecElement(program, identity) >= 0 || OwnedCallable(program, identity) { return 1 }
     held := TypeAt(program, identity)
     if held.kind == LirTypeKind.Array {
         if held.count > 0 && OwnsStorage(program, held.element, depth + 1) != 0 { return 1 }
@@ -3238,7 +3249,7 @@ Print :: (program: *AssemblyProgram, function: *AssemblyFunction,
 // fixed array that holds one. Pointers and views own nothing.
 TypeOwned :: (program: *AssemblyProgram, identity: s32, depth: s32) -> bool {
     if depth > 32 || identity <= 0 || identity >= program.types.count { return false }
-    if VecElement(program, identity) >= 0 { return true }
+    if VecElement(program, identity) >= 0 || OwnedCallable(program, identity) { return true }
     ty := TypeAt(program, identity)
     if ty.kind == LirTypeKind.Array {
         return ty.count > 0 && TypeOwned(program, ty.element, depth + 1)
@@ -3366,6 +3377,10 @@ DropValue :: (program: *AssemblyProgram, function: *AssemblyFunction, value: s32
               identity: s32, span: IR.ZirSourceSpan, depth: s32) {
     if program.failed != 0 || function.current < 0 || depth > 32 ||
        TypeOwned(program, identity, 0) == false { return }
+    if OwnedCallable(program, identity) {
+        DropCallable(program, function, value, identity, span)
+        return
+    }
     if VecElement(program, identity) >= 0 {
         DropElements(program, function, value, identity, span, depth)
         VecRelease(program, function, value, identity, span)
@@ -3910,6 +3925,85 @@ FinishBuilder :: (program: *AssemblyProgram, function: *AssemblyFunction,
     return Emit(program, function, LirOp.Aggregate, string, fields, 2, -1, span)
 }
 
+
+// Allocation failure and invocation of an empty callable trap on every target.
+RequirePointer :: (program: *AssemblyProgram, function: *AssemblyFunction,
+                   pointer: s32, span: IR.ZirSourceSpan) {
+    if program.failed != 0 || pointer < 0 { return }
+    type := function.values.data[pointer]
+    live := function.bindings.count
+    before := Snapshot(program, function, live)
+    refused := Block(program, function, before, live)
+    granted := Block(program, function, before, live)
+    if program.failed != 0 { return }
+    operands := s32.[pointer, Emit(program, function, LirOp.Null, type, null, 0, -1, span)]
+    absent := Emit(program, function, LirOp.Equal, 1, operands.data, 2, -1, span)
+    Branch(program, function, absent, refused, granted, live, span)
+    Enter(function, refused, before, live)
+    Emit(program, function, LirOp.Trap, 0, null, 0, -1, span)
+    function.current = -1
+    Enter(function, granted, before, live)
+}
+
+DropCallable :: (program: *AssemblyProgram, function: *AssemblyFunction,
+                 value: s32, identity: s32, span: IR.ZirSourceSpan) {
+    record := TypeAt(program, identity)
+    state_type := record.fields[0]
+    release_type := record.fields[2]
+    state := Indexed(program, function, LirOp.Extract, state_type, *value, 1, 0, span)
+    release := Indexed(program, function, LirOp.Extract, release_type, *value, 1, 2, span)
+    live := function.bindings.count
+    before := Snapshot(program, function, live)
+    drop := Block(program, function, before, live)
+    done := Block(program, function, before, live)
+    if program.failed != 0 { return }
+    operands := s32.[state, Emit(program, function, LirOp.Null, state_type, null, 0, -1, span)]
+    absent := Emit(program, function, LirOp.Equal, 1, operands.data, 2, -1, span)
+    Branch(program, function, absent, done, drop, live, span)
+    Enter(function, drop, before, live)
+    RequirePointer(program, function, release, span)
+    arguments := s32.[release, state]
+    Emit(program, function, LirOp.CallIndirect, 0, arguments.data, 2, -1, span)
+    Jump(program, function, done, live, span)
+    Enter(function, done, before, live)
+}
+
+OwnedClosure :: (program: *AssemblyProgram, function: *AssemblyFunction,
+                 expression: *IR.ZirExpr, type: s32, depth: s32) -> s32 {
+    span := expression.span
+    environment := Type(program, function, expression.name, span)
+    value := Expression(program, function, expression.left, depth + 1)
+    pointer_type := PointerType(program, environment, span)
+    pointer := New(program, function, expression, pointer_type)
+    RequirePointer(program, function, pointer, span)
+    if program.failed != 0 { return -1 }
+    store := s32.[pointer, Convert(program, function, value, environment, span)]
+    Emit(program, function, LirOp.Store, 0, store.data, 2, -1, span)
+    state_type := TypeAt(program, type).fields[0]
+    invoke_type := TypeAt(program, type).fields[1]
+    release_type := TypeAt(program, type).fields[2]
+    fields := s32.[Emit(program, function, LirOp.Bitcast, state_type, *pointer, 1, -1, span),
+        Convert(program, function, Expression(program, function, expression.right, depth + 1), invoke_type, span),
+        Convert(program, function, Expression(program, function, expression.third, depth + 1), release_type, span)]
+    return Emit(program, function, LirOp.Aggregate, type, fields.data, 3, -1, span)
+}
+
+DropCapture :: (program: *AssemblyProgram, function: *AssemblyFunction,
+                expression: *IR.ZirExpr, depth: s32) -> s32 {
+    span := expression.span
+    environment := Type(program, function, expression.name, span)
+    pointer_type := PointerType(program, environment, span)
+    state := Expression(program, function, expression.left, depth + 1)
+    pointer := Emit(program, function, LirOp.Bitcast, pointer_type, *state, 1, -1, span)
+    RequirePointer(program, function, pointer, span)
+    if program.failed != 0 { return -1 }
+    value := Emit(program, function, LirOp.Load, environment, *pointer, 1, -1, span)
+    DropValue(program, function, value, environment, span, 0)
+    operands := s32.[pointer, Constant(program, function, 8, 1, span),
+        Constant(program, function, 8, 0, span)]
+    Emit(program, function, LirOp.Resize, pointer_type, operands.data, 3, -1, span)
+    return -1
+}
 
 // New(T): one zeroed T on the heap, or null when it cannot be had.
 New :: (program: *AssemblyProgram, function: *AssemblyFunction,
@@ -5910,6 +6004,12 @@ ExpressionValue :: (program: *AssemblyProgram, function: *AssemblyFunction,
     expression := *function.source.exprs[root]
     type := Type(program, function, expression.type, expression.span)
     if program.failed != 0 { return -1 }
+    if expression.kind == .OWNED_CLOSURE {
+        return OwnedClosure(program, function, expression, type, depth + 1)
+    }
+    if expression.kind == .OWNED_CAPTURE_DROP {
+        return DropCapture(program, function, expression, depth + 1)
+    }
     if expression.is_function_value != 0 {
         owner: *IR.ZirModule = null
         callee: *IR.ZirFunction = null
@@ -6015,6 +6115,12 @@ ExpressionValue :: (program: *AssemblyProgram, function: *AssemblyFunction,
     }
     if expression.kind == ZirExprKind.CAST {
         value := Expression(program, function, expression.right, depth + 1)
+        // Only the checked invocation prelude restores an erased capture.
+        // Ordinary pointer reinterpretation has no portable lowered form.
+        if function.source != null && IR.CaptureEnvironmentBinding(function.source) &&
+           root == function.source.stmts[0].expr_root {
+            return Emit(program, function, LirOp.Bitcast, type, *value, 1, -1, expression.span)
+        }
         return Convert(program, function, value, type, expression.span)
     }
     if expression.kind == ZirExprKind.UNARY {
@@ -6235,6 +6341,10 @@ ExpressionValue :: (program: *AssemblyProgram, function: *AssemblyFunction,
         }
         symbol: s32 = -1
         receiver: s32 = -1
+        owned_receiver: s32 = -1
+        owned_identity: s32 = -1
+        state: s32 = -1
+        hidden: s32 = 0
         parameters: []s32
         result: s32 = 0
         if indirect == true {
@@ -6244,6 +6354,18 @@ ExpressionValue :: (program: *AssemblyProgram, function: *AssemblyFunction,
                 receiver = NamedValue(program, function, expression.name, expression.span)
             }
             if program.failed != 0 { return -1 }
+            owned_identity = function.values.data[receiver]
+            if OwnedCallable(program, owned_identity) {
+                owned_receiver = receiver
+                record := TypeAt(program, owned_identity)
+                state_type := record.fields[0]
+                invoke_type := record.fields[1]
+                state = Indexed(program, function, LirOp.Extract, state_type, *receiver, 1, 0, expression.span)
+                receiver = Indexed(program, function, LirOp.Extract, invoke_type, *receiver, 1, 1, expression.span)
+                RequirePointer(program, function, state, expression.span)
+                RequirePointer(program, function, receiver, expression.span)
+                hidden = 1
+            }
             signature := TypeAt(program, function.values.data[receiver])
             if signature.kind != LirTypeKind.Function {
                 return Fail(program, expression.span, "indirect call requires a portable procedure value")
@@ -6293,6 +6415,7 @@ ExpressionValue :: (program: *AssemblyProgram, function: *AssemblyFunction,
             values[index] = -1
             index = index + 1
         }
+        if hidden == 1 { values[0] = state }
         ordinal: s32 = 0
         child := expression.first_child
         while child >= 0 {
@@ -6302,6 +6425,7 @@ ExpressionValue :: (program: *AssemblyProgram, function: *AssemblyFunction,
             argument := *function.source.exprs[child]
             position := ordinal
             if argument.argument_index >= 0 { position = argument.argument_index }
+            position += hidden
             if position < 0 || position >= count || values[position] >= 0 {
                 return Fail(program, argument.span, "invalid checked call argument mapping")
             }
@@ -6324,8 +6448,15 @@ ExpressionValue :: (program: *AssemblyProgram, function: *AssemblyFunction,
         op := LirOp.Call
         if indirect == true { op = LirOp.CallIndirect }
         if host == true { op = LirOp.HostCall }
-        return Emit(program, function, op, result, arguments, count + cast(s32)(ifx indirect == true then 1 else 0),
+        answer := Emit(program, function, op, result, arguments, count + cast(s32)(ifx indirect == true then 1 else 0),
             symbol, expression.span)
+        if owned_receiver >= 0 && expression.left >= 0 {
+            base := function.source.exprs[expression.left]
+            if base.kind == .CALL || base.kind == .OWNED_CLOSURE || base.kind == .CONDITIONAL {
+                DropValue(program, function, owned_receiver, owned_identity, expression.span, 0)
+            }
+        }
+        return answer
     }
     return Fail(program, expression.span, "expression is outside the initial direct scalar backend")
 }
@@ -7253,7 +7384,7 @@ HostFunction :: (program: *AssemblyProgram, module: *IR.ZirModule, asked: *u8,
         function_index: s32 = 0
         while provider_module != null && function_index < provider_module.function_count {
             candidate_function := provider_module.functions[function_index]
-            if candidate_function.is_extern != 0 || candidate_function.exported == 0 ||
+            if !IR.HostProviderVisible(*candidate_function) ||
                IR.CText(*candidate_function.name[0]) != IR.CText(provider_name) {
                 function_index += 1
                 continue

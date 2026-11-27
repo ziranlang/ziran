@@ -97,7 +97,6 @@ ExecutableFeatureModuleLinkage :: 2
 ExecutableSectionManifest :: 1
 ExecutableSectionProgram :: 2
 ExecutableSectionAssets :: 3
-ExecutableSectionVariants :: 4
 ExecutableSectionModuleLinkage :: 5
 ExecutableSectionDebug :: 0x80000001
 ExecutableSectionSource :: 0x80000002
@@ -511,9 +510,6 @@ ExecutableFrame :: (bytes: string, source: *ExecutableReadSource, length: s64) -
         } else if kind == ExecutableSectionAssets {
             if !required { layout.problem = .Assets; return layout }
             layout.asset_section = section; found_assets = true
-        } else if kind == ExecutableSectionVariants {
-            if required { layout.problem = .Variant; return layout }
-            layout.optional_sections += 1
         } else if kind == ExecutableSectionModuleLinkage {
             if !has_module_linkage || !required || size == 0 { layout.problem = .Section; return layout }
             if alignment != ExecutableAlignment { layout.problem = .Alignment; return layout }

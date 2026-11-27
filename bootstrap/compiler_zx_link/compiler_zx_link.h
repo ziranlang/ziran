@@ -371,6 +371,11 @@ int32_t zir_foreign_compiler_zx_link__same_type_application(ZirModule* target_ow
 int32_t zir_foreign_compiler_zx_link__same_type_application(ZirModule* target_owner, ZirType* target, ZirModule* source_owner, ZirType* source) __asm__("same_type_application");
 #endif
 #ifdef __APPLE__
+int32_t zir_foreign_compiler_zx_link__callback_type_equal(ZirModule* left_module, uint8_t* left, ZirModule* right_module, uint8_t* right, int32_t depth) __asm__("_private_check_callback_type_equal");
+#else
+int32_t zir_foreign_compiler_zx_link__callback_type_equal(ZirModule* left_module, uint8_t* left, ZirModule* right_module, uint8_t* right, int32_t depth) __asm__("private_check_callback_type_equal");
+#endif
+#ifdef __APPLE__
 int32_t zir_foreign_compiler_zx_link__ModuleNeedsStartup(ZirModule* module) __asm__("_ModuleNeedsStartup");
 #else
 int32_t zir_foreign_compiler_zx_link__ModuleNeedsStartup(ZirModule* module) __asm__("ModuleNeedsStartup");
@@ -499,8 +504,12 @@ ZirSourceSpan compiler_zx_link_CommandSpan(void);
 bool compiler_zx_link_BoundToZiran(uint8_t* target);
 bool compiler_zx_link_IsHostCapability(ZirImport* imported);
 bool compiler_zx_link_SplitBindingName(uint8_t* text, uint8_t* module, uint8_t* function);
-bool compiler_zx_link_ResolveBindingModule(uint8_t* module);
+String compiler_zx_link_BindingSourceName(ZirModule* module);
+bool compiler_zx_link_BindingModuleMatches(ZirModule* module, uint8_t* wanted);
+bool compiler_zx_link_ResolveBindingModule(ZirProgram* program, uint8_t* module);
+int32_t ResolveProgramModule(ZirProgram* program, uint8_t* module);
 void compiler_zx_link_BindImport(ZirImport* matched, uint8_t* provider_module, uint8_t* function);
+bool compiler_zx_link_HostProviderMatches(ZirModule* module, ZirImport* imported, ZirModule* provider, ZirFunction* function);
 int32_t BindHostProvider(ZirProgram* program, uint8_t* spec);
 uint8_t* compiler_zx_link_ModuleFile(ZirProgram* program, uint8_t* name);
 void compiler_zx_link_BoundTwice(ZirProgram* program, ZirImport* matched, uint8_t* capability, uint8_t* module, uint8_t* function);
@@ -922,7 +931,7 @@ compiler_zx_link_KeepHostProvider_ziran_inline(ZirProgram* program, ZirImport* i
                     }
                     ZirFunction* implementation = value_7;
                     bool value_9 = compiler_zx_link_Same(&(implementation->name[0]), &(imported->extern_symbol[0]));
-                    if (value_9 && implementation->exported != 0 && implementation->is_extern == 0) {
+                    if (value_9 && compiler_ir_HostProviderVisible(implementation)) {
                         found = (int32_t)((uint32_t)found + 1u);
                         uint8_t* value_10 = &(keep[m][f]);
                         int32_t* value_11 = changed;

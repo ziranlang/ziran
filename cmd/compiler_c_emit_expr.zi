@@ -39,6 +39,7 @@ OwnedTextType :: (module: *IR.ZirModule, type: *u8) -> s32 #foreign compiler "Ow
 MapPrimitiveName :: (name: *u8) -> s32 #foreign compiler "MapPrimitiveName";
 MapTypePartsAtUse :: (module: *IR.ZirModule, type: *u8, key: *u8, key_size: usize, value: *u8, value_size: usize) -> s32 #foreign compiler "MapTypePartsAtUse";
 CFindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
+CTypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
 EnumMemberValue :: (enumeration: *IR.ZirType, member: *u8, out: *s64) -> s32 #foreign compiler "EnumMemberValue";
 SimdOpChecked :: (name: *u8) -> *void #foreign compiler "SimdOpChecked";
 emit_simd_call :: (e: *Emitter, expr: *IR.ZirExpr, out: *u8, size: usize) -> s32 #foreign compiler "zir_emit_emit_simd_call";
@@ -1243,6 +1244,144 @@ WriteCStringArray :: (out: *void, indent: s32, declaration: *u8, literal: *u8) {
 
 #scope_file
 
+// Read the target spelling of an owned callable's private field `wanted`.
+OwnedCallableField :: (record: *IR.ZirType, target: Native.ZirTarget, wanted: *u8,
+                       out: *u8, size: usize) {
+    out[0] = 0
+    offset: usize = 0
+    field: IR.ZirTypeField
+    while CTypeNextField(record, *offset, *field) == 1 {
+        if strcmp(*field.name[0], wanted) != 0 { continue }
+        CTargetFieldName(record, target, *field.name[0], out, size)
+        if target == .ZIR_GO { go_field_ident(out, out, size) }
+        return
+    }
+}
+
+// One owned native callable value: allocate the environment capture heap
+// once, move the environment value in, and store the checked invoke and
+// release trampolines. Exhausted memory aborts deterministically; the
+// record is move-only from here on.
+EmitOwnedClosure :: (e: *Emitter, expr: *IR.ZirExpr, out: *u8, size: usize) {
+    text := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    source := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    defer {
+        free(cast(*void)text)
+        free(cast(*void)source)
+    }
+    record := CFindType(e.module, expr.type, null)
+    if record == null || record.is_owned_callable == 0 {
+        Val.Fatal(expr, CStr("owned closure requires an Owned(Signature) type"))
+    }
+    if CFindType(e.module, expr.name, null) == null {
+        Val.Fatal(expr, CStr("owned closure environment type is missing"))
+    }
+    mapped: [IR.ZIR_NAME_MAX * 2]u8
+    e.resolve(e.context, expr.name, *mapped[0], IR.ZIR_NAME_MAX * 2)
+    state: [IR.ZIR_NAME_MAX]u8
+    invoke: [IR.ZIR_NAME_MAX]u8
+    release: [IR.ZIR_NAME_MAX]u8
+    OwnedCallableField(record, e.target, CStr("state"), *state[0], IR.ZIR_NAME_MAX)
+    OwnedCallableField(record, e.target, CStr("invoke"), *invoke[0], IR.ZIR_NAME_MAX)
+    OwnedCallableField(record, e.target, CStr("release"), *release[0], IR.ZIR_NAME_MAX)
+    if state[0] == 0 || invoke[0] == 0 || release[0] == 0 {
+        Val.Fatal(expr, CStr("owned callable record has unexpected storage"))
+    }
+    // The capture heap slot receives the environment value exactly once.
+    slot: [IR.ZIR_NAME_MAX]u8
+    Fresh(e, *slot[0])
+    if e.target == .ZIR_GO {
+        CheckFormat(snprintf(text, IR.ZIR_TEXT_MAX, CStr("new(%s)"), *mapped[0]), IR.ZIR_TEXT_MAX)
+    } else {
+        CheckFormat(snprintf(text, IR.ZIR_TEXT_MAX,
+                             CStr("((%s *)calloc(1, sizeof(%s)))"), *mapped[0], *mapped[0]), IR.ZIR_TEXT_MAX)
+    }
+    pointer_type: [IR.ZIR_NAME_MAX * 2]u8
+    CheckFormat(snprintf(*pointer_type[0], IR.ZIR_NAME_MAX * 2, CStr("*%s"), expr.name), IR.ZIR_NAME_MAX * 2)
+    Declare(e, *slot[0], *pointer_type[0], text)
+    if e.target != .ZIR_GO {
+        EmitIndent(e)
+        fprintf(e.out, CStr("if (%s == NULL) { abort(); }\n"), *slot[0])
+    }
+    EmitExpr(e, expr.left, expr.name, source, IR.ZIR_TEXT_MAX)
+    EmitIndent(e)
+    if e.target == .ZIR_GO {
+        fprintf(e.out, CStr("(*%s) = %s\n"), *slot[0], source)
+    } else {
+        fprintf(e.out, CStr("(*%s) = %s;\n"), *slot[0], source)
+    }
+    owned: [IR.ZIR_NAME_MAX]u8
+    Fresh(e, *owned[0])
+    ZeroRecord(e, expr.type, text, IR.ZIR_TEXT_MAX)
+    Declare(e, *owned[0], expr.type, text)
+    EmitIndent(e)
+    if e.target == .ZIR_GO {
+        fprintf(e.out, CStr("%s.%s = (*uint8)(unsafe.Pointer(%s))\n"), *owned[0], *state[0], *slot[0])
+    } else {
+        fprintf(e.out, CStr("%s.%s = (void *)(%s);\n"), *owned[0], *state[0], *slot[0])
+    }
+    EmitExpr(e, expr.right, e.fn.exprs[expr.right].type, source, IR.ZIR_TEXT_MAX)
+    EmitIndent(e)
+    if e.target == .ZIR_GO {
+        fprintf(e.out, CStr("%s.%s = %s\n"), *owned[0], *invoke[0], source)
+    } else {
+        fprintf(e.out, CStr("%s.%s = %s;\n"), *owned[0], *invoke[0], source)
+    }
+    EmitExpr(e, expr.third, e.fn.exprs[expr.third].type, source, IR.ZIR_TEXT_MAX)
+    EmitIndent(e)
+    if e.target == .ZIR_GO {
+        fprintf(e.out, CStr("%s.%s = %s\n"), *owned[0], *release[0], source)
+    } else {
+        fprintf(e.out, CStr("%s.%s = %s;\n"), *owned[0], *release[0], source)
+    }
+    copy_text(out, size, *owned[0])
+    e.pure = 0
+}
+
+// One generated release trampoline statement: drop the owned fields the
+// capture still holds, then give the capture block back to the allocator.
+// Go reclaims the block with its collector; C frees it here.
+EmitOwnedCaptureDrop :: (e: *Emitter, expr: *IR.ZirExpr) {
+    text := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    state := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    defer {
+        free(cast(*void)text)
+        free(cast(*void)state)
+    }
+    if CFindType(e.module, expr.name, null) == null {
+        Val.Fatal(expr, CStr("owned capture drop environment type is missing"))
+    }
+    EmitExpr(e, expr.left, e.fn.exprs[expr.left].type, state, IR.ZIR_TEXT_MAX)
+    mapped: [IR.ZIR_NAME_MAX * 2]u8
+    e.resolve(e.context, expr.name, *mapped[0], IR.ZIR_NAME_MAX * 2)
+    capture: [IR.ZIR_NAME_MAX]u8
+    Fresh(e, *capture[0])
+    if e.target == .ZIR_GO {
+        CheckFormat(snprintf(text, IR.ZIR_TEXT_MAX,
+                             CStr("(*%s)(unsafe.Pointer(%s))"), *mapped[0], state), IR.ZIR_TEXT_MAX)
+    } else {
+        CheckFormat(snprintf(text, IR.ZIR_TEXT_MAX,
+                             CStr("(%s *)(%s)"), *mapped[0], state), IR.ZIR_TEXT_MAX)
+    }
+    pointer_type: [IR.ZIR_NAME_MAX * 2]u8
+    CheckFormat(snprintf(*pointer_type[0], IR.ZIR_NAME_MAX * 2, CStr("*%s"), expr.name), IR.ZIR_NAME_MAX * 2)
+    Declare(e, *capture[0], *pointer_type[0], text)
+    if e.target == .ZIR_GO {
+        EmitIndent(e); fprintf(e.out, CStr("if %s != nil {\n"), *capture[0])
+    } else {
+        EmitIndent(e); fprintf(e.out, CStr("if (%s != NULL) {\n"), *capture[0])
+    }
+    e.indent += 1
+    CheckFormat(snprintf(text, IR.ZIR_TEXT_MAX, CStr("(*%s)"), *capture[0]), IR.ZIR_TEXT_MAX)
+    DropOwnedValue(e, text, expr.name, e.module, 0)
+    if e.target != .ZIR_GO {
+        EmitIndent(e); fprintf(e.out, CStr("free(%s);\n"), *capture[0])
+    }
+    e.indent -= 1
+    EmitIndent(e); fputs(CStr("}\n"), e.out)
+    e.pure = 0
+}
+
 EmitExprWithBuffers :: (e: *Emitter, index: s32, expected: *u8, out: *u8, size: usize, buffers: *EmitExprBuffers) {
     expr := *e.fn.exprs[index]
     type := CCanonical(expr.type)
@@ -1705,6 +1844,13 @@ EmitExprWithBuffers :: (e: *Emitter, index: s32, expected: *u8, out: *u8, size: 
     } else if expr.kind == .COMPILE_TIME {
         copy_text(*buffers.result[0], IR.ZIR_TEXT_MAX, CStr("false"))
         pure = 1
+    } else if expr.kind == .OWNED_CLOSURE {
+        EmitOwnedClosure(e, expr, out, size)
+        return
+    } else if expr.kind == .OWNED_CAPTURE_DROP {
+        EmitOwnedCaptureDrop(e, expr)
+        out[0] = 0
+        return
     } else if expr.kind == .IDENT {
         if expr.is_function_value != 0 {
             emit_function_value(e, index, *buffers.result[0], IR.ZIR_TEXT_MAX)

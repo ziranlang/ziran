@@ -290,9 +290,10 @@ transitive dependency. Add <code>--submodules</code> when a platform build needs
 vendored backend source. The command initializes the submodules at the commits
 recorded by that package; with <code>--offline</code>, it requires them to be present.</p>
 <p><code>ziran pkg paths PACKAGE...</code> resolves several selectors with one graph checkout
-and validation in the selected launcher. It uses the same direct-alias and
-unique transitive package-name selection as <code>pkg path</code>, including <code>ziran</code> for
-the toolchain, and accepts <code>--locked</code>, <code>--offline</code>, and a trailing <code>--submodules</code>.
+and validation in the selected launcher. Like <code>pkg path</code>, it accepts a direct
+alias, an exact package ID from the lock, or a unique transitive package name.
+An exact ID distinguishes packages with the same manifest name. Use <code>ziran</code> for
+the toolchain. Both commands accept <code>--locked</code>, <code>--offline</code>, and a trailing <code>--submodules</code>.
 Pinned-launcher forwarding and cache validation remain the same as <code>pkg path</code>.
 On success stdout is a JSON array in argument order, with repetitions retained:</p>
 <pre><code class="language-json">[{&quot;selector&quot;:&quot;plot&quot;,&quot;path&quot;:&quot;/home/user/.cache/ziran/sources/p123&quot;},

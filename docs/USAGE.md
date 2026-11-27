@@ -11,12 +11,23 @@ code and assembly.
 
 ## Compiler commands
 
-The compiler commands are `zi2zir` (including
-`--check-only`), `zi2c`, `zi2go`, and `zi2zx`.
-Run a program with `ziran run hello.zi` or `zi2zx run hello.zi`; Ziran checks
-the file and executes `main` in one step. `make install-user` installs both
-commands in `~/.local/bin`.
-`zi-fmt` formats source. `ziran guide` prints a short reference from the
+Use the same commands for native `.zi`, `.ts` and `.tsx` sources, including
+projects that mix them:
+
+```sh
+ziran check --project
+ziran ir --project -o build/ir
+ziran build
+ziran run
+```
+
+`check` validates sources and imports; `ir` saves checked `.zir` modules;
+`build` selects an output target; `run` checks and executes `main`.
+Project manifests and locks select the toolchain and dependencies for all
+source languages. See [native TypeScript](NATIVE_TYPESCRIPT.md) for its subset.
+The backend drivers share the frontend and checked IR; source languages do
+not have separate converter commands. `make install-user` installs the tools.
+`ziran fmt` formats Ziran source. `ziran guide` prints a short reference from the
 installed compiler, including current safety and target limits.
 `ziran capabilities --target=go --json` reports a versioned machine-readable
 target summary; see the [capability schema](CAPABILITIES.md).
@@ -1757,7 +1768,10 @@ beside the launcher), and `-o FILE` writes elsewhere.
 ## Save and inspect ZIR modules
 
 `ziran ir --entry module:function` saves that reachable graph as
-per-module `.zir` files before code generation.
+per-module `.zir` files before code generation. Repeat `--retain other:function`
+to retain additional native host entry points and their dependencies, even when
+the selected entry's call to them folds to a constant. Each retained function
+must exist in the checked input graph; `--retain` requires `--entry`.
 
 ### Compile-time target facts
 

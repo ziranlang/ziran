@@ -70,6 +70,7 @@ ArrayElementType :: (type: *u8, element: *u8, size: usize, capacity: *s32) -> s3
 SliceElementType :: (type: *u8, element: *u8, size: usize) -> s32 #foreign compiler "SliceElementType";
 VecElementType :: (module: *IR.ZirModule, type: *u8, element: *u8, size: usize) -> s32 #foreign compiler "VecElementType";
 same_type_application :: (target_owner: *IR.ZirModule, target: *IR.ZirType, source_owner: *IR.ZirModule, source: *IR.ZirType) -> s32 #foreign compiler "same_type_application";
+callback_type_equal :: (left_module: *IR.ZirModule, left: *u8, right_module: *IR.ZirModule, right: *u8, depth: s32) -> s32 #foreign compiler "private_check_callback_type_equal";
 ModuleNeedsStartup :: (module: *IR.ZirModule) -> s32 #foreign compiler "ModuleNeedsStartup";
 FindVisibleLaw :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirLaw #foreign compiler "FindVisibleLaw";
 TargetProcedureTypeSupported :: (target: *u8, c_call: s32) -> s32 #foreign compiler "TargetProcedureTypeSupported";
@@ -141,31 +142,105 @@ SplitBindingName :: (text: *u8, module: *u8, function: *u8) -> bool {
     return true
 }
 
-// A binding may name a module by its import path, such as
-// kryon/raster_text:RasterText, when a project supplies the package map.
-ResolveBindingModule :: (module: *u8) -> bool {
+// Source origins retain their paths even when named roots scope module names.
+BindingSourceName :: (module: *IR.ZirModule) -> string {
+    path := IR.CText(SpanPath(module.span))
+    root := IR.CText(*module.source_root[0])
+    if root.count > 0 && path.count > root.count {
+        prefix := true
+        for i: 0..root.count - 1 { if path[i] != root[i] { prefix = false; break } }
+        if prefix && root[root.count - 1] == #char "/" { path = path[root.count:] }
+        else if prefix && path[root.count] == #char "/" { path = path[root.count + 1:] }
+    }
+    dot := path.count
+    for i: 0..path.count - 1 { if path[i] == #char "." { dot = i } }
+    if dot < path.count {
+        suffix := path[dot:]
+        if suffix == ".zi" || suffix == ".ts" || suffix == ".tsx" || suffix == ".zir" { path = path[:dot] }
+    }
+    return path
+}
+
+BindingModuleMatches :: (module: *IR.ZirModule, wanted: *u8) -> bool {
+    name := IR.CText(wanted)
+    if IR.CText(*module.name[0]) == name { return true }
+    source := BindingSourceName(module)
+    if source == name { return true }
+    slash := strchr(wanted, #char "/")
+    if slash == null { return false }
+    scope := Distance(wanted, slash)
+    if scope == 0 { return false }
+    identity := IR.CText(*module.name[0])
+    if cast(usize)identity.count <= scope + 2 || identity[scope] != #char "_" || identity[scope + 1] != #char "_" { return false }
+    for i: cast(usize)0..scope - 1 {
+        byte := ifx wanted[i] == #char "-" then #char "_" else wanted[i]
+        if identity[i] != byte { return false }
+    }
+    return source == IR.CText(PtrAdd(slash, 1))
+}
+
+// Resolve declared package exports first, then ordinary loaded source origins.
+ResolveBindingModule :: (program: *IR.ZirProgram, module: *u8) -> bool {
     if strchr(module, #char "/") == null { return true }
     path := getenv(CStr("ZIRAN_PACKAGE_MAP"))
-    if path == null || path[0] == 0 {
-        Diagnostic(CommandSpan(), CStr("host.bind"), CStr("host binding %s names a package module; run it with --project"), module)
-        return false
-    }
-    map := PackageMapLoad(path)
     identity: [IR.ZIR_NAME_MAX]u8
-    found := map != null && PackageDependencyModule(map, CStr("root"), module, *identity[0], IR.ZIR_NAME_MAX) != 0
-    PackageMapFree(map)
-    if !found {
-        Diagnostic(CommandSpan(), CStr("host.bind"), CStr("host binding names %s, which no direct dependency has"), module)
+    if path != null && path[0] != 0 {
+        map := PackageMapLoad(path)
+        found := map != null && PackageDependencyModule(map, CStr("root"), module, *identity[0], IR.ZIR_NAME_MAX) != 0
+        PackageMapFree(map)
+        if found { strcpy(module, *identity[0]); return true }
+    }
+    matched: *IR.ZirModule = null
+    for m: 0..program.module_count - 1 {
+        candidate := ModuleAt(program, m)
+        if !BindingModuleMatches(candidate, module) { continue }
+        if matched != null {
+            Diagnostic(CommandSpan(), CStr("host.bind"), CStr("host binding module %s is ambiguous"), module)
+            return false
+        }
+        matched = candidate
+    }
+    if matched == null {
+        Diagnostic(CommandSpan(), CStr("host.bind"), CStr("host binding module %s is not loaded"), module)
         return false
     }
-    snprintf(module, IR.ZIR_NAME_MAX, CStr("%s"), *identity[0])
+    strcpy(module, *matched.name[0])
     return true
+}
+
+// Resolve command-selected roots through the same module graph as bindings.
+#program_export "ResolveProgramModule"
+ResolveProgramModule :: (program: *IR.ZirProgram, module: *u8) -> s32 {
+    return cast(s32)ResolveBindingModule(program, module)
 }
 
 // Binds MATCHED, a host capability, to FUNCTION of PROVIDER_MODULE.
 BindImport :: (matched: *IR.ZirImport, provider_module: *u8, function: *u8) {
     snprintf(*matched.target[0], IR.ZIR_PATH_MAX, CStr("ziran:%s"), provider_module)
     snprintf(*matched.extern_symbol[0], IR.ZIR_NAME_MAX, CStr("%s"), function)
+}
+
+HostProviderMatches :: (module: *IR.ZirModule, imported: *IR.ZirImport,
+                        provider: *IR.ZirModule, function: *IR.ZirFunction) -> bool {
+    wanted := ParametersOf(*imported.args[0])
+    actual := ParametersOf(FunctionArgs(function))
+    matches := imported.is_varargs == 0 && wanted.count == actual.count &&
+        callback_type_equal(module, *imported.return_type[0], provider, *function.return_type[0], 0) != 0
+    if matches {
+        for i: 0..wanted.count - 1 {
+            if callback_type_equal(module, ParameterAt(wanted, i).type,
+                                   provider, ParameterAt(actual, i).type, 0) == 0 {
+                matches = false
+                break
+            }
+        }
+    }
+    if !matches {
+        Diagnostic(imported.span, CStr("host.bind"),
+            CStr("host provider signature mismatch: %s:%s cannot implement %s:%s"),
+            *provider.name[0], *function.name[0], *module.name[0], *imported.name[0])
+    }
+    return matches
 }
 
 // Bind one declared host capability to an exported Ziran implementation.
@@ -180,6 +255,8 @@ BindHostProvider :: (program: *IR.ZirProgram, spec: *u8) -> s32 {
     provider_function: [IR.ZIR_NAME_MAX]u8
     matched: *IR.ZirImport = null
     implementation: *IR.ZirFunction = null
+    capability_owner: *IR.ZirModule = null
+    implementation_owner: *IR.ZirModule = null
     if equals == null || Distance(spec, equals) >= 256 || strlen(PtrAdd(equals, 1)) >= 256 {
         Diagnostic(CommandSpan(), CStr("host.bind"), CStr("invalid host binding: %s"), spec)
         return 0
@@ -192,7 +269,7 @@ BindHostProvider :: (program: *IR.ZirProgram, spec: *u8) -> s32 {
         Diagnostic(CommandSpan(), CStr("host.bind"), CStr("invalid host binding: %s"), spec)
         return 0
     }
-    if !ResolveBindingModule(*source_module[0]) || !ResolveBindingModule(*provider_module[0]) { return 0 }
+    if !ResolveBindingModule(program, *source_module[0]) || !ResolveBindingModule(program, *provider_module[0]) { return 0 }
     for m: 0..program.module_count - 1 {
         module := ModuleAt(program, m)
         if Same(*module.name[0], *source_module[0]) {
@@ -204,18 +281,20 @@ BindHostProvider :: (program: *IR.ZirProgram, spec: *u8) -> s32 {
                         return 0
                     }
                     matched = imported
+                    capability_owner = module
                 }
             }
         }
         if Same(*module.name[0], *provider_module[0]) {
             for i: 0..module.function_count - 1 {
                 function := FunctionAt(module, i)
-                if Same(*function.name[0], *provider_function[0]) && function.exported != 0 && function.is_extern == 0 {
+                if Same(*function.name[0], *provider_function[0]) && IR.HostProviderVisible(function) {
                     if implementation != null {
                         Diagnostic(function.span, CStr("host.bind"), CStr("ambiguous Ziran provider: %s"), *provider[0])
                         return 0
                     }
                     implementation = function
+                    implementation_owner = module
                 }
             }
         }
@@ -234,6 +313,7 @@ BindHostProvider :: (program: *IR.ZirProgram, spec: *u8) -> s32 {
         BoundTwice(program, matched, *source[0], *provider_module[0], *provider_function[0])
         return 0
     }
+    if !HostProviderMatches(capability_owner, matched, implementation_owner, implementation) { return 0 }
     BindImport(matched, *provider_module[0], *provider_function[0])
     return 1
 }
@@ -270,7 +350,7 @@ BindHostModule :: (program: *IR.ZirProgram, spec: *u8) -> s32 {
         return 0
     }
     strcpy(*provider_module[0], spec)
-    if !ResolveBindingModule(*provider_module[0]) { return 0 }
+    if !ResolveBindingModule(program, *provider_module[0]) { return 0 }
     for m: 0..program.module_count - 1 {
         candidate := ModuleAt(program, m)
         if Same(*candidate.name[0], *provider_module[0]) { provider = candidate }
@@ -286,7 +366,8 @@ BindHostModule :: (program: *IR.ZirProgram, spec: *u8) -> s32 {
             if !IsHostCapability(imported) || BoundToZiran(*imported.target[0]) { continue }
             for f: 0..provider.function_count - 1 {
                 function := FunctionAt(provider, f)
-                if function.exported != 0 && function.is_extern == 0 && Same(*function.name[0], *imported.name[0]) {
+                if IR.HostProviderVisible(function) && Same(*function.name[0], *imported.name[0]) {
+                    if !HostProviderMatches(module, imported, provider, function) { return 0 }
                     BindImport(imported, *provider_module[0], *function.name[0])
                     break
                 }

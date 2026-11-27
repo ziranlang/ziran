@@ -2365,6 +2365,17 @@ EmitGoNumberHelpers :: (out: *void, text: *u8, written: *u32) {
     }
 }
 
+// The checked record behind an Owned(Signature) spelling, or null. Owned
+// callables are compiler-owned records whose state, invoke and release
+// storage is private to the generated trampolines.
+#program_export "zir_emit_owned_callable_record"
+OwnedCallableRecord :: (module: *IR.ZirModule, type: *u8) -> *IR.ZirType {
+    if module == null || type == null || type[0] == 0 { return null }
+    record := CFindType(module, type, null)
+    if record == null || record.is_owned_callable == 0 { return null }
+    return record
+}
+
 #program_export "zir_emit_emitter_type_contains_vec"
 EmitterTypeContainsVec :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 {
     element: [IR.ZIR_NAME_MAX]u8
@@ -2373,6 +2384,7 @@ EmitterTypeContainsVec :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 
         return 0
     }
     if VecElementType(module, type, null, 0) != 0 { return 1 }
+    if OwnedCallableRecord(module, type) != null { return 1 }
     if ArrayElementType(type, *element[0], IR.ZIR_NAME_MAX, null) != 0 {
         return EmitterTypeContainsVec(module, *element[0], depth + 1)
     }

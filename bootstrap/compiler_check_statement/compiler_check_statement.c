@@ -5666,56 +5666,57 @@ private_check_mark_expr_moves(Checker* c, int32_t index)
             (*value_7) = 1;
             return;
         }
-        if ((int32_t)(((ZirExprKind)((c->fn->exprs[right]).kind))) == 12 || (int32_t)(((ZirExprKind)((c->fn->exprs[right]).kind))) == 5) {
+        bool value_8 = (int32_t)(((ZirExprKind)((c->fn->exprs[right]).kind))) == 12 || (int32_t)(((ZirExprKind)((c->fn->exprs[right]).kind))) == 5;
+        if (value_8 || ((ZirExprKind)((c->fn->exprs[right]).kind)) == ((ZirExprKind)(18))) {
             private_check_mark_expr_moves(c, right);
             return;
         }
-        Checker* value_8 = c;
-        ZirSourceSpan value_9 = (c->fn->exprs[right]).span;
-        uint8_t* value_10 = compiler_check_types_CheckCString(StringLiteral("owned record field moves a binding or takes a call result"));
-        zir_foreign_compiler_check_statement__error(value_8, value_9, value_10, (uint8_t*)e->name);
+        Checker* value_9 = c;
+        ZirSourceSpan value_10 = (c->fn->exprs[right]).span;
+        uint8_t* value_11 = compiler_check_types_CheckCString(StringLiteral("owned record field moves a binding or takes a call result"));
+        zir_foreign_compiler_check_statement__error(value_9, value_10, value_11, (uint8_t*)e->name);
         return;
     }
     if ((int32_t)(((ZirExprKind)(e->kind))) == 1) {
         Binding* binding = zir_foreign_compiler_check_statement__lexical_vec_binding(c, index);
         if (binding != (Binding*)(((void *)0)) && binding->moved != 0) {
-            Checker* value_11 = c;
-            ZirSourceSpan value_12 = e->span;
-            uint8_t* value_13 = compiler_check_types_CheckCString(StringLiteral("Vec binding is used after moving"));
-            zir_foreign_compiler_check_statement__error(value_11, value_12, value_13, (uint8_t*)e->name);
+            Checker* value_12 = c;
+            ZirSourceSpan value_13 = e->span;
+            uint8_t* value_14 = compiler_check_types_CheckCString(StringLiteral("Vec binding is used after moving"));
+            zir_foreign_compiler_check_statement__error(value_12, value_13, value_14, (uint8_t*)e->name);
         }
         return;
     }
-    bool value_14 = (int32_t)(((ZirExprKind)(e->kind))) == 5;
-    bool value_15 = value_14;
-    if (value_15) {
-        bool value_16 = compiler_check_statement_vec_primitive_name((uint8_t*)e->name) != 0;
-        bool value_17 = value_16;
-        if (!value_17) {
-            uint8_t* value_18 = (uint8_t*)e->name;
-            bool value_19 = zir_foreign_compiler_check_statement__strcmp(value_18, compiler_check_types_CheckCString(StringLiteral("TextView"))) != 0;
-            value_17 = !value_19;
+    bool value_15 = (int32_t)(((ZirExprKind)(e->kind))) == 5;
+    bool value_16 = value_15;
+    if (value_16) {
+        bool value_17 = compiler_check_statement_vec_primitive_name((uint8_t*)e->name) != 0;
+        bool value_18 = value_17;
+        if (!value_18) {
+            uint8_t* value_19 = (uint8_t*)e->name;
+            bool value_20 = zir_foreign_compiler_check_statement__strcmp(value_19, compiler_check_types_CheckCString(StringLiteral("TextView"))) != 0;
+            value_18 = !value_20;
         }
-        value_15 = value_17;
+        value_16 = value_18;
     }
-    int32_t value_20 = 0;
-    if (value_15) {
-        value_20 = 1;
+    int32_t value_21 = 0;
+    if (value_16) {
+        value_21 = 1;
     }
-    primitive = value_20;
-    Binding* value_21 = (void *)0;
+    primitive = value_21;
+    Binding* value_22 = (void *)0;
     if (primitive != 0 && e->first_child >= 0) {
-        Binding* value_22 = zir_foreign_compiler_check_statement__lexical_vec_binding(c, e->first_child);
-        value_21 = value_22;
+        Binding* value_23 = zir_foreign_compiler_check_statement__lexical_vec_binding(c, e->first_child);
+        value_22 = value_23;
     } else {
-        value_21 = (void *)0;
+        value_22 = (void *)0;
     }
-    Binding* storage = value_21;
-    int32_t value_23 = 0;
+    Binding* storage = value_22;
+    int32_t value_24 = 0;
     if (storage != (Binding*)(((void *)0)) && storage->moved != 0) {
-        value_23 = 1;
+        value_24 = 1;
     }
-    int32_t storage_was_moved = value_23;
+    int32_t storage_was_moved = value_24;
     {
         int32_t child = e->first_child;
         while (true) {
@@ -5724,69 +5725,69 @@ private_check_mark_expr_moves(Checker* c, int32_t index)
                 if (!check_loop_194) {
                     break;
                 }
-                Binding* value_24 = (void *)0;
+                Binding* value_25 = (void *)0;
                 if ((int32_t)(((ZirExprKind)(e->kind))) == 5) {
-                    Binding* value_25 = zir_foreign_compiler_check_statement__lexical_owned_binding(c, child);
-                    value_24 = value_25;
+                    Binding* value_26 = zir_foreign_compiler_check_statement__lexical_owned_binding(c, child);
+                    value_25 = value_26;
                 } else {
-                    value_24 = (void *)0;
+                    value_25 = (void *)0;
                 }
-                Binding* binding = value_24;
-                bool value_26 = primitive != 0;
-                bool value_27 = value_26;
-                if (value_27) {
-                    uint8_t* value_28 = (uint8_t*)e->name;
-                    bool value_29 = zir_foreign_compiler_check_statement__strcmp(value_28, compiler_check_types_CheckCString(StringLiteral("VecPush"))) != 0;
-                    value_27 = !value_29;
+                Binding* binding = value_25;
+                bool value_27 = primitive != 0;
+                bool value_28 = value_27;
+                if (value_28) {
+                    uint8_t* value_29 = (uint8_t*)e->name;
+                    bool value_30 = zir_foreign_compiler_check_statement__strcmp(value_29, compiler_check_types_CheckCString(StringLiteral("VecPush"))) != 0;
+                    value_28 = !value_30;
                 }
-                bool value_30 = value_27 && child != e->first_child;
-                bool value_31 = value_30 && zir_foreign_compiler_check_statement__contains_vec(c->module, (uint8_t*)(c->fn->exprs[child]).type, 0) != 0;
-                int32_t value_32 = 0;
-                if (value_31) {
-                    value_32 = 1;
+                bool value_31 = value_28 && child != e->first_child;
+                bool value_32 = value_31 && zir_foreign_compiler_check_statement__contains_vec(c->module, (uint8_t*)(c->fn->exprs[child]).type, 0) != 0;
+                int32_t value_33 = 0;
+                if (value_32) {
+                    value_33 = 1;
                 }
-                int32_t pushed = value_32;
-                bool value_33 = !(primitive != 0) || pushed != 0;
-                bool value_34 = value_33;
-                if (!value_34) {
-                    uint8_t* value_35 = (uint8_t*)e->name;
-                    bool value_36 = zir_foreign_compiler_check_statement__strcmp(value_35, compiler_check_types_CheckCString(StringLiteral("VecFree"))) != 0;
-                    value_34 = !value_36;
+                int32_t pushed = value_33;
+                bool value_34 = !(primitive != 0) || pushed != 0;
+                bool value_35 = value_34;
+                if (!value_35) {
+                    uint8_t* value_36 = (uint8_t*)e->name;
+                    bool value_37 = zir_foreign_compiler_check_statement__strcmp(value_36, compiler_check_types_CheckCString(StringLiteral("VecFree"))) != 0;
+                    value_35 = !value_37;
                 }
-                bool value_37 = value_34;
-                bool value_38 = value_37;
-                if (!value_38) {
-                    uint8_t* value_39 = (uint8_t*)e->name;
-                    bool value_40 = zir_foreign_compiler_check_statement__strcmp(value_39, compiler_check_types_CheckCString(StringLiteral("BuilderFinish"))) != 0;
-                    value_38 = !value_40;
+                bool value_38 = value_35;
+                bool value_39 = value_38;
+                if (!value_39) {
+                    uint8_t* value_40 = (uint8_t*)e->name;
+                    bool value_41 = zir_foreign_compiler_check_statement__strcmp(value_40, compiler_check_types_CheckCString(StringLiteral("BuilderFinish"))) != 0;
+                    value_39 = !value_41;
                 }
-                int32_t value_41 = 0;
-                if (value_38) {
-                    value_41 = 1;
+                int32_t value_42 = 0;
+                if (value_39) {
+                    value_42 = 1;
                 }
-                int32_t consumes = value_41;
+                int32_t consumes = value_42;
                 if (binding != (Binding*)(((void *)0)) && consumes != 0) {
                     if (binding->moved != 0 || binding->moved_path_count != 0) {
-                        Checker* value_42 = c;
-                        ZirSourceSpan value_43 = (c->fn->exprs[child]).span;
-                        zir_foreign_compiler_check_statement__error(value_42, value_43, compiler_check_types_CheckCString(StringLiteral("owned binding is used after moving")), (uint8_t*)(&(binding->name.items)));
+                        Checker* value_43 = c;
+                        ZirSourceSpan value_44 = (c->fn->exprs[child]).span;
+                        zir_foreign_compiler_check_statement__error(value_43, value_44, compiler_check_types_CheckCString(StringLiteral("owned binding is used after moving")), (uint8_t*)(&(binding->name.items)));
                         child = (c->fn->exprs[child]).next_sibling;
                         goto zir_loop_continue_1;
                     }
                     if (binding->borrow_count > 0) {
-                        Checker* value_44 = c;
-                        ZirSourceSpan value_45 = e->span;
-                        zir_foreign_compiler_check_statement__error(value_44, value_45, compiler_check_types_CheckCString(StringLiteral("cannot move a Vec with a live borrowed view")), (uint8_t*)(&(binding->name.items)));
+                        Checker* value_45 = c;
+                        ZirSourceSpan value_46 = e->span;
+                        zir_foreign_compiler_check_statement__error(value_45, value_46, compiler_check_types_CheckCString(StringLiteral("cannot move a Vec with a live borrowed view")), (uint8_t*)(&(binding->name.items)));
                     }
-                    int32_t* value_46 = &(binding->moved);
-                    (*value_46) = 1;
+                    int32_t* value_47 = &(binding->moved);
+                    (*value_47) = 1;
                     if (!(primitive != 0) || pushed != 0) {
-                        int32_t* value_47 = &((c->fn->exprs[child]).is_move);
-                        (*value_47) = 1;
+                        int32_t* value_48 = &((c->fn->exprs[child]).is_move);
+                        (*value_48) = 1;
                     }
                 } else {
-                    bool value_48 = consumes != 0;
-                    if (value_48 && zir_foreign_compiler_check_statement__mark_moved_member_path(c, child) != 0) {
+                    bool value_49 = consumes != 0;
+                    if (value_49 && zir_foreign_compiler_check_statement__mark_moved_member_path(c, child) != 0) {
                         child = (c->fn->exprs[child]).next_sibling;
                         goto zir_loop_continue_1;
                     } else {
@@ -5799,25 +5800,25 @@ private_check_mark_expr_moves(Checker* c, int32_t index)
         }
         zir_loop_break_1: ;
     }
-    bool value_49 = primitive != 0 && storage != (Binding*)(((void *)0)) && !(storage_was_moved != 0) && storage->moved != 0;
-    bool value_50 = value_49;
+    bool value_50 = primitive != 0 && storage != (Binding*)(((void *)0)) && !(storage_was_moved != 0) && storage->moved != 0;
     bool value_51 = value_50;
-    if (value_51) {
-        uint8_t* value_52 = (uint8_t*)e->name;
-        bool value_53 = zir_foreign_compiler_check_statement__strcmp(value_52, compiler_check_types_CheckCString(StringLiteral("VecFree"))) != 0;
-        value_51 = value_53;
+    bool value_52 = value_51;
+    if (value_52) {
+        uint8_t* value_53 = (uint8_t*)e->name;
+        bool value_54 = zir_foreign_compiler_check_statement__strcmp(value_53, compiler_check_types_CheckCString(StringLiteral("VecFree"))) != 0;
+        value_52 = value_54;
     }
-    bool value_54 = value_51;
-    bool value_55 = value_54;
-    if (value_55) {
-        uint8_t* value_56 = (uint8_t*)e->name;
-        bool value_57 = zir_foreign_compiler_check_statement__strcmp(value_56, compiler_check_types_CheckCString(StringLiteral("BuilderFinish"))) != 0;
-        value_55 = value_57;
+    bool value_55 = value_52;
+    bool value_56 = value_55;
+    if (value_56) {
+        uint8_t* value_57 = (uint8_t*)e->name;
+        bool value_58 = zir_foreign_compiler_check_statement__strcmp(value_57, compiler_check_types_CheckCString(StringLiteral("BuilderFinish"))) != 0;
+        value_56 = value_58;
     }
-    if (value_55) {
-        Checker* value_58 = c;
-        ZirSourceSpan value_59 = e->span;
-        zir_foreign_compiler_check_statement__error(value_58, value_59, compiler_check_types_CheckCString(StringLiteral("Vec operation moves its storage in an argument")), (uint8_t*)(&(storage->name.items)));
+    if (value_56) {
+        Checker* value_59 = c;
+        ZirSourceSpan value_60 = e->span;
+        zir_foreign_compiler_check_statement__error(value_59, value_60, compiler_check_types_CheckCString(StringLiteral("Vec operation moves its storage in an argument")), (uint8_t*)(&(storage->name.items)));
     }
     private_check_mark_expr_moves(c, e->left);
     private_check_mark_expr_moves(c, e->right);
@@ -5877,12 +5878,16 @@ private_check_check_vec_call_results(Checker* c, int32_t index, int32_t transfer
             child = (c->fn->exprs[child]).next_sibling;
         }
     }
-    private_check_check_vec_call_results(c, expr->left, 0, 0);
     int32_t value_18 = 0;
-    if ((int32_t)(((ZirExprKind)(expr->kind))) == 15 && transferred != 0) {
+    if (((ZirExprKind)(expr->kind)) == ((ZirExprKind)(18))) {
         value_18 = 1;
     }
-    private_check_check_vec_call_results(c, expr->right, value_18, 0);
+    private_check_check_vec_call_results(c, expr->left, value_18, 0);
+    int32_t value_19 = 0;
+    if ((int32_t)(((ZirExprKind)(expr->kind))) == 15 && transferred != 0) {
+        value_19 = 1;
+    }
+    private_check_check_vec_call_results(c, expr->right, value_19, 0);
     private_check_check_vec_call_results(c, expr->third, 0, 0);
 }
 

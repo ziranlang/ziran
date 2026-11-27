@@ -308,6 +308,14 @@ is null and the old block stays valid. Only a block's own base pointer, with
 its exact element count, may be resized or freed. The instruction is effectful
 and produces a value, so optimization keeps it and its order.
 
+Pointer-to-pointer `bitcast` preserves the address and allocation identity.
+It supports erasing a captured environment to byte-pointer state and restoring
+its concrete type before access or cleanup. The instruction engine retains
+the allocation's element type and bounds; a bitcast does not grant access to
+storage with an unrelated type. Source lowering emits this erasure only for
+checked owned-callback construction, invocation and cleanup. Ordinary source
+pointer reinterpretation remains outside portable lowering.
+
 ## Current boundary
 
 - The enclosing ZX container supplies imports, exports, capability/link tables,

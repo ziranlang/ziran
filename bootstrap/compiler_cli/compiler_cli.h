@@ -146,6 +146,16 @@ void zir_foreign_compiler_cli__DiagnosticOutOfMemory(void) __asm__("_DiagnosticO
 void zir_foreign_compiler_cli__DiagnosticOutOfMemory(void) __asm__("DiagnosticOutOfMemory");
 #endif
 #ifdef __APPLE__
+void zir_foreign_compiler_cli__Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("_Diagnostic");
+#else
+void zir_foreign_compiler_cli__Diagnostic(ZirSourceSpan span, uint8_t* code, uint8_t* format, ...) __asm__("Diagnostic");
+#endif
+#ifdef __APPLE__
+ZirSourceSpan zir_foreign_compiler_cli__Span(uint8_t* path, int32_t line, int32_t column) __asm__("_Span");
+#else
+ZirSourceSpan zir_foreign_compiler_cli__Span(uint8_t* path, int32_t line, int32_t column) __asm__("Span");
+#endif
+#ifdef __APPLE__
 int32_t zir_foreign_compiler_cli__CompilerHostOS(void) __asm__("_CompilerHostOS");
 #else
 int32_t zir_foreign_compiler_cli__CompilerHostOS(void) __asm__("CompilerHostOS");
@@ -169,6 +179,11 @@ int32_t zir_foreign_compiler_cli__CompilerParseTargetCPU(uint8_t* name, int32_t*
 void zir_foreign_compiler_cli__CompilerConfigureTarget(int32_t backend, int32_t os, int32_t cpu) __asm__("_CompilerConfigureTarget");
 #else
 void zir_foreign_compiler_cli__CompilerConfigureTarget(int32_t backend, int32_t os, int32_t cpu) __asm__("CompilerConfigureTarget");
+#endif
+#ifdef __APPLE__
+int32_t zir_foreign_compiler_cli__ResolveProgramModule(ZirProgram* program, uint8_t* module) __asm__("_ResolveProgramModule");
+#else
+int32_t zir_foreign_compiler_cli__ResolveProgramModule(ZirProgram* program, uint8_t* module) __asm__("ResolveProgramModule");
 #endif
 #ifdef __APPLE__
 int32_t zir_foreign_compiler_cli__CommandPriorityAvailable(void) __asm__("_ZiranCommandPriorityAvailable");
@@ -196,6 +211,7 @@ void compiler_cli_CommandLowerPriority(void);
 uint8_t** compiler_cli_CommandModulePaths(int32_t argc);
 int32_t compiler_cli_ReadCommandOptions(int32_t argc, uint8_t** argv, CommandOption* options, size_t option_count);
 int32_t compiler_cli_CommandMergePrograms(ProgramSet* set, ZirProgram* merged);
+int32_t compiler_cli_CommandRetainFunctions(ZirProgram* program, uint8_t** roots, int32_t count, uint8_t* code);
 int32_t compiler_cli_CommandConfigureTarget(int32_t backend, uint8_t* os_name, uint8_t* cpu_name, int32_t* os);
 uint8_t* compiler_cli_CommandReadBounded(uint8_t* path, int64_t limit, size_t* size);
 void compiler_cli_CommandEnableChecks(ProgramSet* set);

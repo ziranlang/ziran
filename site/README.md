@@ -63,9 +63,13 @@ changes. Local build objects and the Emscripten cache live under `build/`.
 built runtime. Run it with `node tests/playground_runtime.cjs`.
 
 The same runtime exports `BuildBundle(root, search, inputs, entry_module,
-entry_function, output)` for editors that provide their own host. Search roots
+entry_function, bindings, output)` for editors that provide their own host. Search roots
 and input files are newline-separated filesystem paths; named roots use the
-normal `name=/directory` form. Clients write source into `FS`, then read the
+normal `name=/directory` form. Bindings are newline-separated checked
+`caller:capability=provider:function` descriptors, as with `ziran bundle --bind`;
+an empty string supplies none. Public native TSX functions can provide a
+capability with the same signature. Clients write authored `.zi` or `.tsx`
+source into `FS`, then read the
 compiled `.zx` output. A failed compilation removes that output. This path
 uses the ordinary module loader, checker, linker, verifier, and bundle writer;
 it does not execute the program or install host capabilities.

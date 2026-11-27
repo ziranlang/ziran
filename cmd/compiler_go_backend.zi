@@ -1963,13 +1963,75 @@ rewrite_global_field :: (record: *IR.ZirType, source: *u8, out: *u8, size: usize
     go_field_ident(source, out, size)
 }
 
+// Owned callable invoke and release storage spells its portable slot as an
+// unnamed Go function signature. Module-local slot spellings of one
+// canonical Owned(Signature) then stay one concrete Go struct, and raw
+// procedure slot types keep their named identity.
+go_owned_slot_field :: (ctx: *GoLowerState, record: *IR.ZirType, field: *IR.ZirTypeField, out: *u8, size: usize) -> s32 {
+    if (!(((record).is_owned_callable != 0))) {
+        return 0
+    }
+    owner: *IR.ZirModule = cast(*IR.ZirModule)(null)
+    slot: *IR.ZirType = CFindType(ctx.type_scope, *((field).type)[0], *(owner))
+    if ((slot == cast(*IR.ZirType)(null)) || ((slot).is_procedure_type == 0) || ((slot).is_c_call != 0)) {
+        return 0
+    }
+    if (owner == cast(*IR.ZirModule)(null)) {
+        owner = ctx.type_scope
+    }
+    arguments: *ZirParameters = ParametersOf(*((slot).body)[0])
+    if (arguments == cast(*ZirParameters)(null)) {
+        return 0
+    }
+    result_type: [256]u8
+    (result_type)[0] = 0
+    if (strcmp(*((slot).procedure_return_type)[0], CStr("void")) != 0) {
+        if (NativeGoType(owner, *((slot).procedure_return_type)[0], *(result_type)[0], size_of([256]u8)) == 0) {
+            return 0
+        }
+    }
+    written: s32 = snprintf(out, size, CStr("func("))
+    if ((written < 0) || (cast(usize)(written) >= size)) {
+        Diagnostic((record).span, CStr("zir_go.type"), CStr("owned callable Go function signature is too long: %s"), *((record).name)[0])
+        exit(1)
+    }
+    used: usize = cast(usize)(written)
+    {
+        p: s32 = 0
+        while true {
+            if (!((p < (arguments).count))) { break }
+            mapped: [256]u8
+            if (NativeGoType(owner, ((((arguments).items)[p])).type, *(mapped)[0], size_of([256]u8)) == 0) {
+                return 0
+            }
+            written = snprintf(cast(*u8)(cast(usize)(out) + used), size - used, CStr("%s%s"), (ifx (p != 0) then CStr(", ") else CStr("")), *(mapped)[0])
+            if ((written < 0) || (cast(usize)(written) >= size - used)) {
+                Diagnostic((record).span, CStr("zir_go.type"), CStr("owned callable Go function signature is too long: %s"), *((record).name)[0])
+                exit(1)
+            }
+            used += cast(usize)(written)
+            p += 1
+        }
+    }
+    if ((result_type)[0] != 0) {
+        written = snprintf(cast(*u8)(cast(usize)(out) + used), size - used, CStr(") %s"), *(result_type)[0])
+    } else {
+        written = snprintf(cast(*u8)(cast(usize)(out) + used), size - used, CStr(")"))
+    }
+    if ((written < 0) || (used + cast(usize)(written) >= size)) {
+        Diagnostic((record).span, CStr("zir_go.type"), CStr("owned callable Go function signature is too long: %s"), *((record).name)[0])
+        exit(1)
+    }
+    return 1
+}
+
 require_go_field_type :: (ctx: *GoLowerState, type: *IR.ZirType, field: *IR.ZirTypeField, out: *u8, size: usize) {
     item: [128]u8
     if (!((strcmp(*((field).name)[0], CStr("data")) != 0)) && (VecElementType(ctx.type_scope, *((type).name)[0], *(item)[0], size_of([128]u8)) != 0)) {
         mapped: [256]u8
         require_go_type(ctx, *(item)[0], *(mapped)[0], size_of([256]u8), (type).span)
         snprintf(out, size, CStr("[]%s"), *(mapped)[0])
-    } else {
+    } else if (go_owned_slot_field(ctx, type, field, out, size) == 0) {
         require_go_type(ctx, *((field).type)[0], out, size, (type).span)
     }
 }
@@ -2974,6 +3036,25 @@ go_lower_with_buffers :: (ctx: *GoLowerState, progs: **IR.ZirProgram, prog_count
                             fi += 1
                         }
                     }
+                    owned_unsafe: s32 = 0
+                    {
+                        fi: s32 = 0
+                        while true {
+                            if !(((fi < (m).function_count) && !((owned_unsafe != 0)))) { break }
+                            {
+                                ei: s32 = 0
+                                while true {
+                                    if !((ei < (((m).functions)[fi]).expr_count)) { break }
+                                    if (((((((m).functions)[fi]).exprs)[ei]).kind == IR.ZirExprKind.OWNED_CLOSURE) || ((((((m).functions)[fi]).exprs)[ei]).kind == IR.ZirExprKind.OWNED_CAPTURE_DROP)) {
+                                        owned_unsafe = 1
+                                        break
+                                    }
+                                    ei += 1
+                                }
+                            }
+                            fi += 1
+                        }
+                    }
                     float_helper: s32 = cast(s32)((((pi == 0) && (mi == 0)) && (go_prints_floats(ctx, progs, prog_count) != 0)))
                     import_count: s32 = 0
                     if (prints != 0) {
@@ -2996,7 +3077,7 @@ go_lower_with_buffers :: (ctx: *GoLowerState, progs: **IR.ZirProgram, prog_count
                         import_count += 1
                         snprintf(*(((buffers).imports)[post69])[0], size_of([1288]u8), CStr("\"strconv\""))
                     }
-                    if (((pointer_index != 0) || (ctx.g_union_unsafe != 0)) || ((go_has_c_foreigns(ctx) != 0) && !((header_module != 0)))) {
+                    if ((((owned_unsafe != 0) || (pointer_index != 0)) || (ctx.g_union_unsafe != 0)) || ((go_has_c_foreigns(ctx) != 0) && !((header_module != 0)))) {
                         post70: s32 = import_count
                         import_count += 1
                         snprintf(*(((buffers).imports)[post70])[0], size_of([1288]u8), CStr("\"unsafe\""))
@@ -3157,7 +3238,7 @@ go_lower_with_buffers :: (ctx: *GoLowerState, progs: **IR.ZirProgram, prog_count
                             fputs(CStr(")\n\n"), f)
                         }
                     }
-                    if ((assembly_unsafe != 0) || ((go_has_c_foreigns(ctx) != 0) && !((header_module != 0)))) {
+                    if (((owned_unsafe != 0) || (assembly_unsafe != 0)) || ((go_has_c_foreigns(ctx) != 0) && !((header_module != 0)))) {
                         fputs(CStr("var _ unsafe.Pointer\n\n"), f)
                     }
                     if (((pi == 0) && (mi == 0)) && (go_uses_caller_location(ctx, progs, prog_count) != 0)) {

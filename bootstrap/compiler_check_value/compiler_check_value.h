@@ -4,11 +4,28 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
+#include "zir_slice.h"
 #include "compiler_ir.h"
 #include "compiler_check_types.h"
+#include "compiler_services.h"
+#include "vec.h"
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
+#endif
+#ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE___type_131eebaaeb761e42
+
+struct __type_131eebaaeb761e42 {
+    uint8_t* data;
+    int64_t count;
+    int64_t capacity;
+};
 #endif
 uint8_t* private_check_lookup_lexical(Checker* c, uint8_t* name);
 ZirGlobal* private_check_global_binding(Checker* c, uint8_t* name);
@@ -51,6 +68,8 @@ int32_t private_check_text_type(uint8_t* type);
 int32_t private_check_assignable(Checker* c, int32_t index);
 int32_t private_check_readonly_text_destination(Checker* c, int32_t index);
 int32_t private_check_callback_type_equal(ZirModule* left_module, uint8_t* left, ZirModule* right_module, uint8_t* right, int32_t depth);
+bool private_check_capture_safe(ZirModule* module, uint8_t* type, int32_t depth);
+ZirType* private_check_owned_call_slot(Checker* c, int32_t index, ZirModule** slot_owner);
 void private_check_contextual_slot(Checker* c, int32_t index, uint8_t* expected);
 int32_t TypeOfOperand(uint8_t* source, uint8_t* operand, size_t capacity);
 int32_t private_check_rewrite_checked_text(Checker* c, ZirExpr* expr, uint8_t* replacement);

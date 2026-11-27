@@ -44,6 +44,39 @@ main :: (argc: s32, argv: **u8) -> s32 {
     cc := NativeCompiler()
     missing_entry := string.[test.ziran, "build", "--target=c", "--emit-main", "--root", test.work, "-o", hello_c, hello]
     if !NativeReject(*test, missing_entry[:], "needs --entry module:function") { return 1 }
+    // A platform loader reaches symbols the process entry never calls.
+    // Explicit IR roots must survive pruning even when their bodies are constants.
+    retained_root := CheckPath(test.work, "retained")
+    selector := CheckPath(retained_root, "selector.zi")
+    host_main := CheckPath(retained_root, "main.zi")
+    callback_root := CheckPath(retained_root, "ports")
+    callbacks := CheckPath(callback_root, "callbacks.zi")
+    if !NativeWrite(*test, selector, "Select :: () -> s32 { return 0 }\n") ||
+       !NativeWrite(*test, host_main, "#import \"ports/callbacks\"\nmain :: (argc: s32, argv: **u8) -> s32 { unused argc; unused argv; return 77 }\n") ||
+       !NativeWrite(*test, callbacks, "Notify :: () -> s32 { return 88 }\nUnused :: () -> s32 { return 99 }\n") { return 1 }
+    retained_ir := CheckPath(retained_root, "ir")
+    retain := string.[test.ziran, "ir", "--root", retained_root, "--module-path", CheckConcat("ports=", callback_root),
+        "--entry", "selector:Select", "--retain", "main:main", "--retain", "ports/callbacks:Notify", "-o", retained_ir, selector, host_main]
+    unused NativeRun(*test, retain[:])
+    retained_c := CheckPath(retained_root, "c")
+    emit_retained := string.[test.ziran, "build", "--target=c", "--root", retained_ir, "-o", retained_c,
+        CheckPath(retained_ir, "selector.zir"), CheckPath(retained_ir, "main.zir"), CheckPath(retained_ir, "ports__callbacks.zir")]
+    unused NativeRun(*test, emit_retained[:])
+    if !NativeAssert(*test, PathExists(CheckPath(retained_c, "main.c")) &&
+        TextContains(NativeRead(*test, CheckPath(retained_c, "ports__callbacks.c")), "Notify(") &&
+        !TextContains(NativeRead(*test, CheckPath(retained_c, "ports__callbacks.c")), "Unused("), "IR omitted a retained host symbol or kept an unrelated function") { return 1 }
+    retained_exe := CheckPath(retained_root, "host")
+    link_retained := string.[cc, "-std=c11", CheckConcat("-I", CheckPath(test.repo, "include")),
+        CheckConcat("-I", retained_c), CheckPath(retained_c, "selector.c"), CheckPath(retained_c, "main.c"),
+        CheckPath(retained_c, "ports__callbacks.c"), "-o", retained_exe]
+    unused NativeRun(*test, link_retained[:])
+    run_retained := string.[retained_exe]
+    unused NativeRun(*test, run_retained[:], "", 77)
+    missing_retained := string.[test.ziran, "ir", "--root", retained_root, "--module-path", CheckConcat("ports=", callback_root),
+        "--entry", "selector:Select", "--retain", "ports/callbacks:Missing", "-o", retained_ir, selector, host_main]
+    if !NativeReject(*test, missing_retained[:], "retained function not found: ports/callbacks:Missing") { return 1 }
+    no_retained_entry := string.[test.ziran, "ir", "--root", retained_root, "--retain", "callbacks:Notify", "-o", retained_ir, callbacks]
+    if !NativeReject(*test, no_retained_entry[:], "--retain needs --entry") { return 1 }
     cxx := EnvironmentText("CXX"); if cxx == "" { cxx = "c++" }
     emcc := EnvironmentText("EMCC")
     if emcc == "" { emcc = CheckPath(EnvironmentText("HOME"), "emsdk/upstream/emscripten/emcc") }

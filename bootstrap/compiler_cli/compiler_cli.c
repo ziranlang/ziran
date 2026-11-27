@@ -193,6 +193,85 @@ compiler_cli_CommandMergePrograms(ProgramSet* set, ZirProgram* merged)
 }
 
 int32_t
+compiler_cli_CommandRetainFunctions(ZirProgram* program, uint8_t** roots, int32_t count, uint8_t* code)
+{
+    {
+        int32_t range_first_0 = 0;
+        int32_t range_last_0 = (int32_t)((uint32_t)count - 1u);
+        int32_t index = range_first_0;
+        if (index <= range_last_0) for (;;) {
+            uint8_t module[128] = {0};
+            uint8_t function[128] = {0};
+            bool found = false;
+            if (compiler_cli_SplitEntry(roots[(size_t)(index)], &(module[0]), &(function[0])) != 0) {
+                if (zir_foreign_compiler_cli__ResolveProgramModule(program, &(module[0])) == 0) {
+                    return 0;
+                }
+                {
+                    int32_t range_first_8 = 0;
+                    int32_t range_last_8 = (int32_t)((uint32_t)(program->module_count) - 1u);
+                    int32_t m = range_first_8;
+                    if (m <= range_last_8) for (;;) {
+                        ZirModule* owner = &(program->modules[(size_t)(m)]);
+                        if (zir_foreign_compiler_cli__strcmp((uint8_t*)(&(owner->name)), &(module[0])) != 0) {
+                            if (m == range_last_8) {
+                                break;
+                            }
+                            m = (int32_t)((uint32_t)m + 1u);
+                            continue;
+                        }
+                        {
+                            int32_t range_first_13 = 0;
+                            int32_t range_last_13 = (int32_t)((uint32_t)(owner->function_count) - 1u);
+                            int32_t f = range_first_13;
+                            if (f <= range_last_13) for (;;) {
+                                ZirFunction* candidate = &(owner->functions[(size_t)(f)]);
+                                if (zir_foreign_compiler_cli__strcmp((uint8_t*)(&(candidate->name)), &(function[0])) == 0) {
+                                    int32_t* value_0 = &(candidate->retained_root);
+                                    (*value_0) = 1;
+                                    found = true;
+                                }
+                                if (f == range_last_13) {
+                                    break;
+                                }
+                                f = (int32_t)((uint32_t)f + 1u);
+                            }
+                        }
+                        if (m == range_last_8) {
+                            break;
+                        }
+                        m = (int32_t)((uint32_t)m + 1u);
+                    }
+                }
+            }
+            if (!found) {
+                String value_1 = StringLiteral("<command>");
+                uint8_t* value_2 = (void *)0;
+                {
+                    String s = value_1;
+                    value_2 = ((StaticText*)(&(s)))->data;
+                }
+                ZirSourceSpan value_4 = zir_foreign_compiler_cli__Span(value_2, 1, 1);
+                uint8_t* value_5 = code;
+                String value_6 = StringLiteral("retained function not found: %s");
+                uint8_t* value_7 = (void *)0;
+                {
+                    String s = value_6;
+                    value_7 = ((StaticText*)(&(s)))->data;
+                }
+                zir_foreign_compiler_cli__Diagnostic(value_4, value_5, value_7, roots[(size_t)(index)]);
+                return 0;
+            }
+            if (index == range_last_0) {
+                break;
+            }
+            index = (int32_t)((uint32_t)index + 1u);
+        }
+    }
+    return 1;
+}
+
+int32_t
 compiler_cli_CommandConfigureTarget(int32_t backend, uint8_t* os_name, uint8_t* cpu_name, int32_t* os)
 {
     int32_t target_os = 0;

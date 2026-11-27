@@ -542,6 +542,7 @@ static void compiler_go_backend_emit_go_method(GoLowerState* ctx, void* out, Zir
 static int32_t compiler_go_backend_rewrite_global_scalar(ZirModule* module, uint8_t* source, uint8_t* out, size_t size, void* context) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_go_backend_rewrite_global_type(ZirModule* module, uint8_t* source, uint8_t* out, size_t size, void* context) ZIRAN_MAYBE_UNUSED;
 static void compiler_go_backend_rewrite_global_field(ZirType* record, uint8_t* source, uint8_t* out, size_t size, void* context) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_go_backend_go_owned_slot_field(GoLowerState* ctx, ZirType* record, ZirTypeField* field, uint8_t* out, size_t size) ZIRAN_MAYBE_UNUSED;
 static void compiler_go_backend_require_go_field_type(GoLowerState* ctx, ZirType* type, ZirTypeField* field, uint8_t* out, size_t size) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_go_backend_synthetic_type_emitted(GoLowerState* ctx, ZirProgram** programs, int32_t program_index, int32_t module_index, ZirType* type, uint8_t* native) ZIRAN_MAYBE_UNUSED;
 static void compiler_go_backend_go_c_type(GoLowerState* ctx, uint8_t* source, int32_t cgo, uint8_t* out, size_t size, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
@@ -4956,6 +4957,164 @@ compiler_go_backend_rewrite_global_field(ZirType* record, uint8_t* source, uint8
     zir_foreign_compiler_go_backend__go_field_ident(source, out, size);
 }
 
+static int32_t
+compiler_go_backend_go_owned_slot_field(GoLowerState* ctx, ZirType* record, ZirTypeField* field, uint8_t* out, size_t size)
+{
+    if (!(record->is_owned_callable != 0)) {
+        return 0;
+    }
+    ZirModule* owner = (ZirModule*)(((void *)0));
+    ZirType* slot = zir_foreign_compiler_go_backend__CFindType(ctx->type_scope, &(field->type[0]), &(owner));
+    if (slot == (ZirType*)(((void *)0)) || slot->is_procedure_type == 0 || slot->is_c_call != 0) {
+        return 0;
+    }
+    if (owner == (ZirModule*)(((void *)0))) {
+        owner = ctx->type_scope;
+    }
+    compiler_go_backend_ZirParameters* arguments = zir_foreign_compiler_go_backend__ParametersOf(&(slot->body[0]));
+    if (arguments == (compiler_go_backend_ZirParameters*)(((void *)0))) {
+        return 0;
+    }
+    uint8_t result_type[256] = {0};
+    uint8_t* value_0 = &(result_type[0]);
+    (*value_0) = 0;
+    String value_1 = StringLiteral("void");
+    uint8_t* value_2 = (void *)0;
+    {
+        String s = value_1;
+        value_2 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+    }
+    if (zir_foreign_compiler_go_backend__strcmp(&(slot->procedure_return_type[0]), value_2) != 0) {
+        if (zir_foreign_compiler_go_backend__NativeGoType(owner, &(slot->procedure_return_type[0]), &(result_type[0]), (256) * (sizeof(uint8_t))) == 0) {
+            return 0;
+        }
+    }
+    uint8_t* value_4 = out;
+    size_t value_5 = size;
+    String value_6 = StringLiteral("func(");
+    uint8_t* value_7 = (void *)0;
+    {
+        String s = value_6;
+        value_7 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+    }
+    int32_t written = zir_foreign_compiler_go_backend__snprintf(value_4, value_5, value_7);
+    if (written < 0 || (size_t)(written) >= size) {
+        ZirSourceSpan value_9 = record->span;
+        String value_10 = StringLiteral("zir_go.type");
+        uint8_t* value_11 = (void *)0;
+        {
+            String s = value_10;
+            value_11 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+        }
+        String value_13 = StringLiteral("owned callable Go function signature is too long: %s");
+        uint8_t* value_14 = (void *)0;
+        {
+            String s = value_13;
+            value_14 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_go_backend__Diagnostic(value_9, value_11, value_14, &(record->name[0]));
+        zir_foreign_compiler_go_backend__exit(1);
+    }
+    size_t used = (size_t)(written);
+    {
+        int32_t p = 0;
+        while (true) {
+            if (!(p < arguments->count)) {
+                break;
+            }
+            uint8_t mapped[256] = {0};
+            if (zir_foreign_compiler_go_backend__NativeGoType(owner, (arguments->items[p]).type, &(mapped[0]), (256) * (sizeof(uint8_t))) == 0) {
+                return 0;
+            }
+            uint8_t* value_16 = (uint8_t*)(((size_t)(out) + used));
+            size_t value_17 = size - used;
+            String value_18 = StringLiteral("%s%s");
+            uint8_t* value_19 = (void *)0;
+            {
+                String s = value_18;
+                value_19 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+            }
+            uint8_t* value_21 = (void *)0;
+            if (p != 0) {
+                String value_22 = StringLiteral(", ");
+                uint8_t* value_23 = (void *)0;
+                {
+                    String s = value_22;
+                    value_23 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                }
+                value_21 = value_23;
+            } else {
+                String value_25 = StringLiteral("");
+                uint8_t* value_26 = (void *)0;
+                {
+                    String s = value_25;
+                    value_26 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                }
+                value_21 = value_26;
+            }
+            written = zir_foreign_compiler_go_backend__snprintf(value_16, value_17, value_19, value_21, &(mapped[0]));
+            if (written < 0 || (size_t)(written) >= size - used) {
+                ZirSourceSpan value_28 = record->span;
+                String value_29 = StringLiteral("zir_go.type");
+                uint8_t* value_30 = (void *)0;
+                {
+                    String s = value_29;
+                    value_30 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                }
+                String value_32 = StringLiteral("owned callable Go function signature is too long: %s");
+                uint8_t* value_33 = (void *)0;
+                {
+                    String s = value_32;
+                    value_33 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+                }
+                zir_foreign_compiler_go_backend__Diagnostic(value_28, value_30, value_33, &(record->name[0]));
+                zir_foreign_compiler_go_backend__exit(1);
+            }
+            used = used + (size_t)(written);
+            p = (int32_t)((uint32_t)p + 1u);
+        }
+    }
+    if ((result_type)[0] != 0) {
+        uint8_t* value_35 = (uint8_t*)(((size_t)(out) + used));
+        size_t value_36 = size - used;
+        String value_37 = StringLiteral(") %s");
+        uint8_t* value_38 = (void *)0;
+        {
+            String s = value_37;
+            value_38 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+        }
+        written = zir_foreign_compiler_go_backend__snprintf(value_35, value_36, value_38, &(result_type[0]));
+    } else {
+        uint8_t* value_40 = (uint8_t*)(((size_t)(out) + used));
+        size_t value_41 = size - used;
+        String value_42 = StringLiteral(")");
+        uint8_t* value_43 = (void *)0;
+        {
+            String s = value_42;
+            value_43 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+        }
+        written = zir_foreign_compiler_go_backend__snprintf(value_40, value_41, value_43);
+    }
+    if (written < 0 || used + (size_t)(written) >= size) {
+        ZirSourceSpan value_45 = record->span;
+        String value_46 = StringLiteral("zir_go.type");
+        uint8_t* value_47 = (void *)0;
+        {
+            String s = value_46;
+            value_47 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+        }
+        String value_49 = StringLiteral("owned callable Go function signature is too long: %s");
+        uint8_t* value_50 = (void *)0;
+        {
+            String s = value_49;
+            value_50 = ((compiler_go_backend_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_go_backend__Diagnostic(value_45, value_47, value_50, &(record->name[0]));
+        zir_foreign_compiler_go_backend__exit(1);
+    }
+    return 1;
+}
+
 static void
 compiler_go_backend_require_go_field_type(GoLowerState* ctx, ZirType* type, ZirTypeField* field, uint8_t* out, size_t size)
 {
@@ -4979,7 +5138,7 @@ compiler_go_backend_require_go_field_type(GoLowerState* ctx, ZirType* type, ZirT
             value_7 = ((compiler_go_backend_StaticText*)(&(s)))->data;
         }
         zir_foreign_compiler_go_backend__snprintf(value_4, value_5, value_7, &(mapped[0]));
-    } else {
+    } else if (compiler_go_backend_go_owned_slot_field(ctx, type, field, out, size) == 0) {
         compiler_go_backend_require_go_type(ctx, &(field->type[0]), out, size, type->span);
     }
 }
@@ -8251,6 +8410,29 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             fi = (int32_t)((uint32_t)fi + 1u);
                         }
                     }
+                    int32_t owned_unsafe = 0;
+                    {
+                        int32_t fi = 0;
+                        while (true) {
+                            if (!(fi < m->function_count && !(owned_unsafe != 0))) {
+                                break;
+                            }
+                            {
+                                int32_t ei = 0;
+                                while (true) {
+                                    if (!(ei < (m->functions[fi]).expr_count)) {
+                                        break;
+                                    }
+                                    if (((ZirExprKind)((((m->functions[fi]).exprs)[ei]).kind)) == ((ZirExprKind)(18)) || ((ZirExprKind)((((m->functions[fi]).exprs)[ei]).kind)) == ((ZirExprKind)(19))) {
+                                        owned_unsafe = 1;
+                                        break;
+                                    }
+                                    ei = (int32_t)((uint32_t)ei + 1u);
+                                }
+                            }
+                            fi = (int32_t)((uint32_t)fi + 1u);
+                        }
+                    }
                     bool value_105 = pi == 0 && mi == 0;
                     bool value_106 = value_105 && compiler_go_backend_go_prints_floats(ctx, progs, prog_count) != 0;
                     int32_t value_107 = 0;
@@ -8303,7 +8485,7 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                         }
                         zir_foreign_compiler_go_backend__snprintf(&(buffers->imports[post69][0]), (1288) * (sizeof(uint8_t)), value_118);
                     }
-                    bool value_120 = pointer_index != 0 || ctx->g_union_unsafe != 0;
+                    bool value_120 = owned_unsafe != 0 || pointer_index != 0 || ctx->g_union_unsafe != 0;
                     bool value_121 = value_120;
                     if (!value_121) {
                         bool value_122 = compiler_go_backend_go_has_c_foreigns(ctx) != 0;
@@ -8643,7 +8825,7 @@ compiler_go_backend_go_lower_with_buffers(GoLowerState* ctx, ZirProgram** progs,
                             zir_foreign_compiler_go_backend__fputs(value_207, f);
                         }
                     }
-                    bool value_209 = assembly_unsafe != 0;
+                    bool value_209 = owned_unsafe != 0 || assembly_unsafe != 0;
                     bool value_210 = value_209;
                     if (!value_210) {
                         bool value_211 = compiler_go_backend_go_has_c_foreigns(ctx) != 0;

@@ -307,33 +307,39 @@ compiler_portable_body_PortableExpression(ZirModule* module, ZirFunction* fn, in
         if (value_12) {
             return false;
         }
+    } else if (kind == ((ZirExprKind)(18)) || kind == ((ZirExprKind)(19))) {
+        ZirType* value_15 = zir_foreign_compiler_portable_body__CFindType(module, (uint8_t*)expr->name, (void *)0);
+        bool value_16 = value_15 == ((void *)0);
+        if (value_16 || compiler_portable_body_MemoType(module, (uint8_t*)expr->name) == 0) {
+            return false;
+        }
     } else if ((int32_t)(kind) <= (int32_t)(((ZirExprKind)(0))) || (int32_t)(kind) > (int32_t)(((ZirExprKind)(17)))) {
         return false;
     }
-    bool value_15 = compiler_portable_body_PortableExpression(module, fn, expr->left, support);
-    bool value_16 = !value_15;
-    if (!value_16) {
-        bool value_17 = compiler_portable_body_PortableExpression(module, fn, expr->right, support);
-        value_16 = !value_17;
-    }
-    bool value_18 = value_16;
+    bool value_17 = compiler_portable_body_PortableExpression(module, fn, expr->left, support);
+    bool value_18 = !value_17;
     if (!value_18) {
-        bool value_19 = compiler_portable_body_PortableExpression(module, fn, expr->third, support);
+        bool value_19 = compiler_portable_body_PortableExpression(module, fn, expr->right, support);
         value_18 = !value_19;
     }
-    if (value_18) {
+    bool value_20 = value_18;
+    if (!value_20) {
+        bool value_21 = compiler_portable_body_PortableExpression(module, fn, expr->third, support);
+        value_20 = !value_21;
+    }
+    if (value_20) {
         return false;
     }
     int32_t child = expr->first_child;
     while (child >= 0) {
-        bool value_20 = compiler_portable_body_PortableExpression(module, fn, child, support);
-        if (!value_20) {
+        bool value_22 = compiler_portable_body_PortableExpression(module, fn, child, support);
+        if (!value_22) {
             return false;
         }
         child = (fn->exprs[child]).next_sibling;
     }
-    uint8_t* value_21 = &(support[index]);
-    (*value_21) = 2;
+    uint8_t* value_23 = &(support[index]);
+    (*value_23) = 2;
     return true;
 }
 

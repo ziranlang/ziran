@@ -668,7 +668,9 @@ Opcode :: (state: *State, program: LirProgram, function: LirFunction, instructio
         numeric := Numeric(source_type) && Numeric(result_type)
         boolean_integer := source_type.kind == .Bool && result_type.kind == .Integer ||
             source_type.kind == .Integer && result_type.kind == .Bool
-        if !numeric && !(op == .Convert && boolean_integer) { return Fail(state, .Operand) }
+        pointer := source_type.kind == .Pointer && result_type.kind == .Pointer
+        if !numeric && !(op == .Convert && boolean_integer) &&
+           !(op == .Bitcast && pointer) { return Fail(state, .Operand) }
         if op == .Bitcast && program.types[first_type].bits != program.types[result].bits { return Fail(state, .Operand) }
         return true
     }

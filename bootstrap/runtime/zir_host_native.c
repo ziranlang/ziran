@@ -1518,7 +1518,8 @@ native_service(NativeInstance *instance, int service, const uint64_t *values, si
         return 1;
     }
     if(count != 1) return 0;
-    char text[64];
+    /* A full plain binary64 decimal, including subnormal values. */
+    char text[512];
     if(service == ZX_SERVICE_PRINT_SIGNED || service == ZX_SERVICE_PRINT_UNSIGNED) {
         uint64_t magnitude = values[0];
         int negative = service == ZX_SERVICE_PRINT_SIGNED && (int64_t)magnitude < 0;

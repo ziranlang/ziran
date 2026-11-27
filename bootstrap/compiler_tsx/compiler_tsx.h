@@ -131,6 +131,8 @@ struct Parser {
     __type_9f828aa1372cb21a type_parameters;
     __type_6de8c03d2338dfca locals;
     int64_t local_base;
+    __type_9f828aa1372cb21a captures;
+    int64_t capture_base;
     __type_f7d3635871b7267e steps;
 };
 #endif

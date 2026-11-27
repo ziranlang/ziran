@@ -101,6 +101,9 @@ enum {
     ZIR_EXPR_FIELD_INIT = 15,
     ZIR_EXPR_SLICE = 16,
     ZIR_EXPR_COMPILE_TIME = 17,
+    ZIR_EXPR_OWNED_CLOSURE = 18,
+    ZIR_EXPR_OWNED_CAPTURE_DROP = 19,
+    ZIR_EXPR_OWNED_LAMBDA = 20,
 };
 
 struct ZirTargetFacts {
@@ -244,6 +247,8 @@ struct ZirFunction {
     char overload_name[128];
     int32_t checked;
     int32_t from_ir;
+    int32_t is_native_arrow;
+    char capture_environment[128];
     int32_t default_helpers_created;
     int32_t uses_host;
     char extern_target[128];
@@ -383,6 +388,7 @@ struct ZirType {
     int32_t is_type_instance;
     int32_t is_synthetic_application;
     int32_t is_owned_vec;
+    int32_t is_owned_callable;
     int32_t is_map;
     int32_t is_extern;
     int32_t is_abi_incomplete;
@@ -487,6 +493,8 @@ String compiler_ir_CText(uint8_t* value);
 Slice compiler_ir_CBuffer(uint8_t* data, size_t count);
 String compiler_ir_BufferText(Slice buffer);
 bool compiler_ir_CopyText(Slice output, String text);
+bool compiler_ir_HostProviderVisible(ZirFunction* function);
+bool compiler_ir_CaptureEnvironmentBinding(ZirFunction* function);
 
 /* Small procedures other modules inline; compiler_ir.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_IR_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
@@ -494,6 +502,8 @@ bool compiler_ir_CopyText(Slice output, String text);
 #include "zir_string_types.h"
 static inline bool compiler_ir_CopyText_ziran_inline(Slice output, String text);
 #define compiler_ir_CopyText(...) compiler_ir_CopyText_ziran_inline(__VA_ARGS__)
+static inline bool compiler_ir_HostProviderVisible_ziran_inline(ZirFunction* function);
+#define compiler_ir_HostProviderVisible(...) compiler_ir_HostProviderVisible_ziran_inline(__VA_ARGS__)
 
 static inline bool
 compiler_ir_CopyText_ziran_inline(Slice output, String text)
@@ -525,6 +535,12 @@ compiler_ir_CopyText_ziran_inline(Slice output, String text)
     uint8_t* value_1 = &(((uint8_t *)output.data)[length]);
     (*value_1) = 0;
     return clean;
+}
+
+static inline bool
+compiler_ir_HostProviderVisible_ziran_inline(ZirFunction* function)
+{
+    return function->is_extern == 0 && function->is_template == 0 && (function->exported != 0 || (function->is_public != 0 && function->is_file_private == 0));
 }
 #endif
 

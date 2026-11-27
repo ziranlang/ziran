@@ -68,6 +68,7 @@ CNativeFunctionName :: (module: *IR.ZirModule, fn: *IR.ZirFunction, out: *u8, si
 CNumberPrefix :: (module: *IR.ZirModule, out: *u8, size: usize) #foreign compiler "zir_emit_number_prefix";
 CTargetFieldName :: (record: *IR.ZirType, target: Native.ZirTarget, name: *u8, out: *u8, size: usize) #foreign compiler "TargetFieldName";
 CNativeGoType :: (module: *IR.ZirModule, type: *u8, dst: *u8, dst_size: usize) -> s32 #foreign compiler "NativeGoType";
+go_field_ident :: (s: *u8, dst: *u8, dst_size: usize) #foreign compiler "go_field_ident";
 
 StaticText :: struct { data: *u8; length: usize }
 CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
@@ -94,6 +95,19 @@ CheckFormat :: (n: s32, size: usize) -> s32 {
 EmitIndent :: (e: *Emitter) {
     unit := ifx e.target == .ZIR_GO then CStr("\t") else CStr("    ")
     for i: cast(s32)0..e.indent - 1 { fputs(unit, e.out) }
+}
+
+// Read the target spelling of an owned callable's private field `wanted`.
+OwnedCallField :: (e: *Emitter, record: *IR.ZirType, wanted: *u8, out: *u8, size: usize) {
+    out[0] = 0
+    offset: usize = 0
+    field: IR.ZirTypeField
+    while CTypeNextField(record, *offset, *field) == 1 {
+        if strcmp(*field.name[0], wanted) != 0 { continue }
+        CTargetFieldName(record, e.target, *field.name[0], out, size)
+        if e.target == .ZIR_GO { go_field_ident(out, out, size) }
+        return
+    }
 }
 
 GlobalSlotWrapperName :: (module: *IR.ZirModule, global: *IR.ZirGlobal, index: s32, out: *u8, size: usize) {
@@ -602,8 +616,34 @@ EmitCall :: (e: *Emitter, expr: *IR.ZirExpr, array_result: *u8, out: *u8, size: 
             emit_expr(e, expr.left, expr.slot_type, source_buf, IR.ZIR_TEXT_MAX)
         }
         Declare(e, *callable[0], expr.slot_type, source_buf)
-        if e.target == .ZIR_C {
-            slot := CFindType(e.module, expr.slot_type, null)
+        slot := CFindType(e.module, expr.slot_type, null)
+        if slot != null && slot.is_owned_callable != 0 {
+            // An owned callable dispatches through its generated invoke slot
+            // with the erased state pointer; an empty record traps here.
+            state: [IR.ZIR_NAME_MAX]u8
+            invoke: [IR.ZIR_NAME_MAX]u8
+            OwnedCallField(e, slot, CStr("state"), *state[0], IR.ZIR_NAME_MAX)
+            OwnedCallField(e, slot, CStr("invoke"), *invoke[0], IR.ZIR_NAME_MAX)
+            if state[0] == 0 || invoke[0] == 0 {
+                Val.Fatal(expr, CStr("owned callable record has unexpected storage"))
+            }
+            if e.target == .ZIR_GO {
+                EmitIndent(e)
+                fprintf(e.out, CStr("if (%s).%s == nil || (%s).%s == nil { panic(\"owned callable is empty\") }\n"),
+                        *callable[0], *state[0], *callable[0], *invoke[0])
+                n = cast(usize)CheckFormat(snprintf(text_buf, IR.ZIR_TEXT_MAX, CStr("%s.%s(%s.%s"),
+                                                     *callable[0], *invoke[0], *callable[0], *state[0]), IR.ZIR_TEXT_MAX)
+            } else {
+                EmitIndent(e)
+                fprintf(e.out, CStr("if (((%s).%s == NULL) || ((%s).%s.call == NULL)) { abort(); }\n"),
+                        *callable[0], *state[0], *callable[0], *invoke[0])
+                n = cast(usize)CheckFormat(snprintf(text_buf, IR.ZIR_TEXT_MAX,
+                                                     CStr("%s.%s.call(%s.%s.context, %s.%s"),
+                                                     *callable[0], *invoke[0], *callable[0], *invoke[0],
+                                                     *callable[0], *state[0]), IR.ZIR_TEXT_MAX)
+            }
+            count = 2
+        } else if e.target == .ZIR_C {
             if slot != null && slot.is_c_call != 0 {
                 n = cast(usize)CheckFormat(snprintf(text_buf, IR.ZIR_TEXT_MAX, CStr("%s("), *callable[0]), IR.ZIR_TEXT_MAX)
             } else {

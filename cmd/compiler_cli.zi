@@ -35,11 +35,14 @@ isalpha :: (byte: s32) -> s32 #foreign libc "isalpha";
 isalnum :: (byte: s32) -> s32 #foreign libc "isalnum";
 SetDiagnosticFormat :: (format: *u8) -> s32 #foreign compiler "SetDiagnosticFormat";
 DiagnosticOutOfMemory :: () #foreign compiler "DiagnosticOutOfMemory";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, arguments: ..any) #foreign compiler "Diagnostic";
+Span :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan #foreign compiler "Span";
 CompilerHostOS :: () -> s32 #foreign compiler "CompilerHostOS";
 CompilerHostCPU :: () -> s32 #foreign compiler "CompilerHostCPU";
 CompilerParseTargetOS :: (name: *u8, os: *s32) -> s32 #foreign compiler "CompilerParseTargetOS";
 CompilerParseTargetCPU :: (name: *u8, cpu: *s32) -> s32 #foreign compiler "CompilerParseTargetCPU";
 CompilerConfigureTarget :: (backend: s32, os: s32, cpu: s32) #foreign compiler "CompilerConfigureTarget";
+ResolveProgramModule :: (program: *IR.ZirProgram, module: *u8) -> s32 #foreign compiler "ResolveProgramModule";
 CommandPriorityAvailable :: () -> s32 #foreign compiler "ZiranCommandPriorityAvailable";
 CommandPriorityGet :: (error: *s32) -> s32 #foreign compiler "ZiranCommandPriorityGet";
 CommandPrioritySet :: (value: s32) #foreign compiler "ZiranCommandPrioritySet";
@@ -147,6 +150,36 @@ CommandMergePrograms :: (set: *IR.ProgramSet, merged: *IR.ZirProgram) -> s32 {
         for module: 0..program.module_count - 1 {
             merged.modules[cast(usize)position] = program.modules[cast(usize)module]
             position += 1
+        }
+    }
+    return 1
+}
+
+// Native host entries and portable retained entries use the same checked
+// roots. Mark only named declarations; the common linker follows their uses.
+CommandRetainFunctions :: (program: *IR.ZirProgram, roots: **u8, count: s32, code: *u8) -> s32 {
+    for index: 0..count - 1 {
+        module: [IR.ZIR_NAME_MAX]u8
+        function: [IR.ZIR_NAME_MAX]u8
+        found := false
+        if SplitEntry(roots[cast(usize)index], *module[0], *function[0]) != 0 {
+            if ResolveProgramModule(program, *module[0]) == 0 { return 0 }
+            for m: 0..program.module_count - 1 {
+                owner := *program.modules[cast(usize)m]
+                if strcmp(cast(*u8)*owner.name, *module[0]) != 0 { continue }
+                for f: 0..owner.function_count - 1 {
+                    candidate := *owner.functions[cast(usize)f]
+                    if strcmp(cast(*u8)*candidate.name, *function[0]) == 0 {
+                        candidate.retained_root = 1
+                        found = true
+                    }
+                }
+            }
+        }
+        if !found {
+            Diagnostic(Span(CStr("<command>"), 1, 1), code,
+                CStr("retained function not found: %s"), roots[cast(usize)index])
+            return 0
         }
     }
     return 1

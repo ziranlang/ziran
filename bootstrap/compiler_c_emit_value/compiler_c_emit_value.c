@@ -313,6 +313,9 @@ static bool compiler_c_emit_value_ParseU64Base0(uint8_t* s, uint8_t** end_out, u
 static bool compiler_c_emit_value_ParseNegS64Base0(uint8_t* s, uint8_t** end_out, int64_t* value_out) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_emit_value_MentionsValueNames(ZirFunction* fn, ZirModule* module) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_emit_value_NumericLiteral(uint8_t* text) ZIRAN_MAYBE_UNUSED;
+static void compiler_c_emit_value_OwnedCallableField(Emitter* e, ZirType* record, uint8_t* wanted, uint8_t* out, size_t size) ZIRAN_MAYBE_UNUSED;
+static void compiler_c_emit_value_DropOwnedCallable(Emitter* e, uint8_t* value, ZirType* record) ZIRAN_MAYBE_UNUSED;
+static void compiler_c_emit_value_ClearOwnedCallable(Emitter* e, uint8_t* value, ZirType* record) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_value_GoBitsOperand(uint8_t* value, int32_t sign, uint8_t* out, size_t size) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_emit_value_FoldNumber(uint64_t a_in, uint64_t b_in, int32_t w, int32_t sign, int32_t op, uint64_t* result) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_value_NumberLiteral(Emitter* e, uint8_t* type, uint64_t bits_in, uint8_t* out, size_t size) ZIRAN_MAYBE_UNUSED;
@@ -1380,6 +1383,347 @@ zir_emit_resolve(Emitter* e, uint8_t* name, uint8_t* out, size_t size)
     value_0(e->context, name, out, size);
 }
 
+static void
+compiler_c_emit_value_OwnedCallableField(Emitter* e, ZirType* record, uint8_t* wanted, uint8_t* out, size_t size)
+{
+    uint8_t* value_0 = &(out[0]);
+    (*value_0) = 0;
+    size_t offset = 0;
+    ZirTypeField field = {0};
+    while (zir_foreign_compiler_c_emit_value__CTypeNextField(record, &(offset), &(field)) == 1) {
+        if (zir_foreign_compiler_c_emit_value__strcmp(&(field.name[0]), wanted) != 0) {
+            continue;
+        }
+        zir_foreign_compiler_c_emit_value__CTargetFieldName(record, (ZirTarget)(e->target), &(field.name[0]), out, size);
+        if (((ZirTarget)(e->target)) == ((ZirTarget)(1))) {
+            zir_foreign_compiler_c_emit_value__go_field_ident(out, out, size);
+        }
+        return;
+    }
+}
+
+static void
+compiler_c_emit_value_DropOwnedCallable(Emitter* e, uint8_t* value, ZirType* record)
+{
+    uint8_t state[128] = {0};
+    uint8_t invoke[128] = {0};
+    uint8_t release[128] = {0};
+    void* value_0 = zir_foreign_compiler_c_emit_value__AllocateOrExit(4096);
+    uint8_t* text = (uint8_t*)(value_0);
+    String value_1 = StringLiteral("state");
+    uint8_t* value_2 = (void *)0;
+    {
+        String s = value_1;
+        value_2 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+    }
+    compiler_c_emit_value_OwnedCallableField(e, record, value_2, &(state[0]), 128);
+    String value_4 = StringLiteral("invoke");
+    uint8_t* value_5 = (void *)0;
+    {
+        String s = value_4;
+        value_5 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+    }
+    compiler_c_emit_value_OwnedCallableField(e, record, value_5, &(invoke[0]), 128);
+    String value_7 = StringLiteral("release");
+    uint8_t* value_8 = (void *)0;
+    {
+        String s = value_7;
+        value_8 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+    }
+    compiler_c_emit_value_OwnedCallableField(e, record, value_8, &(release[0]), 128);
+    if ((state)[0] == 0 || (release)[0] == 0) {
+        {
+            zir_foreign_compiler_c_emit_value__free((void*)(text));
+        }
+        return;
+    }
+    if (((ZirTarget)(e->target)) == ((ZirTarget)(1))) {
+        String value_10 = StringLiteral("(%s).%s != nil && (%s).%s != nil");
+        uint8_t* value_11 = (void *)0;
+        {
+            String s = value_10;
+            value_11 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+        }
+        compiler_c_emit_value_CheckFormat(zir_foreign_compiler_c_emit_value__snprintf(text, 4096, value_11, value, &(state[0]), value, &(release[0])), 4096);
+        compiler_c_emit_value_EmitIndent(e);
+        void* value_13 = e->out;
+        String value_14 = StringLiteral("if %s {\n");
+        uint8_t* value_15 = (void *)0;
+        {
+            String s = value_14;
+            value_15 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_c_emit_value__fprintf(value_13, value_15, text);
+        int32_t* value_17 = &(e->indent);
+        (*value_17) = (int32_t)((uint32_t)((*value_17)) + 1u);
+        String value_18 = StringLiteral("(%s).%s((%s).%s)");
+        uint8_t* value_19 = (void *)0;
+        {
+            String s = value_18;
+            value_19 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+        }
+        compiler_c_emit_value_CheckFormat(zir_foreign_compiler_c_emit_value__snprintf(text, 4096, value_19, value, &(release[0]), value, &(state[0])), 4096);
+        compiler_c_emit_value_EmitIndent(e);
+        void* value_21 = e->out;
+        String value_22 = StringLiteral("%s\n");
+        uint8_t* value_23 = (void *)0;
+        {
+            String s = value_22;
+            value_23 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_c_emit_value__fprintf(value_21, value_23, text);
+        int32_t* value_25 = &(e->indent);
+        (*value_25) = (int32_t)((uint32_t)((*value_25)) - 1u);
+        compiler_c_emit_value_EmitIndent(e);
+        String value_26 = StringLiteral("}\n");
+        uint8_t* value_27 = (void *)0;
+        {
+            String s = value_26;
+            value_27 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_c_emit_value__fputs(value_27, e->out);
+        compiler_c_emit_value_EmitIndent(e);
+        void* value_29 = e->out;
+        String value_30 = StringLiteral("(%s).%s = nil\n");
+        uint8_t* value_31 = (void *)0;
+        {
+            String s = value_30;
+            value_31 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_c_emit_value__fprintf(value_29, value_31, value, &(state[0]));
+        if ((invoke)[0] != 0) {
+            compiler_c_emit_value_EmitIndent(e);
+            void* value_33 = e->out;
+            String value_34 = StringLiteral("(%s).%s = nil\n");
+            uint8_t* value_35 = (void *)0;
+            {
+                String s = value_34;
+                value_35 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+            }
+            zir_foreign_compiler_c_emit_value__fprintf(value_33, value_35, value, &(invoke[0]));
+        }
+        compiler_c_emit_value_EmitIndent(e);
+        void* value_37 = e->out;
+        String value_38 = StringLiteral("(%s).%s = nil\n");
+        uint8_t* value_39 = (void *)0;
+        {
+            String s = value_38;
+            value_39 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_c_emit_value__fprintf(value_37, value_39, value, &(release[0]));
+        {
+            zir_foreign_compiler_c_emit_value__free((void*)(text));
+        }
+        return;
+    }
+    String value_41 = StringLiteral("((%s).%s != NULL) && ((%s).%s.call != NULL)");
+    uint8_t* value_42 = (void *)0;
+    {
+        String s = value_41;
+        value_42 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+    }
+    compiler_c_emit_value_CheckFormat(zir_foreign_compiler_c_emit_value__snprintf(text, 4096, value_42, value, &(state[0]), value, &(release[0])), 4096);
+    compiler_c_emit_value_EmitIndent(e);
+    void* value_44 = e->out;
+    String value_45 = StringLiteral("if (%s) {\n");
+    uint8_t* value_46 = (void *)0;
+    {
+        String s = value_45;
+        value_46 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+    }
+    zir_foreign_compiler_c_emit_value__fprintf(value_44, value_46, text);
+    int32_t* value_48 = &(e->indent);
+    (*value_48) = (int32_t)((uint32_t)((*value_48)) + 1u);
+    String value_49 = StringLiteral("(%s).%s.call((%s).%s.context, (%s).%s)");
+    uint8_t* value_50 = (void *)0;
+    {
+        String s = value_49;
+        value_50 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+    }
+    int32_t value_52 = zir_foreign_compiler_c_emit_value__snprintf(text, 4096, value_50, value, &(release[0]), value, &(release[0]), value, &(state[0]));
+    compiler_c_emit_value_CheckFormat(value_52, 4096);
+    compiler_c_emit_value_EmitIndent(e);
+    void* value_53 = e->out;
+    String value_54 = StringLiteral("%s;\n");
+    uint8_t* value_55 = (void *)0;
+    {
+        String s = value_54;
+        value_55 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+    }
+    zir_foreign_compiler_c_emit_value__fprintf(value_53, value_55, text);
+    int32_t* value_57 = &(e->indent);
+    (*value_57) = (int32_t)((uint32_t)((*value_57)) - 1u);
+    compiler_c_emit_value_EmitIndent(e);
+    String value_58 = StringLiteral("}\n");
+    uint8_t* value_59 = (void *)0;
+    {
+        String s = value_58;
+        value_59 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+    }
+    zir_foreign_compiler_c_emit_value__fputs(value_59, e->out);
+    compiler_c_emit_value_EmitIndent(e);
+    void* value_61 = e->out;
+    String value_62 = StringLiteral("(%s).%s = NULL;\n");
+    uint8_t* value_63 = (void *)0;
+    {
+        String s = value_62;
+        value_63 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+    }
+    zir_foreign_compiler_c_emit_value__fprintf(value_61, value_63, value, &(state[0]));
+    if ((invoke)[0] != 0) {
+        compiler_c_emit_value_EmitIndent(e);
+        void* value_65 = e->out;
+        String value_66 = StringLiteral("(%s).%s.context = NULL;\n");
+        uint8_t* value_67 = (void *)0;
+        {
+            String s = value_66;
+            value_67 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_c_emit_value__fprintf(value_65, value_67, value, &(invoke[0]));
+        compiler_c_emit_value_EmitIndent(e);
+        void* value_69 = e->out;
+        String value_70 = StringLiteral("(%s).%s.call = NULL;\n");
+        uint8_t* value_71 = (void *)0;
+        {
+            String s = value_70;
+            value_71 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_c_emit_value__fprintf(value_69, value_71, value, &(invoke[0]));
+    }
+    compiler_c_emit_value_EmitIndent(e);
+    void* value_73 = e->out;
+    String value_74 = StringLiteral("(%s).%s.context = NULL;\n");
+    uint8_t* value_75 = (void *)0;
+    {
+        String s = value_74;
+        value_75 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+    }
+    zir_foreign_compiler_c_emit_value__fprintf(value_73, value_75, value, &(release[0]));
+    compiler_c_emit_value_EmitIndent(e);
+    void* value_77 = e->out;
+    String value_78 = StringLiteral("(%s).%s.call = NULL;\n");
+    uint8_t* value_79 = (void *)0;
+    {
+        String s = value_78;
+        value_79 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+    }
+    zir_foreign_compiler_c_emit_value__fprintf(value_77, value_79, value, &(release[0]));
+    {
+        zir_foreign_compiler_c_emit_value__free((void*)(text));
+    }
+}
+
+static void
+compiler_c_emit_value_ClearOwnedCallable(Emitter* e, uint8_t* value, ZirType* record)
+{
+    uint8_t state[128] = {0};
+    uint8_t invoke[128] = {0};
+    uint8_t release[128] = {0};
+    String value_0 = StringLiteral("state");
+    uint8_t* value_1 = (void *)0;
+    {
+        String s = value_0;
+        value_1 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+    }
+    compiler_c_emit_value_OwnedCallableField(e, record, value_1, &(state[0]), 128);
+    String value_3 = StringLiteral("invoke");
+    uint8_t* value_4 = (void *)0;
+    {
+        String s = value_3;
+        value_4 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+    }
+    compiler_c_emit_value_OwnedCallableField(e, record, value_4, &(invoke[0]), 128);
+    String value_6 = StringLiteral("release");
+    uint8_t* value_7 = (void *)0;
+    {
+        String s = value_6;
+        value_7 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+    }
+    compiler_c_emit_value_OwnedCallableField(e, record, value_7, &(release[0]), 128);
+    if ((state)[0] == 0 || (release)[0] == 0) {
+        return;
+    }
+    if (((ZirTarget)(e->target)) == ((ZirTarget)(1))) {
+        compiler_c_emit_value_EmitIndent(e);
+        void* value_9 = e->out;
+        String value_10 = StringLiteral("(%s).%s = nil\n");
+        uint8_t* value_11 = (void *)0;
+        {
+            String s = value_10;
+            value_11 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_c_emit_value__fprintf(value_9, value_11, value, &(state[0]));
+        if ((invoke)[0] != 0) {
+            compiler_c_emit_value_EmitIndent(e);
+            void* value_13 = e->out;
+            String value_14 = StringLiteral("(%s).%s = nil\n");
+            uint8_t* value_15 = (void *)0;
+            {
+                String s = value_14;
+                value_15 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+            }
+            zir_foreign_compiler_c_emit_value__fprintf(value_13, value_15, value, &(invoke[0]));
+        }
+        compiler_c_emit_value_EmitIndent(e);
+        void* value_17 = e->out;
+        String value_18 = StringLiteral("(%s).%s = nil\n");
+        uint8_t* value_19 = (void *)0;
+        {
+            String s = value_18;
+            value_19 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_c_emit_value__fprintf(value_17, value_19, value, &(release[0]));
+        return;
+    }
+    compiler_c_emit_value_EmitIndent(e);
+    void* value_21 = e->out;
+    String value_22 = StringLiteral("(%s).%s = NULL;\n");
+    uint8_t* value_23 = (void *)0;
+    {
+        String s = value_22;
+        value_23 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+    }
+    zir_foreign_compiler_c_emit_value__fprintf(value_21, value_23, value, &(state[0]));
+    if ((invoke)[0] != 0) {
+        compiler_c_emit_value_EmitIndent(e);
+        void* value_25 = e->out;
+        String value_26 = StringLiteral("(%s).%s.context = NULL;\n");
+        uint8_t* value_27 = (void *)0;
+        {
+            String s = value_26;
+            value_27 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_c_emit_value__fprintf(value_25, value_27, value, &(invoke[0]));
+        compiler_c_emit_value_EmitIndent(e);
+        void* value_29 = e->out;
+        String value_30 = StringLiteral("(%s).%s.call = NULL;\n");
+        uint8_t* value_31 = (void *)0;
+        {
+            String s = value_30;
+            value_31 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+        }
+        zir_foreign_compiler_c_emit_value__fprintf(value_29, value_31, value, &(invoke[0]));
+    }
+    compiler_c_emit_value_EmitIndent(e);
+    void* value_33 = e->out;
+    String value_34 = StringLiteral("(%s).%s.context = NULL;\n");
+    uint8_t* value_35 = (void *)0;
+    {
+        String s = value_34;
+        value_35 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+    }
+    zir_foreign_compiler_c_emit_value__fprintf(value_33, value_35, value, &(release[0]));
+    compiler_c_emit_value_EmitIndent(e);
+    void* value_37 = e->out;
+    String value_38 = StringLiteral("(%s).%s.call = NULL;\n");
+    uint8_t* value_39 = (void *)0;
+    {
+        String s = value_38;
+        value_39 = ((compiler_c_emit_value_StaticText*)(&(s)))->data;
+    }
+    zir_foreign_compiler_c_emit_value__fprintf(value_37, value_39, value, &(release[0]));
+}
+
 void
 zir_emit_drop_owned_value(Emitter* e, uint8_t* value, uint8_t* type, ZirModule* module, int32_t depth)
 {
@@ -1576,6 +1920,10 @@ zir_emit_drop_owned_value(Emitter* e, uint8_t* value, uint8_t* type, ZirModule* 
     }
     ZirModule* owner = (void *)0;
     ZirType* record = zir_foreign_compiler_c_emit_value__CFindType(module, type, &(owner));
+    if (record != ((void *)0) && record->is_owned_callable != 0) {
+        compiler_c_emit_value_DropOwnedCallable(e, value, record);
+        return;
+    }
     bool value_70 = record == ((void *)0) || record->is_enum != 0 || record->is_procedure_type != 0 || record->is_record_template != 0;
     if (value_70 || record->is_extern != 0) {
         return;
@@ -1731,6 +2079,10 @@ zir_emit_clear_owned_value(Emitter* e, uint8_t* value, uint8_t* type, ZirModule*
     }
     ZirModule* owner = (void *)0;
     ZirType* record = zir_foreign_compiler_c_emit_value__CFindType(module, type, &(owner));
+    if (record != ((void *)0) && record->is_owned_callable != 0) {
+        compiler_c_emit_value_ClearOwnedCallable(e, value, record);
+        return;
+    }
     bool value_42 = record == ((void *)0) || record->is_enum != 0 || record->is_procedure_type != 0 || record->is_record_template != 0;
     if (value_42 || record->is_extern != 0) {
         return;

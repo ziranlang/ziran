@@ -13,7 +13,7 @@
 extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-#define ZIR_FORMAT_VERSION 66
+#define ZIR_FORMAT_VERSION 67
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
 typedef struct compiler_zir_serial_ParserArray8192_u8 compiler_zir_serial_ParserArray8192_u8;
@@ -226,7 +226,7 @@ struct ParserArray8_u8 {
 #ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
 
 struct SerialFields {
-    Field items[30];
+    Field items[32];
 };
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
@@ -283,7 +283,7 @@ static inline int32_t compiler_zir_serial_ZirFormatVersion_ziran_inline(void);
 static inline int32_t
 compiler_zir_serial_ZirFormatVersion_ziran_inline(void)
 {
-    return 66;
+    return 67;
 }
 #endif
 

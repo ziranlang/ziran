@@ -41,7 +41,9 @@ Bridges :: (test: *NativeTest) -> bool {
     unused PackageCommand(test, host_app, bundle[:]); run := string.["run", bundle_path]
     if !NativeAssert(test, TextTrim(PackageCommand(test, host_app, run[:])) == "41", "unexported dependency capability was not bound by import path") { return false }
     missing := string.["bundle", "--project", "--bind", "hosted/missing:Measure=app:Doubled", "--entry", "app:main", "-o", CheckPath(test.work, "missing.zx"), CheckPath(host_app, "src/app.zi")]
-    if !NativeAssert(test, TextContains(PackageCommand(test, host_app, missing[:], false), "no direct dependency has"), "missing binding module was accepted") { return false }
+    if !NativeAssert(test, TextContains(PackageCommand(test, host_app, missing[:], false),
+        "host binding module hosted/missing is not loaded") && !IsFile(CheckPath(test.work, "missing.zx")),
+        "missing host binding did not fail at the requested module") { return false }
     templates := CheckPath(test.work, "template-package")
     template_manifest := TextDetach(TextReplace(ResolutionProject("{{name}}", "src/{{module}}.zi"), "module_roots = [\"src\"]", "module_roots = [\"src\"]\nlinks = [\"m\"]"))
     if !NativeWrite(test, CheckPath(templates, "ziran.toml"), "[package]\nname = \"Templates\"\n[templates]\napp = \"templates/app\"\n") ||

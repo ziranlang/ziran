@@ -12,6 +12,9 @@ procedure signatures and bodies, checked expression graphs, source spans,
 foreign declarations and host capability requirements. Named and default
 arguments retain source evaluation order and their checked parameter indices.
 Generic declarations retain template and specialization identities.
+Owned callables retain their erased ABI, concrete environment construction,
+invoke and cleanup procedure values, and invocation-local borrow provenance.
+Consumers recheck capture types and provenance along with ordinary moves.
 
 Architecture-specific `#asm` metadata accompanies the checked portable body.
 C and Go can select supported variants; ZX uses the portable body. See

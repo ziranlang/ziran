@@ -937,7 +937,7 @@ PkgUsage :: (command: string) -> string {
         return "usage: ziran check [--project] [--lint] [--root DIR] [--entry module:function] [--module-path DIR] [file.zi|file.ts|file.tsx|file.zir ...]\n"
     }
     if command == "ir" {
-        return "usage: ziran ir [--root DIR] [--entry module:function] [--module-path DIR] [-o FILE.zir] [file.zi|file.ts|file.tsx|file.zir ...]\n"
+        return "usage: ziran ir [--root DIR] [--entry module:function] [--retain module:function] [--module-path DIR] [-o FILE.zir] [file.zi|file.ts|file.tsx|file.zir ...]\n"
     }
     if command == "build" {
         return "usage: ziran build [--target=c|go|wasm|zx] [--thorough|--quickest] [--emit-main|--exe --entry module:function] [--root DIR] [--module-path DIR] [-o FILE|DIR] [file.zi|file.ts|file.tsx|file.zir ...]; in a project: ziran build\n"

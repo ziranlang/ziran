@@ -8,6 +8,7 @@ compiler :: #system_library "ziran";
 libc :: #system_library "libc";
 
 AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+capture_safe :: (module: *IR.ZirModule, type: *u8, depth: s32) -> bool #foreign compiler "private_check_capture_safe";
 ArrayElementType :: (type: *u8, element: *u8, element_size: usize, capacity: *s32) -> s32 #foreign compiler "ArrayElementType";
 BitBuiltin :: (checked_name: *u8) -> s32 #foreign compiler "BitBuiltin";
 BitBuiltinName :: (source_name: *u8) -> *u8 #foreign compiler "BitBuiltinName";
@@ -72,6 +73,7 @@ check_moved_path_use :: (c: *Checker, index: s32) #foreign compiler "private_che
 check_simd_call :: (c: *Checker, index: s32, type: **u8) -> s32 #foreign compiler "private_check_check_simd_call";
 compatible_checked :: (c: *Checker, to: *u8, from: *u8) -> s32 #foreign compiler "private_check_compatible_checked";
 contains_vec :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 #foreign compiler "private_check_contains_vec";
+owned_call_slot :: (c: *Checker, index: s32, slot_owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "private_check_owned_call_slot";
 contextual_slot :: (c: *Checker, index: s32, expected: *u8) #foreign compiler "private_check_contextual_slot";
 copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
 error :: (c: *Checker, span: IR.ZirSourceSpan, message: *u8, detail: *u8) #foreign compiler "private_check_error";
@@ -1828,6 +1830,50 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
         (e).type = KeepName(CheckCString("integer"))
         return (e).type
     }
+    if e.kind == .OWNED_LAMBDA {
+        contextual_slot(c, index, *c.expected_type.items[0])
+        e = *c.fn.exprs[index]
+        if e.kind == .OWNED_LAMBDA {
+            error(c, e.span, CheckCString("capturing arrow requires an Owned(Signature) context"), e.name)
+            return CheckCString("")
+        }
+    }
+    if e.kind == .OWNED_CLOSURE {
+        slot := FindType(c.module, e.type, null)
+        if slot == null || slot.is_owned_callable == 0 || e.left < 0 || e.right < 0 || e.third < 0 {
+            error(c, e.span, CheckCString("invalid checked owned closure"), e.name); return CheckCString("")
+        }
+        saved := c.expected_type
+        unused IR.CopyText(c.expected_type.items[:], IR.CText(e.name))
+        environment_type := expression_type(c, e.left)
+        c.expected_type = saved
+        e = *c.fn.exprs[index]
+        if strcmp(environment_type, e.name) != 0 {
+            error(c, e.span, CheckCString("owned closure capture type mismatch"), e.name)
+        }
+        if !capture_safe(c.module, e.name, 0) {
+            error(c, e.span, CheckCString("owned closure contains borrowed capture storage"), e.name)
+        }
+        unused expression_type(c, e.right)
+        unused expression_type(c, e.third)
+        e = *c.fn.exprs[index]
+        invoke_owner: *IR.ZirModule = null
+        invoke: *IR.ZirFunction = null
+        if ResolveFunctionAt(c.module, c.fn.exprs[e.right].name, SpanPath(e.span),
+                             *invoke_owner, *invoke) != 1 ||
+           strcmp(*invoke.capture_environment[0], e.name) != 0 {
+            error(c, e.span, CheckCString("owned closure invoke environment mismatch"), e.name)
+        }
+        return c.fn.exprs[index].type
+    }
+    if e.kind == .OWNED_CAPTURE_DROP {
+        env := FindType(c.module, e.name, null)
+        if env == null || e.left < 0 || strcmp(expression_type(c, e.left), CheckCString("*u8")) != 0 {
+            error(c, e.span, CheckCString("invalid checked capture cleanup"), e.name)
+        }
+        c.fn.exprs[index].type = CheckCString("void")
+        return CheckCString("void")
+    }
     if ((e).is_function_value != 0) {
         return (e).type
     }
@@ -1974,6 +2020,10 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
             }
             record_owner: *IR.ZirModule = null
             record: *IR.ZirType = FindType((c).module, (e).name, *(record_owner))
+            if record != null && record.is_owned_callable != 0 {
+                error(c, e.span, CheckCString("owned callable storage is private; use a native arrow"), e.name)
+                break check_switch_243
+            }
             ordinal: s32 = 0
             mode: s32 = (-1)
             if ((((((record == cast(*IR.ZirType)((null))) || ((record).is_enum != 0)) || ((record).is_procedure_type != 0)) || ((record).is_record_template != 0)) || (((record).foreign_target)[0] != 0)) || ((record).is_map != 0)) {
@@ -2107,6 +2157,10 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                     type = cast(*u8)(*((member_type_storage_0[0]).items))
                     break check_switch_243
                 }
+            }
+            if record != null && record.is_owned_callable != 0 {
+                error(c, e.span, CheckCString("owned callable storage is private; invoke the callable directly"), e.name)
+                break check_switch_243
             }
             if ((record != cast(*IR.ZirType)((null))) && ((record).is_map != 0)) {
                 error(c, (e).span, CheckCString("Map storage is private; use map operations"), (e).name)
@@ -2927,16 +2981,19 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                 }
                 break check_switch_243
             }
-            select_overload(c, index)
+            owned_slot_owner: *IR.ZirModule = null
+            owned_slot := owned_call_slot(c, index, *owned_slot_owner)
+            if owned_slot == null { select_overload(c, index) }
             e = cast(*IR.ZirExpr)(cast(usize)(((c).fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
             binding: *u8 = (ifx ((e).is_this != 0) then CheckCString("") else lookup(c, (e).name))
             (e).is_global_value = cast(s32)((!((e).is_this != 0) && !((lookup_lexical(c, (e).name))[0] != 0)) && (global_binding(c, (e).name) != cast(*IR.ZirGlobal)((null))))
-            slot: *IR.ZirType = FindType((c).module, binding, null)
+            slot_owner: *IR.ZirModule = owned_slot_owner
+            slot: *IR.ZirType = ifx owned_slot != null then owned_slot else FindType((c).module, binding, *slot_owner)
             if ((slot != cast(*IR.ZirType)((null))) && !((slot).is_procedure_type != 0)) {
                 slot = null
             }
-            (e).slot_type = KeepName((ifx (slot != null) then binding else CheckCString("")))
-            callee: *IR.ZirFunction = (ifx ((binding)[0] != 0) then null else function(c, (e).name, (e).span))
+            if owned_slot == null { (e).slot_type = KeepName((ifx (slot != null) then binding else CheckCString(""))) }
+            callee: *IR.ZirFunction = (ifx (owned_slot != null || (binding)[0] != 0) then null else function(c, (e).name, (e).span))
             callee_owner: *IR.ZirModule = null
             if (callee != cast(*IR.ZirFunction)((null))) {
                 resolved: *IR.ZirFunction = null
@@ -3165,6 +3222,11 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
             }
             args: *u8 = (ifx (slot != null) then cast(*u8)(*((slot).body)) else (ifx (((buffers).specialized_args).items[0] != 0) then cast(*u8)(*(((buffers).specialized_args).items)) else (ifx (callee != null) then FunctionArgs(callee) else null)))
             return_type: *u8 = (ifx (slot != null) then cast(*u8)(*((slot).procedure_return_type)) else (ifx ((specialized_return_storage_30[0]).items[0] != 0) then cast(*u8)(*((specialized_return_storage_30[0]).items)) else (ifx (callee != null) then cast(*u8)(*((callee).return_type)) else CheckCString(""))))
+            if owned_slot != null {
+                comma := strchr(args, 44)
+                args = ifx comma != null then skip_ws(cast(*u8)(cast(usize)comma + 1)) else CheckCString("")
+            }
+            if slot != null { callee_owner = slot_owner }
             qualified_host: *IR.ZirImport = null
             parts: *CheckArray4096_u8 = cast(*CheckArray4096_u8)(CompilerCalloc(cast(usize)(64), cast(usize)(cast(u64)size_of(CheckArray4096_u8))))
             actual: s32 = 0
@@ -3273,7 +3335,7 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                         memset(cast(*void)mapped_storage_40, 0, size_of(CheckArray128_u8))
                         copy_text(cast(*u8)(*((mapped_storage_40[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))))
                         trim_in_place(cast(*u8)(*((mapped_storage_40[0]).items)))
-                        if !(record_field_type_at_use((c).module, callee_owner, (e).name, cast(*u8)(*((mapped_storage_40[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0) {
+                        if !(record_field_type_at_use((c).module, callee_owner, (ifx slot != null then e.slot_type else e.name), cast(*u8)(*((mapped_storage_40[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0) {
                             error(c, (e).span, CheckCString("imported procedure parameter type is shadowed"), (e).name)
                             CheckPost0(*(parameter))
                             continue check_loop_260
@@ -3285,6 +3347,14 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                         CheckPost0(*(parameter))
                     }
                 }
+            }
+            if slot != null && slot_owner != null && slot_owner != c.module {
+                qualified_return: [128]u8
+                copy_text(*qualified_return[0], size_of(type_of(qualified_return)), return_type)
+                if record_field_type_at_use(c.module, slot_owner, e.slot_type, *qualified_return[0], size_of(type_of(qualified_return))) == 0 {
+                    error(c, e.span, CheckCString("imported slot result type is shadowed"), e.slot_type)
+                }
+                return_type = KeepName(*qualified_return[0])
             }
             fixed: s32 = (ifx ((varargs != 0) && (expected > 0)) then (expected - 1) else expected)
             if ((varargs != 0) && (expected > 0)) {

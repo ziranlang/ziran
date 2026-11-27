@@ -408,6 +408,21 @@ DebugAttachment :: (program: Lir.LirProgram) -> s32 {
     VecFree(inconsistent)
     Debug.ZxDebugFree(*debug)
     Link.ZxExecReadFree(*owner)
+
+    // Kind 4 is a reserved number, not a second assembly implementation.
+    // Replace the fourth directory entry (the optional debug attachment).
+    bytes[160] = 4
+    for index: 1..3 { bytes[160 + index] = 0 }
+    read = Link.ZxExecRead(*owner, TextView(bytes[:]), Lir.LirDefaultLimits())
+    if read.problem != .None || Link.ZxExecReadDebug(*owner, *debug, Lir.LirDefaultLimits()) != .Absent {
+        return Fail(103, cast(s32)read.problem)
+    }
+    Link.ZxExecReadFree(*owner)
+    bytes[164] = 1
+    read = Link.ZxExecRead(*owner, TextView(bytes[:]), Lir.LirDefaultLimits())
+    if read.problem != .Container || read.container != .RequiredSection || owner.valid {
+        return Fail(104, cast(s32)read.container)
+    }
     VecFree(bytes)
 
     // Without the attachment there is nothing to restore.

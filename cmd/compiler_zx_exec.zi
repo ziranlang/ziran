@@ -357,8 +357,9 @@ PrintFloat32 :: (context: *void, function: s32, arguments: []u64, result: *u64) 
     bits := cast(u32)arguments[0]
     value: float32 = 0
     unused memcpy(cast(*u8)*value, cast(*u8)*bits, 4)
-    text: [64]u8
-    FormatPrintFloat(cast(float64)value, 1, *text[0], 64)
+    // Keep the full plain decimal, including sign and subnormal values.
+    text: [512]u8
+    FormatPrintFloat(cast(float64)value, 1, *text[0], cast(usize)text.count)
     return PrintText(context, *text[0], strlen(*text[0]), result)
 }
 
@@ -368,8 +369,9 @@ PrintFloat64 :: (context: *void, function: s32, arguments: []u64, result: *u64) 
     bits := arguments[0]
     value: float64 = 0
     unused memcpy(cast(*u8)*value, cast(*u8)*bits, 8)
-    text: [64]u8
-    FormatPrintFloat(value, 0, *text[0], 64)
+    // Keep the full plain decimal, including sign and subnormal values.
+    text: [512]u8
+    FormatPrintFloat(value, 0, *text[0], cast(usize)text.count)
     return PrintText(context, *text[0], strlen(*text[0]), result)
 }
 

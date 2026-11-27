@@ -35,6 +35,8 @@ Parser :: struct {
     type_parameters: Vec(string)
     locals: Vec(LocalBinding)
     local_base: s64
+    captures: Vec(string)
+    capture_base: s64
     steps: Vec(LoopStep)
 }
 
@@ -228,7 +230,14 @@ ResolveName :: (p: *Parser, name: string) -> *u8 {
     while at > 0 {
         at -= 1
         if p.locals[at].name == name {
-            if at < p.local_base { Fail(p, "captured callbacks require owned capture support; this native callback cannot capture a local") }
+            if at < p.local_base {
+                found := false
+                for i: p.capture_base..p.captures.count - 1 {
+                    if p.captures[i] == name { found = true }
+                }
+                if !found && !VecPush(p.captures, name) { Fail(p, "cannot allocate callback capture") }
+                return Services.KeepName(Join("__tsx_environment.", name))
+            }
             return Services.KeepName(name)
         }
     }
@@ -354,6 +363,9 @@ Arrow :: (p: *Parser) -> s32 {
     parent := (cast(usize)p.fn - cast(usize)p.module.functions) / size_of(IR.ZirFunction)
     previous := p.locals.count
     previous_base := p.local_base
+    previous_capture_base := p.capture_base
+    capture_start := p.captures.count
+    p.capture_base = capture_start
     previous_loop := p.loop
     p.local_base = previous
     p.loop = 0
@@ -376,12 +388,52 @@ Arrow :: (p: *Parser) -> s32 {
             }
         }
     }
+    capture_count := p.captures.count - capture_start
+    capture_names := ""
+    for i: capture_start..p.captures.count - 1 {
+        if capture_names.count > 0 { capture_names = Join(capture_names, ",") }
+        capture_names = Join(capture_names, p.captures[i])
+    }
+    if !p.failed {
+        // Both declarations exist before checking. Contextual capture lowering
+        // may add types, but never relocates a currently checked function.
+        p.fn.is_native_arrow = 1
+        drop := ModuleAddFunction(p.module, Services.KeepName(Join(name, "_drop")),
+            Services.KeepParameters("__tsx_state: *u8"), Services.KeepName("void"), 0, span)
+        if drop == null { Fail(p, "cannot allocate callback cleanup") }
+        else { drop.from_ir = 1; drop.is_file_private = 1 }
+    }
     p.fn = cast(*IR.ZirFunction)(cast(usize)p.module.functions + parent * size_of(IR.ZirFunction))
     p.local_base = previous_base
     p.loop = previous_loop
     unused VecResize(p.locals, previous)
+    p.capture_base = previous_capture_base
     if p.failed { return -1 }
-    return NameNode(p, name, span)
+    if capture_count == 0 {
+        unused VecResize(p.captures, capture_start)
+        return NameNode(p, name, span)
+    }
+    // Keep the names while nested capture resolution appends to the parent's
+    // capture list. Names and expression text remain compiler-owned.
+    saved_names := capture_names
+    unused VecResize(p.captures, capture_start)
+    head: s32 = -1
+    tail: s32 = -1
+    start: s64 = 0
+    for i: cast(s64)0..saved_names.count {
+        if i != saved_names.count && saved_names[i] != #char "," { continue }
+        captured := saved_names[start:i]
+        operand := NameNode(p, IR.CText(ResolveName(p, captured)), span)
+        if operand >= 0 { p.fn.exprs[operand].argument_name = Services.KeepName(captured) }
+        Link(p, *head, *tail, operand)
+        start = i + 1
+    }
+    value := Node(p, .OWNED_LAMBDA, name, span)
+    if value >= 0 {
+        p.fn.exprs[value].name = Services.KeepName(name)
+        p.fn.exprs[value].first_child = head
+    }
+    return value
 }
 Prefix :: (p: *Parser) -> s32 {
     span := Location(p)
@@ -696,6 +748,15 @@ ForOfAhead :: (p: *Parser) -> bool {
     keyword := Scan.NextCodeToken(p.source, name.end, name.after_line, name.after_column)
     return p.source[keyword.begin:keyword.end] == "of"
 }
+CapturePlace :: (p: *Parser, expr: s32) -> bool {
+    if expr < 0 { return false }
+    node := p.fn.exprs[expr]
+    if node.kind == .IDENT { return IR.CText(node.name) == "__tsx_environment" }
+    if node.kind == .MEMBER || node.kind == .POINTER_MEMBER || node.kind == .INDEX {
+        return CapturePlace(p, node.left)
+    }
+    return false
+}
 PersistentPlace :: (p: *Parser, expr: s32) -> bool {
     if expr < 0 { return false }
     kind := p.fn.exprs[expr].kind
@@ -885,6 +946,7 @@ ParseStatement :: (p: *Parser) {
         left := Expression(p)
         op := Token(p)
         if op == "=" || op == "+=" || op == "-=" || op == "*=" || op == "/=" {
+            if CapturePlace(p, left) { Fail(p, "callback captures are immutable snapshots"); return }
             if left >= 0 && p.fn.exprs[left].kind == .IDENT {
                 local := p.locals.count
                 while local > 0 {

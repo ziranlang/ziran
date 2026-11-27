@@ -494,6 +494,7 @@ contains_vec :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 {
     if (((((record == cast(*IR.ZirType)((null))) || ((record).is_enum != 0)) || ((record).is_procedure_type != 0)) || ((record).is_record_template != 0)) || ((record).is_extern != 0)) {
         return 0
     }
+    if record.is_owned_callable != 0 { return 1 }
     if (TypeHasOnlyPrimitiveFields(record) != 0) {
         return 0
     }

@@ -505,6 +505,102 @@ Resolve :: (e: *Emitter, name: *u8, out: *u8, size: usize) {
     e.resolve(e.context, name, out, size)
 }
 
+#scope_file
+
+// Read the target spellings of an owned callable's three private fields.
+// state/release/invoke names are compiler-owned, so an unknown spelling is
+// reported through an empty output rather than a fatal.
+OwnedCallableField :: (e: *Emitter, record: *IR.ZirType, wanted: *u8, out: *u8, size: usize) {
+    out[0] = 0
+    offset: usize = 0
+    field: IR.ZirTypeField
+    while CTypeNextField(record, *offset, *field) == 1 {
+        if strcmp(*field.name[0], wanted) != 0 { continue }
+        CTargetFieldName(record, e.target, *field.name[0], out, size)
+        if e.target == .ZIR_GO { go_field_ident(out, out, size) }
+        return
+    }
+}
+
+// Release one owned callable: run its generated cleanup slot while the
+// state is live, then clear the record so a later drop releases nothing.
+DropOwnedCallable :: (e: *Emitter, value: *u8, record: *IR.ZirType) {
+    state: [IR.ZIR_NAME_MAX]u8
+    invoke: [IR.ZIR_NAME_MAX]u8
+    release: [IR.ZIR_NAME_MAX]u8
+    text := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    defer { free(cast(*void)text) }
+    OwnedCallableField(e, record, CStr("state"), *state[0], IR.ZIR_NAME_MAX)
+    OwnedCallableField(e, record, CStr("invoke"), *invoke[0], IR.ZIR_NAME_MAX)
+    OwnedCallableField(e, record, CStr("release"), *release[0], IR.ZIR_NAME_MAX)
+    if state[0] == 0 || release[0] == 0 { return }
+    if e.target == .ZIR_GO {
+        CheckFormat(snprintf(text, IR.ZIR_TEXT_MAX, CStr("(%s).%s != nil && (%s).%s != nil"),
+                             value, *state[0], value, *release[0]), IR.ZIR_TEXT_MAX)
+        EmitIndent(e); fprintf(e.out, CStr("if %s {\n"), text)
+        e.indent += 1
+        CheckFormat(snprintf(text, IR.ZIR_TEXT_MAX, CStr("(%s).%s((%s).%s)"),
+                             value, *release[0], value, *state[0]), IR.ZIR_TEXT_MAX)
+        EmitIndent(e); fprintf(e.out, CStr("%s\n"), text)
+        e.indent -= 1
+        EmitIndent(e); fputs(CStr("}\n"), e.out)
+        EmitIndent(e); fprintf(e.out, CStr("(%s).%s = nil\n"), value, *state[0])
+        if invoke[0] != 0 {
+            EmitIndent(e); fprintf(e.out, CStr("(%s).%s = nil\n"), value, *invoke[0])
+        }
+        EmitIndent(e); fprintf(e.out, CStr("(%s).%s = nil\n"), value, *release[0])
+        return
+    }
+    // Owned invoke and release slots are always portable fat pointers; the
+    // instantiation rejects c_call signatures outright.
+    CheckFormat(snprintf(text, IR.ZIR_TEXT_MAX,
+                         CStr("((%s).%s != NULL) && ((%s).%s.call != NULL)"),
+                         value, *state[0], value, *release[0]), IR.ZIR_TEXT_MAX)
+    EmitIndent(e); fprintf(e.out, CStr("if (%s) {\n"), text)
+    e.indent += 1
+    CheckFormat(snprintf(text, IR.ZIR_TEXT_MAX,
+                         CStr("(%s).%s.call((%s).%s.context, (%s).%s)"),
+                         value, *release[0], value, *release[0], value, *state[0]), IR.ZIR_TEXT_MAX)
+    EmitIndent(e); fprintf(e.out, CStr("%s;\n"), text)
+    e.indent -= 1
+    EmitIndent(e); fputs(CStr("}\n"), e.out)
+    EmitIndent(e); fprintf(e.out, CStr("(%s).%s = NULL;\n"), value, *state[0])
+    if invoke[0] != 0 {
+        EmitIndent(e); fprintf(e.out, CStr("(%s).%s.context = NULL;\n"), value, *invoke[0])
+        EmitIndent(e); fprintf(e.out, CStr("(%s).%s.call = NULL;\n"), value, *invoke[0])
+    }
+    EmitIndent(e); fprintf(e.out, CStr("(%s).%s.context = NULL;\n"), value, *release[0])
+    EmitIndent(e); fprintf(e.out, CStr("(%s).%s.call = NULL;\n"), value, *release[0])
+}
+
+// Empty one owned callable record: state, invoke and release all cleared.
+ClearOwnedCallable :: (e: *Emitter, value: *u8, record: *IR.ZirType) {
+    state: [IR.ZIR_NAME_MAX]u8
+    invoke: [IR.ZIR_NAME_MAX]u8
+    release: [IR.ZIR_NAME_MAX]u8
+    OwnedCallableField(e, record, CStr("state"), *state[0], IR.ZIR_NAME_MAX)
+    OwnedCallableField(e, record, CStr("invoke"), *invoke[0], IR.ZIR_NAME_MAX)
+    OwnedCallableField(e, record, CStr("release"), *release[0], IR.ZIR_NAME_MAX)
+    if state[0] == 0 || release[0] == 0 { return }
+    if e.target == .ZIR_GO {
+        EmitIndent(e); fprintf(e.out, CStr("(%s).%s = nil\n"), value, *state[0])
+        if invoke[0] != 0 {
+            EmitIndent(e); fprintf(e.out, CStr("(%s).%s = nil\n"), value, *invoke[0])
+        }
+        EmitIndent(e); fprintf(e.out, CStr("(%s).%s = nil\n"), value, *release[0])
+        return
+    }
+    EmitIndent(e); fprintf(e.out, CStr("(%s).%s = NULL;\n"), value, *state[0])
+    if invoke[0] != 0 {
+        EmitIndent(e); fprintf(e.out, CStr("(%s).%s.context = NULL;\n"), value, *invoke[0])
+        EmitIndent(e); fprintf(e.out, CStr("(%s).%s.call = NULL;\n"), value, *invoke[0])
+    }
+    EmitIndent(e); fprintf(e.out, CStr("(%s).%s.context = NULL;\n"), value, *release[0])
+    EmitIndent(e); fprintf(e.out, CStr("(%s).%s.call = NULL;\n"), value, *release[0])
+}
+
+#scope_export
+
 #program_export "zir_emit_drop_owned_value"
 DropOwnedValue :: (e: *Emitter, value: *u8, type: *u8, module: *IR.ZirModule, depth: s32) {
     element: [IR.ZIR_NAME_MAX]u8
@@ -562,6 +658,10 @@ DropOwnedValue :: (e: *Emitter, value: *u8, type: *u8, module: *IR.ZirModule, de
     }
     owner: *IR.ZirModule = null
     record := CFindType(module, type, *owner)
+    if record != null && record.is_owned_callable != 0 {
+        DropOwnedCallable(e, value, record)
+        return
+    }
     if record == null || record.is_enum != 0 || record.is_procedure_type != 0 ||
        record.is_record_template != 0 || record.is_extern != 0 {
         return
@@ -618,6 +718,10 @@ ClearOwnedValue :: (e: *Emitter, value: *u8, type: *u8, module: *IR.ZirModule, d
     }
     owner: *IR.ZirModule = null
     record := CFindType(module, type, *owner)
+    if record != null && record.is_owned_callable != 0 {
+        ClearOwnedCallable(e, value, record)
+        return
+    }
     if record == null || record.is_enum != 0 || record.is_procedure_type != 0 ||
        record.is_record_template != 0 || record.is_extern != 0 {
         return

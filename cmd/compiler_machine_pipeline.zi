@@ -482,14 +482,6 @@ MachineCodeBuild :: (lir: LirProgram, target: TargetDescription, limits: Machine
     return Build(lir, target, limits, output, false, 0, none, target.feature_mask)
 }
 
-// In-process code for a host that never limits its steps: no fuel checks,
-// as in an unbounded executable.
-MachineCodeBuildUnbounded :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
-    output: *MachineNativeOwner) -> MachineDiagnostic {
-    none: MachineHostLinks
-    return Build(lir, target, limits, output, false, MachineX64InitialFuel, none, target.feature_mask)
-}
-
 // In-process assembly selection uses the feature mask supplied by the loader.
 MachineCodeBuildFeatures :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     output: *MachineNativeOwner, features: u64, unbounded: bool) -> MachineDiagnostic {

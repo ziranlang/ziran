@@ -12,6 +12,7 @@ TSX_DOMAIN :: #string ZI
 #load "private_a.zi";
 #load "private_b.zi";
 using Vectors :: #import "std/vec"
+using Callables :: #import "std/callable"
 Model :: struct { value: float64; id: u64; }
 Box :: struct($T: Type) { value: T; }
 Snapshot :: () -> Model { return .{value = 42, id = 18446744073709551615} }
@@ -27,6 +28,7 @@ Numbers :: () -> Vec(float64) {
 Increment :: (id: u64) -> float64 { return ifx id == 18446744073709551615 then 1 else -1 }
 Action :: #type (value: float64) -> float64;
 Invoke :: (action: Action, value: float64) -> float64 { return action(value) }
+InvokeOwned :: (action: Owned(Action), value: float64) -> float64 { return action(value) }
 Parts :: (parts: [5]string) -> s32 {
     if parts.count != 5 { return 1 }
     if parts[0] != "Count: " || parts[1] != "7" || parts[2] != " " || parts[3] != "tail" || parts[4] != "!" { return 2 }
@@ -40,25 +42,50 @@ TSX_PRIVATE_B :: "#scope_file\nCell :: struct($T: Type) { second: T; }\nLeaf :: 
 
 TSX_LOGIC :: "export interface Box<T> { other: T; }\nexport function Wrapped(): Box<number> { return {other: 9}; }\nfunction HalfImpl(value: number): number { return value / 2; }\nexport function Half(value: number): number { return HalfImpl(value); }\n"
 
+TSX_FACADE :: "using Export :: #import \"generic_widget\";\n"
+TSX_GENERIC_WIDGET :: #string ZI
+Props :: struct { value: s32; }
+#scope_file
+Hidden :: (value: s32) -> s32 { return value }
+#scope_export
+DrawSession :: (value: s32, props: Props) -> s32 { return value + props.value }
+Draw :: (frame: $T, props: Props) -> s32 { return DrawSession(frame.slot, props) + Hidden(1) }
+ZI
+
 TSX_APP :: #string TSX
 import * as Domain from "domain";
 import * as OtherAlias from "domain";
+import * as Facade from "generic_facade";
 import { Vec } from "std/vec";
+import { Owned } from "std/callable";
+import { Text, TextCopy } from "std/vec";
 interface Props { value: number; other: number; }
 interface PartsProps { children: [string, string, string, string, string]; }
 interface EmptyProps {}
 type Transform = (value: number) => number;
 interface ActionProps { action: (value: number) => number; value: number; }
+interface OwnedActionProps { action: Owned<Domain.Action>; value: number; }
 interface Holder<T> { value: T; }
 interface Box<T> { local: T; }
 interface Model { local: number; }
+interface GenericFrame { slot: s32; }
 type Factory = (value: number) => Holder<number>;
 function Echo(props: Props): number { return props.value + props.other; }
 function Tail(props: EmptyProps): string { return "tail"; }
 function Parts(props: PartsProps): s32 { return Domain.Parts(props.children); }
 function Apply(props: ActionProps): number { return props.action(props.value); }
+function ApplyOwned(props: OwnedActionProps): number { return props.action(props.value); }
+function Offset(delta: number): Owned<Domain.Action> {
+    return (value: number): number => value + delta;
+}
+function TextAction(): Owned<Domain.Action> {
+    const label: Text = TextCopy("owned");
+    return (value: number): number => value + number(TextView(label).count);
+}
 function Wrap(value: number): Holder<number> { return {value: value}; }
 export function main(): s32 {
+    const genericFrame: GenericFrame = {slot: s32(40)};
+    if (Facade.Draw(genericFrame, {value: s32(1)}) !== s32(42)) { return s32(25); }
     const snapshot: Domain.Model = Domain.Snapshot();
     let value: number = <Echo other={0} value={snapshot.value}/>;
     let count: number = 0;
@@ -109,6 +136,20 @@ export function main(): s32 {
     };
     if (Domain.Invoke(half, 10) !== 5 || nested(10) !== 5) { return s32(9); }
     if ((<Apply action={(value: number): number => { return value + 1; }} value={4}/>) !== 5) { return s32(10); }
+    const offset: Owned<Domain.Action> = Offset(3);
+    const record: Domain.Model = Domain.Snapshot();
+    const byRecord: Owned<Domain.Action> = (value: number): number => value + record.value;
+    if (Domain.InvokeOwned(offset, 4) !== 7 || Domain.InvokeOwned(byRecord, 1) !== snapshot.value + 1) { return s32(20); }
+    const textAction: Owned<Domain.Action> = TextAction();
+    if (Domain.InvokeOwned(textAction, 2) !== 7) { return s32(21); }
+    if ((<ApplyOwned value={4} action={(value: number): number => value + snapshot.value}/>) !== snapshot.value + 4) { return s32(22); }
+    const stateless: Owned<Domain.Action> = (value: number): number => value + 2;
+    if (Domain.InvokeOwned(stateless, 3) !== 5) { return s32(23); }
+    const nestedOwned: Owned<Domain.Action> = (value: number): number => {
+        const inner: Owned<Domain.Action> = (extra: number): number => extra + snapshot.value;
+        return Domain.InvokeOwned(inner, value);
+    };
+    if (Domain.InvokeOwned(nestedOwned, 1) !== snapshot.value + 1) { return s32(24); }
     if ((<Tail>
     </Tail>) !== "tail") { return s32(11); }
     if ((<Parts>Count: {"7"} <Tail/>!</Parts>) !== s32(0)) { return s32(7); }
@@ -206,6 +247,8 @@ TsxProject :: (test: *NativeTest) -> bool {
         !NativeWrite(test, CheckPath(project, "src/domain.zi"), TSX_DOMAIN) ||
         !NativeWrite(test, CheckPath(project, "src/private_a.zi"), TSX_PRIVATE_A) ||
         !NativeWrite(test, CheckPath(project, "src/private_b.zi"), TSX_PRIVATE_B) ||
+        !NativeWrite(test, CheckPath(project, "src/generic_facade.zi"), TSX_FACADE) ||
+        !NativeWrite(test, CheckPath(project, "src/generic_widget.zi"), TSX_GENERIC_WIDGET) ||
         !NativeWrite(test, CheckPath(project, "src/logic.ts"), logic) ||
         !NativeWrite(test, CheckPath(project, "src/label.tsx"), "export interface Props { value: number; } export function Label(props: Props): number { return props.value; }\n") { return false }
     lock := string.["lock", "--offline"]; unused PackageCommand(test, project, lock[:])
@@ -244,6 +287,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
         !NativeWrite(*test, CheckPath(root, "domain.zi"), TSX_DOMAIN) ||
         !NativeWrite(*test, CheckPath(root, "private_a.zi"), TSX_PRIVATE_A) ||
         !NativeWrite(*test, CheckPath(root, "private_b.zi"), TSX_PRIVATE_B) ||
+        !NativeWrite(*test, CheckPath(root, "generic_facade.zi"), TSX_FACADE) ||
+        !NativeWrite(*test, CheckPath(root, "generic_widget.zi"), TSX_GENERIC_WIDGET) ||
         !NativeWrite(*test, CheckPath(root, "logic.ts"), TSX_LOGIC) { return 1 }
     warm := string.[test.ziran, "check", "--root", root, source]
     unused NativeRun(*test, warm[:])
@@ -264,7 +309,12 @@ main :: (argc: s32, argv: **u8) -> s32 {
         !TsxReject(*test, root, "generic_type", "interface Box<T> { value: T; } export function main(): s32 { const box: Box<number> = {value: true}; return s32(box.value); }", "type") ||
         !TsxReject(*test, root, "action", "import * as Domain from \"domain\"; export function main(): s32 { Domain.Increment(true); return s32(0); }", "argument") ||
         !TsxReject(*test, root, "visibility", "import { HalfImpl } from \"logic\"; export function main(): s32 { return s32(HalfImpl(0)); }", "unresolved function:") ||
-        !TsxReject(*test, root, "capture", "type Action = () => number; export function main(): s32 { const value = 1; const action: Action = (): number => value; return s32(action()); }", "cannot capture a local") ||
+        !TsxReject(*test, root, "capture", "type Action = () => number; export function main(): s32 { const value = 1; const action: Action = (): number => value; return s32(action()); }", "requires an Owned(Signature) context") ||
+        !TsxReject(*test, root, "capture_view", "import { Owned } from \"std/callable\"; type Action = () => number; export function main(): s32 { const text: string = \"borrowed\"; const action: Owned<Action> = (): number => number(text.count); return s32(0); }", "callback capture must be a scalar, enum, or owned value without borrowed fields") ||
+        !TsxReject(*test, root, "capture_record_view", "import { Owned } from \"std/callable\"; interface Borrowed { text: string; } type Action = () => number; export function main(): s32 { const record: Borrowed = {text: \"borrowed\"}; const action: Owned<Action> = (): number => number(record.text.count); return s32(0); }", "callback capture must be a scalar, enum, or owned value without borrowed fields") ||
+        !TsxReject(*test, root, "capture_escape", "import { Owned } from \"std/callable\"; import { Text, TextCopy } from \"std/vec\"; type Action = () => string; export function main(): s32 { const text: Text = TextCopy(\"owned\"); const action: Owned<Action> = (): string => TextView(text); return s32(0); }", "returned text view borrows local or temporary storage") ||
+        !TsxReject(*test, root, "capture_write", "import { Owned } from \"std/callable\"; type Action = () => number; export function main(): s32 { const value = 1; const action: Owned<Action> = (): number => { value = 2; return value; }; return s32(0); }", "callback captures are immutable snapshots") ||
+        !TsxReject(*test, root, "capture_move", "import { Owned } from \"std/callable\"; import { Text, TextCopy } from \"std/vec\"; type Action = () => number; export function main(): s32 { const text: Text = TextCopy(\"owned\"); const action: Owned<Action> = (): number => number(TextView(text).count); return s32(TextView(text).count); }", "after moving") ||
         !TsxReject(*test, root, "callback", "type Action = (value: number) => number; export function main(): s32 { const action: Action = (value: boolean): number => 1; return s32(0); }", "type") ||
         !TsxReject(*test, root, "property", "interface Props { value: number; } function Item(props: Props): number { return props.value; } export function main(): s32 { return s32(<Item value={true}/>); }", "type") ||
         !TsxReject(*test, root, "local_view", "import { Text, TextCopy } from \"std/vec\"; export function Leak(): string { const owned: Text = TextCopy(\"temporary\"); return TextView(owned); }", "returned text view borrows local or temporary storage") ||

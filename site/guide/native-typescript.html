@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Native TypeScript and TSX: the Ziran guide, rendered from docs/NATIVE_TYPESCRIPT.md."><title>Native TypeScript and TSX · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/native-typescript"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Native TypeScript and TSX</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/NATIVE_TYPESCRIPT.md">docs/NATIVE_TYPESCRIPT.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#commands-and-imports">Commands and imports</a><a href="#types-and-values">Types and values</a><a href="#functions-statements-and-jsx">Functions, statements and JSX</a></aside><div class="article-body">
+<section class="prose"><p><code>.ts</code> and <code>.tsx</code> are source frontends of the Ziran toolchain. They construct
+structured expressions and declarations in the common IR. The common checker,
+borrow checker, saved <code>.zir</code> format and C, Go, portable ZX, native ZX and Wasm
+paths apply to them. There is no generated Ziran screen source, JavaScript
+engine, npm module resolver or React runtime. The experimental <code>tsx2zi</code>
+command has been removed.</p>
+<p>The Kryon migration is still in progress. Owned capturing callables are
+supported. Scoped borrowed callbacks, component state, keyed mounting and the
+complete UI package integration remain open work.</p>
+<h2 id="commands-and-imports">Commands and imports</h2>
+<p>Use the ordinary commands, for example:</p>
+<pre><code class="language-sh">ziran check --root src src/main.tsx
+ziran ir --root src -o build/ir src/main.tsx
+ziran build --target=c --exe --entry main:main --root src -o build/c src/main.tsx
+ziran bundle --entry main:main --root src -o build/main.zx src/main.tsx
+</code></pre>
+<p>Project commands discover <code>.zi</code>, <code>.ts</code> and <code>.tsx</code> together. Module names must be
+unique across source extensions. Package exports and lockfiles resolve imports
+in the same way as Ziran imports; an import of a Ziran module reads its actual
+checked declarations. Do not write a duplicate TypeScript interface for a
+Ziran record or action.</p>
+<pre><code class="language-tsx">import * as Model from &quot;model&quot;;
+import { Half } from &quot;arithmetic&quot;;
+
+interface LabelProps { value: number; }
+function Label(props: LabelProps): number { return Half(props.value); }
+
+export function main(): s32 {
+    const snapshot: Model.Snapshot = Model.Read();
+    return s32(&lt;Label value={snapshot.value}/&gt;);
+}
+</code></pre>
+<p>Imports have module scope regardless of declaration order. Namespace imports
+and named imports with <code>as</code> aliases are supported. Default imports,
+re-exports and JavaScript packages are unsupported.</p>
+<h2 id="types-and-values">Types and values</h2>
+<ul>
+<li><code>number</code> is native IEEE 754 binary64 (<code>float64</code>). Integer-spelled ordinary
+  numeric literals are also binary64; <code>5 / 2</code> is <code>2.5</code>. No integer type is
+  silently substituted for TypeScript <code>number</code>.</li>
+<li><code>boolean</code> is native <code>bool</code>. <code>string</code> is an immutable borrowed UTF-8 byte view,
+  with native <code>.count</code>; it is not a JavaScript UTF-16 string object.</li>
+<li><code>s8</code> through <code>s64</code>, <code>u8</code> through <code>u64</code>, <code>isize</code>, <code>usize</code>, <code>float32</code> and
+  <code>float64</code> name explicit native scalar types. Conversions use <code>s32(value)</code>,
+  <code>u64(value)</code> and the other native type names. These follow the existing
+  Ziran explicit-cast semantics; they are not JavaScript coercions.</li>
+<li>An integer literal ending in <code>n</code> carries exact native integer bits. Use it
+  at an explicit native boundary, such as <code>u64(18446744073709551615n)</code>, to
+  preserve a wide identifier without going through binary64. This suffix does
+  not provide a dynamically sized JavaScript BigInt runtime.</li>
+<li>Interfaces declare native records. Imported Ziran records, procedure types and enums retain
+  their checked identity. Records use value semantics and native ownership.
+  Keep an owned native result in an explicitly typed binding, for example
+  <code>const text: Text = TextCopy("label")</code> with <code>Text</code> and <code>TextCopy</code> imported
+  from <code>std/vec</code>. The existing native convention detaches a <code>Text</code> call result
+  to a program-lifetime string when the binding has no owned <code>Text</code> context.
+  Use <code>TextView(text)</code> to borrow an explicitly owned binding during its lifetime;
+  returning that view from the owning scope is rejected at the authored source.</li>
+<li>A homogeneous tuple such as <code>[string, string]</code> is a fixed native array.
+  <code>T[]</code> names a borrowed native slice. Slice literals need backing storage;
+  general owned-array and JSX child-range construction is still open work.</li>
+<li>Native generic records use <code>Vec&lt;number&gt;</code> or <code>Domain.Box&lt;number&gt;</code> at type
+  positions and retain the actual checked Ziran declaration and specialization.
+  An <code>interface Holder&lt;T&gt; { value: T; }</code> declares a native generic record.
+  Nested type arguments are supported. Generic functions, constraints and
+  defaults are not implemented in the TSX frontend yet.</li>
+<li><code>any</code>, <code>unknown</code>, <code>never</code>, <code>undefined</code> and <code>null</code> are rejected. Optional values,
+  errors and resources must have explicit native declarations. The frontend
+  does not invent a nullable or serialized representation for them.</li>
+</ul>
+<p>Use <code>===</code> and <code>!==</code>. Equality is checked for compatible native operands, with
+native value comparison for supported operands and IEEE behavior for floats.
+Coercive <code>==</code> and <code>!=</code> are rejected. Arithmetic, comparisons, boolean operators,
+conditional expressions, record/array literals, calls and indexing use the
+common typed expression graph. Unsupported syntax produces a source diagnostic.</p>
+<h2 id="functions-statements-and-jsx">Functions, statements and JSX</h2>
+<p>Functions have typed parameters and result types. <code>export</code> controls public
+visibility. Local <code>const</code> and <code>let</code> bindings require an initializer. <code>const</code>
+prevents rebinding; it does not freeze the fields of a record. Blocks, <code>if</code> /
+<code>else</code>, <code>while</code>, C-style <code>for</code> with explicit assignment steps, <code>break</code>,
+<code>continue</code>, assignment and local compound assignment are supported. Loop steps
+execute before a matching <code>continue</code> and do not execute after <code>break</code>.
+<code>for (const item of values)</code> and <code>for (let item of values)</code> iterate native
+arrays, slices, strings and vectors. The collection expression runs once.
+Existing storage is borrowed for the loop; a fresh owned result is kept in
+the loop's scope and released on exit. Mutating or moving a borrowed vector
+is rejected. The iteration binding holds an element value; changing a <code>let</code>
+binding does not replace the element in its collection. Array literals
+currently require a typed backing binding before iteration.</p>
+<p>Native procedure signatures can appear as field/parameter types or named aliases:</p>
+<pre><code class="language-tsx">type Transform = (value: number) =&gt; number;
+function Calculate(): number {
+    const half: Transform = (value: number): number =&gt; value / 2;
+    return half(10);
+}
+</code></pre>
+<p>Noncapturing arrows require typed parameters
+and an explicit result type, and accept either an expression or a block body.
+They use ordinary native procedure values, including calls through imported
+Ziran procedure parameters. Bind to the imported procedure type at that
+boundary instead of duplicating it in a local alias; named native procedure
+types retain their declared identity. Signatures are checked by the common checker.
+Capturing arrows use <code>Owned&lt;Signature&gt;</code> from <code>std/callable</code>:</p>
+<pre><code class="language-tsx">import { Owned } from &quot;std/callable&quot;;
+type Action = (value: number) =&gt; number;
+function Offset(delta: number): Owned&lt;Action&gt; {
+    return (value: number): number =&gt; value + delta;
+}
+</code></pre>
+<p>The callable owns an immutable snapshot of its captures. Scalars, enums and
+records containing only ownership-safe fields are accepted; owned Text, Vec
+and other owned callables move into that snapshot. Strings, slices, pointers
+and records containing borrowed fields are rejected. Reading a view of owned
+capture storage during invocation is valid; returning that view is rejected.
+Move and scope cleanup rules apply to the callable, including record fields,
+arguments, returns and replacement. One signature accepts different generated
+capture record types. The <code>__tsx_</code> identifier prefix is reserved for generated
+IR declarations.
+Invoking an empty callable traps; dropping an empty or moved callable is harmless.</p>
+<p>Scoped borrowed callbacks, classes, promises, async functions and type unions are not
+implemented yet. Generic record applications retain their declaring module
+and file scope: a local <code>Box&lt;T&gt;</code> and an imported <code>Domain.Box&lt;T&gt;</code> remain
+distinct, including inside nested applications. Import aliases for the same
+declaration share its identity.</p>
+<p>JSX calls an ordinary typed component value with one props record. The compiler
+knows no widget names and does not choose a UI library. Qualified component
+names, nested components, expression props and children use ordinary checked
+calls. The library defines the props and result types. Unknown and incorrectly typed fields are checked against those declarations.
+Props currently use native record initialization, including native defaults for
+omitted fields; TypeScript required-field enforcement remains open work. Duplicate props
+and mismatched closing tags are errors.
+Empty paired tags and indentation-only content do not add a <code>children</code> property.</p>
+<p>Inline JSX text preserves spaces around expressions. Multiline text removes
+line indentation and joins nonempty lines with a space. Children are positional
+values in the props' <code>children</code> aggregate; the current finite tuple support does
+not establish general UI child arrays or component lifecycle behavior.</p>
+<p>Diagnostics retain the authored <code>.ts</code> or <code>.tsx</code> source span. Frontend caches
+preserve the structured expression graph and rerun common checking, including
+when an imported Ziran declaration changes. Generated declarations and target
+code belong under the normal build output.</p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

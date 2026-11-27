@@ -12,12 +12,20 @@ behind it in the order most programs need it: commands and language rules,
 modules, the standard library, then generated C and Go, saved IR, foreign
 code and assembly.</p>
 <h2 id="compiler-commands">Compiler commands</h2>
-<p>The compiler commands are <code>zi2zir</code> (including
-<code>--check-only</code>), <code>zi2c</code>, <code>zi2go</code>, and <code>zi2zx</code>.
-Run a program with <code>ziran run hello.zi</code> or <code>zi2zx run hello.zi</code>; Ziran checks
-the file and executes <code>main</code> in one step. <code>make install-user</code> installs both
-commands in <code>~/.local/bin</code>.
-<code>zi-fmt</code> formats source. <code>ziran guide</code> prints a short reference from the
+<p>Use the same commands for native <code>.zi</code>, <code>.ts</code> and <code>.tsx</code> sources, including
+projects that mix them:</p>
+<pre><code class="language-sh">ziran check --project
+ziran ir --project -o build/ir
+ziran build
+ziran run
+</code></pre>
+<p><code>check</code> validates sources and imports; <code>ir</code> saves checked <code>.zir</code> modules;
+<code>build</code> selects an output target; <code>run</code> checks and executes <code>main</code>.
+Project manifests and locks select the toolchain and dependencies for all
+source languages. See <a href="native-typescript.html">native TypeScript</a> for its subset.
+The backend drivers share the frontend and checked IR; source languages do
+not have separate converter commands. <code>make install-user</code> installs the tools.
+<code>ziran fmt</code> formats Ziran source. <code>ziran guide</code> prints a short reference from the
 installed compiler, including current safety and target limits.
 <code>ziran capabilities --target=go --json</code> reports a versioned machine-readable
 target summary; see the <a href="capabilities.html">capability schema</a>.
@@ -1572,7 +1580,10 @@ flags (default <code>$CC</code>, then <code>cc</code>), <code>--include DIR</cod
 beside the launcher), and <code>-o FILE</code> writes elsewhere.</p>
 <h2 id="save-and-inspect-zir-modules">Save and inspect ZIR modules</h2>
 <p><code>ziran ir --entry module:function</code> saves that reachable graph as
-per-module <code>.zir</code> files before code generation.</p>
+per-module <code>.zir</code> files before code generation. Repeat <code>--retain other:function</code>
+to retain additional native host entry points and their dependencies, even when
+the selected entry's call to them folds to a constant. Each retained function
+must exist in the checked input graph; <code>--retain</code> requires <code>--entry</code>.</p>
 <h3 id="compile-time-target-facts">Compile-time target facts</h3>
 <p>The typed compile-time values <code>TARGET</code>, <code>OS</code>, and <code>CPU</code> describe the selected
 output, never the machine running the compiler. <code>TARGET</code> is an enum with <code>.C</code>,

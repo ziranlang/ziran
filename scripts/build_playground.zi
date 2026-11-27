@@ -45,6 +45,7 @@ Run :: (command: []string, repo: string, environment: []string) -> bool {
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     emcc := ""
+    compiler_root := ""
     output_directory := ""
     embeds: Vec(string)
     index: s32 = 1
@@ -53,6 +54,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         if index + 1 >= argc { print("% needs a value\n", option); return 2 }
         value := TextFromCString(argv[index + 1])
         if option == "--emcc" { emcc = value }
+        else if option == "--compiler-root" { compiler_root = value }
         else if option == "--output-dir" { output_directory = value }
         else if option == "--embed-file" { VecPush(embeds, value) }
         else { print("unknown argument: %\n", option); return 2 }
@@ -63,7 +65,10 @@ main :: (argc: s32, argv: **u8) -> s32 {
     emcc = ResolvePath(emcc)
     if emcc == "" { print("cannot find emcc\n"); return 2 }
     emar := JoinPath(PathParent(emcc), "emar")
-    repo := PathParent(PathParent(EnvironmentText("ZIRAN_SCRIPT_FILE")))
+    source := PathParent(PathParent(EnvironmentText("ZIRAN_SCRIPT_FILE")))
+    repo := source
+    if compiler_root != "" { repo = ResolvePath(compiler_root) }
+    if repo == "" { print("cannot find compiler root\n"); return 2 }
     if output_directory == "" { output_directory = JoinPath(repo, "site/assets") }
     if !CreateDirectories(output_directory) { print("%: cannot create\n", output_directory); return 1 }
     assets := ResolvePath(output_directory)
@@ -76,20 +81,39 @@ main :: (argc: s32, argv: **u8) -> s32 {
     }
     settings := VecSlice(environment, 0, environment.count)
 
+    // The browser transport is authored Ziran, generated with the same
+    // compiler declarations as the engine being linked. Its implementation
+    // source can be outside an immutable package toolchain during development.
+    bridge := JoinPath(build, "browser-bundle")
+    generate: [17]string = .[JoinPath(repo, "build/bin/zi2c"), "--no-main",
+        "--define", "ZIRAN_EXEC_NATIVE_PLAN_INDEXES", "--define", "ZIRAN_EXEC_PACKED_INSTRUCTIONS",
+        "--root", JoinPath(source, "web"),
+        "--module-path", JoinPath(repo, "cmd"), "--module-path", JoinPath(repo, "std"),
+        "-o", bridge, "--target-os", "web", JoinPath(source, "web/bundle.zi")]
+    if !Run(generate[:], repo, settings) { return 1 }
+
     // Keep C's 64-bit long, then lower addressing for wasm32 browsers.
     make: [8]string = .["make", "BUILD_DIR=build/playground64",
         Concat(Concat("CC=", Quote(emcc)), " -sMEMORY64=2"), Concat("AR=", Quote(emar)),
         "OBJCOPY=true", "CFLAGS=-O2",
         "FRAMEFLAGS=-Wframe-larger-than=16384", "build/playground64/libziran.a"]
     if !Run(make[:], repo, settings) { return 1 }
+    // This public-header consumer needs the embedding API's opaque types.
+    // Compile it separately: the runner's private header defines those types.
+    bridge_object := JoinPath(bridge, "bundle.o")
+    compile: [13]string = .[emcc, "-O2", "-std=c11", "-sMEMORY64=2", "-Iinclude",
+        "-include", "ziran_host.h", "-include", JoinPath(build, "compiler-runtime/engine_names.h"),
+        "-c", JoinPath(bridge, "bundle.c"), "-o", bridge_object]
+    if !Run(compile[:], repo, settings) { return 1 }
     command: Vec(string)
-    // The lowering and the ZX runner compile into the page beside libziran,
-    // whose engine and optimizer they use under the engine's private names.
-    fixed: [30]string = .[emcc, "-O2", "-std=c11", "-D_GNU_SOURCE", "-Iinclude", "-Ibootstrap/runtime",
+    // The bridge's generated dependency graph contains current lowering,
+    // runner and IR declarations. Bootstrap seeds may have older layouts.
+    // The engine and optimizer retain the library's private names.
+    fixed: [28]string = .[emcc, "-O2", "-std=c11", "-D_GNU_SOURCE", "-Iinclude", "-Ibootstrap/runtime",
         "-include", JoinPath(build, "compiler-runtime/engine_names.h"),
-        "-Ibootstrap/compiler_ir", "-Ibootstrap/compiler_services", "-Ibootstrap/compiler_zir_lower",
-        "-Icmd/zi2zx", "-iquote", JoinPath(build, "compiler-runtime"),
-        "web/playground.c", "web/bundle.c", "bootstrap/compiler_zir_lower/compiler_zir_lower.c", "bootstrap/compiler_zx_run/compiler_zx_run.c",
+        Concat("-I", bridge),
+        "-Icmd/zi2zx", "-iquote", bridge,
+        "web/playground.c", bridge_object, JoinPath(bridge, "compiler_zir_lower.c"), JoinPath(bridge, "compiler_zx_run.c"),
         JoinPath(build, "libziran.a"), "-lm",
         "-sMEMORY64=2", "-sMODULARIZE=1", "-sEXPORT_NAME=createPlayground",
         "-sEXPORTED_FUNCTIONS=_RunSource,_BuildBundle", "-sEXPORTED_RUNTIME_METHODS=FS,ccall",

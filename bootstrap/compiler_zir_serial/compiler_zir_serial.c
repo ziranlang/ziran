@@ -31,6 +31,16 @@ static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {
 #include "vec.h"
 #include "vec.h"
 #ifdef __APPLE__
+int32_t zir_foreign_compiler_zir_serial__TypeNextField(ZirType* record, size_t* offset, ZirTypeField* field) __asm__("_TypeNextField");
+#else
+int32_t zir_foreign_compiler_zir_serial__TypeNextField(ZirType* record, size_t* offset, ZirTypeField* field) __asm__("TypeNextField");
+#endif
+#ifdef __APPLE__
+ZirType* zir_foreign_compiler_zir_serial__FindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("_FindType");
+#else
+ZirType* zir_foreign_compiler_zir_serial__FindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("FindType");
+#endif
+#ifdef __APPLE__
 int32_t zir_foreign_compiler_zir_serial__CheckPrograms(ZirProgram** programs, int32_t count) __asm__("_CheckPrograms");
 #else
 int32_t zir_foreign_compiler_zir_serial__CheckPrograms(ZirProgram** programs, int32_t count) __asm__("CheckPrograms");
@@ -1734,7 +1744,31 @@ compiler_zir_serial_describe_function_fields(void* input, Field* output)
         value_145 = (Field){.offset = (size_t)(member) - (size_t)(record), .size = size, .kind = kind};
     }
     (*value_143) = value_145;
-    return 30;
+    Field* value_147 = &(output[30]);
+    void* value_148 = (void*)(&(record->capture_environment));
+    size_t value_149 = (128) * (sizeof(uint8_t));
+    Field value_150 = {0};
+    {
+        void* record = input;
+        void* member = value_148;
+        size_t size = value_149;
+        FieldKind kind = (FieldKind)(FieldKind_String);
+        value_150 = (Field){.offset = (size_t)(member) - (size_t)(record), .size = size, .kind = kind};
+    }
+    (*value_147) = value_150;
+    Field* value_152 = &(output[31]);
+    void* value_153 = (void*)(&(record->is_native_arrow));
+    size_t value_154 = sizeof(int32_t);
+    Field value_155 = {0};
+    {
+        void* record = input;
+        void* member = value_153;
+        size_t size = value_154;
+        FieldKind kind = (FieldKind)(FieldKind_Integer);
+        value_155 = (Field){.offset = (size_t)(member) - (size_t)(record), .size = size, .kind = kind};
+    }
+    (*value_152) = value_155;
+    return 32;
 }
 
 static size_t
@@ -2573,7 +2607,19 @@ compiler_zir_serial_describe_type_fields(void* input, Field* output)
         value_133 = (Field){.offset = (size_t)(member) - (size_t)(record), .size = size, .kind = kind};
     }
     (*value_130) = value_133;
-    return 27;
+    Field* value_135 = &(output[27]);
+    void* value_136 = (void*)(&(record->is_owned_callable));
+    size_t value_137 = sizeof(int32_t);
+    Field value_138 = {0};
+    {
+        void* record = input;
+        void* member = value_136;
+        size_t size = value_137;
+        FieldKind kind = (FieldKind)(FieldKind_Integer);
+        value_138 = (Field){.offset = (size_t)(member) - (size_t)(record), .size = size, .kind = kind};
+    }
+    (*value_135) = value_138;
+    return 28;
 }
 
 static int32_t
@@ -6478,134 +6524,168 @@ compiler_zir_serial_validate_program(ZirProgram* program)
                         break;
                     }
                     ZirType* type = (ZirType*)(((size_t)(module->types) + ((size_t)(t) * sizeof(ZirType))));
-                    bool value_55 = type->is_go_anonymous != 0 && type->is_go_anonymous != 1;
-                    if (!value_55) {
-                        bool value_56 = type->is_go_anonymous != 0;
-                        if (value_56) {
-                            bool value_57 = type->is_enum != 0 || type->is_union != 0 || type->is_extern != 0 || type->is_procedure_type != 0;
-                            value_56 = (value_57 || type->is_abi_incomplete != 0 || type->is_map != 0 || type->is_owned_vec != 0);
+                    if (type->is_owned_callable != 0) {
+                        bool value_55 = type->is_owned_callable != 1 || type->is_procedure_type != 0 || type->is_enum != 0 || type->is_union != 0;
+                        if (value_55 || type->is_extern != 0 || type->is_record_template != 0 || type->is_owned_vec != 0 || type->is_map != 0) {
+                            return 0;
                         }
-                        value_55 = value_56;
-                    }
-                    if (value_55) {
-                        return 0;
-                    }
-                    bool value_58 = type->is_map != 0 && type->is_map != 1;
-                    bool value_59 = value_58;
-                    if (!value_59) {
-                        bool value_60 = type->is_map != 0;
-                        bool value_61 = value_60;
-                        if (value_61) {
-                            bool value_62 = zir_foreign_compiler_zir_serial__MapTypeParts(module, (uint8_t*)(&(type->name)), (void *)0, (size_t)(0LL), (void *)0, (size_t)(0LL)) != 0;
-                            bool value_63 = !value_62 || type->is_owned_vec != 0 || type->is_abi_incomplete != 0 || (type->foreign_target)[0] != 0;
-                            value_61 = value_63;
+                        size_t offset = 0;
+                        ZirTypeField field = {0};
+                        bool value_56 = zir_foreign_compiler_zir_serial__TypeNextField(type, &(offset), &(field)) != 1;
+                        bool value_57 = value_56 || !StringEqual(compiler_ir_CText(&(field.name[0])), StringLiteral("state"));
+                        if (value_57 || !StringEqual(compiler_ir_CText(&(field.type[0])), StringLiteral("*u8"))) {
+                            return 0;
                         }
-                        value_59 = value_61;
+                        bool value_58 = zir_foreign_compiler_zir_serial__TypeNextField(type, &(offset), &(field)) != 1;
+                        if (value_58 || !StringEqual(compiler_ir_CText(&(field.name[0])), StringLiteral("invoke"))) {
+                            return 0;
+                        }
+                        ZirType* invoke = zir_foreign_compiler_zir_serial__FindType(module, &(field.type[0]), (void *)0);
+                        if (invoke == ((void *)0) || invoke->is_procedure_type == 0) {
+                            return 0;
+                        }
+                        bool value_59 = zir_foreign_compiler_zir_serial__TypeNextField(type, &(offset), &(field)) != 1;
+                        if (value_59 || !StringEqual(compiler_ir_CText(&(field.name[0])), StringLiteral("release"))) {
+                            return 0;
+                        }
+                        ZirType* release = zir_foreign_compiler_zir_serial__FindType(module, &(field.type[0]), (void *)0);
+                        bool value_60 = release == ((void *)0) || release->is_procedure_type == 0;
+                        bool value_61 = value_60 || !StringEqual(compiler_ir_CText(&(release->body[0])), StringLiteral("__tsx_state: *u8"));
+                        bool value_62 = value_61;
+                        bool value_63 = value_62 || !StringEqual(compiler_ir_CText(&(release->procedure_return_type[0])), StringLiteral("void"));
+                        bool value_64 = value_63;
+                        if (value_64 || zir_foreign_compiler_zir_serial__TypeNextField(type, &(offset), &(field)) != 0) {
+                            return 0;
+                        }
                     }
-                    if (value_59) {
-                        return 0;
+                    bool value_65 = type->is_go_anonymous != 0 && type->is_go_anonymous != 1;
+                    if (!value_65) {
+                        bool value_66 = type->is_go_anonymous != 0;
+                        if (value_66) {
+                            bool value_67 = type->is_enum != 0 || type->is_union != 0 || type->is_extern != 0 || type->is_procedure_type != 0;
+                            value_66 = (value_67 || type->is_abi_incomplete != 0 || type->is_map != 0 || type->is_owned_vec != 0);
+                        }
+                        value_65 = value_66;
                     }
-                    bool value_64 = (type->foreign_target)[0] != 0;
-                    bool value_65 = value_64;
                     if (value_65) {
-                        bool value_66 = zir_foreign_compiler_zir_serial__GoForeignTargetValid((uint8_t*)(&(type->foreign_target))) != 0;
-                        bool value_67 = !value_66 || !(type->is_extern != 0) || (type->body)[0] != 0 || type->is_enum != 0 || type->is_union != 0;
-                        bool value_68 = value_67 || type->is_procedure_type != 0 || type->is_record_template != 0 || type->is_synthetic_application != 0;
-                        value_65 = (value_68 || type->is_owned_vec != 0 || type->is_abi_incomplete != 0);
-                    }
-                    if (value_65) {
                         return 0;
                     }
-                    bool value_69 = (type->is_file_private != 0 && type->is_file_private != 1) || (type->is_file_private != 0 && type->is_public != 0);
-                    bool value_70 = value_69 || (type->is_procedure_type != 0 && !((type->procedure_return_type)[0] != 0)) || (type->is_c_call != 0 && type->is_c_call != 1);
-                    bool value_71 = value_70 || (type->is_c_call != 0 && !(type->is_procedure_type != 0)) || (type->reads_arguments != 0 && type->reads_arguments != 1);
-                    bool value_72 = value_71 || (type->reads_arguments != 0 && (!(type->is_procedure_type != 0) || type->is_c_call != 0));
-                    bool value_73 = value_72 || (!(type->is_procedure_type != 0) && (type->procedure_return_type)[0] != 0) || (int32_t)((int8_t)((type->name)[0])) == 35;
-                    bool value_74 = value_73 || (type->is_union != 0 && type->is_union != 1) || (type->is_union != 0 && (type->is_enum != 0 || type->is_procedure_type != 0 || type->is_extern != 0 || type->is_owned_vec != 0));
-                    bool value_75 = value_74 || (type->is_enum_flags != 0 && type->is_enum_flags != 1) || (type->is_enum_specified != 0 && type->is_enum_specified != 1);
-                    bool value_76 = value_75;
-                    bool value_77 = value_76;
-                    if (!value_77) {
-                        bool value_78 = type->is_enum != 0;
-                        bool value_79 = value_78;
-                        if (value_79) {
-                            bool value_80 = compiler_zir_serial_enum_backing_valid((uint8_t*)(&(type->enum_backing))) != 0;
-                            value_79 = !value_80;
+                    bool value_68 = type->is_map != 0 && type->is_map != 1;
+                    bool value_69 = value_68;
+                    if (!value_69) {
+                        bool value_70 = type->is_map != 0;
+                        bool value_71 = value_70;
+                        if (value_71) {
+                            bool value_72 = zir_foreign_compiler_zir_serial__MapTypeParts(module, (uint8_t*)(&(type->name)), (void *)0, (size_t)(0LL), (void *)0, (size_t)(0LL)) != 0;
+                            bool value_73 = !value_72 || type->is_owned_vec != 0 || type->is_abi_incomplete != 0 || (type->foreign_target)[0] != 0;
+                            value_71 = value_73;
                         }
-                        value_77 = value_79;
+                        value_69 = value_71;
                     }
-                    bool value_81 = value_77 || (!(type->is_enum != 0) && (type->is_enum_flags != 0 || type->is_enum_specified != 0 || (type->enum_backing)[0] != 0 || (type->c_prefix)[0] != 0));
-                    bool value_82 = value_81;
-                    bool value_83 = value_82;
-                    if (!value_83) {
-                        bool value_84 = compiler_zir_serial_c_prefix_valid((uint8_t*)(&(type->c_prefix))) != 0;
-                        value_83 = !value_84;
+                    if (value_69) {
+                        return 0;
                     }
-                    bool value_85 = value_83;
+                    bool value_74 = (type->foreign_target)[0] != 0;
+                    bool value_75 = value_74;
+                    if (value_75) {
+                        bool value_76 = zir_foreign_compiler_zir_serial__GoForeignTargetValid((uint8_t*)(&(type->foreign_target))) != 0;
+                        bool value_77 = !value_76 || !(type->is_extern != 0) || (type->body)[0] != 0 || type->is_enum != 0 || type->is_union != 0;
+                        bool value_78 = value_77 || type->is_procedure_type != 0 || type->is_record_template != 0 || type->is_synthetic_application != 0;
+                        value_75 = (value_78 || type->is_owned_vec != 0 || type->is_abi_incomplete != 0);
+                    }
+                    if (value_75) {
+                        return 0;
+                    }
+                    bool value_79 = (type->is_file_private != 0 && type->is_file_private != 1) || (type->is_file_private != 0 && type->is_public != 0);
+                    bool value_80 = value_79 || (type->is_procedure_type != 0 && !((type->procedure_return_type)[0] != 0)) || (type->is_c_call != 0 && type->is_c_call != 1);
+                    bool value_81 = value_80 || (type->is_c_call != 0 && !(type->is_procedure_type != 0)) || (type->reads_arguments != 0 && type->reads_arguments != 1);
+                    bool value_82 = value_81 || (type->reads_arguments != 0 && (!(type->is_procedure_type != 0) || type->is_c_call != 0));
+                    bool value_83 = value_82 || (!(type->is_procedure_type != 0) && (type->procedure_return_type)[0] != 0) || (int32_t)((int8_t)((type->name)[0])) == 35;
+                    bool value_84 = value_83 || (type->is_union != 0 && type->is_union != 1) || (type->is_union != 0 && (type->is_enum != 0 || type->is_procedure_type != 0 || type->is_extern != 0 || type->is_owned_vec != 0));
+                    bool value_85 = value_84 || (type->is_enum_flags != 0 && type->is_enum_flags != 1) || (type->is_enum_specified != 0 && type->is_enum_specified != 1);
                     bool value_86 = value_85;
-                    if (!value_86) {
-                        bool value_87 = type->is_enum_specified != 0;
-                        bool value_88 = value_87;
-                        if (value_88) {
-                            bool value_89 = compiler_zir_serial_specified_enum_body_valid((uint8_t*)(&(type->body))) != 0;
-                            value_88 = !value_89;
+                    bool value_87 = value_86;
+                    if (!value_87) {
+                        bool value_88 = type->is_enum != 0;
+                        bool value_89 = value_88;
+                        if (value_89) {
+                            bool value_90 = compiler_zir_serial_enum_backing_valid((uint8_t*)(&(type->enum_backing))) != 0;
+                            value_89 = !value_90;
                         }
-                        value_86 = value_88;
+                        value_87 = value_89;
                     }
-                    bool value_90 = value_86 || (type->is_record_template != 0 && type->is_record_template != 1) || (type->is_owned_vec != 0 && type->is_owned_vec != 1);
-                    bool value_91 = value_90;
+                    bool value_91 = value_87 || (!(type->is_enum != 0) && (type->is_enum_flags != 0 || type->is_enum_specified != 0 || (type->enum_backing)[0] != 0 || (type->c_prefix)[0] != 0));
                     bool value_92 = value_91;
-                    if (!value_92) {
-                        bool value_93 = type->is_owned_vec != 0;
-                        bool value_94 = value_93;
-                        if (value_94) {
-                            bool value_95 = zir_foreign_compiler_zir_serial__VecElementType(module, (uint8_t*)(&(type->name)), (void *)0, (size_t)(0LL)) != 0;
-                            value_94 = !value_95;
-                        }
-                        value_92 = value_94;
+                    bool value_93 = value_92;
+                    if (!value_93) {
+                        bool value_94 = compiler_zir_serial_c_prefix_valid((uint8_t*)(&(type->c_prefix))) != 0;
+                        value_93 = !value_94;
                     }
-                    bool value_96 = value_92 || (type->is_abi_incomplete != 0 && type->is_abi_incomplete != 1);
+                    bool value_95 = value_93;
+                    bool value_96 = value_95;
                     if (!value_96) {
-                        bool value_97 = type->is_abi_incomplete != 0;
-                        if (value_97) {
-                            bool value_98 = type->is_enum != 0 || type->is_procedure_type != 0 || type->is_record_template != 0 || type->is_extern != 0;
-                            value_97 = (value_98 || type->is_owned_vec != 0);
+                        bool value_97 = type->is_enum_specified != 0;
+                        bool value_98 = value_97;
+                        if (value_98) {
+                            bool value_99 = compiler_zir_serial_specified_enum_body_valid((uint8_t*)(&(type->body))) != 0;
+                            value_98 = !value_99;
                         }
-                        value_96 = value_97;
+                        value_96 = value_98;
                     }
-                    bool value_99 = value_96 || type->is_type_instance != 0 || (type->is_synthetic_application != 0 && type->is_synthetic_application != 1);
-                    bool value_100 = value_99;
-                    if (!value_100) {
-                        bool value_101 = type->is_synthetic_application != 0;
-                        if (value_101) {
-                            bool value_102 = type->is_record_template != 0 || type->is_enum != 0 || type->is_procedure_type != 0 || !((type->template_name)[0] != 0);
-                            value_101 = (value_102 || !((type->template_args)[0] != 0));
+                    bool value_100 = value_96 || (type->is_record_template != 0 && type->is_record_template != 1) || (type->is_owned_vec != 0 && type->is_owned_vec != 1);
+                    bool value_101 = value_100;
+                    bool value_102 = value_101;
+                    if (!value_102) {
+                        bool value_103 = type->is_owned_vec != 0;
+                        bool value_104 = value_103;
+                        if (value_104) {
+                            bool value_105 = zir_foreign_compiler_zir_serial__VecElementType(module, (uint8_t*)(&(type->name)), (void *)0, (size_t)(0LL)) != 0;
+                            value_104 = !value_105;
                         }
-                        value_100 = value_101;
+                        value_102 = value_104;
                     }
-                    bool value_103 = value_100 || (!(type->is_synthetic_application != 0) && ((type->template_name)[0] != 0 || (type->template_args)[0] != 0));
-                    bool value_104 = value_103;
-                    if (!value_104) {
-                        bool value_105 = type->is_record_template != 0;
-                        if (value_105) {
-                            bool value_106 = type->is_enum != 0 || type->is_procedure_type != 0 || type->is_extern != 0 || !((type->template_params)[0] != 0);
-                            value_105 = (value_106 || !((type->body)[0] != 0));
+                    bool value_106 = value_102 || (type->is_abi_incomplete != 0 && type->is_abi_incomplete != 1);
+                    if (!value_106) {
+                        bool value_107 = type->is_abi_incomplete != 0;
+                        if (value_107) {
+                            bool value_108 = type->is_enum != 0 || type->is_procedure_type != 0 || type->is_record_template != 0 || type->is_extern != 0;
+                            value_107 = (value_108 || type->is_owned_vec != 0);
                         }
-                        value_104 = value_105;
+                        value_106 = value_107;
                     }
-                    if (value_104 || (!(type->is_record_template != 0) && (type->template_params)[0] != 0)) {
+                    bool value_109 = value_106 || type->is_type_instance != 0 || (type->is_synthetic_application != 0 && type->is_synthetic_application != 1);
+                    bool value_110 = value_109;
+                    if (!value_110) {
+                        bool value_111 = type->is_synthetic_application != 0;
+                        if (value_111) {
+                            bool value_112 = type->is_record_template != 0 || type->is_enum != 0 || type->is_procedure_type != 0 || !((type->template_name)[0] != 0);
+                            value_111 = (value_112 || !((type->template_args)[0] != 0));
+                        }
+                        value_110 = value_111;
+                    }
+                    bool value_113 = value_110 || (!(type->is_synthetic_application != 0) && ((type->template_name)[0] != 0 || (type->template_args)[0] != 0));
+                    bool value_114 = value_113;
+                    if (!value_114) {
+                        bool value_115 = type->is_record_template != 0;
+                        if (value_115) {
+                            bool value_116 = type->is_enum != 0 || type->is_procedure_type != 0 || type->is_extern != 0 || !((type->template_params)[0] != 0);
+                            value_115 = (value_116 || !((type->body)[0] != 0));
+                        }
+                        value_114 = value_115;
+                    }
+                    if (value_114 || (!(type->is_record_template != 0) && (type->template_params)[0] != 0)) {
                         return 0;
                     }
-                    int32_t* value_107 = &(t);
-                    int32_t value_108 = 0;
+                    int32_t* value_117 = &(t);
+                    int32_t value_118 = 0;
                     {
-                        int32_t* p = value_107;
+                        int32_t* p = value_117;
                         int32_t old = p[0];
-                        int32_t* value_110 = &(p[0]);
-                        (*value_110) = (int32_t)((uint32_t)(p[0]) + 1u);
-                        value_108 = old;
+                        int32_t* value_120 = &(p[0]);
+                        (*value_120) = (int32_t)((uint32_t)(p[0]) + 1u);
+                        value_118 = old;
                     }
-                    (void)value_108;
+                    (void)value_118;
                 }
             }
             {
@@ -6616,96 +6696,113 @@ compiler_zir_serial_validate_program(ZirProgram* program)
                         break;
                     }
                     ZirFunction* function = (ZirFunction*)(((size_t)(module->functions) + ((size_t)(f) * sizeof(ZirFunction))));
-                    bool value_111 = !((function->name)[0] != 0);
-                    bool value_112 = value_111;
-                    if (!value_112) {
-                        bool value_113 = compiler_zir_serial_default_signature_valid(function) != 0;
-                        value_112 = !value_113;
+                    bool value_121 = !((function->name)[0] != 0);
+                    bool value_122 = value_121;
+                    if (!value_122) {
+                        bool value_123 = compiler_zir_serial_default_signature_valid(function) != 0;
+                        value_122 = !value_123;
                     }
-                    bool value_114 = value_112;
-                    bool value_115 = value_114;
-                    if (!value_115) {
-                        bool value_116 = compiler_zir_serial_export_symbol_valid((uint8_t*)(&(function->export_symbol))) != 0;
-                        value_115 = !value_116;
-                    }
-                    bool value_117 = value_115;
-                    bool value_118 = value_117;
-                    if (!value_118) {
-                        bool value_119 = compiler_zir_serial_export_symbol_valid((uint8_t*)(&(function->go_method))) != 0;
-                        value_118 = !value_119;
-                    }
-                    bool value_120 = value_118 || (function->go_method_results != 0 && function->go_method_results != 1) || (function->go_method_results != 0 && !((function->go_method)[0] != 0));
-                    bool value_121 = value_120 || ((function->go_method)[0] != 0 && (function->is_extern != 0 || function->is_template != 0 || function->is_specialization != 0 || function->is_global_initializer != 0));
-                    bool value_122 = value_121 || ((function->export_symbol)[0] != 0 && !(function->exported != 0)) || (function->must_use != 0 && function->must_use != 1);
-                    bool value_123 = value_122 || function->inlining < 0 || function->inlining > 2 || (function->simd_target != 0 && function->simd_target != 1);
-                    bool value_124 = value_123 || (function->simd_target != 0 && function->is_extern != 0) || (function->inlining != 0 && function->is_extern != 0);
+                    bool value_124 = value_122;
                     bool value_125 = value_124;
-                    bool value_126 = value_125;
-                    if (!value_126) {
-                        bool value_127 = function->must_use != 0;
-                        bool value_128 = value_127;
-                        if (value_128) {
-                            bool value_129 = zir_foreign_compiler_zir_serial__strcmp((uint8_t*)(&(function->return_type)), compiler_parse_types_ParserCString(StringLiteral("void"))) != 0;
-                            value_128 = !value_129;
-                        }
-                        value_126 = value_128;
+                    if (!value_125) {
+                        bool value_126 = compiler_zir_serial_export_symbol_valid((uint8_t*)(&(function->export_symbol))) != 0;
+                        value_125 = !value_126;
                     }
-                    bool value_130 = value_126 || (function->is_file_private != 0 && function->is_file_private != 1) || (function->is_file_private != 0 && function->is_public != 0);
-                    bool value_131 = value_130 || (function->is_template != 0 && function->is_template != 1);
-                    if (!value_131) {
-                        uint64_t value_132 = function->using_parameters;
-                        value_131 = (value_132 != 0ULL && !(function->is_template != 0));
+                    bool value_127 = value_125;
+                    bool value_128 = value_127;
+                    if (!value_128) {
+                        bool value_129 = compiler_zir_serial_export_symbol_valid((uint8_t*)(&(function->go_method))) != 0;
+                        value_128 = !value_129;
                     }
-                    bool value_133 = value_131 || (function->is_specialization != 0 && function->is_specialization != 1) || (function->is_global_initializer != 0 && function->is_global_initializer != 1);
-                    bool value_134 = value_133;
+                    bool value_130 = value_128 || (function->go_method_results != 0 && function->go_method_results != 1) || (function->go_method_results != 0 && !((function->go_method)[0] != 0));
+                    bool value_131 = value_130 || ((function->go_method)[0] != 0 && (function->is_extern != 0 || function->is_template != 0 || function->is_specialization != 0 || function->is_global_initializer != 0));
+                    bool value_132 = value_131 || ((function->export_symbol)[0] != 0 && !(function->exported != 0)) || (function->must_use != 0 && function->must_use != 1);
+                    bool value_133 = value_132 || function->inlining < 0 || function->inlining > 2 || (function->simd_target != 0 && function->simd_target != 1);
+                    bool value_134 = value_133 || (function->simd_target != 0 && function->is_extern != 0) || (function->inlining != 0 && function->is_extern != 0);
                     bool value_135 = value_134;
-                    if (!value_135) {
-                        bool value_136 = function->is_global_initializer != 0;
-                        bool value_137 = value_136;
-                        if (value_137) {
-                            bool value_138 = function->exported != 0 || function->is_public != 0 || function->is_extern != 0 || function->is_template != 0;
-                            bool value_139 = value_138 || function->is_specialization != 0 || !(function->is_file_private != 0);
-                            bool value_140 = value_139;
-                            if (!value_140) {
-                                uint8_t* value_141 = compiler_zir_serial_FunctionArgs(function);
-                                value_140 = (value_141[0] != 0);
+                    bool value_136 = value_135;
+                    if (!value_136) {
+                        bool value_137 = function->must_use != 0;
+                        bool value_138 = value_137;
+                        if (value_138) {
+                            bool value_139 = zir_foreign_compiler_zir_serial__strcmp((uint8_t*)(&(function->return_type)), compiler_parse_types_ParserCString(StringLiteral("void"))) != 0;
+                            value_138 = !value_139;
+                        }
+                        value_136 = value_138;
+                    }
+                    bool value_140 = value_136 || (function->is_file_private != 0 && function->is_file_private != 1) || (function->is_file_private != 0 && function->is_public != 0);
+                    bool value_141 = value_140 || (function->is_template != 0 && function->is_template != 1);
+                    if (!value_141) {
+                        uint64_t value_142 = function->using_parameters;
+                        value_141 = (value_142 != 0ULL && !(function->is_template != 0));
+                    }
+                    bool value_143 = value_141 || (function->is_specialization != 0 && function->is_specialization != 1) || (function->is_global_initializer != 0 && function->is_global_initializer != 1);
+                    bool value_144 = value_143;
+                    bool value_145 = value_144;
+                    if (!value_145) {
+                        bool value_146 = function->is_global_initializer != 0;
+                        bool value_147 = value_146;
+                        if (value_147) {
+                            bool value_148 = function->exported != 0 || function->is_public != 0 || function->is_extern != 0 || function->is_template != 0;
+                            bool value_149 = value_148 || function->is_specialization != 0 || !(function->is_file_private != 0);
+                            bool value_150 = value_149;
+                            if (!value_150) {
+                                uint8_t* value_151 = compiler_zir_serial_FunctionArgs(function);
+                                value_150 = (value_151[0] != 0);
                             }
-                            bool value_142 = value_140;
-                            bool value_143 = value_142 || zir_foreign_compiler_zir_serial__strcmp((uint8_t*)(&(function->return_type)), compiler_parse_types_ParserCString(StringLiteral("void"))) != 0;
-                            value_137 = (value_143 || function->stmt_count == 0);
+                            bool value_152 = value_150;
+                            bool value_153 = value_152 || zir_foreign_compiler_zir_serial__strcmp((uint8_t*)(&(function->return_type)), compiler_parse_types_ParserCString(StringLiteral("void"))) != 0;
+                            value_147 = (value_153 || function->stmt_count == 0);
                         }
-                        value_135 = value_137;
+                        value_145 = value_147;
                     }
-                    bool value_144 = value_135;
-                    if (!value_144) {
-                        bool value_145 = function->is_template != 0;
-                        if (value_145) {
-                            bool value_146 = function->is_specialization != 0 || function->is_extern != 0 || function->exported != 0 || !((function->template_param)[0] != 0);
-                            value_145 = (value_146 || (function->specialization_type)[0] != 0);
+                    bool value_154 = value_145;
+                    if (!value_154) {
+                        bool value_155 = function->is_template != 0;
+                        if (value_155) {
+                            bool value_156 = function->is_specialization != 0 || function->is_extern != 0 || function->exported != 0 || !((function->template_param)[0] != 0);
+                            value_155 = (value_156 || (function->specialization_type)[0] != 0);
                         }
-                        value_144 = value_145;
+                        value_154 = value_155;
                     }
-                    bool value_147 = value_144;
-                    bool value_148 = value_147;
-                    if (!value_148) {
-                        bool value_149 = function->is_specialization != 0;
-                        bool value_150 = value_149;
-                        if (value_150) {
-                            bool value_151 = function->is_extern != 0 || !((function->template_param)[0] != 0) || !((function->specialization_type)[0] != 0);
-                            bool value_152 = value_151;
-                            bool value_153 = value_152;
-                            if (!value_153) {
-                                uint8_t* value_154 = zir_foreign_compiler_zir_serial__strchr((uint8_t*)(&(function->specialization_type)), 36);
-                                value_153 = (value_154 != (uint8_t*)(((void *)0)));
+                    bool value_157 = value_154;
+                    bool value_158 = value_157;
+                    if (!value_158) {
+                        bool value_159 = function->is_specialization != 0;
+                        bool value_160 = value_159;
+                        if (value_160) {
+                            bool value_161 = function->is_extern != 0 || !((function->template_param)[0] != 0) || !((function->specialization_type)[0] != 0);
+                            bool value_162 = value_161;
+                            bool value_163 = value_162;
+                            if (!value_163) {
+                                uint8_t* value_164 = zir_foreign_compiler_zir_serial__strchr((uint8_t*)(&(function->specialization_type)), 36);
+                                value_163 = (value_164 != (uint8_t*)(((void *)0)));
                             }
-                            value_150 = value_153;
+                            value_160 = value_163;
                         }
-                        value_148 = value_150;
+                        value_158 = value_160;
                     }
-                    if (value_148 || (!(function->is_template != 0) && !(function->is_specialization != 0) && ((function->template_param)[0] != 0 || (function->specialization_type)[0] != 0))) {
+                    if (value_158 || (!(function->is_template != 0) && !(function->is_specialization != 0) && ((function->template_param)[0] != 0 || (function->specialization_type)[0] != 0))) {
                         return 0;
                     }
                     {
+                        if (function->is_native_arrow < 0 || function->is_native_arrow > 1) {
+                            return 0;
+                        }
+                        bool value_165 = (function->capture_environment)[0] != 0;
+                        bool value_166 = value_165;
+                        if (value_166) {
+                            bool value_167 = compiler_ir_CaptureEnvironmentBinding(function);
+                            bool value_168 = !value_167;
+                            if (!value_168) {
+                                ZirType* value_169 = zir_foreign_compiler_zir_serial__FindType(module, &(function->capture_environment[0]), (void *)0);
+                                value_168 = (value_169 == ((void *)0));
+                            }
+                            value_166 = value_168;
+                        }
+                        if (value_166) {
+                            return 0;
+                        }
                         int32_t s = 0;
                         while (true) {
                             bool check_loop_51 = s < function->stmt_count;
@@ -6713,81 +6810,81 @@ compiler_zir_serial_validate_program(ZirProgram* program)
                                 break;
                             }
                             ZirStmt* statement = (ZirStmt*)(((size_t)(function->stmts) + ((size_t)(s) * sizeof(ZirStmt))));
-                            bool value_155 = (int32_t)(((ZirStmtKind)(statement->kind))) <= 0 || (int32_t)(((ZirStmtKind)(statement->kind))) > 16;
-                            bool value_156 = value_155 || (int32_t)(((ZirStmtKind)(statement->kind))) == 16 || (statement->is_else != 0 && statement->is_else != 1);
-                            bool value_157 = value_156 || (statement->is_using != 0 && statement->is_using != 1);
-                            bool value_158 = value_157;
-                            if (!value_158) {
-                                bool value_159 = statement->is_using != 0;
-                                bool value_160 = value_159;
-                                if (value_160) {
-                                    bool value_161 = !(function->is_template != 0) || ((int32_t)(((ZirStmtKind)(statement->kind))) != 3 && (int32_t)(((ZirStmtKind)(statement->kind))) != 5);
-                                    bool value_162 = value_161;
-                                    bool value_163 = value_162;
-                                    if (!value_163) {
-                                        int32_t value_164 = 0;
+                            bool value_170 = (int32_t)(((ZirStmtKind)(statement->kind))) <= 0 || (int32_t)(((ZirStmtKind)(statement->kind))) > 16;
+                            bool value_171 = value_170 || (int32_t)(((ZirStmtKind)(statement->kind))) == 16 || (statement->is_else != 0 && statement->is_else != 1);
+                            bool value_172 = value_171 || (statement->is_using != 0 && statement->is_using != 1);
+                            bool value_173 = value_172;
+                            if (!value_173) {
+                                bool value_174 = statement->is_using != 0;
+                                bool value_175 = value_174;
+                                if (value_175) {
+                                    bool value_176 = !(function->is_template != 0) || ((int32_t)(((ZirStmtKind)(statement->kind))) != 3 && (int32_t)(((ZirStmtKind)(statement->kind))) != 5);
+                                    bool value_177 = value_176;
+                                    bool value_178 = value_177;
+                                    if (!value_178) {
+                                        int32_t value_179 = 0;
                                         if ((int32_t)(((ZirStmtKind)(statement->kind))) == 5) {
-                                            value_164 = 1;
+                                            value_179 = 1;
                                         }
-                                        bool value_165 = compiler_zir_serial_using_path_valid((uint8_t*)statement->names.name, value_164) != 0;
-                                        value_163 = !value_165;
+                                        bool value_180 = compiler_zir_serial_using_path_valid((uint8_t*)statement->names.name, value_179) != 0;
+                                        value_178 = !value_180;
                                     }
-                                    value_160 = value_163;
+                                    value_175 = value_178;
                                 }
-                                value_158 = value_160;
+                                value_173 = value_175;
                             }
-                            bool value_166 = value_158 || (statement->is_else != 0 && (int32_t)(((ZirStmtKind)(statement->kind))) != 6) || statement->loop_id < 0;
-                            bool value_167 = value_166 || statement->target_id < 0 || (statement->loop_id != 0 && (int32_t)(((ZirStmtKind)(statement->kind))) != 7);
-                            bool value_168 = value_167 || statement->for_form < 0 || statement->for_form > 2 || (statement->for_form != 0 && !(statement->loop_id != 0));
-                            bool value_169 = value_168 || statement->for_step < 0 || (statement->for_step != 0 && (int32_t)(((ZirStmtKind)(statement->kind))) != 4);
-                            bool value_170 = value_169 || (statement->target_id != 0 && (int32_t)(((ZirStmtKind)(statement->kind))) != 11 && (int32_t)(((ZirStmtKind)(statement->kind))) != 12);
-                            bool value_171 = value_170;
-                            bool value_172 = value_171;
-                            if (!value_172) {
-                                int32_t value_173 = statement->expr_root;
-                                int32_t value_174 = function->expr_count;
-                                int32_t value_175 = 0;
+                            bool value_181 = value_173 || (statement->is_else != 0 && (int32_t)(((ZirStmtKind)(statement->kind))) != 6) || statement->loop_id < 0;
+                            bool value_182 = value_181 || statement->target_id < 0 || (statement->loop_id != 0 && (int32_t)(((ZirStmtKind)(statement->kind))) != 7);
+                            bool value_183 = value_182 || statement->for_form < 0 || statement->for_form > 2 || (statement->for_form != 0 && !(statement->loop_id != 0));
+                            bool value_184 = value_183 || statement->for_step < 0 || (statement->for_step != 0 && (int32_t)(((ZirStmtKind)(statement->kind))) != 4);
+                            bool value_185 = value_184 || (statement->target_id != 0 && (int32_t)(((ZirStmtKind)(statement->kind))) != 11 && (int32_t)(((ZirStmtKind)(statement->kind))) != 12);
+                            bool value_186 = value_185;
+                            bool value_187 = value_186;
+                            if (!value_187) {
+                                int32_t value_188 = statement->expr_root;
+                                int32_t value_189 = function->expr_count;
+                                int32_t value_190 = 0;
                                 {
-                                    int32_t index = value_173;
-                                    int32_t count = value_174;
-                                    int32_t value_177 = 0;
+                                    int32_t index = value_188;
+                                    int32_t count = value_189;
+                                    int32_t value_192 = 0;
                                     if (index >= -1 && index < count) {
-                                        value_177 = 1;
+                                        value_192 = 1;
                                     }
-                                    value_175 = value_177;
+                                    value_190 = value_192;
                                 }
-                                value_172 = !(value_175 != 0);
+                                value_187 = !(value_190 != 0);
                             }
-                            bool value_178 = value_172;
-                            bool value_179 = value_178;
-                            if (!value_179) {
-                                int32_t value_180 = statement->lhs_root;
-                                int32_t value_181 = function->expr_count;
-                                int32_t value_182 = 0;
+                            bool value_193 = value_187;
+                            bool value_194 = value_193;
+                            if (!value_194) {
+                                int32_t value_195 = statement->lhs_root;
+                                int32_t value_196 = function->expr_count;
+                                int32_t value_197 = 0;
                                 {
-                                    int32_t index = value_180;
-                                    int32_t count = value_181;
-                                    int32_t value_184 = 0;
+                                    int32_t index = value_195;
+                                    int32_t count = value_196;
+                                    int32_t value_199 = 0;
                                     if (index >= -1 && index < count) {
-                                        value_184 = 1;
+                                        value_199 = 1;
                                     }
-                                    value_182 = value_184;
+                                    value_197 = value_199;
                                 }
-                                value_179 = !(value_182 != 0);
+                                value_194 = !(value_197 != 0);
                             }
-                            if (value_179) {
+                            if (value_194) {
                                 return 0;
                             }
-                            int32_t* value_185 = &(s);
-                            int32_t value_186 = 0;
+                            int32_t* value_200 = &(s);
+                            int32_t value_201 = 0;
                             {
-                                int32_t* p = value_185;
+                                int32_t* p = value_200;
                                 int32_t old = p[0];
-                                int32_t* value_188 = &(p[0]);
-                                (*value_188) = (int32_t)((uint32_t)(p[0]) + 1u);
-                                value_186 = old;
+                                int32_t* value_203 = &(p[0]);
+                                (*value_203) = (int32_t)((uint32_t)(p[0]) + 1u);
+                                value_201 = old;
                             }
-                            (void)value_186;
+                            (void)value_201;
                         }
                     }
                     {
@@ -6798,116 +6895,133 @@ compiler_zir_serial_validate_program(ZirProgram* program)
                                 break;
                             }
                             ZirExpr* expression = (ZirExpr*)(((size_t)(function->exprs) + ((size_t)(e) * sizeof(ZirExpr))));
-                            bool value_189 = (int32_t)(((ZirExprKind)(expression->kind))) <= 0 || (int32_t)(((ZirExprKind)(expression->kind))) > 17;
-                            bool value_190 = value_189;
-                            bool value_191 = value_190;
-                            if (!value_191) {
-                                bool value_192 = (int32_t)(((ZirExprKind)(expression->kind))) == 17;
-                                bool value_193 = value_192;
-                                if (value_193) {
-                                    uint8_t* value_194 = (uint8_t*)expression->text;
-                                    bool value_195 = zir_foreign_compiler_zir_serial__strcmp(value_194, compiler_parse_types_ParserCString(StringLiteral("#compile_time"))) != 0;
-                                    bool value_196 = value_195;
-                                    if (!value_196) {
-                                        uint8_t* value_197 = (uint8_t*)expression->type;
-                                        bool value_198 = zir_foreign_compiler_zir_serial__strcmp(value_197, compiler_parse_types_ParserCString(StringLiteral("bool"))) != 0;
-                                        value_196 = value_198;
+                            bool value_204 = (int32_t)(((ZirExprKind)(expression->kind))) <= 0 || (int32_t)(((ZirExprKind)(expression->kind))) > 19;
+                            bool value_205 = value_204;
+                            bool value_206 = value_205;
+                            if (!value_206) {
+                                bool value_207 = (int32_t)(((ZirExprKind)(expression->kind))) == 17;
+                                bool value_208 = value_207;
+                                if (value_208) {
+                                    uint8_t* value_209 = (uint8_t*)expression->text;
+                                    bool value_210 = zir_foreign_compiler_zir_serial__strcmp(value_209, compiler_parse_types_ParserCString(StringLiteral("#compile_time"))) != 0;
+                                    bool value_211 = value_210;
+                                    if (!value_211) {
+                                        uint8_t* value_212 = (uint8_t*)expression->type;
+                                        bool value_213 = zir_foreign_compiler_zir_serial__strcmp(value_212, compiler_parse_types_ParserCString(StringLiteral("bool"))) != 0;
+                                        value_211 = value_213;
                                     }
-                                    bool value_199 = value_196 || expression->name[0] != 0 || (expression->op)[0] != 0 || expression->left != -1 || expression->right != -1;
-                                    value_193 = (value_199 || expression->third != -1 || expression->first_child != -1);
+                                    bool value_214 = value_211 || expression->name[0] != 0 || (expression->op)[0] != 0 || expression->left != -1 || expression->right != -1;
+                                    value_208 = (value_214 || expression->third != -1 || expression->first_child != -1);
                                 }
-                                value_191 = value_193;
+                                value_206 = value_208;
                             }
-                            bool value_200 = value_191 || (expression->is_this != 0 && expression->is_this != 1) || (expression->checked != 0 && expression->checked != 1);
-                            bool value_201 = value_200 || (expression->is_this != 0 && (int32_t)(((ZirExprKind)(expression->kind))) != 1 && (int32_t)(((ZirExprKind)(expression->kind))) != 5);
-                            bool value_202 = value_201;
-                            bool value_203 = value_202;
-                            if (!value_203) {
-                                int32_t value_204 = expression->left;
-                                int32_t value_205 = function->expr_count;
-                                int32_t value_206 = 0;
-                                {
-                                    int32_t index = value_204;
-                                    int32_t count = value_205;
-                                    int32_t value_208 = 0;
-                                    if (index >= -1 && index < count) {
-                                        value_208 = 1;
-                                    }
-                                    value_206 = value_208;
-                                }
-                                value_203 = !(value_206 != 0);
-                            }
-                            bool value_209 = value_203;
-                            bool value_210 = value_209;
-                            if (!value_210) {
-                                int32_t value_211 = expression->right;
-                                int32_t value_212 = function->expr_count;
-                                int32_t value_213 = 0;
-                                {
-                                    int32_t index = value_211;
-                                    int32_t count = value_212;
-                                    int32_t value_215 = 0;
-                                    if (index >= -1 && index < count) {
-                                        value_215 = 1;
-                                    }
-                                    value_213 = value_215;
-                                }
-                                value_210 = !(value_213 != 0);
-                            }
-                            bool value_216 = value_210;
+                            bool value_215 = value_206 || (expression->is_this != 0 && expression->is_this != 1) || (expression->checked != 0 && expression->checked != 1);
+                            bool value_216 = value_215 || (expression->is_this != 0 && (int32_t)(((ZirExprKind)(expression->kind))) != 1 && (int32_t)(((ZirExprKind)(expression->kind))) != 5);
                             bool value_217 = value_216;
-                            if (!value_217) {
-                                int32_t value_218 = expression->first_child;
-                                int32_t value_219 = function->expr_count;
-                                int32_t value_220 = 0;
+                            bool value_218 = value_217;
+                            if (!value_218) {
+                                int32_t value_219 = expression->left;
+                                int32_t value_220 = function->expr_count;
+                                int32_t value_221 = 0;
                                 {
-                                    int32_t index = value_218;
-                                    int32_t count = value_219;
-                                    int32_t value_222 = 0;
+                                    int32_t index = value_219;
+                                    int32_t count = value_220;
+                                    int32_t value_223 = 0;
                                     if (index >= -1 && index < count) {
-                                        value_222 = 1;
+                                        value_223 = 1;
                                     }
-                                    value_220 = value_222;
+                                    value_221 = value_223;
                                 }
-                                value_217 = !(value_220 != 0);
+                                value_218 = !(value_221 != 0);
                             }
-                            bool value_223 = value_217;
-                            bool value_224 = value_223;
-                            if (!value_224) {
-                                int32_t value_225 = expression->next_sibling;
-                                int32_t value_226 = function->expr_count;
-                                int32_t value_227 = 0;
+                            bool value_224 = value_218;
+                            bool value_225 = value_224;
+                            if (!value_225) {
+                                int32_t value_226 = expression->right;
+                                int32_t value_227 = function->expr_count;
+                                int32_t value_228 = 0;
                                 {
-                                    int32_t index = value_225;
-                                    int32_t count = value_226;
-                                    int32_t value_229 = 0;
+                                    int32_t index = value_226;
+                                    int32_t count = value_227;
+                                    int32_t value_230 = 0;
                                     if (index >= -1 && index < count) {
-                                        value_229 = 1;
+                                        value_230 = 1;
                                     }
-                                    value_227 = value_229;
+                                    value_228 = value_230;
                                 }
-                                value_224 = !(value_227 != 0);
+                                value_225 = !(value_228 != 0);
                             }
-                            bool value_230 = value_224;
-                            bool value_231 = value_230;
-                            if (!value_231) {
-                                int32_t value_232 = expression->third;
-                                int32_t value_233 = function->expr_count;
-                                int32_t value_234 = 0;
+                            bool value_231 = value_225;
+                            bool value_232 = value_231;
+                            if (!value_232) {
+                                int32_t value_233 = expression->first_child;
+                                int32_t value_234 = function->expr_count;
+                                int32_t value_235 = 0;
                                 {
-                                    int32_t index = value_232;
-                                    int32_t count = value_233;
-                                    int32_t value_236 = 0;
+                                    int32_t index = value_233;
+                                    int32_t count = value_234;
+                                    int32_t value_237 = 0;
                                     if (index >= -1 && index < count) {
-                                        value_236 = 1;
+                                        value_237 = 1;
                                     }
-                                    value_234 = value_236;
+                                    value_235 = value_237;
                                 }
-                                value_231 = !(value_234 != 0);
+                                value_232 = !(value_235 != 0);
                             }
-                            bool value_237 = value_231 || expression->left >= e || expression->right >= e || expression->first_child >= e || expression->third >= e;
-                            if (value_237 || expression->argument_index < -1 || expression->argument_index >= 64 || (expression->next_sibling >= 0 && expression->next_sibling <= e)) {
+                            bool value_238 = value_232;
+                            bool value_239 = value_238;
+                            if (!value_239) {
+                                int32_t value_240 = expression->next_sibling;
+                                int32_t value_241 = function->expr_count;
+                                int32_t value_242 = 0;
+                                {
+                                    int32_t index = value_240;
+                                    int32_t count = value_241;
+                                    int32_t value_244 = 0;
+                                    if (index >= -1 && index < count) {
+                                        value_244 = 1;
+                                    }
+                                    value_242 = value_244;
+                                }
+                                value_239 = !(value_242 != 0);
+                            }
+                            bool value_245 = value_239;
+                            bool value_246 = value_245;
+                            if (!value_246) {
+                                int32_t value_247 = expression->third;
+                                int32_t value_248 = function->expr_count;
+                                int32_t value_249 = 0;
+                                {
+                                    int32_t index = value_247;
+                                    int32_t count = value_248;
+                                    int32_t value_251 = 0;
+                                    if (index >= -1 && index < count) {
+                                        value_251 = 1;
+                                    }
+                                    value_249 = value_251;
+                                }
+                                value_246 = !(value_249 != 0);
+                            }
+                            bool value_252 = value_246 || expression->left >= e || expression->right >= e || expression->first_child >= e || expression->third >= e;
+                            if (value_252 || expression->argument_index < -1 || expression->argument_index >= 64 || (expression->next_sibling >= 0 && expression->next_sibling <= e)) {
                                 return 0;
+                            }
+                            if (((ZirExprKind)(expression->kind)) == ((ZirExprKind)(18))) {
+                                ZirType* owned = zir_foreign_compiler_zir_serial__FindType(module, (uint8_t*)expression->type, (void *)0);
+                                ZirType* env = zir_foreign_compiler_zir_serial__FindType(module, (uint8_t*)expression->name, (void *)0);
+                                bool value_253 = owned == ((void *)0) || owned->is_owned_callable == 0 || env == ((void *)0) || expression->left < 0;
+                                bool value_254 = value_253 || expression->right < 0 || expression->third < 0 || expression->first_child != -1 || ((ZirExprKind)((function->exprs[expression->left]).kind)) != ((ZirExprKind)(12));
+                                if (value_254 || (function->exprs[expression->right]).is_function_value != 1 || (function->exprs[expression->third]).is_function_value != 1) {
+                                    return 0;
+                                }
+                            }
+                            if (((ZirExprKind)(expression->kind)) == ((ZirExprKind)(19))) {
+                                ZirType* env = zir_foreign_compiler_zir_serial__FindType(module, (uint8_t*)expression->name, (void *)0);
+                                bool value_255 = env == ((void *)0) || expression->left < 0 || expression->right != -1 || expression->third != -1 || expression->first_child != -1;
+                                bool value_256 = value_255;
+                                if (value_256 || !StringEqual(compiler_ir_CText((uint8_t*)expression->type), StringLiteral("void"))) {
+                                    return 0;
+                                }
                             }
                             {
                                 int32_t child = expression->first_child;
@@ -6922,40 +7036,40 @@ compiler_zir_serial_validate_program(ZirProgram* program)
                                     child = (function->exprs[child]).next_sibling;
                                 }
                             }
-                            int32_t* value_238 = &(e);
-                            int32_t value_239 = 0;
+                            int32_t* value_257 = &(e);
+                            int32_t value_258 = 0;
                             {
-                                int32_t* p = value_238;
+                                int32_t* p = value_257;
                                 int32_t old = p[0];
-                                int32_t* value_241 = &(p[0]);
-                                (*value_241) = (int32_t)((uint32_t)(p[0]) + 1u);
-                                value_239 = old;
+                                int32_t* value_260 = &(p[0]);
+                                (*value_260) = (int32_t)((uint32_t)(p[0]) + 1u);
+                                value_258 = old;
                             }
-                            (void)value_239;
+                            (void)value_258;
                         }
                     }
-                    int32_t* value_242 = &(f);
-                    int32_t value_243 = 0;
+                    int32_t* value_261 = &(f);
+                    int32_t value_262 = 0;
                     {
-                        int32_t* p = value_242;
+                        int32_t* p = value_261;
                         int32_t old = p[0];
-                        int32_t* value_245 = &(p[0]);
-                        (*value_245) = (int32_t)((uint32_t)(p[0]) + 1u);
-                        value_243 = old;
+                        int32_t* value_264 = &(p[0]);
+                        (*value_264) = (int32_t)((uint32_t)(p[0]) + 1u);
+                        value_262 = old;
                     }
-                    (void)value_243;
+                    (void)value_262;
                 }
             }
-            int32_t* value_246 = &(m);
-            int32_t value_247 = 0;
+            int32_t* value_265 = &(m);
+            int32_t value_266 = 0;
             {
-                int32_t* p = value_246;
+                int32_t* p = value_265;
                 int32_t old = p[0];
-                int32_t* value_249 = &(p[0]);
-                (*value_249) = (int32_t)((uint32_t)(p[0]) + 1u);
-                value_247 = old;
+                int32_t* value_268 = &(p[0]);
+                (*value_268) = (int32_t)((uint32_t)(p[0]) + 1u);
+                value_266 = old;
             }
-            (void)value_247;
+            (void)value_266;
         }
     }
     return 1;
@@ -7003,7 +7117,7 @@ compiler_zir_serial_write_program(ZirProgram* program, Writer* out, int32_t vali
     bool value_9 = value_7;
     bool value_10 = value_9;
     if (!value_10) {
-        bool value_11 = compiler_zir_serial_write_version(out, 66) != 0;
+        bool value_11 = compiler_zir_serial_write_version(out, 67) != 0;
         value_10 = !value_11;
     }
     bool value_12 = value_10 || program->module_count < 0;
@@ -7112,7 +7226,7 @@ compiler_zir_serial_ProgramWriteQuiet(ZirProgram* program, void* out)
 int32_t
 compiler_zir_serial_ZirFormatVersion(void)
 {
-    return 66;
+    return 67;
 }
 
 static ZirProgram*
@@ -7164,7 +7278,7 @@ compiler_zir_serial_ProgramRead_in_context(void* in, uint8_t* path, int32_t vali
             if (!value_12) {
                 goto zir_loop_break_1;
             }
-            if (version != 66) {
+            if (version != 67) {
                 compiler_zir_serial_ParserArray1024_u8 reader_path = {0};
                 bool value_13 = zir_foreign_compiler_zir_serial__ExecutablePath((uint8_t*)(&(reader_path.items)), (size_t)(sizeof(compiler_zir_serial_ParserArray1024_u8))) != 0;
                 if (!value_13) {
@@ -7190,7 +7304,7 @@ compiler_zir_serial_ProgramRead_in_context(void* in, uint8_t* path, int32_t vali
                     uint8_t* value_22 = compiler_parse_types_ParserCString(StringLiteral(""));
                     value_21 = value_22;
                 }
-                zir_foreign_compiler_zir_serial__snprintf((uint8_t*)(&(mismatch.items)), (size_t)(sizeof(ParserArray2560_u8)), value_15, value_16, (uint8_t*)(&(reader_path.items)), 66, value_20, value_21);
+                zir_foreign_compiler_zir_serial__snprintf((uint8_t*)(&(mismatch.items)), (size_t)(sizeof(ParserArray2560_u8)), value_15, value_16, (uint8_t*)(&(reader_path.items)), 67, value_20, value_21);
                 uint8_t** value_23 = &(reader.problem);
                 (*value_23) = (uint8_t*)(&(mismatch.items));
                 goto zir_loop_break_1;

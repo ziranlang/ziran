@@ -1622,6 +1622,8 @@ PkgSelect :: (locked: *PkgLock, selector: string) -> s32 {
         }
         index += 1
     }
+    exact := PkgFindById(locked, selector)
+    if exact >= 0 { return exact }
     found: s32 = -1
     index = 0
     while index < locked.count {

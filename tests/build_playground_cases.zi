@@ -46,11 +46,60 @@ PlaygroundArguments :: (test: *NativeTest, document: *JsonDocument, expected: []
     return true
 }
 
+PlaygroundBundle :: (test: *NativeTest) -> bool {
+    compiler_root := NativeRepository(PathParent(test.ziran))
+    work := CheckPath(test.work, "bundle"); generated := CheckPath(work, "generated")
+    driver := CheckPath(work, "driver.zi"); provider := CheckPath(work, "provider.tsx"); host := CheckPath(work, "host.zi")
+    if !NativeWrite(test, driver, "Bridge :: #import \"bundle\";\n#program_export\nmain :: (argc: s32, argv: **u8) -> s32 { if argc != 8 { return 2 }; return Bridge.BuildBundle(argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]) }\n") ||
+        !NativeWrite(test, host, "provider :: #system_library \"host_api\";\nCompute :: (value: s32) -> s32 #foreign provider;\n#program_export\nmain :: () -> s32 { return Compute(40) }\n") { return false }
+    source := "interface Props { value: s32; }\nfunction Echo(props: Props): s32 { return props.value; }\nexport function Answer(value: s32): s32 {\n    return <Echo value={value + s32(2)}/>;\n}\n"
+    if !NativeWrite(test, provider, source) { return false }
+    generate := string.[CheckPath(PathParent(test.ziran), "zi2c"), "--entry", "driver:main", "--root", work,
+        "--module-path", CheckPath(test.repo, "web"), "--module-path", CheckPath(compiler_root, "cmd"),
+        "--module-path", CheckPath(compiler_root, "std"), "-o", generated, driver]
+    unused NativeRun(test, generate[:])
+    library := EnvironmentText("ZIRAN_LIB")
+    if library == "" { library = CheckPath(PathParent(PathParent(test.ziran)), "libziran.a") }
+    compiler := EnvironmentText("CC"); if compiler == "" { compiler = "cc" }
+    executable := CheckPath(work, "bundle-driver"); compile: Vec(string)
+    if !NativeAssert(test, NativeWords(compiler, *compile) && NativeWords(EnvironmentText("VM_CFLAGS"), *compile), "invalid native bridge compiler flags") { return false }
+    flags := string.["-std=c11", "-D_GNU_SOURCE", "-include", CheckPath(compiler_root, "include/ziran_host.h"),
+        CheckConcat("-I", generated), CheckPath(generated, "driver.c"), CheckPath(generated, "bundle.c"),
+        CheckPath(PathParent(library), "obj/assembly-core.o"), library, "-lm", "-pthread", "-ldl", "-o", executable]
+    for flag: flags { VecPush(compile, flag) }
+    unused NativeRun(test, compile[:])
+    output := CheckPath(work, "answer.zx")
+    command := string.[executable, work, work, CheckConcat(host, CheckConcat("\n", provider)), "host", "main", "host:Compute=provider:Answer", output]
+    run := string.[test.ziran, "run", output]
+    native_provider := CheckPath(work, "native_provider.zi")
+    if !NativeWrite(test, native_provider, "#program_export\nAnswer :: (value: s32) -> s32 { return value + 2 }\n") { return false }
+    command[3] = CheckConcat(host, CheckConcat("\n", native_provider)); command[6] = "host:Compute=native_provider:Answer"
+    unused NativeRun(test, command[:])
+    if !NativeExpect(test, run[:], "42\n") { return false }
+    if !NativeWrite(test, native_provider, "#program_export\nAnswer :: (value: float64) -> float64 { return value }\n") { return false }
+    native_mismatch := NativeInvoke(test, command[:])
+    if !NativeAssert(test, native_mismatch.code == 1 && native_mismatch.error != "" && !PathExists(output), CheckConcat("browser bridge accepted a wrong native provider signature: ", native_mismatch.error)) { return false }
+    print("generic browser bridge native provider passed\n")
+    command[3] = CheckConcat(host, CheckConcat("\n", provider)); command[6] = "host:Compute=provider:Answer"
+    unused NativeRun(test, command[:])
+    if !NativeExpect(test, run[:], "42\n") { return false }
+    if !NativeWrite(test, provider, "export function Answer(value: number): number { return value; }\n") { return false }
+    mismatch := NativeInvoke(test, command[:])
+    if !NativeAssert(test, mismatch.code == 1 && TextContains(mismatch.error, "signature") && !PathExists(output), CheckConcat("browser bridge accepted a wrong provider signature or retained stale output: ", mismatch.error)) { return false }
+    if !NativeWrite(test, provider, TextReplace(source, "value={value", "misspelled={value")) { return false }
+    bad_property := NativeInvoke(test, command[:])
+    if !NativeAssert(test, bad_property.code == 1 && TextContains(bad_property.error, "provider.tsx:4:") && TextContains(bad_property.error, "misspelled") && !PathExists(output), CheckConcat("browser bridge lost authored TSX property diagnostics: ", bad_property.error)) { return false }
+    if !NativeWrite(test, provider, source) { return false }
+    unused NativeRun(test, command[:])
+    return NativeExpect(test, run[:], "42\n")
+}
+
 PlaygroundTests :: (test: *NativeTest, self: string) -> bool {
+    if !PlaygroundBundle(test) { return false }
     find_make := string.["sh", "-c", "command -v make"]; make_result := NativeRun(test, find_make[:]); real_make := TextDetach(TextCopy(TextTrim(make_result.output)))
     if !NativeAssert(test, !test.failed && TextHasPrefix(real_make, "/"), "resolve real make before installing the fixture") { return false }
     emcc := CheckPath(test.work, "tools with spaces/emcc"); make := CheckPath(test.work, "bin/make")
-    tools := string.[make, emcc]; stages := string.["make", "emcc"]
+    tools := string.[make, emcc]; stages := string.["make", "emcc", "emcc"]
     for index: cast(s64)0..tools.count - 1 {
         parts := string.["#!/bin/sh\nexec ", CheckQuote(self), " --tool ", stages[index], " \"$@\"\n"]
         if !NativeWrite(test, tools[index], TextJoin(parts[:], "")) || !NativeAssert(test, SetPathMode(tools[index], 448), "make playground fixture executable") { return false }
@@ -62,9 +111,9 @@ PlaygroundTests :: (test: *NativeTest, self: string) -> bool {
     script := CheckPath(test.repo, "scripts/build_playground.zi")
     command := string.[test.ziran, "run", "--target=c", script, "--emcc", emcc, "--output-dir", assets, "--embed-file", "local file.zi@/file.zi", "--embed-file", "modules@/modules"]
     result := NativeRun(test, command[:])
-    if !NativeAssert(test, !test.failed && result.output == "mock make\nmock emcc\n", "playground orchestration changed tool order or output") { return false }
+    if !NativeAssert(test, !test.failed && result.output == "mock make\nmock emcc\nmock emcc\n", "playground orchestration changed tool order or output") { return false }
     lines := TextLines(TextTrimEnd(NativeRead(test, log)))
-    if !NativeAssert(test, !test.failed && lines.count == 2, "playground did not invoke exactly make and emcc") { return false }
+    if !NativeAssert(test, !test.failed && lines.count == 3, "playground did not build the engine, bridge and runtime") { return false }
     for index: cast(s64)0..lines.count - 1 {
         document: JsonDocument
         if !NativeAssert(test, JsonRead(*document, lines[index]) && CheckField(*document, document.root, "stage") == stages[index] && CheckField(*document, document.root, "cwd") == test.repo &&
@@ -74,14 +123,24 @@ PlaygroundTests :: (test: *NativeTest, self: string) -> bool {
             expected := string.["BUILD_DIR=build/playground64", CheckConcat("CC=", CheckConcat(CheckQuote(emcc), " -sMEMORY64=2")), CheckConcat("AR=", CheckQuote(CheckPath(test.work, "tools with spaces/emar"))),
                 "OBJCOPY=true", "CFLAGS=-O2", "FRAMEFLAGS=-Wframe-larger-than=16384", "build/playground64/libziran.a"]
             if !PlaygroundArguments(test, *document, expected[:]) { return false }
+        } else if index == 1 {
+            expected := string.["-O2", "-std=c11", "-sMEMORY64=2", "-Iinclude", "-include", "ziran_host.h",
+                "-include", CheckPath(test.repo, "build/playground64/compiler-runtime/engine_names.h"),
+                "-c", CheckPath(test.repo, "build/playground64/browser-bundle/bundle.c"), "-o", CheckPath(test.repo, "build/playground64/browser-bundle/bundle.o")]
+            if !PlaygroundArguments(test, *document, expected[:]) { return false }
         } else {
             expected := string.["--embed-file", "std@/std", "--embed-file", "local file.zi@/file.zi", "--embed-file", "modules@/modules", "-o", CheckPath(assets, "playground-runtime.js")]
             if !PlaygroundArguments(test, *document, expected[:], true) { return false }
-            arguments := JsonMember(*document, document.root, "args"); memory := false; stack := false
+            arguments := JsonMember(*document, document.root, "args"); memory := false; stack := false; bridge := false
+            lowering := false; runner := false
             for at: cast(s32)0..JsonCount(*document, arguments) - 1 {
                 argument := JsonElement(*document, arguments, at); memory = memory || JsonIs(*document, argument, "-sMEMORY64=2"); stack = stack || JsonIs(*document, argument, "-sSTACK_SIZE=8388608")
+                bridge = bridge || JsonIs(*document, argument, CheckPath(test.repo, "build/playground64/browser-bundle/bundle.o"))
+                lowering = lowering || JsonIs(*document, argument, CheckPath(test.repo, "build/playground64/browser-bundle/compiler_zir_lower.c"))
+                runner = runner || JsonIs(*document, argument, CheckPath(test.repo, "build/playground64/browser-bundle/compiler_zx_run.c"))
+                if !NativeAssert(test, !JsonIs(*document, argument, "web/bundle.c"), "playground linked the removed handwritten bundle bridge") { return false }
             }
-            if !NativeAssert(test, memory && stack, "playground linker lost memory64 or stack size") { return false }
+            if !NativeAssert(test, memory && stack && bridge && lowering && runner && IsFile(CheckPath(test.repo, "build/playground64/browser-bundle/bundle.c")), "playground linker lost memory64, stack size or current generated compiler sources") { return false }
         }
     }
     compiler := CheckPath(test.work, "wasm-cc"); headers := CheckPath(test.work, "headers")

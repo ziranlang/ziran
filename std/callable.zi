@@ -1,0 +1,6 @@
+// An owned native callable. The compiler supplies typed capture storage,
+// an invoke trampoline and deterministic cleanup for a concrete Signature.
+// Raw procedure types keep their ordinary function-pointer ABI.
+Owned :: struct($Signature: Type) {
+    signature: Signature;
+}

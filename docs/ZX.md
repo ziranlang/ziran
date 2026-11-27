@@ -439,7 +439,11 @@ reader. An edited program byte fails the identity check.
 Reachable `#foreign host_api` calls become host capabilities, called by
 `host.call`. A bundle may instead bind one such call to an exported Ziran
 function among its input modules with `--bind`; the bound call runs inside the
-same instance and is absent from the capability list. The optional host
+same instance and is absent from the capability list. The provider may be a
+public native module function, including a TypeScript
+`export function`, or an explicit `#program_export`. Its parameter and result
+types must match the capability, including nominal type identities.
+The optional host
 interface section names, for each capability, the type spellings and record
 field names of its parameters and result, its declaration as written, the
 program's module globals and the entry's signature: what an embedder sees and

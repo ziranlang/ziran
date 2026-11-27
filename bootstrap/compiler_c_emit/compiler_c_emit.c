@@ -6548,6 +6548,19 @@ EmitGoNumberHelpers(void* out, uint8_t* text, uint32_t* written)
     }
 }
 
+ZirType*
+zir_emit_owned_callable_record(ZirModule* module, uint8_t* type)
+{
+    if (module == ((void *)0) || type == ((void *)0) || type[0] == 0) {
+        return (void *)0;
+    }
+    ZirType* record = zir_foreign_compiler_c_emit__CFindType(module, type, (void *)0);
+    if (record == ((void *)0) || record->is_owned_callable == 0) {
+        return (void *)0;
+    }
+    return record;
+}
+
 int32_t
 zir_emit_emitter_type_contains_vec(ZirModule* module, uint8_t* type, int32_t depth)
 {
@@ -6559,23 +6572,27 @@ zir_emit_emitter_type_contains_vec(ZirModule* module, uint8_t* type, int32_t dep
     if (zir_foreign_compiler_c_emit__VecElementType(module, type, (void *)0, 0) != 0) {
         return 1;
     }
+    ZirType* value_0 = zir_emit_owned_callable_record(module, type);
+    if (value_0 != ((void *)0)) {
+        return 1;
+    }
     if (zir_foreign_compiler_c_emit__ArrayElementType(type, &(element[0]), 128, (void *)0) != 0) {
         return zir_emit_emitter_type_contains_vec(module, &(element[0]), (int32_t)((uint32_t)depth + 1u));
     }
     ZirType* record = zir_foreign_compiler_c_emit__CFindType(module, type, &(owner));
-    bool value_0 = record == ((void *)0) || record->is_enum != 0 || record->is_procedure_type != 0 || record->is_record_template != 0;
-    if (value_0 || record->is_extern != 0) {
+    bool value_1 = record == ((void *)0) || record->is_enum != 0 || record->is_procedure_type != 0 || record->is_record_template != 0;
+    if (value_1 || record->is_extern != 0) {
         return 0;
     }
     size_t offset = 0;
     ZirTypeField field = {0};
-    ZirModule* value_1 = (void *)0;
+    ZirModule* value_2 = (void *)0;
     if (owner != ((void *)0)) {
-        value_1 = owner;
+        value_2 = owner;
     } else {
-        value_1 = module;
+        value_2 = module;
     }
-    ZirModule* next_mod = value_1;
+    ZirModule* next_mod = value_2;
     while (zir_foreign_compiler_c_emit__CTypeNextField(record, &(offset), &(field)) == 1) {
         if (zir_emit_emitter_type_contains_vec(next_mod, &(field.type[0]), (int32_t)((uint32_t)depth + 1u)) != 0) {
             return 1;

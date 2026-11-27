@@ -1278,10 +1278,15 @@ private_check_contains_vec(ZirModule* module, uint8_t* type, int32_t depth)
         zir_foreign_compiler_check__CompilerFree((void*)(element_storage_0));
         return cleanup_return_1;
     }
-    if (zir_foreign_compiler_check__TypeHasOnlyPrimitiveFields(record) != 0) {
-        int32_t cleanup_return_2 = 0;
+    if (record->is_owned_callable != 0) {
+        int32_t cleanup_return_2 = 1;
         zir_foreign_compiler_check__CompilerFree((void*)(element_storage_0));
         return cleanup_return_2;
+    }
+    if (zir_foreign_compiler_check__TypeHasOnlyPrimitiveFields(record) != 0) {
+        int32_t cleanup_return_3 = 0;
+        zir_foreign_compiler_check__CompilerFree((void*)(element_storage_0));
+        return cleanup_return_3;
     }
     size_t offset = (size_t)(0LL);
     ZirTypeField* field = (void *)0;
@@ -1297,14 +1302,14 @@ private_check_contains_vec(ZirModule* module, uint8_t* type, int32_t depth)
             value_4 = module;
         }
         if (private_check_contains_vec(value_4, (uint8_t*)(&(field->type)), (int32_t)((uint32_t)depth + 1u)) != 0) {
-            int32_t cleanup_return_3 = 1;
+            int32_t cleanup_return_4 = 1;
             zir_foreign_compiler_check__CompilerFree((void*)(element_storage_0));
-            return cleanup_return_3;
+            return cleanup_return_4;
         }
     }
-    int32_t cleanup_return_4 = 0;
+    int32_t cleanup_return_5 = 0;
     zir_foreign_compiler_check__CompilerFree((void*)(element_storage_0));
-    return cleanup_return_4;
+    return cleanup_return_5;
 }
 
 static int32_t

@@ -46,7 +46,7 @@ KeepHostProvider :: (program: *IR.ZirProgram, imported: *IR.ZirImport, keep: **u
         if !Same(*provider.name[0], provider_name) { continue }
         for f: 0..provider.function_count - 1 {
             implementation := FunctionAt(provider, f)
-            if Same(*implementation.name[0], *imported.extern_symbol[0]) && implementation.exported != 0 && implementation.is_extern == 0 {
+            if Same(*implementation.name[0], *imported.extern_symbol[0]) && IR.HostProviderVisible(implementation) {
                 found += 1
                 Mark(*keep[m][f], changed)
             }

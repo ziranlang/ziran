@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+- Preserve decimal exponents across native floating-point formatting trials,
+  and keep full normal and subnormal float output in portable and hosted runs.
+
+- Preserve generic procedures' defining-module helper calls through package
+  re-exports. Checked IR supports explicit `--retain module:function` native
+  host roots through the same root selection as portable bundles.
+
+- Capture native TSX actions in move-only `Owned<Signature>` callables with
+  immutable owned snapshots, checked borrow lifetimes and deterministic cleanup
+  through source and saved IR on native and portable targets.
+
+- Select packages by exact lock identity through `pkg path` and `pkg paths`,
+  including transitive dependencies with the same manifest name.
+
 - Serialize package-triggered builds of a pinned compiler. Concurrent project
   commands wait for the same complete build instead of racing generated files
   or starting a launcher while its companion tools are still being built.

@@ -2,6 +2,8 @@
 using IR :: #import "compiler_ir"
 using Parser :: #import "compiler_parse_types"
 Types :: #import "compiler_type"
+State :: #import "compiler_check_types"
+Services :: #import "compiler_services"
 
 #scope_file
 compiler :: #system_library "ziran";
@@ -18,6 +20,9 @@ CompilerRealloc :: (pointer: *void, size: usize) -> *void #foreign compiler "Com
 CompilerStrdup :: (text: *u8) -> *u8 #foreign compiler "CompilerStrdup";
 DocumentRecord :: (path: *u8, bytes: *u8, count: usize) -> *u8 #foreign compiler "DocumentRecord";
 EnumMemberValue :: (type: *IR.ZirType, name: *u8, value: *s64) -> s32 #foreign compiler "EnumMemberValue";
+ModuleAddType :: (module: *IR.ZirModule, name: *u8, span: IR.ZirSourceSpan) -> *IR.ZirType #foreign compiler "ModuleAddType";
+ParametersOf :: (text: *u8) -> *State.ZirParameters #foreign compiler "ParametersOf";
+record_field_type_at_use :: (module: *IR.ZirModule, owner: *IR.ZirModule, name: *u8, type: *u8, size: usize) -> s32 #foreign compiler "private_check_record_field_type_at_use";
 FindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
 FunctionAddStmt :: (fn: *IR.ZirFunction, kind: IR.ZirStmtKind, text: *u8, span: IR.ZirSourceSpan) -> *IR.ZirStmt #foreign compiler "FunctionAddStmt";
 KeepParameters :: (text: *u8) -> *u8 #foreign compiler "KeepParameters";
@@ -1999,8 +2004,80 @@ InstantiateGenericRecord :: (instance: *IR.ZirType, generic: *IR.ZirType) -> s32
     return InstantiateGenericRecordAt(instance, generic, null, null)
 }
 
+// Build the erased ABI from the checked signature. Erasure is compiler-owned;
+// applications only name Owned(Signature), and never construct the three fields.
+#scope_file
+OwnedCallableBuffers :: struct {
+    value: IR.ZirType
+    signature: IR.ZirType
+    args: [8192]u8
+}
+
+InstantiateOwnedCallable :: (instance: *IR.ZirType, user: *IR.ZirModule) -> s32 {
+    index := (cast(usize)instance - cast(usize)user.types) / size_of(IR.ZirType)
+    buffers := cast(*OwnedCallableBuffers)AllocateOrExit(size_of(OwnedCallableBuffers))
+    defer CompilerFree(cast(*void)buffers)
+    buffers.value = instance[0]
+    value := *buffers.value
+    signature_name := Services.KeepName(IR.CText(*value.template_args[0]))
+    signature_owner: *IR.ZirModule = null
+    signature := FindType(user, signature_name, *signature_owner)
+    if signature == null || signature.is_procedure_type == 0 || signature.is_c_call != 0 { return 0 }
+    buffers.signature = signature[0]
+    signature_copy := *buffers.signature
+    parameters := ParametersOf(*signature_copy.body[0])
+    args := *buffers.args[0]
+    used := snprintf(args, 8192, ParserCString("__tsx_state: *u8"))
+    for i: 0..parameters.count - 1 {
+        parameter := parameters.items.items[i]
+        type: [128]u8
+        copy_text(*type[0], size_of(type_of(type)), parameter.type)
+        if record_field_type_at_use(user, signature_owner, signature_name, *type[0], size_of(type_of(type))) == 0 { return 0 }
+        length := snprintf(*args[used], 8192 - cast(usize)used,
+            ParserCString(", %s: %s"), parameter.name, *type[0])
+        if length < 0 || cast(usize)length >= 8192 - cast(usize)used { return 0 }
+        used += length
+    }
+    result: [128]u8
+    copy_text(*result[0], size_of(type_of(result)), *signature_copy.procedure_return_type[0])
+    if record_field_type_at_use(user, signature_owner, signature_name, *result[0], size_of(type_of(result))) == 0 { return 0 }
+    hash: u64 = 14695981039346656037
+    for byte: IR.CText(*user.name[0]) { hash = (hash ^ cast(u64)byte) * 1099511628211 }
+    for byte: IR.CText(*value.name[0]) { hash = (hash ^ cast(u64)byte) * 1099511628211 }
+    invoke_name: [128]u8
+    release_name: [128]u8
+    unused snprintf(*invoke_name[0], size_of(type_of(invoke_name)), ParserCString("__owned_invoke_%016llx"), hash)
+    unused snprintf(*release_name[0], size_of(type_of(release_name)), ParserCString("__owned_release_%016llx"), hash)
+    invoke := ModuleAddType(user, *invoke_name[0], value.span)
+    if invoke == null { return 0 }
+    invoke.is_procedure_type = 1
+    unused IR.CopyText(invoke.body[:], IR.CText(*args[0]))
+    unused IR.CopyText(invoke.procedure_return_type[:], IR.CText(*result[0]))
+    release := ModuleAddType(user, *release_name[0], value.span)
+    if release == null { return 0 }
+    release.is_procedure_type = 1
+    unused IR.CopyText(release.body[:], "__tsx_state: *u8")
+    unused IR.CopyText(release.procedure_return_type[:], "void")
+    value.is_type_instance = 0
+    value.is_owned_callable = 1
+    unused snprintf(*value.body[0], size_of(type_of(value.body)),
+        ParserCString("state: *u8; invoke: %s; release: %s;"), *invoke_name[0], *release_name[0])
+    if value.is_synthetic_application == 0 {
+        value.template_name[0] = 0
+        value.template_args[0] = 0
+    }
+    user.types[index] = value[0]
+    Services.LookupsChanged()
+    return 1
+}
+
+#scope_export
 #program_export "InstantiateGenericRecordAt"
 InstantiateGenericRecordAt :: (instance: *IR.ZirType, generic: *IR.ZirType, owner: *IR.ZirModule, user: *IR.ZirModule) -> s32 {
+    if owner != null && user != null && IR.CText(*owner.standard_name[0]) == "callable" &&
+       IR.CText(*generic.name[0]) == "Owned" {
+        return InstantiateOwnedCallable(instance, user)
+    }
     params_storage_0 := cast(*ParserArray16_ParserArray128_u8)AllocateOrExit(size_of(ParserArray16_ParserArray128_u8))
     defer CompilerFree(cast(*void)params_storage_0)
     memset(cast(*void)params_storage_0, 0, size_of(ParserArray16_ParserArray128_u8))

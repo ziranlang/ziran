@@ -19,6 +19,9 @@ build/bin/ziran build examples/hello.zi
 
 `run` checks and executes `main`; `build` defaults to a direct native binary.
 `make install-user` installs the tools in `~/.local/bin`.
+The same `check`, `ir`, `build` and `run` workflow handles `.zi`, `.ts` and
+`.tsx` sources together; `ziran ir --project -o build/ir` saves their common
+checked IR. See the [native TypeScript subset](docs/NATIVE_TYPESCRIPT.md).
 
 ```zi
 main :: () { print("Hello, World!\n") }

@@ -52,6 +52,9 @@ ZirExprKind :: enum s32 #c "ZIR_EXPR_" {
     FIELD_INIT
     SLICE
     COMPILE_TIME
+    OWNED_CLOSURE
+    OWNED_CAPTURE_DROP
+    OWNED_LAMBDA  // frontend-only, contextualized before saving
 }
 
 // Per-thread target selection, shared by the checker, parser, and host tools.
@@ -197,6 +200,8 @@ ZirFunction :: struct {
     overload_name: [ZIR_NAME_MAX]u8 #c "char"  // source name shared by overloads; name is unique
     checked: s32  // shared checker resolved the function without errors
     from_ir: s32  // in-memory only: expression graph came from saved IR
+    is_native_arrow: s32  // frontend-generated procedure eligible for owned capture lowering
+    capture_environment: [ZIR_NAME_MAX]u8 #c "char"  // checked allocation borrowed for this invocation
     default_helpers_created: s32  // in-memory only: source helper pass ran
     uses_host: s32  // direct or transitive host services or retained-state access
     extern_target: [ZIR_NAME_MAX]u8 #c "char"  // resolved #foreign library/symbol
@@ -353,6 +358,7 @@ ZirType :: struct {
     is_type_instance: s32  // unresolved until imports are linked
     is_synthetic_application: s32  // private name made from a direct type call
     is_owned_vec: s32  // specialized standard Vec storage
+    is_owned_callable: s32  // owned state + checked invoke and cleanup slots
     is_map: s32  // Go map; body records the private key/value types
     is_extern: s32  // host-owned record or opaque foreign type
     is_abi_incomplete: s32  // native ABI treats the complete record as opaque
@@ -492,4 +498,33 @@ CopyText :: (output: []u8, text: string) -> bool {
     }
     output[length] = 0
     return clean
+}
+
+// Public native functions and explicit raw exports can implement host imports.
+HostProviderVisible :: (function: *ZirFunction) -> bool {
+    return function.is_extern == 0 && function.is_template == 0 &&
+        (function.exported != 0 || (function.is_public != 0 && function.is_file_private == 0))
+}
+
+// Only generated owned invokes may give erased state a typed, invocation-local
+// lifetime. Persist and validate this provenance with the binding it describes.
+CaptureEnvironmentBinding :: (function: *ZirFunction) -> bool {
+    if function.capture_environment[0] == 0 { return false }
+    if function.is_native_arrow != 1 || function.is_file_private != 1 ||
+       function.is_extern != 0 || function.is_template != 0 ||
+       function.stmt_count == 0 || function.args_text == null { return false }
+    prefix := "__tsx_state: *u8"
+    args := CText(function.args_text)
+    if args.count < prefix.count { return false }
+    for i: 0..prefix.count - 1 { if args[i] != prefix[i] { return false } }
+    if args.count > prefix.count && args[prefix.count] != #char "," { return false }
+    declaration := function.stmts[0]
+    if declaration.kind != .DECL || CText(declaration.names.name) != "__tsx_environment" ||
+       declaration.type[0] != #char "*" || CText(cast(*u8)*declaration.type[1]) != CText(*function.capture_environment[0]) ||
+       declaration.expr_root < 0 || declaration.expr_root >= function.expr_count { return false }
+    value := function.exprs[declaration.expr_root]
+    if value.kind != .CAST || CText(value.name) != CText(declaration.type) ||
+       value.right < 0 || value.right >= function.expr_count { return false }
+    state := function.exprs[value.right]
+    return state.kind == .IDENT && CText(state.name) == "__tsx_state"
 }

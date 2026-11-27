@@ -2,11 +2,16 @@
 // Algorithms are maintained here; foreign calls cross compiler phase or module boundaries.
 using IR :: #import "compiler_ir"
 using State :: #import "compiler_check_types"
+Services :: #import "compiler_services"
+using Vectors :: #import "std/vec"
 
 #scope_file
 compiler :: #system_library "ziran";
 libc :: #system_library "libc";
 
+FunctionAddStmt :: (fn: *IR.ZirFunction, kind: IR.ZirStmtKind, text: *u8, span: IR.ZirSourceSpan) -> *IR.ZirStmt #foreign compiler "FunctionAddStmt";
+expression_type :: (c: *Checker, index: s32) -> *u8 #foreign compiler "private_check_expression_type";
+memmove :: (dest: *void, source: *void, count: usize) -> *void #foreign libc "memmove";
 AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
 ArrayElementType :: (type: *u8, element: *u8, element_size: usize, capacity: *s32) -> s32 #foreign compiler "ArrayElementType";
 CompilerFree :: (pointer: *void) #foreign compiler "CompilerFree";
@@ -460,7 +465,7 @@ owned_shape :: (c: *Checker, index: s32, globals: s32) -> s32 {
     if (cast(s32)((e).kind) == 1) {
         return cast(s32)(!(global_vec_source(c, index) != 0))
     }
-    if (cast(s32)((e).kind) == 5) {
+    if (cast(s32)((e).kind) == 5 || e.kind == .OWNED_CLOSURE) {
         return 1
     }
     if ((cast(s32)((e).kind) == 8) && (contains_vec((c).module, (e).type, 0) != 0)) {
@@ -826,13 +831,16 @@ compound_type_at_use :: (module: *IR.ZirModule, compound: *CompoundConstant, sou
             return 1
         }
     }
-    if ((((visible == cast(*IR.ZirType)((null))) && (declaring != cast(*IR.ZirModule)((null)))) && ((declared).is_public != 0)) && !((declared).is_file_private != 0)) {
+    if declaring != null && declared.is_public != 0 && declared.is_file_private == 0 {
         written: s32 = snprintf(target, size, CheckCString("%s.%s"), cast(*u8)(*((declaring).name)), cast(*u8)(*((declared).name)))
         if (((written >= 0) && (cast(usize)(written) < size)) && (FindType(module, target, null) == declared)) {
             return 1
         }
     }
     if (visible != declared) {
+        Diagnostic(declared.span, CheckCString("type.identity"),
+            CheckCString("cannot qualify type %s from module %s at its use in %s"),
+            source, *declaring.name[0], *module.name[0])
         return 0
     }
     copy_text(target, size, source)
@@ -1581,11 +1589,217 @@ callback_type_equal :: (left_module: *IR.ZirModule, left: *u8, right_module: *IR
     return cast(s32)(!(strcmp(left, right) != 0))
 }
 
+// Owned closure construction shares the checked record/move graph. This is
+// type erasure inside the compiler, with a concrete type at both trampolines.
+#scope_file
+closure_join :: (a: string, b: string, tail: string = "") -> string {
+    bytes: Vec(u8)
+    for byte: a { VecPush(bytes, byte) }
+    for byte: b { VecPush(bytes, byte) }
+    for byte: tail { VecPush(bytes, byte) }
+    text: Text = .{bytes = bytes}
+    return IR.CText(Services.Keep(TextView(text)))
+}
+
+#scope_export
+#program_export "private_check_capture_safe"
+capture_safe :: (module: *IR.ZirModule, type: *u8, depth: s32) -> bool {
+    if depth > 32 || type == null || type[0] == 0 || type[0] == #char "*" { return false }
+    scalar := IR.CText(ScalarType(type))
+    if scalar.count > 0 { return scalar != "string" && scalar != "void" }
+    if SliceElementType(type, null, 0) != 0 || IR.CText(type) == "string" { return false }
+    element: [128]u8
+    if VecElementType(module, type, *element[0], size_of(type_of(element))) != 0 ||
+       ArrayElementType(type, *element[0], size_of(type_of(element)), null) != 0 {
+        return capture_safe(module, *element[0], depth + 1)
+    }
+    owner: *IR.ZirModule = null
+    record := FindType(module, type, *owner)
+    if record == null { return false }
+    if record.is_enum != 0 || record.is_owned_callable != 0 { return true }
+    if record.is_extern != 0 || record.is_union != 0 || record.is_procedure_type != 0 ||
+       record.is_record_template != 0 || record.is_map != 0 { return false }
+    offset: usize = 0
+    field: IR.ZirTypeField
+    while TypeNextField(record, *offset, *field) == 1 {
+        if !capture_safe(ifx owner != null then owner else module, *field.type[0], depth + 1) { return false }
+    }
+    return true
+}
+
+#scope_file
+closure_node :: (fn: *IR.ZirFunction, kind: IR.ZirExprKind, text: string,
+                 span: IR.ZirSourceSpan, name: string = "", left: s32 = -1, right: s32 = -1) -> s32 {
+    node := Services.AddExpr(fn, kind, text, span)
+    if node == null { return -1 }
+    node.name = Services.KeepName(name)
+    node.left = left
+    node.right = right
+    return fn.expr_count - 1
+}
+
+contextual_owned_closure :: (c: *Checker, index: s32, expected: *u8, owned: *IR.ZirType,
+                             owned_owner: *IR.ZirModule) {
+    value := c.fn.exprs[index]
+    if value.kind == .OWNED_CLOSURE { return }
+    if value.kind == .CONDITIONAL {
+        contextual_slot(c, value.right, expected)
+        contextual_slot(c, value.third, expected)
+        return
+    }
+    if value.kind != .OWNED_LAMBDA && value.kind != .IDENT { return }
+    if value.kind == .IDENT && lookup(c, value.name)[0] != 0 { return }
+    owner: *IR.ZirModule = null
+    invoke: *IR.ZirFunction = null
+    if ResolveFunction(c.module, value.name, *owner, *invoke) != 1 || owner != c.module ||
+       invoke.is_native_arrow == 0 {
+        error(c, value.span, CheckCString("owned callable requires a native arrow"), value.name)
+        return
+    }
+    expected = KeepName(expected)
+    callback_name := IR.CText(value.name)
+    env_name := closure_join(callback_name, "_env")
+    drop_name := closure_join(callback_name, "_drop")
+    offset: usize = 0
+    field: IR.ZirTypeField
+    invoke_type: [128]u8
+    drop_type: [128]u8
+    while TypeNextField(owned, *offset, *field) == 1 {
+        if IR.CText(*field.name[0]) == "invoke" { unused IR.CopyText(invoke_type[:], IR.CText(*field.type[0])) }
+        if IR.CText(*field.name[0]) == "release" { unused IR.CopyText(drop_type[:], IR.CText(*field.type[0])) }
+    }
+    if record_field_type_at_use(c.module, owned_owner, expected, *invoke_type[0], size_of(type_of(invoke_type))) == 0 ||
+       record_field_type_at_use(c.module, owned_owner, expected, *drop_type[0], size_of(type_of(drop_type))) == 0 {
+        error(c, value.span, CheckCString("owned callable signature is inaccessible"), expected)
+        return
+    }
+    body := ""
+    head: s32 = -1
+    tail: s32 = -1
+    child := value.first_child
+    while child >= 0 {
+        operand := c.fn.exprs[child]
+        next := operand.next_sibling
+        actual := KeepName(expression_type(c, child))
+        if !capture_safe(c.module, actual, 0) {
+            Diagnostic(operand.span, CheckCString("check.capture_lifetime"),
+                CheckCString("callback capture must be a scalar, enum, or owned value without borrowed fields: %s"), operand.argument_name)
+            c.errors += 1
+            c.failed = 1
+            return
+        }
+        body = closure_join(body, IR.CText(operand.argument_name), closure_join(": ", IR.CText(actual), "; "))
+        c.fn.exprs[child].next_sibling = -1
+        entry := closure_node(c.fn, .FIELD_INIT, IR.CText(operand.text), operand.span,
+            IR.CText(operand.argument_name), -1, child)
+        if entry < 0 { error(c, value.span, CheckCString("cannot allocate callback capture"), value.name); return }
+        unused IR.CopyText(c.fn.exprs[entry].op[:], "=")
+        if tail >= 0 { c.fn.exprs[tail].next_sibling = entry } else { head = entry }
+        tail = entry
+        child = next
+    }
+    if body.count == 0 { body = "__unit: u8;" }
+    env := ModuleAddType(c.module, Services.KeepName(env_name), value.span)
+    if env == null || !IR.CopyText(env.body[:], body) {
+        error(c, value.span, CheckCString("callback capture record is too large"), value.name); return
+    }
+    env.is_public = 0
+    env.is_file_private = 1
+    Services.LookupsChanged()
+    environment := closure_node(c.fn, .COMPOUND, env_name, value.span, env_name)
+    if environment < 0 { error(c, value.span, CheckCString("cannot allocate callback environment"), value.name); return }
+    c.fn.exprs[environment].first_child = head
+    c.fn.exprs[environment].type = Services.KeepName(env_name)
+
+    // Add the checked hidden argument and a typed view of this allocation.
+    original_args := IR.CText(FunctionArgs(invoke))
+    hidden_args := closure_join("__tsx_state: *u8", ifx original_args.count > 0 then ", " else "", original_args)
+    invoke.args_text = Services.KeepParameters(hidden_args)
+    invoke.default_args_text = null
+    unused IR.CopyText(invoke.capture_environment[:], env_name)
+    state := closure_node(invoke, .IDENT, "__tsx_state", value.span, "__tsx_state")
+    pointer_type := closure_join("*", env_name)
+    cast_env := closure_node(invoke, .CAST, closure_join("cast(", pointer_type, ")(__tsx_state)"),
+        value.span, pointer_type, -1, state)
+    old_count := invoke.stmt_count
+    declaration := FunctionAddStmt(invoke, .DECL, Services.Keep("__tsx_environment"), value.span)
+    if declaration == null { error(c, value.span, CheckCString("cannot allocate callback environment binding"), value.name); return }
+    declaration.names = .{name = Services.KeepName("__tsx_environment")}
+    declaration.type = Services.KeepName(pointer_type)
+    declaration.expr_root = cast_env
+    saved := declaration[0]
+    unused memmove(cast(*void)*invoke.stmts[1], cast(*void)invoke.stmts, cast(usize)old_count * size_of(IR.ZirStmt))
+    invoke.stmts[0] = saved
+    release: *IR.ZirFunction = null
+    if ResolveFunction(c.module, Services.KeepName(drop_name), *owner, *release) != 1 {
+        error(c, value.span, CheckCString("callback cleanup declaration is missing"), value.name); return
+    }
+    release_state := closure_node(release, .IDENT, "__tsx_state", value.span, "__tsx_state")
+    cleanup := closure_node(release, .OWNED_CAPTURE_DROP, drop_name, value.span, env_name, release_state)
+    st := FunctionAddStmt(release, .EXPR, Services.Keep(drop_name), value.span)
+    if st == null { error(c, value.span, CheckCString("cannot allocate callback cleanup"), value.name); return }
+    st.expr_root = cleanup
+    function_value := closure_node(c.fn, .IDENT, callback_name, value.span, callback_name)
+    release_value := closure_node(c.fn, .IDENT, drop_name, value.span, drop_name)
+    contextual_slot(c, function_value, *invoke_type[0])
+    contextual_slot(c, release_value, *drop_type[0])
+    // Retain the original operand's span and sibling link for the parent call.
+    c.fn.exprs[index].kind = .OWNED_CLOSURE
+    c.fn.exprs[index].name = Services.KeepName(env_name)
+    c.fn.exprs[index].type = expected
+    c.fn.exprs[index].left = environment
+    c.fn.exprs[index].right = function_value
+    c.fn.exprs[index].third = release_value
+    c.fn.exprs[index].first_child = -1
+    c.aggregate_rewritten = 1
+}
+
+#scope_export
+#program_export "private_check_owned_call_slot"
+owned_call_slot :: (c: *Checker, index: s32, slot_owner: **IR.ZirModule) -> *IR.ZirType {
+    call := c.fn.exprs[index]
+    written := call.slot_type
+    owned: *IR.ZirType = null
+    owner: *IR.ZirModule = null
+    if written != null && written[0] != 0 { owned = FindType(c.module, written, *owner) }
+    if owned == null || owned.is_owned_callable == 0 {
+        if call.name[0] != 0 { written = lookup(c, call.name) }
+        else if call.left >= 0 { written = c.fn.exprs[call.left].type }
+        else { return null }
+        owned = FindType(c.module, written, *owner)
+    }
+    if owned == null || owned.is_owned_callable == 0 { return null }
+    written = KeepName(written)
+    offset: usize = 0
+    field: IR.ZirTypeField
+    invoke_type: [128]u8
+    while TypeNextField(owned, *offset, *field) == 1 {
+        if IR.CText(*field.name[0]) == "invoke" { unused IR.CopyText(invoke_type[:], IR.CText(*field.type[0])) }
+    }
+    if record_field_type_at_use(c.module, owner, written, *invoke_type[0], size_of(type_of(invoke_type))) == 0 {
+        error(c, call.span, CheckCString("owned invoke signature is inaccessible"), written)
+        return null
+    }
+    if call.left < 0 {
+        base := closure_node(c.fn, .IDENT, IR.CText(call.name), call.span, IR.CText(call.name))
+        c.fn.exprs[index].left = base
+        c.aggregate_rewritten = 1
+        unused expression_type(c, base)
+    }
+    c.fn.exprs[index].slot_type = written
+    c.fn.exprs[index].name = CheckCString("")
+    return FindType(c.module, *invoke_type[0], slot_owner)
+}
+
 #scope_export
 #program_export "private_check_contextual_slot"
 contextual_slot :: (c: *Checker, index: s32, expected: *u8) {
     slot_owner: *IR.ZirModule = null
     slot: *IR.ZirType = FindType((c).module, expected, *(slot_owner))
+    if index >= 0 && slot != null && slot.is_owned_callable != 0 {
+        contextual_owned_closure(c, index, expected, slot, slot_owner)
+        return
+    }
     if (((index < 0) || (slot == cast(*IR.ZirType)((null)))) || !((slot).is_procedure_type != 0)) {
         return
     }

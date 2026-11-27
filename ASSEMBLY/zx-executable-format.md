@@ -62,7 +62,7 @@ Implemented kinds are:
 | 1 | yes | fixed executable manifest |
 | 2 | yes | deterministic stripped internal instruction payload |
 | 3 | yes | canonical assets, including an empty table |
-| 4 | reserved | unused. Assembly records are part of kind 2 |
+| 4 | reserved | no implementation; follows unknown-section rules. Assembly records are part of kind 2 |
 | 5 | iff required feature bit 1 is set | module linkage bytes |
 | `0x80000001` | no | opaque debug attachment |
 | `0x80000002` | no | opaque source attachment |

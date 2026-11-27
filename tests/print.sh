@@ -93,6 +93,12 @@ for input in "$work/greet.zi" "$work/ir/greet.zir"; do
     "$work/$suffix-binary.elf" > "$work/$suffix-binary.native.out"
     cmp "$work/expected-binary" "$work/$suffix-binary.native.out"
 
+    "$zi2zx" --root "$native_root" --entry greet:Greet \
+        -o "$work/$suffix-greet.native.zx" "$input"
+    "$zx2native" -o "$work/$suffix-greet.elf" "$work/$suffix-greet.native.zx"
+    "$work/$suffix-greet.elf" > "$work/$suffix-greet.native.out"
+    cmp "$work/expected" "$work/$suffix-greet.native.out"
+
     for target in c go; do
         out="$work/$suffix-$target"
         if test "$target" = go; then
@@ -258,7 +264,15 @@ cmp "$work/native.expected" "$work/native.c.out"
 
 cat > "$work/native_float.zi" <<'EOF'
 #program_export
-NativeFloat :: () { print("%\n", 0.1) }
+NativeFloat :: () {
+    values: [18]float64 = .[0.0, -0.0, 0.0000001, 0.000012, 0.1,
+        0.999999999, -0.999999999, 9.999999999, 99.999999999,
+        1.0000001, 1.0e23, 1.0e-23, -1.0e23, -1.0e-23,
+        1.7976931348623157e308, 5.0e-324, 2.2250738585072014e-308, 1.0 / 3.0]
+    for value: values { print("%\n", value) }
+    singles: [4]float32 = .[0.1, 0.99999994, 9.999999, 1.17549435e-38]
+    for value: singles { print("%\n", value) }
+}
 EOF
 "$ziran" ir --root "$work" -o "$work/native-float-ir" "$work/native_float.zi"
 "$zi2zx" --root "$work/native-float-ir" --entry native_float:NativeFloat \
@@ -266,7 +280,13 @@ EOF
 printf 'preserve-output\n' > "$work/native-float.elf"
 "$zx2native" -o "$work/native-float.elf" "$work/native-float.zx"
 "$work/native-float.elf" > "$work/native-float.out"
-printf '0.1\n' | cmp - "$work/native-float.out"
+"$ziran" run --target=c --entry native_float:NativeFloat --root "$work" \
+    "$work/native_float.zi" > "$work/native-float.expected"
+"$ziran" run "$work/native-float.zx" > "$work/native-float.hosted.out"
+"$zi2zx" run --backend engine "$work/native-float.zx" > "$work/native-float.engine.out"
+for output in "$work/native-float.out" "$work/native-float.hosted.out" "$work/native-float.engine.out"; do
+    cmp "$work/native-float.expected" "$output"
+done
 
 # The classic program: no return value, so `ziran run` prints only the text.
 cat > "$work/hello.zi" <<'EOF'

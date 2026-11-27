@@ -7,7 +7,7 @@ using Vectors :: #import "std/vec"
 
 // The revision-29 executable bridge. Bundle owns the outer section contract;
 // Serial owns the pointer-free LIR encoding and verified allocation. This
-// module binds both without making the legacy bundle reader guess a format.
+// module binds framing, encoding and verification for one executable format.
 
 ZxExecProblem :: enum s32 {
     None; Container; Codec; Verify; Allocation; Output; Identity; Entry

@@ -7,9 +7,9 @@ paths apply to them. There is no generated Ziran screen source, JavaScript
 engine, npm module resolver or React runtime. The experimental `tsx2zi`
 command has been removed.
 
-The Kryon migration is still in progress. Component state, closures, keyed
-mounting and the complete UI package surface are required before that migration
-is complete; the current frontend does not provide those features yet.
+The Kryon migration is still in progress. Owned capturing callables are
+supported. Scoped borrowed callbacks, component state, keyed mounting and the
+complete UI package integration remain open work.
 
 ## Commands and imports
 
@@ -118,11 +118,28 @@ They use ordinary native procedure values, including calls through imported
 Ziran procedure parameters. Bind to the imported procedure type at that
 boundary instead of duplicating it in a local alias; named native procedure
 types retain their declared identity. Signatures are checked by the common checker.
-Capturing an enclosing local is rejected: owned capture storage and callback
-cleanup remain required migration work. The `__tsx_` identifier prefix is
-reserved for generated IR declarations.
+Capturing arrows use `Owned<Signature>` from `std/callable`:
 
-Captured callbacks, classes, promises, async functions and type unions are not
+```tsx
+import { Owned } from "std/callable";
+type Action = (value: number) => number;
+function Offset(delta: number): Owned<Action> {
+    return (value: number): number => value + delta;
+}
+```
+
+The callable owns an immutable snapshot of its captures. Scalars, enums and
+records containing only ownership-safe fields are accepted; owned Text, Vec
+and other owned callables move into that snapshot. Strings, slices, pointers
+and records containing borrowed fields are rejected. Reading a view of owned
+capture storage during invocation is valid; returning that view is rejected.
+Move and scope cleanup rules apply to the callable, including record fields,
+arguments, returns and replacement. One signature accepts different generated
+capture record types. The `__tsx_` identifier prefix is reserved for generated
+IR declarations.
+Invoking an empty callable traps; dropping an empty or moved callable is harmless.
+
+Scoped borrowed callbacks, classes, promises, async functions and type unions are not
 implemented yet. Generic record applications retain their declaring module
 and file scope: a local `Box<T>` and an imported `Domain.Box<T>` remain
 distinct, including inside nested applications. Import aliases for the same

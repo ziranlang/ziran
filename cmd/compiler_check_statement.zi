@@ -2435,7 +2435,7 @@ mark_expr_moves :: (c: *Checker, index: s32) {
             ((((c).fn).exprs)[right]).is_move = 1
             return
         }
-        if ((cast(s32)(((((c).fn).exprs)[right]).kind) == 12) || (cast(s32)(((((c).fn).exprs)[right]).kind) == 5)) {
+        if ((cast(s32)(((((c).fn).exprs)[right]).kind) == 12) || (cast(s32)(((((c).fn).exprs)[right]).kind) == 5) || c.fn.exprs[right].kind == .OWNED_CLOSURE) {
             mark_expr_moves(c, right)
             return
         }
@@ -2509,7 +2509,7 @@ check_vec_call_results :: (c: *Checker, index: s32, transferred: s32, discarded:
             child = ((((c).fn).exprs)[child]).next_sibling
         }
     }
-    check_vec_call_results(c, (expr).left, 0, 0)
+    check_vec_call_results(c, (expr).left, cast(s32)(expr.kind == .OWNED_CLOSURE), 0)
     check_vec_call_results(c, (expr).right, cast(s32)((cast(s32)((expr).kind) == 15) && (transferred != 0)), 0)
     check_vec_call_results(c, (expr).third, 0, 0)
 }

@@ -255,6 +255,7 @@ void EmitNativeMain(void* out, ZirModule* module, ZirFunction* fn, ZirTarget tar
 void CollectNativeSimdUses(uint8_t* text, void* simd);
 int32_t EmitNativeHelpers(void* file, uint8_t* text, void* simd);
 void EmitGoNumberHelpers(void* out, uint8_t* text, uint32_t* written);
+ZirType* zir_emit_owned_callable_record(ZirModule* module, uint8_t* type);
 int32_t zir_emit_emitter_type_contains_vec(ZirModule* module, uint8_t* type, int32_t depth);
 
 #ifdef __cplusplus

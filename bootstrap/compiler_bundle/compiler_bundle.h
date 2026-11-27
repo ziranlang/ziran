@@ -64,9 +64,6 @@ extern "C" {
 #define ExecutableSectionAssets 3
 #endif
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
-#define ExecutableSectionVariants 4
-#endif
-#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 #define ExecutableSectionModuleLinkage 5
 #endif
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE

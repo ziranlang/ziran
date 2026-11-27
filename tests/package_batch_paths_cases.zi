@@ -73,6 +73,24 @@ main :: (argc: s32, argv: **u8) -> s32 {
     arguments: Vec(string); VecPush(arguments, "paths"); for selector: selectors { VecPush(arguments, selector) }
     result := BatchCommand(*test, app, arguments[:])
     if !NativeAssert(*test, result.code == 0 && expected[4] == raw, result.error) || !BatchRows(*test, result.output, selectors[:], expected[:]) { return 1 }
+    // Build tools already have lock identities. They must not guess which
+    // alias selects a transitive package with a repeated manifest name.
+    locked: JsonDocument
+    if !NativeAssert(*test, JsonRead(*locked, NativeRead(*test, CheckPath(app, "ziran.lock"))), "read selected package identities") { return 1 }
+    edges := JsonMember(*locked, JsonMember(*locked, locked.root, "root"), "dependencies")
+    identities := string.[CheckField(*locked, edges, "Left"), CheckField(*locked, edges, "Right"),
+        CheckField(*locked, FixturePackage(*locked, "Utility"), "id"), CheckField(*locked, edges, "raw")]
+    identity_paths := string.[left, right, utility, raw]
+    identity_batch: Vec(string); VecPush(identity_batch, "paths")
+    for identity: identities { VecPush(identity_batch, identity) }
+    selected := BatchCommand(*test, app, identity_batch[:])
+    if !NativeAssert(*test, selected.code == 0, selected.error) ||
+        !BatchRows(*test, selected.output, identities[:], identity_paths[:]) { return 1 }
+    for index: cast(s64)0..identities.count - 1 {
+        one := string.["path", identities[index]]
+        response := BatchCommand(*test, app, one[:])
+        if !NativeAssert(*test, response.code == 0 && TextTrimEnd(response.output) == identity_paths[index], "locked identity did not select its exact package") { return 1 }
+    }
     invalid := string.["missing", "Twin", "", "--bad", "Left:Utility"]
     empty := string.["paths"]
     rejected := BatchCommand(*test, app, empty[:])
@@ -132,6 +150,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !NativeWrite(*test, CheckPath(utility, "ziran.toml"), "[package]\nname = \"Changed\"\n") { return 1 }
     failed_single := BatchCommand(*test, app, single[:]); failed_batch := BatchCommand(*test, app, arguments[:])
     if !NativeAssert(*test, failed_single.code != 0 && failed_batch.code != 0 && failed_batch.output == "", "invalid graph emitted a partial selected batch") || test.failed { return 1 }
-    print("Local batch paths: ordering, Unicode/quote escaping, one graph validation, forwarding and atomic failure passed\n")
+    print("Local batch paths: aliases and exact lock identities, ordering, Unicode/quote escaping, one graph validation, forwarding and atomic failure passed\n")
     return 0
 }

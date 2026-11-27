@@ -1145,36 +1145,32 @@ instantiate_specializations_with_buffers :: (checker: *State.Checker, buffers: *
                         callee_owner: *IR.ZirModule = null
                         callee: *IR.ZirFunction = null
                         if (((ResolveFunctionAt(template_owner, (expression).name, SpanPath(((buffers).original).span), *(callee_owner), *(callee)) == 1) && (callee_owner == template_owner)) && (callee != cast(*IR.ZirFunction)((null)))) {
-                            {
-                                import_index: s32 = 0
-                                while check_loop_182 := (import_index < (owner).import_count) {
-                                    import_local: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)((owner).imports) + cast(usize)(import_index) * size_of(IR.ZirImport))
-                                    if (((cast(s32)((import_local).kind) != 2) || ((import_local).resolved_module != template_owner)) || (((import_local).is_file_private != 0) && (strcmp(SpanPath((import_local).span), SpanPath((instance).span)) != 0))) {
-                                        S12Post2(*(import_index))
-                                        continue check_loop_182
-                                    }
-                                    dependency_storage_4 := cast(*S12Array128_u8)AllocateOrExit(size_of(S12Array128_u8))
-                                    defer CompilerFree(cast(*void)dependency_storage_4)
-                                    memset(cast(*void)dependency_storage_4, 0, size_of(S12Array128_u8))
-                                    callee_name: *u8 = (expression).name
-                                    if (!((callee).is_public != 0) || ((callee).is_file_private != 0)) {
-                                        if !(retain_template_dependency(template_owner, callee, cast(*u8)(*((dependency_storage_4[0]).items)), cast(usize)(cast(u64)size_of(S12Array128_u8))) != 0) {
-                                            return 0
-                                        }
-                                        callee_name = cast(*u8)(*((dependency_storage_4[0]).items))
-                                    }
-                                    qualified_storage_5 := cast(*S12Array128_u8)AllocateOrExit(size_of(S12Array128_u8))
-                                    defer CompilerFree(cast(*void)qualified_storage_5)
-                                    memset(cast(*void)qualified_storage_5, 0, size_of(S12Array128_u8))
-                                    written: s32 = snprintf(cast(*u8)(*((qualified_storage_5[0]).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), CheckCString("%s.%s"), cast(*u8)(*((import_local).name)), callee_name)
-                                    if ((written < 0) || (cast(u64)(cast(usize)(written)) >= cast(u64)size_of(S12Array128_u8))) {
-                                        return 0
-                                    }
-                                    (expression).name = KeepName(cast(*u8)(*((qualified_storage_5[0]).items)))
-                                    break check_loop_182
-                                    S12Post2(*(import_index))
+                            // Re-exported templates need not have a direct import
+                            // alias in the caller. Their defining module is still
+                            // reachable through that export graph.
+                            qualifier := cast(*u8)*template_owner.name
+                            for import_index: 0..owner.import_count - 1 {
+                                imported := *owner.imports[import_index]
+                                if cast(s32)imported.kind == 2 && imported.resolved_module == template_owner &&
+                                   (imported.is_file_private == 0 || strcmp(SpanPath(imported.span), SpanPath(instance.span)) == 0) {
+                                    qualifier = cast(*u8)*imported.name
+                                    break
                                 }
                             }
+                            dependency := cast(*S12Array128_u8)AllocateOrExit(size_of(S12Array128_u8))
+                            defer CompilerFree(cast(*void)dependency)
+                            callee_name := expression.name
+                            if callee.is_public == 0 || callee.is_file_private != 0 {
+                                if retain_template_dependency(template_owner, callee, *dependency.items[0],
+                                    size_of(S12Array128_u8)) == 0 { return 0 }
+                                callee_name = *dependency.items[0]
+                            }
+                            qualified := cast(*S12Array128_u8)AllocateOrExit(size_of(S12Array128_u8))
+                            defer CompilerFree(cast(*void)qualified)
+                            written := snprintf(*qualified.items[0], size_of(S12Array128_u8),
+                                CheckCString("%s.%s"), qualifier, callee_name)
+                            if written < 0 || cast(usize)written >= size_of(S12Array128_u8) { return 0 }
+                            expression.name = KeepName(*qualified.items[0])
                         }
                     }
                     S12Post2(*(x))

@@ -919,6 +919,11 @@ record_mutation :: (check: *BorrowCheck, place: BorrowPlace) {
 
 #scope_file
 check_mutation :: (check: *BorrowCheck, destination: BorrowPlace, span: IR.ZirSourceSpan) {
+    if destination.root != null && destination.root.local == 0 &&
+       IR.CaptureEnvironmentBinding(check.current.fn) {
+        reject(check, span, CheckCString("callback captures are immutable snapshots"))
+        return
+    }
     record_mutation(check, destination)
     if ((destination).root == cast(*BorrowBinding)((null))) {
         return
@@ -1838,6 +1843,12 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                 (declared).text_backings = text_view_backings(check, (statement).expr_root)
                 (declared).text_backing = first_source((declared).text_backings)
                 (declared).address_backing = (ifx (cast(s32)(cast(s8)(((statement).type)[0])) == 42) then address_backing(check, (statement).expr_root, *((declared).address_known)) else BorrowPlace.{})
+                if i == 0 && IR.CaptureEnvironmentBinding(fn) {
+                    // The owning callable keeps this allocation alive throughout
+                    // invocation. Its views remain local and cannot be returned.
+                    declared.address_known = 1
+                    declared.address_backing = root_place(declared)
+                }
                 if (text_view_type(check, (statement).type) != 0) {
                     add_active_text_borrows(check, (declared).text_backings, (check).depth)
                 }

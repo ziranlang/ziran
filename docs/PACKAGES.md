@@ -358,9 +358,10 @@ vendored backend source. The command initializes the submodules at the commits
 recorded by that package; with `--offline`, it requires them to be present.
 
 `ziran pkg paths PACKAGE...` resolves several selectors with one graph checkout
-and validation in the selected launcher. It uses the same direct-alias and
-unique transitive package-name selection as `pkg path`, including `ziran` for
-the toolchain, and accepts `--locked`, `--offline`, and a trailing `--submodules`.
+and validation in the selected launcher. Like `pkg path`, it accepts a direct
+alias, an exact package ID from the lock, or a unique transitive package name.
+An exact ID distinguishes packages with the same manifest name. Use `ziran` for
+the toolchain. Both commands accept `--locked`, `--offline`, and a trailing `--submodules`.
 Pinned-launcher forwarding and cache validation remain the same as `pkg path`.
 On success stdout is a JSON array in argument order, with repetitions retained:
 

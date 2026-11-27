@@ -3,9 +3,12 @@
 #define ZIRAN_COMPILER_PARSE_DISCOVER_H
 
 #include "zir_string_types.h"
+#include "zir_slice.h"
 #include "compiler_ir.h"
 #include "compiler_parse_types.h"
 #include "compiler_type.h"
+#include "compiler_check_types.h"
+#include "compiler_services.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,11 +23,22 @@ extern "C" {
 #define POINTER_STORE_HINT "*p = value is not Ziran syntax; *p takes an address, so store through a pointer with <<p = value"
 #endif
 typedef struct Results__string__s64 Results__string__s64;
+#ifdef ZIRAN_COMPILER_PARSE_DISCOVER_H_PRIVATE
+typedef struct OwnedCallableBuffers OwnedCallableBuffers;
+#endif
 
 struct Results__string__s64 {
     String value_0;
     int64_t value_1;
 };
+#ifdef ZIRAN_COMPILER_PARSE_DISCOVER_H_PRIVATE
+
+struct OwnedCallableBuffers {
+    ZirType value;
+    ZirType signature;
+    uint8_t args[8192];
+};
+#endif
 uint8_t* private_parse_foreign_syntax_hint(uint8_t* line, int32_t* column);
 int32_t private_parse_normalize_jai_source_line(uint8_t* line, uint8_t* path, uint8_t* physical_path, int32_t line_no, int32_t in_string, int32_t* uses_resizable_arrays);
 void private_parse_normalize_jai_source_tokens(uint8_t* line, uint8_t* path, uint8_t* physical_path, int32_t line_no, int32_t* uses_resizable_arrays);

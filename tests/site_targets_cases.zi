@@ -1,4 +1,5 @@
 #import "native_test"
+#import "package_fixture_support"
 #import "check_support"
 #import "std/byte_text_linux"
 #import "std/float_text"
@@ -13,65 +14,116 @@ SiteTargetsRun :: (test: *NativeTest, command: []string, expected: string, timeo
     return NativeAssert(test, result.code == 0 && TextTrim(result.output) == TextTrim(expected), CheckConcat("target output disagrees with its independent oracle: ", CheckConcat(TextDetach(TextJoin(command, " ")), CheckConcat("\n", CheckConcat(result.output, result.error)))))
 }
 
-// The matrix hashes protect the measured binaries. Rebuild the same inputs
-// for the runtime oracle so a format change leaves historical samples intact.
-SiteCurrentZx :: (test: *NativeTest, document: *JsonDocument, example: s32,
-    library_root: string, bindings: []string) -> string {
-    id := CheckField(document, example, "id")
-    module := id
-    root: string
-    source: string
-    if library_root == "" {
-        source = CheckPath(CheckPath(test.repo, "site"), CheckField(document, example, "source"))
-        root = PathParent(source)
-    } else {
-        module = CheckField(document, example, "module")
-        root = library_root
-        source = CheckPath(root, CheckConcat(module, ".zir"))
+// Snapshot hashes are checked by the publishing scripts before this program.
+// Rebuild authored inputs for current-format verification; never rewrite or
+// reinterpret the measured checked IR, binaries, or timing samples.
+SiteInspectCurrentIr :: (test: *NativeTest, output: string, names: []string) -> bool {
+    for name: names {
+        if !TextHasSuffix(name, ".zir") { continue }
+        inspect := string.[CheckPath(PathParent(test.ziran), "zi-inspect"), CheckPath(output, name)]
+        unused NativeRun(test, inspect[:])
+        if test.failed { return false }
     }
+    return true
+}
+
+SiteCurrentIr :: (test: *NativeTest, source: string, output: string,
+    project: string = "") -> bool {
+    command: Vec(string)
+    defer VecFree(command)
+    base := string.[test.ziran, "ir", "--root", PathParent(source), "-o", output]
+    for argument: base { VecPush(command, argument) }
+    if project != "" { VecPush(command, "--project") }
+    else { VecPush(command, "--module-path"); VecPush(command, CheckPath(test.repo, "std")) }
+    VecPush(command, source)
+    unused NativeRun(test, command[:], project)
+    if test.failed { return false }
+    names: Vec(string)
+    defer FreeDirectoryNames(*names)
+    if !NativeAssert(test, ListDirectory(output, *names) && names.count > 0, "current checked IR is empty") { return false }
+    return SiteInspectCurrentIr(test, output, names[:])
+}
+
+SiteCurrentZx :: (test: *NativeTest, document: *JsonDocument, example: s32,
+    ir: string, bindings: []string) -> string {
+    id := CheckField(document, example, "id")
+    module := CheckField(document, example, "module")
+    if module == "" { module = id }
     executable := CheckPath(test.work, CheckConcat(id, ".zx"))
     entry := CheckConcat(CheckConcat(module, ":"), CheckField(document, example, "entry"))
-    base := string.[CheckPath(PathParent(test.ziran), "zi2zx"), "--root", root, "--module-path",
-        ifx library_root == "" then CheckPath(test.repo, "std") else library_root, "--entry", entry, "-o", executable]
+    base := string.[CheckPath(PathParent(test.ziran), "zi2zx"), "--root", ir,
+        "--module-path", ir, "--entry", entry, "-o", executable]
     command: Vec(string)
     defer VecFree(command)
     for argument: base { VecPush(command, argument) }
     for binding: bindings { VecPush(command, "--bind"); VecPush(command, binding) }
-    VecPush(command, source)
+    VecPush(command, CheckPath(ir, CheckConcat(module, ".zir")))
     unused NativeRun(test, command[:])
     return executable
+}
+
+SiteLibraryInputs :: (test: *NativeTest, document: *JsonDocument,
+    bindings: *Vec(string)) -> string {
+    fixture := CheckPath(test.work, "library-inputs")
+    archive := CheckField(document, JsonMember(document, document.root, "sources"), "path")
+    extract := string.["unzip", "-q", CheckPath(CheckPath(test.repo, "site"), archive), "-d", fixture]
+    unused NativeRun(test, extract[:])
+    inputs: JsonDocument
+    if test.failed || !NativeAssert(test, JsonRead(*inputs, NativeRead(test, CheckPath(fixture, "widget_benchmarks.json"))), "invalid published library inputs") { return "" }
+    // The original library-root benchmark becomes a consumer fixture. Select
+    // the identical immutable library revision through normal package exports.
+    // Only the compiler under test uses its ordinary development override.
+    revision := CheckField(document, document.root, "revision")
+    tool_args := string.["rev-parse", "HEAD"]
+    tool_revision := FixtureGit(test, test.repo, tool_args[:])
+    parts := string.["[package]\nname = \"SiteLibraryInputs\"\nmodule_roots = [\"tests\"]\n",
+        "[toolchain]\ngit = \"https://git.waozi.xyz/ziranlang/ziran.git\"\nref = ", FixtureQuote(tool_revision),
+        "\n[dependencies.kryon]\ngit = \"https://git.waozi.xyz/kryonlabs/kryon.git\"\nref = ", FixtureQuote(revision), "\n"]
+    if !NativeWrite(test, CheckPath(fixture, "ziran.toml"), TextDetach(TextJoin(parts[:], ""))) { return "" }
+    aliases := string.["ziran"]
+    paths := string.[test.repo]
+    if !FixtureOverrides(test, fixture, aliases[:], paths[:]) { return "" }
+    lock := string.[test.ziran, "lock"]
+    unused NativeRun(test, lock[:], fixture)
+    if test.failed { return "" }
+    names := JsonMember(*inputs, inputs.root, "bindings")
+    for index: cast(s32)0..JsonCount(*inputs, names) - 1 {
+        binding := JsonString(*inputs, JsonElement(*inputs, names, index))
+        equal := TextFind(binding, "=")
+        if !NativeAssert(test, equal > 0, "invalid archived host binding") { return "" }
+        // Bare source names originally denoted modules of the library root.
+        // The recording providers remain in the extracted fixture's module.
+        if TextFind(binding[:equal], "/") < 0 { binding = CheckConcat("kryon/", binding) }
+        if !VecPush(<<bindings, TextDetach(TextCopy(binding))) { return "" }
+    }
+    ir := CheckPath(test.work, "library-ir")
+    if !SiteCurrentIr(test, CheckPath(fixture, CheckField(*inputs, inputs.root, "source")), ir, fixture) { return "" }
+    return ir
 }
 
 SiteTargetsMatrix :: (test: *NativeTest, libraries: bool) -> bool {
     site := CheckPath(test.repo, "site"); path := CheckPath(site, ifx libraries then "generated/library-targets/matrix.json" else "generated/targets/matrix.json")
     document: JsonDocument
     if !NativeAssert(test, JsonRead(*document, NativeRead(test, path)), "invalid published benchmark matrix") { return false }
-    examples := JsonMember(*document, document.root, "examples"); targets := string.["zx", "wasm", "zir"]
+    examples := JsonMember(*document, document.root, "examples"); targets := string.["zx", "wasm"]
     if !NativeAssert(test, JsonKindOf(*document, examples) == .Array && JsonCount(*document, examples) > 0, "published matrix has no examples") { return false }
-    library_root: string
+    library_ir: string
     bindings: Vec(string)
     defer VecFree(bindings)
     if libraries {
-        library_root = CheckPath(test.work, "library-ir")
-        ir := string.["unzip", "-q", CheckPath(site, CheckField(*document, JsonMember(*document, document.root, "checked_ir"), "path")), "-d", library_root]
-        unused NativeRun(test, ir[:])
-        sources := CheckField(*document, JsonMember(*document, document.root, "sources"), "path")
-        manifest := string.["unzip", "-p", CheckPath(site, sources), "widget_benchmarks.json"]
-        extracted := NativeRun(test, manifest[:])
-        inputs: JsonDocument
-        if test.failed || !NativeAssert(test, JsonRead(*inputs, extracted.output), "invalid published library inputs") { return false }
-        names := JsonMember(*inputs, inputs.root, "bindings")
-        for index: cast(s32)0..JsonCount(*inputs, names) - 1 {
-            binding := JsonString(*inputs, JsonElement(*inputs, names, index))
-            slash := TextFind(binding, "/")
-            if slash >= 0 { binding = binding[slash + 1:binding.count] }
-            VecPush(bindings, TextDetach(TextCopy(binding)))
-        }
+        library_ir = SiteLibraryInputs(test, *document, *bindings)
+        if test.failed || library_ir == "" { return false }
     }
     for index: cast(s32)0..JsonCount(*document, examples) - 1 {
         example := JsonElement(*document, examples, index)
+        ir := library_ir
+        if !libraries {
+            source := CheckPath(site, CheckField(*document, example, "source"))
+            ir = CheckPath(test.work, CheckConcat(CheckField(*document, example, "id"), "-ir"))
+            if !NativeAssert(test, CheckHash(source) == CheckField(*document, example, "source_sha256"), "authored benchmark source differs from measured input") ||
+                !SiteCurrentIr(test, source, ir) { return false }
+        }
         for target: targets {
-            if libraries && target == "zir" { continue }
             cell := JsonMember(*document, JsonMember(*document, example, "targets"), target)
             if !libraries && CheckField(*document, cell, "status") != "ok" {
                 if !NativeAssert(test, target == "wasm" && TextContains(CheckField(*document, cell, "diagnostic"), "outside the wasm execution subset"), "published target was skipped without its actual subset diagnostic") { return false }
@@ -79,24 +131,16 @@ SiteTargetsMatrix :: (test: *NativeTest, libraries: bool) -> bool {
             }
             files := JsonMember(*document, cell, "files")
             if !NativeAssert(test, JsonKindOf(*document, files) == .Array && JsonCount(*document, files) > 0, "published target has no compiler outputs") { return false }
-            if target == "zir" {
-                for at: cast(s32)0..JsonCount(*document, files) - 1 {
-                    args := string.[CheckPath(PathParent(test.ziran), "zi-inspect"), CheckPath(site, CheckField(*document, JsonElement(*document, files, at), "path"))]
-                    unused NativeRun(test, args[:]); if test.failed { return false }
-                }
-                continue
-            }
             artifact := CheckPath(site, CheckField(*document, JsonElement(*document, files, 0), "path")); command: Vec(string)
+            defer VecFree(command)
             if target == "zx" {
-                current := SiteCurrentZx(test, *document, example, library_root, bindings[:])
+                current := SiteCurrentZx(test, *document, example, ir, bindings[:])
                 if test.failed { return false }
-                published_bytes := NativeRead(test, artifact)
-                current_bytes := NativeRead(test, current)
-                if !NativeAssert(test, published_bytes.count >= 8 && current_bytes.count >= 8, "truncated ZX target artifact") { return false }
-                VecPush(command, CheckPath(PathParent(test.ziran), "zi2zx")); VecPush(command, "run")
-                VecPush(command, ifx published_bytes[:8] == current_bytes[:8] then artifact else current)
+                VecPush(command, CheckPath(PathParent(test.ziran), "zi2zx")); VecPush(command, "run"); VecPush(command, "--backend"); VecPush(command, "engine"); VecPush(command, current)
+            } else {
+                VecPush(command, "node"); VecPush(command, CheckPath(test.repo, "scripts/site_target_wasm.cjs")); VecPush(command, artifact)
+                if CheckField(*document, example, "stdout") != "" { VecPush(command, "--output") }
             }
-            else { VecPush(command, "node"); VecPush(command, CheckPath(test.repo, "scripts/site_target_wasm.cjs")); VecPush(command, artifact); if CheckField(*document, example, "stdout") != "" { VecPush(command, "--output") } }
             expected := CheckField(*document, example, "expected")
             if !libraries && CheckField(*document, example, "stdout") != "" { expected = CheckField(*document, example, "stdout") }
             if !SiteTargetsRun(test, command[:], expected, ifx libraries then 60000 else 30000) { return false }
@@ -167,6 +211,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
     defer NativeCleanup(*test)
     if !SiteNumbersAgree(*test) || !SitePlainNumbers(*test) || !SiteTargetsPresentation(*test) { return 1 }
     if !SiteTargetsMatrix(*test, false) || !SiteTargetsMatrix(*test, true) { return 1 }
-    print("Current ZX and published WebAssembly agree with independent oracles; checked IR and library inputs are reproducible\n")
+    print("Current checked IR and ZX agree with independent oracles and published WebAssembly; historical benchmark evidence is unchanged\n")
     return 0
 }

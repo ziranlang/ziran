@@ -83,6 +83,36 @@ excluding pixel rasterization and OS I/O.
 
 ## ZX assembly comparison receipts
 
+Run the matched ZX variant benchmark on physical Alpha:
+
+```sh
+build/bin/ziran run --target=c bench/bench.zi -- zx-asm-variant \
+  --output build/zx-asm-variant-alpha.json
+```
+
+Both cohorts execute the same 6,613-byte optimized ZX bundle on the x86-64
+native backend with the disk cache off. One cohort masks CPU features to
+select the portable body. JIT disassembly confirms `vpaddw` in the other
+cohort's kernel. Each trial checks the same result for 48 batches of 20,000
+16-lane additions. Physical Alpha's i7-8700 yielded nine accepted trials per
+cohort in alternating order. The receipt retains five rejected host-gate
+attempts, all accepted raw timings, and per-metric 1.5×IQR exclusions.
+
+| Measurement | Portable body | AVX2 template |
+| --- | ---: | ---: |
+| Bundle load, ms | 1.194 | 1.142 |
+| Instantiate and compile, ms | 0.475 | 0.466 |
+| First batch, ms | 0.425 | 0.349 |
+| Warm run, ms | 17.454 | 13.092 |
+| Warm throughput, billion lanes/s | 0.880 | 1.173 |
+| JIT kernel code, bytes | 209 | 59 |
+| Total JIT function code, bytes | 1,148 | 998 |
+
+AVX2 improved warm throughput by 33% for this kernel. These medians describe
+one workload and CPU. The [raw Alpha receipt](results/zx-asm-variant-alpha-2026-11-26.json)
+includes the compiler revision, artifact hashes and 20.149 ms to produce the
+shared bundle.
+
 `assembly_collect.zi` validates an exact campaign plan and, only after fresh
 Alpha physical-host attestation, executes explicitly selected modes into the
 strict raw schema consumed by `assembly_compare.zi`. Local plan validation is

@@ -305,9 +305,8 @@ int ZxAssetsCollect(ZxAssets *assets, const char *spec);
 BundleExecutionBackend BundleNativePlatformBackend(void);
 BundleExecutionBackend BundleAutoPlatformBackend(void);
 const NativeBundleCode *NativeBundleSlotCode(NativeBundleSlot *slot, const ExecBundle *bundle,
-                                             const unsigned char digest[32], int unbounded);
-const char *NativeBundleSlotProblem(NativeBundleSlot *slot, const ExecBundle *bundle,
-                                    const unsigned char digest[32]);
+                                             int unbounded);
+const char *NativeBundleSlotProblem(NativeBundleSlot *slot, const ExecBundle *bundle);
 void NativeBundleSlotClose(NativeBundleSlot *slot);
 NativeInstance *NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
                                    NativeFindBinding find, void *context, long long max_steps);

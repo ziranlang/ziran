@@ -2,7 +2,7 @@
 
 The file roles are `.zi` for source, `.zir` for checked intermediate modules,
 and `.zx` for portable applications and libraries. The portable tool is `zi2zx`,
-and its target name is `zx`. Revision-28 executable ZX contains verified
+and its target name is `zx`. Revision-29 executable ZX contains verified
 lowered instructions, assets and the names its embedder sees.
 The normative byte contract is
 [the executable format specification](../ASSEMBLY/zx-executable-format.md); see
@@ -236,10 +236,12 @@ storage always grows on demand.
 
 Compiled native code is cached on disk in `$XDG_CACHE_HOME/ziran/native`, or
 `~/.cache/ziran/native` without it, so a later run in another process maps the
-code instead of compiling it again. An entry is keyed by the bundle's content,
-the CPU's features and the build of the compiler that made it. It is checked
-against that key and its SHA-256 digest before it is used, and a damaged entry
-is removed and rebuilt. `ZIRAN_NATIVE_CACHE=DIR` uses another directory and
+code instead of compiling it again. The key covers the verified instruction
+program, including its assembly templates, the target and ABI, effective CPU
+features and the compiler build. Bundles that differ only in debug attachments
+share compiled code and retain their own diagnostic locations. The loader
+checks the key and SHA-256 digest before using an entry and rebuilds damaged
+entries. `ZIRAN_NATIVE_CACHE=DIR` uses another directory and
 `ZIRAN_NATIVE_CACHE=off` turns the cache off.
 
 Set `ZIRAN_PROFILE` to an absolute output filename to write a JSON timing

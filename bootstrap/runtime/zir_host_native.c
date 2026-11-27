@@ -72,16 +72,15 @@ static const char native_unavailable[] =
 
 const NativeBundleCode *
 NativeBundleSlotCode(NativeBundleSlot *slot, const ExecBundle *bundle,
-                     const unsigned char digest[32], int unbounded)
+                     int unbounded)
 {
-    (void)slot; (void)bundle; (void)digest; (void)unbounded;
+    (void)slot; (void)bundle; (void)unbounded;
     return NULL;
 }
 const char *
-NativeBundleSlotProblem(NativeBundleSlot *slot, const ExecBundle *bundle,
-                        const unsigned char digest[32])
+NativeBundleSlotProblem(NativeBundleSlot *slot, const ExecBundle *bundle)
 {
-    (void)slot; (void)bundle; (void)digest;
+    (void)slot; (void)bundle;
     return native_unavailable;
 }
 void NativeBundleSlotClose(NativeBundleSlot *slot) { (void)slot; }
@@ -419,8 +418,8 @@ native_check_image(const ExecBundle *bundle, const LirProgram *lir, MachineImage
     return 1;
 }
 
-/* Compiles BUNDLE, with its debug attachment's origins when it has one: the
- * code is the same either way, and traps can then name source lines. */
+/* Compiles only the verified executable program. Debug origins are read
+ * when reporting a compilation error or trap. */
 static NativeBundleCode *
 native_compile(const ExecBundle *bundle, int unbounded, uint64_t features, char *problem, size_t capacity)
 {
@@ -435,17 +434,17 @@ native_compile(const ExecBundle *bundle, int unbounded, uint64_t features, char 
         return NULL;
     }
     code->compiled = 1;
-    ZxDebugOwner debug = {0};
-    LirProgram restored = {0};
-    const LirProgram *source = lir;
-    if(ExecBundleDebugProgram(bundle, &debug)) {
-        restored = compiler_exec_debug_ZxDebugProgram(&debug);
-        source = &restored;
-    }
     code->unbounded = unbounded;
-    MachineDiagnostic diagnostic = compiler_machine_pipeline_MachineCodeBuildFeatures(*source,
+    MachineDiagnostic diagnostic = compiler_machine_pipeline_MachineCodeBuildFeatures(*lir,
         native_target(), compiler_machine_ir_MachineDefaultLimits(), &code->owner, features, unbounded != 0);
     if(diagnostic.problem != MachineProblem_None) {
+        ZxDebugOwner debug = {0};
+        LirProgram restored;
+        const LirProgram *source = lir;
+        if(diagnostic.problem == MachineProblem_Assembly && ExecBundleDebugProgram(bundle, &debug)) {
+            restored = compiler_exec_debug_ZxDebugProgram(&debug);
+            source = &restored;
+        }
         const LirFunction *functions = source->functions.data;
         const LirFunction *function = diagnostic.function >= 0 && diagnostic.function < source->functions.length
             ? &functions[diagnostic.function] : NULL;
@@ -484,7 +483,6 @@ native_compile(const ExecBundle *bundle, int unbounded, uint64_t features, char 
         native_free_code(code);
         return NULL;
     }
-    compiler_exec_debug_ZxDebugFree(&debug);
     MachineImage image = compiler_machine_pipeline_MachineCodeImageView(&code->owner);
     if(!native_check_image(bundle, lir, image, problem, capacity)) {
         native_free_code(code);
@@ -917,10 +915,10 @@ native_cpu_features(void)
 
 static void
 native_slot_prepare(NativeBundleSlot *slot, const ExecBundle *bundle,
-                    const unsigned char bundle_digest[32], int unbounded)
+                    const unsigned char program_identity[32], int unbounded)
 {
     unsigned char digest[32];
-    native_variant_digest(bundle_digest, unbounded, digest);
+    native_variant_digest(program_identity, unbounded, digest);
     pthread_mutex_lock(&native_lock);
     if(!slot->ready) {
         uint64_t lookup_started = ProfileStart();
@@ -966,19 +964,20 @@ native_slot_prepare(NativeBundleSlot *slot, const ExecBundle *bundle,
 
 const NativeBundleCode *
 NativeBundleSlotCode(NativeBundleSlot *slot, const ExecBundle *bundle,
-                     const unsigned char digest[32], int unbounded)
+                     int unbounded)
 {
-    if(slot == NULL || bundle == NULL || digest == NULL) return NULL;
-    native_slot_prepare(slot, bundle, digest, unbounded);
+    const unsigned char *identity = ExecBundleProgramIdentity(bundle);
+    if(slot == NULL || identity == NULL) return NULL;
+    native_slot_prepare(slot, bundle, identity, unbounded);
     return slot->code;
 }
 
 const char *
-NativeBundleSlotProblem(NativeBundleSlot *slot, const ExecBundle *bundle,
-                        const unsigned char digest[32])
+NativeBundleSlotProblem(NativeBundleSlot *slot, const ExecBundle *bundle)
 {
-    if(slot == NULL || bundle == NULL || digest == NULL) return "assembly.native.input: no bundle";
-    native_slot_prepare(slot, bundle, digest, 0);
+    const unsigned char *identity = ExecBundleProgramIdentity(bundle);
+    if(slot == NULL || identity == NULL) return "assembly.native.input: no bundle";
+    native_slot_prepare(slot, bundle, identity, 0);
     return slot->problem;
 }
 
@@ -1198,11 +1197,32 @@ native_trap_problem(uint32_t code)
 static void native_trap_site_in(const NativeInstance *instance, const MachineNativeOwner *owner,
                                 char *text, size_t capacity);
 
-/* Code read from the disk cache has no machine program; the trap compiles
- * one to name its site, which costs a compile on this slow path only. */
+/* Debug origins are per bundle. Rebuild the diagnostic map on the trap path
+ * so cached code can be shared without sharing source locations. */
 static void
 native_trap_site(const NativeInstance *instance, char *text, size_t capacity)
 {
+    ZxDebugOwner debug = {0};
+    int mapped = 0;
+    if(ExecBundleDebugProgram(instance->bundle, &debug)) {
+        LirProgram lir = compiler_exec_debug_ZxDebugProgram(&debug);
+        MachineNativeOwner named = {0};
+        MachineDiagnostic diagnostic = compiler_machine_pipeline_MachineCodeBuildFeatures(lir,
+            native_target(), compiler_machine_ir_MachineDefaultLimits(), &named,
+            instance->code->cpu, instance->unbounded != 0);
+        if(diagnostic.problem == MachineProblem_None) {
+            MachineImage image = compiler_machine_pipeline_MachineCodeImageView(&named);
+            const Slice code = instance->code->image.code.bytes;
+            if(image.code.bytes.length == code.length &&
+               memcmp(image.code.bytes.data, code.data, (size_t)code.length) == 0) {
+                native_trap_site_in(instance, &named, text, capacity);
+                mapped = 1;
+            }
+        }
+        compiler_machine_pipeline_MachineNativeFree(&named);
+    }
+    compiler_exec_debug_ZxDebugFree(&debug);
+    if(mapped) return;
     if(instance->code->compiled) {
         native_trap_site_in(instance, &instance->code->owner, text, capacity);
         return;

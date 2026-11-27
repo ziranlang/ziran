@@ -144,7 +144,7 @@ typedef struct BundleCapabilityAbi {
     int reads_arguments;
 } BundleCapabilityAbi;
 
-/* Open, verify and plan a revision-28 executable ZX file. Close releases all
+/* Open, verify and plan a revision-29 executable ZX file. Close releases all
  * names. */
 Bundle *BundleOpen(const char *path);
 /* Validate an embedded/downloaded bundle without an application pathname.
@@ -161,7 +161,7 @@ Bundle *BundleOpenOwnedBytes(const unsigned char *data, size_t size,
 /* Fill exactly size bytes at the absolute image offset and return size.
  * A different count fails verification. Return zero for a read error. */
 typedef size_t (*BundleReadAt)(void *context, uint64_t offset, void *output, size_t size);
-/* Opens a revision-28 app image of at most 256 MiB using bounded positional
+/* Opens a revision-29 app image of at most 256 MiB using bounded positional
  * reads. Keep the source stable during this call. The callback and context
  * are borrowed synchronously, and the verified bundle owns its decoded data.
  * On failure returns NULL. If given, unsupported is set to 1 only for a
@@ -191,6 +191,7 @@ int BundleCapabilityAbiAt(const Bundle *bundle, size_t index,
 int BundleAbiCompatible(const Bundle *left, const Bundle *right);
 const char *BundleEntryModuleName(const Bundle *bundle);
 const char *BundleEntryFunctionName(const Bundle *bundle);
+/* SHA-256 of the complete bundle file, including attachments. */
 void BundleCodeIdentity(const Bundle *bundle, unsigned char identity[32]);
 
 /* Embedded files have canonical relative paths and immutable bytes. Names and
@@ -223,11 +224,10 @@ BundleInstance *BundleInstantiateLimited(const Bundle *bundle,
                                          const HostBinding *bindings,
                                          size_t binding_count, int max_steps);
 /* Select one backend for the whole instance before initialization. Engine and
- * Native are strict. Auto is fixed by the platform: Wasm in a browser, Native
- * only after that CPU backend is declared complete, and Engine otherwise.
- * Native x86-64 is strict-only while its parity work remains incomplete. A
- * program-preflight, compile, relocation, initialization, trap, or host
- * failure is never retried on another backend. */
+ * Native are strict. Auto uses Wasm when the browser's provider is active,
+ * Native on Linux x86-64 and on AArch64 or ARMv7 under Linux or Android, and
+ * Engine elsewhere. A program-preflight, compile, relocation, initialization,
+ * trap, or host failure is never retried on another backend. */
 BundleInstance *BundleInstantiateWithOptions(
     const Bundle *bundle, const HostBinding *bindings, size_t binding_count,
     const BundleInstanceOptions *options);
@@ -253,9 +253,9 @@ BundleInstance *BundleInstantiateControlled(
     const BundleInstanceOptions *options, BundleConsoleWrite write, void *context,
     const ZxRunControl *control, ZxRunStatus *status);
 BundleExecutionBackend BundleInstanceBackend(const BundleInstance *instance);
-/* Native preflight: compiles the bundle for this host on first use, sharing
- * code with any open bundle of the same content. An empty string when it
- * runs natively, else a diagnostic whose first word is its stable code. */
+/* Native preflight: compiles the verified program for this host on first use,
+ * sharing code when the instruction payload and native compilation settings
+ * match. An empty string when it runs natively, else a diagnostic. */
 const char *BundleNativeProblem(const Bundle *bundle);
 int BundleInstanceRun(BundleInstance *instance, long long *result,
                       int *has_result);

@@ -793,6 +793,11 @@ ExecBundleProgram :: (bundle: *ExecBundle) -> *void {
 }
 
 #program_export
+ExecBundleProgramIdentity :: (bundle: *ExecBundle) -> *u8 {
+    return ifx bundle != null && bundle.engine_only == 0 then *bundle.owner.identity[0] else null
+}
+
+#program_export
 ExecBundleRequiresAssembly :: (bundle: *ExecBundle) -> s32 {
     return ifx bundle != null && LIR.LirAssemblyRequiredFunction(bundle.program) >= 0 then 1 else 0
 }

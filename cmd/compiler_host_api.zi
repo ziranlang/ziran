@@ -172,8 +172,8 @@ ZxWasmLimitSteps :: (wasm: *void, max_steps: s64) #foreign compiler "ZxWasmLimit
 ZxWasmMatchFieldsByName :: (wasm: *void, enabled: s32) #foreign compiler "ZxWasmMatchFieldsByName";
 ZxWasmClose :: (wasm: *void) #foreign compiler "ZxWasmClose";
 ZxWasmPlatformActive :: () -> *void #foreign compiler "ZxWasmPlatformActive";
-NativeBundleSlotCode :: (slot: *NativeBundleSlot, bundle: *void, digest: *u8, unbounded: s32) -> *void #foreign compiler "NativeBundleSlotCode";
-NativeBundleSlotProblem :: (slot: *NativeBundleSlot, bundle: *void, digest: *u8) -> *u8 #foreign compiler "NativeBundleSlotProblem";
+NativeBundleSlotCode :: (slot: *NativeBundleSlot, bundle: *void, unbounded: s32) -> *void #foreign compiler "NativeBundleSlotCode";
+NativeBundleSlotProblem :: (slot: *NativeBundleSlot, bundle: *void) -> *u8 #foreign compiler "NativeBundleSlotProblem";
 NativeBundleSlotClose :: (slot: *NativeBundleSlot) #foreign compiler "NativeBundleSlotClose";
 NativeInstanceOpen :: (code: *void, bundle: *void, find: FindBinding, context: *void, max_steps: s64) -> *void #foreign compiler "NativeInstanceOpen";
 NativeInstanceRun :: (instance: *void, result: *s64, has_result: *s32) -> s32 #foreign compiler "NativeInstanceRun";
@@ -620,7 +620,7 @@ OpenBackend :: (instance: *BundleInstance, bundle: *Bundle, selected: s32, max_s
         instance.backend = EXECUTION_WASM
     } else if selected == NativePlatformBackend() {
         slot := ifx unbounded != 0 then *bundle.unbounded else *bundle.native
-        code := NativeBundleSlotCode(slot, bundle.exec, *bundle.digest[0], unbounded)
+        code := NativeBundleSlotCode(slot, bundle.exec, unbounded)
         if code == null { return false }
         instance.native = NativeInstanceOpen(code, bundle.exec, FindBindingIn, context, cast(s64)max_steps)
         instance.backend = selected
@@ -644,7 +644,7 @@ BundleTargetProblem :: (bundle: *Bundle, selected: s32, unbounded: s32) -> *u8 {
         return CStr("the ZX program requires a compatible native assembly implementation before initialization")
     }
     slot := ifx unbounded != 0 then *bundle.unbounded else *bundle.native
-    if NativeBundleSlotCode(slot, bundle.exec, *bundle.digest[0], unbounded) != null { return null }
+    if NativeBundleSlotCode(slot, bundle.exec, unbounded) != null { return null }
     if slot.problem[0] != 0 { return *slot.problem[0] }
     return CStr("the selected platform has no compatible native assembly backend")
 }
@@ -761,7 +761,7 @@ BundleInstanceBackend :: (instance: *BundleInstance) -> s32 {
 BundleNativeProblem :: (bundle: *Bundle) -> *u8 {
     if bundle == null { return CStr("assembly.native.input: no bundle") }
     if bundle.engine_only != 0 { return CStr("assembly.native.input: this bundle requires the instruction engine") }
-    return NativeBundleSlotProblem(*bundle.native, bundle.exec, *bundle.digest[0])
+    return NativeBundleSlotProblem(*bundle.native, bundle.exec)
 }
 
 #program_export

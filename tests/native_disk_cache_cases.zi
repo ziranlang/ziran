@@ -120,6 +120,14 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !NativeAssert(*test, warm.code == 0 && warm.output == engine.output && Counted(warm, "native_cache_disk_hit") &&
         !Counted(warm, "native_cache_disk_store"), "a warm run did not map the stored entry") { return 1 }
 
+    debug := CheckPath(test.work, "records-debug.zx")
+    debug_build := string.[tool, "--debug", "--root", spec, "--module-path", std, "--entry", "zx_lowered_records:main",
+        "-o", debug, CheckPath(spec, "zx_lowered_records.zi")]
+    unused NativeRun(*test, debug_build[:])
+    debug_run := DiskRunWith(*test, tool, debug, cache, "debug-warm")
+    if !NativeAssert(*test, debug_run.code == 0 && debug_run.output == engine.output && Counted(debug_run, "native_cache_disk_hit") &&
+        OnlyEntry(cache) == entry, "a debug attachment changed the native cache identity") { return 1 }
+
     // A writer that died before its rename leaves only a temporary file.
     abandoned := CheckConcat(entry[0:entry.count - 4], ".tmp.abcdef")
     if !NativeWrite(*test, abandoned, "half an entry") { return 1 }
@@ -157,7 +165,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         plain_warm.output == engine.output && Counted(plain_warm, "native_cache_disk_hit") && OnlyEntry(plain_cache) != "",
         "a tool without a build ID did not store and map its entry") { return 1 }
 
-    // A trap in code read from disk still names its function.
+    // Cached code names its function and uses this bundle's source locations.
     trap := CheckPath(test.work, "trap.zx")
     trap_build := string.[tool, "--checks", "--root", spec, "--module-path", std, "--entry", "std_string_bad:main",
         "-o", trap, CheckPath(spec, "std_string_bad.zi")]
@@ -169,6 +177,14 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !NativeAssert(*test, first.code != 0 && second.code == first.code && stored != "" && OnlyEntry(trap_cache) == stored &&
         TextContains(second.error, "native execution failed in main") && TextContains(second.error, "function=main"),
         CheckConcat("a trap in cached code lost its site: ", second.error)) { return 1 }
+    debug_trap := CheckPath(test.work, "trap-debug.zx")
+    debug_trap_build := string.[tool, "--checks", "--debug", "--root", spec, "--module-path", std, "--entry", "std_string_bad:main",
+        "-o", debug_trap, CheckPath(spec, "std_string_bad.zi")]
+    unused NativeRun(*test, debug_trap_build[:])
+    third := DiskRunWith(*test, tool, debug_trap, trap_cache, "trap-debug-warm")
+    if !NativeAssert(*test, third.code == first.code && OnlyEntry(trap_cache) == stored &&
+        !TextContains(second.error, "std_string_bad.zi:") && TextContains(third.error, "std_string_bad.zi:"),
+        CheckConcat("a trap in cached code lost its own source location: ", third.error)) { return 1 }
 
     // Cold runs racing on one directory all agree and leave one entry.
     shared := CheckPath(test.work, "shared-cache")

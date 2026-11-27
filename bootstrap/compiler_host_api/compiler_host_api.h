@@ -784,14 +784,14 @@ void* zir_foreign_compiler_host_api__ZxWasmPlatformActive(void) __asm__("_ZxWasm
 void* zir_foreign_compiler_host_api__ZxWasmPlatformActive(void) __asm__("ZxWasmPlatformActive");
 #endif
 #ifdef __APPLE__
-void* zir_foreign_compiler_host_api__NativeBundleSlotCode(NativeBundleSlot* slot, void* bundle, uint8_t* digest, int32_t unbounded) __asm__("_NativeBundleSlotCode");
+void* zir_foreign_compiler_host_api__NativeBundleSlotCode(NativeBundleSlot* slot, void* bundle, int32_t unbounded) __asm__("_NativeBundleSlotCode");
 #else
-void* zir_foreign_compiler_host_api__NativeBundleSlotCode(NativeBundleSlot* slot, void* bundle, uint8_t* digest, int32_t unbounded) __asm__("NativeBundleSlotCode");
+void* zir_foreign_compiler_host_api__NativeBundleSlotCode(NativeBundleSlot* slot, void* bundle, int32_t unbounded) __asm__("NativeBundleSlotCode");
 #endif
 #ifdef __APPLE__
-uint8_t* zir_foreign_compiler_host_api__NativeBundleSlotProblem(NativeBundleSlot* slot, void* bundle, uint8_t* digest) __asm__("_NativeBundleSlotProblem");
+uint8_t* zir_foreign_compiler_host_api__NativeBundleSlotProblem(NativeBundleSlot* slot, void* bundle) __asm__("_NativeBundleSlotProblem");
 #else
-uint8_t* zir_foreign_compiler_host_api__NativeBundleSlotProblem(NativeBundleSlot* slot, void* bundle, uint8_t* digest) __asm__("NativeBundleSlotProblem");
+uint8_t* zir_foreign_compiler_host_api__NativeBundleSlotProblem(NativeBundleSlot* slot, void* bundle) __asm__("NativeBundleSlotProblem");
 #endif
 #ifdef __APPLE__
 void zir_foreign_compiler_host_api__NativeBundleSlotClose(NativeBundleSlot* slot) __asm__("_NativeBundleSlotClose");

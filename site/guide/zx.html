@@ -6,7 +6,7 @@
 <div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#loading-libraries">Loading libraries</a><a href="#running-bundles">Running bundles</a><a href="#learning">Learning</a><a href="#writing-bundles">Writing bundles</a><a href="#embedding">Embedding</a><a href="#target-contract">Target contract</a><a href="#component-identity-state-and-replacement">Component identity, state, and replacement</a><a href="#webassembly-execution-tier">WebAssembly execution tier</a><a href="#embedded-files-and-application-hosts">Embedded files and application hosts</a></aside><div class="article-body">
 <section class="prose"><p>The file roles are <code>.zi</code> for source, <code>.zir</code> for checked intermediate modules,
 and <code>.zx</code> for portable applications and libraries. The portable tool is <code>zi2zx</code>,
-and its target name is <code>zx</code>. Revision-28 executable ZX contains verified
+and its target name is <code>zx</code>. Revision-29 executable ZX contains verified
 lowered instructions, assets and the names its embedder sees.
 The normative byte contract is
 <a href="https://github.com/ziranlang/ziran/blob/master/ASSEMBLY/zx-executable-format.md">the executable format specification</a>; see
@@ -205,10 +205,12 @@ storage grows on demand under that same limit. Without these settings, frame
 storage always grows on demand.</p>
 <p>Compiled native code is cached on disk in <code>$XDG_CACHE_HOME/ziran/native</code>, or
 <code>~/.cache/ziran/native</code> without it, so a later run in another process maps the
-code instead of compiling it again. An entry is keyed by the bundle's content,
-the CPU's features and the build of the compiler that made it. It is checked
-against that key and its SHA-256 digest before it is used, and a damaged entry
-is removed and rebuilt. <code>ZIRAN_NATIVE_CACHE=DIR</code> uses another directory and
+code instead of compiling it again. The key covers the verified instruction
+program, including its assembly templates, the target and ABI, effective CPU
+features and the compiler build. Bundles that differ only in debug attachments
+share compiled code and retain their own diagnostic locations. The loader
+checks the key and SHA-256 digest before using an entry and rebuilds damaged
+entries. <code>ZIRAN_NATIVE_CACHE=DIR</code> uses another directory and
 <code>ZIRAN_NATIVE_CACHE=off</code> turns the cache off.</p>
 <p>Set <code>ZIRAN_PROFILE</code> to an absolute output filename to write a JSON timing
 record at normal process exit. <code>zx.bundle.open</code> covers portable bundle

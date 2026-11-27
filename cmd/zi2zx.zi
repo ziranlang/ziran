@@ -97,7 +97,7 @@ NoSpan :: () -> IR.ZirSourceSpan {
 
 Usage :: () {
     Diagnostic(NoSpan(), CStr("command.arguments"),
-            CStr("usage: zi2zx [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--retain module:function] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function [--target zx|wasm] [--opt] [--debug] [--checks] [--thorough|--quickest] [--emit zx|lir|opt-report] -o FILE file.zi|file.ts|file.tsx|file.zir ...\n       zi2zx --library NAME --export module:function [--export module:function ...] [ZX build options] -o FILE file.zi|file.ts|file.tsx|file.zir ...\n       ZX module options: [--require-module INTERFACE=NAME] [--import module:function=INTERFACE:EXPORT]\n       zi2zx [--emit zx|lir|linkage] -o FILE file.zx\n       zi2zx run [--backend native|engine] [--module-root DIR | --module-image NAME=SHA256=FILE]... file.zx\n       zi2zx run [--backend native|engine] [--module-root DIR]... [ZX build options] [--root DIR] [--entry module:function] file.zi ...\nrun uses native code on linux-x86_64, linux-aarch64 and linux-armv7 and the portable engine elsewhere; a bundle\nnative code cannot run fails before it starts with a named gap, and nothing falls back to the engine\n"))
+            CStr("usage: zi2zx [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--retain module:function] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function [--target zx|wasm] [--opt] [--debug] [--checks] [--thorough|--quickest] [--emit zx|lir|opt-report] -o FILE file.zi|file.ts|file.tsx|file.zir ...\n       zi2zx --library NAME --export module:function [--export module:function ...] [ZX build options] -o FILE file.zi|file.ts|file.tsx|file.zir ...\n       ZX module options: [--require-module INTERFACE=NAME] [--import module:function=INTERFACE:EXPORT]\n       zi2zx [--emit zx|lir|linkage] -o FILE file.zx\n       zi2zx run [--backend native|engine] [--module-root DIR | --module-image NAME=SHA256=FILE]... file.zx\n       zi2zx run [--backend native|engine] [--module-root DIR]... [ZX build options] [--root DIR] [--entry module:function] file.zi ...\nrun defaults to native code on Linux x86-64 and on AArch64 and ARMv7 under Linux or Android.\nOther hosts default to the portable instruction engine. A backend that cannot run a bundle\nreports an error before initialization. An incompatible target-only bundle is rejected.\n"))
 }
 
 RunOptions :: struct { backend: s32; max_steps: s32; unbounded: s32 }
@@ -907,9 +907,7 @@ RunCommand :: (argc: s32, argv: **u8) -> s32 {
     explicit_backend: bool = false
     fuel_given: bool = false
     native_steps: s32 = 0
-    /* The platform decides the default, never the bundle: native code on
-     * linux-x86_64, linux-aarch64 and linux-armv7, where a native gap is a
-     * named error. */
+    // The platform policy chooses the default before the bundle is loaded.
     backend: s32 = Host.POLICY_AUTO
     if AutoPlatformBackend() >= 3 { backend = Host.POLICY_NATIVE }
     limits := Exec.LirExecDefaultLimits()

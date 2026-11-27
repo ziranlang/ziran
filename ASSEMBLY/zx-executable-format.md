@@ -175,9 +175,9 @@ program. The portable engine and Wasm reject a nonzero count before loading
 initializers. The native compiler checks architecture, OS, ABI and usable CPU
 features. Its first eligible template wins in declaration order. With no
 eligible optional template it compiles the portable body for the requested
-native backend. Native cache identity includes the required program identity,
-compiler/backend revision and effective target features. Source maps and
-origins remain optional attachments.
+native backend. Native code is cached by the required program identity,
+compiler/backend revision, architecture, OS, ABI and effective CPU features.
+The loader uses source maps and origins from optional attachments for diagnostics.
 
 Outer validation uses the caller's `LirLimits` as well as the inner codec and
 verifier. The reader rejects a container larger than `limits.bytes` before

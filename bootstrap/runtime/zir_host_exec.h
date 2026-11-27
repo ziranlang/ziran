@@ -30,6 +30,8 @@ ExecBundle *ExecBundleOpenReadAt(uint64_t size, BundleReadAt read_at, void *cont
 void ExecBundleClose(ExecBundle *bundle);
 /* The verified program, a `const LirProgram *`, or NULL for an engine-only bundle. */
 const void *ExecBundleProgram(const ExecBundle *bundle);
+/* Verified SHA-256 identity of the stripped instruction payload. */
+const unsigned char *ExecBundleProgramIdentity(const ExecBundle *bundle);
 /* The program with the file's optional debug attachment, its source texts
  * and origins, restored into DEBUG, a `ZxDebugOwner *` that borrows the
  * bundle's program. False when the file has none or it does not belong to

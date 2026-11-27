@@ -6940,7 +6940,7 @@ compiler_host_api_OpenBackend(BundleInstance* instance, Bundle* bundle, int32_t 
                 value_5 = &(bundle->native);
             }
             NativeBundleSlot* slot = value_5;
-            void* code = zir_foreign_compiler_host_api__NativeBundleSlotCode(slot, bundle->exec, &(bundle->digest[0]), unbounded);
+            void* code = zir_foreign_compiler_host_api__NativeBundleSlotCode(slot, bundle->exec, unbounded);
             if (code == ((void *)0)) {
                 return false;
             }
@@ -6994,7 +6994,7 @@ compiler_host_api_BundleTargetProblem(Bundle* bundle, int32_t selected, int32_t 
         value_3 = &(bundle->native);
     }
     NativeBundleSlot* slot = value_3;
-    void* value_4 = zir_foreign_compiler_host_api__NativeBundleSlotCode(slot, bundle->exec, &(bundle->digest[0]), unbounded);
+    void* value_4 = zir_foreign_compiler_host_api__NativeBundleSlotCode(slot, bundle->exec, unbounded);
     if (value_4 != ((void *)0)) {
         return (void *)0;
     }
@@ -7383,7 +7383,7 @@ BundleNativeProblem(Bundle* bundle)
         }
         return value_4;
     }
-    return zir_foreign_compiler_host_api__NativeBundleSlotProblem(&(bundle->native), bundle->exec, &(bundle->digest[0]));
+    return zir_foreign_compiler_host_api__NativeBundleSlotProblem(&(bundle->native), bundle->exec);
 }
 
 int32_t

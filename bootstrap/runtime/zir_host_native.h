@@ -26,14 +26,13 @@ typedef struct NativeBundleSlot {
  * execution cannot run this bundle. UNBOUNDED code has no fuel checks, so
  * its instances take no step limit; a slot holds one kind. */
 const NativeBundleCode *NativeBundleSlotCode(NativeBundleSlot *slot, const ExecBundle *bundle,
-                                             const unsigned char digest[32], int unbounded);
+                                             int unbounded);
 /* "" when the code exists, else the stable preflight diagnostic. */
-const char *NativeBundleSlotProblem(NativeBundleSlot *slot, const ExecBundle *bundle,
-                                    const unsigned char digest[32]);
+const char *NativeBundleSlotProblem(NativeBundleSlot *slot, const ExecBundle *bundle);
 void NativeBundleSlotClose(NativeBundleSlot *slot);
 
-/* Instances name their own bundle: code is shared between bundles of the
- * same content, while host bindings and capability lookups are per bundle.
+/* Instances name their own bundle: code is shared between bundles with the
+ * same verified program. Host bindings and capability lookups are per bundle.
  * Initializers run here; a trap in one prints its diagnostic. */
 NativeInstance *NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
                                    NativeFindBinding find, void *context,

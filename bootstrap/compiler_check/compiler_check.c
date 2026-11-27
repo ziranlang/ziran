@@ -757,15 +757,21 @@ compiler_check_file_scope_symbol_visible(ZirModule* module, uint8_t* name)
                                 if (!check_loop_15) {
                                     break;
                                 }
-                                bool value_10 = pass == 0 || (scope->defines[d]).is_public != 0;
+                                bool value_10 = pass == 0;
                                 bool value_11 = value_10;
-                                if (value_11) {
-                                    bool value_12 = pass != 0;
-                                    bool value_13 = value_12 || private_check_in_lookup_file(module, (scope->defines[d]).is_file_private, (scope->defines[d]).span) != 0;
-                                    value_11 = value_13;
+                                if (!value_11) {
+                                    bool value_12 = compiler_ir_PackageVisible(module, scope, (scope->defines[d]).is_public, (scope->defines[d]).is_package_private, (scope->defines[d]).is_file_private);
+                                    value_11 = (value_12 != false);
                                 }
-                                bool value_14 = value_11;
-                                if (value_14 && zir_foreign_compiler_check__strcmp((uint8_t*)(&((scope->defines[d]).name)), name) == 0) {
+                                bool value_13 = value_11;
+                                bool value_14 = value_13;
+                                if (value_14) {
+                                    bool value_15 = pass != 0;
+                                    bool value_16 = value_15 || private_check_in_lookup_file(module, (scope->defines[d]).is_file_private, (scope->defines[d]).span) != 0;
+                                    value_14 = value_16;
+                                }
+                                bool value_17 = value_14;
+                                if (value_17 && zir_foreign_compiler_check__strcmp((uint8_t*)(&((scope->defines[d]).name)), name) == 0) {
                                     return 1;
                                 }
                                 compiler_check_types_CheckPost0(&(d));
@@ -778,15 +784,21 @@ compiler_check_file_scope_symbol_visible(ZirModule* module, uint8_t* name)
                                 if (!check_loop_16) {
                                     break;
                                 }
-                                bool value_15 = pass == 0 || (scope->functions[f]).is_public != 0;
-                                bool value_16 = value_15;
-                                if (value_16) {
-                                    bool value_17 = pass != 0;
-                                    bool value_18 = value_17 || private_check_in_lookup_file(module, (scope->functions[f]).is_file_private, (scope->functions[f]).span) != 0;
-                                    value_16 = value_18;
+                                bool value_18 = pass == 0;
+                                bool value_19 = value_18;
+                                if (!value_19) {
+                                    bool value_20 = compiler_ir_PackageVisible(module, scope, (scope->functions[f]).is_public, (scope->functions[f]).is_package_private, (scope->functions[f]).is_file_private);
+                                    value_19 = (value_20 != false);
                                 }
-                                bool value_19 = value_16;
-                                if (value_19 && zir_foreign_compiler_check__strcmp((uint8_t*)(&((scope->functions[f]).name)), name) == 0) {
+                                bool value_21 = value_19;
+                                bool value_22 = value_21;
+                                if (value_22) {
+                                    bool value_23 = pass != 0;
+                                    bool value_24 = value_23 || private_check_in_lookup_file(module, (scope->functions[f]).is_file_private, (scope->functions[f]).span) != 0;
+                                    value_22 = value_24;
+                                }
+                                bool value_25 = value_22;
+                                if (value_25 && zir_foreign_compiler_check__strcmp((uint8_t*)(&((scope->functions[f]).name)), name) == 0) {
                                     return 1;
                                 }
                                 compiler_check_types_CheckPost0(&(f));
@@ -799,15 +811,21 @@ compiler_check_file_scope_symbol_visible(ZirModule* module, uint8_t* name)
                                 if (!check_loop_17) {
                                     break;
                                 }
-                                bool value_20 = pass == 0 || (scope->types[t]).is_public != 0;
-                                bool value_21 = value_20;
-                                if (value_21) {
-                                    bool value_22 = pass != 0;
-                                    bool value_23 = value_22 || private_check_in_lookup_file(module, (scope->types[t]).is_file_private, (scope->types[t]).span) != 0;
-                                    value_21 = value_23;
+                                bool value_26 = pass == 0;
+                                bool value_27 = value_26;
+                                if (!value_27) {
+                                    bool value_28 = compiler_ir_PackageVisible(module, scope, (scope->types[t]).is_public, (scope->types[t]).is_package_private, (scope->types[t]).is_file_private);
+                                    value_27 = (value_28 != false);
                                 }
-                                bool value_24 = value_21;
-                                if (value_24 && zir_foreign_compiler_check__strcmp((uint8_t*)(&((scope->types[t]).name)), name) == 0) {
+                                bool value_29 = value_27;
+                                bool value_30 = value_29;
+                                if (value_30) {
+                                    bool value_31 = pass != 0;
+                                    bool value_32 = value_31 || private_check_in_lookup_file(module, (scope->types[t]).is_file_private, (scope->types[t]).span) != 0;
+                                    value_30 = value_32;
+                                }
+                                bool value_33 = value_30;
+                                if (value_33 && zir_foreign_compiler_check__strcmp((uint8_t*)(&((scope->types[t]).name)), name) == 0) {
                                     return 1;
                                 }
                                 compiler_check_types_CheckPost0(&(t));
@@ -829,10 +847,10 @@ compiler_check_file_scope_symbol_visible(ZirModule* module, uint8_t* name)
             if (!check_loop_18) {
                 break;
             }
-            bool value_25 = (int32_t)(((ZirImportKind)((module->imports[i]).kind))) == 2;
-            bool value_26 = value_25 && private_check_in_lookup_file(module, (module->imports[i]).is_file_private, (module->imports[i]).span) != 0;
-            bool value_27 = value_26;
-            if (value_27 && zir_foreign_compiler_check__strcmp((uint8_t*)(&((module->imports[i]).name)), name) == 0) {
+            bool value_34 = (int32_t)(((ZirImportKind)((module->imports[i]).kind))) == 2;
+            bool value_35 = value_34 && private_check_in_lookup_file(module, (module->imports[i]).is_file_private, (module->imports[i]).span) != 0;
+            bool value_36 = value_35;
+            if (value_36 && zir_foreign_compiler_check__strcmp((uint8_t*)(&((module->imports[i]).name)), name) == 0) {
                 return 1;
             }
             compiler_check_types_CheckPost0(&(i));
@@ -1126,30 +1144,36 @@ private_check_check_file_scope_enum_names(ZirModule* module, ZirFunction* expres
                                                 }
                                                 ZirType* type = (ZirType*)(((size_t)(scope->types) + ((size_t)(t) * sizeof(ZirType))));
                                                 int64_t value = 0;
-                                                bool value_9 = pass != 0 && !(type->is_public != 0);
+                                                bool value_9 = pass != 0;
                                                 bool value_10 = value_9;
-                                                if (!value_10) {
-                                                    bool value_11 = pass == 0;
-                                                    bool value_12 = value_11;
-                                                    if (value_12) {
-                                                        bool value_13 = private_check_in_lookup_file(module, type->is_file_private, type->span) != 0;
-                                                        value_12 = !value_13;
+                                                if (value_10) {
+                                                    bool value_11 = compiler_ir_PackageVisible(module, scope, type->is_public, type->is_package_private, type->is_file_private);
+                                                    value_10 = !(value_11 != false);
+                                                }
+                                                bool value_12 = value_10;
+                                                bool value_13 = value_12;
+                                                if (!value_13) {
+                                                    bool value_14 = pass == 0;
+                                                    bool value_15 = value_14;
+                                                    if (value_15) {
+                                                        bool value_16 = private_check_in_lookup_file(module, type->is_file_private, type->span) != 0;
+                                                        value_15 = !value_16;
                                                     }
-                                                    value_10 = value_12;
+                                                    value_13 = value_15;
                                                 }
-                                                bool value_14 = value_10 || !(type->is_enum != 0);
-                                                bool value_15 = value_14;
-                                                if (!value_15) {
-                                                    bool value_16 = zir_foreign_compiler_check__EnumMemberValue(type, (uint8_t*)node->name, &(value)) != 0;
-                                                    value_15 = !value_16;
+                                                bool value_17 = value_13 || !(type->is_enum != 0);
+                                                bool value_18 = value_17;
+                                                if (!value_18) {
+                                                    bool value_19 = zir_foreign_compiler_check__EnumMemberValue(type, (uint8_t*)node->name, &(value)) != 0;
+                                                    value_18 = !value_19;
                                                 }
-                                                if (value_15) {
+                                                if (value_18) {
                                                     compiler_check_types_CheckPost0(&(t));
                                                     goto zir_loop_continue_4;
                                                 }
-                                                uint8_t* value_17 = compiler_check_types_CheckCString(StringLiteral("check.enum_scope"));
-                                                uint8_t* value_18 = compiler_check_types_CheckCString(StringLiteral("enum member needs a type qualifier or using: %s"));
-                                                zir_foreign_compiler_check__Diagnostic(span, value_17, value_18, (uint8_t*)node->name);
+                                                uint8_t* value_20 = compiler_check_types_CheckCString(StringLiteral("check.enum_scope"));
+                                                uint8_t* value_21 = compiler_check_types_CheckCString(StringLiteral("enum member needs a type qualifier or using: %s"));
+                                                zir_foreign_compiler_check__Diagnostic(span, value_20, value_21, (uint8_t*)node->name);
                                                 return 0;
                                             }
                                             zir_loop_continue_4: ;
@@ -2522,24 +2546,30 @@ private_check_bind(Checker* c, uint8_t* name, uint8_t* type, ZirSourceSpan span)
                                 if (!check_loop_44) {
                                     break;
                                 }
-                                bool value_8 = pass == 0 || (scope->defines[d]).is_public != 0;
+                                bool value_8 = pass == 0;
                                 bool value_9 = value_8;
-                                if (value_9) {
-                                    bool value_10 = pass != 0;
-                                    bool value_11 = value_10 || private_check_in_lookup_file(c->module, (scope->defines[d]).is_file_private, (scope->defines[d]).span) != 0;
-                                    value_9 = value_11;
+                                if (!value_9) {
+                                    bool value_10 = compiler_ir_PackageVisible(c->module, scope, (scope->defines[d]).is_public, (scope->defines[d]).is_package_private, (scope->defines[d]).is_file_private);
+                                    value_9 = (value_10 != false);
                                 }
-                                bool value_12 = value_9;
-                                bool value_13 = value_12;
-                                if (value_13) {
-                                    bool value_14 = zir_foreign_compiler_check__strcmp((uint8_t*)(&((scope->defines[d]).name)), name) != 0;
-                                    value_13 = !value_14;
+                                bool value_11 = value_9;
+                                bool value_12 = value_11;
+                                if (value_12) {
+                                    bool value_13 = pass != 0;
+                                    bool value_14 = value_13 || private_check_in_lookup_file(c->module, (scope->defines[d]).is_file_private, (scope->defines[d]).span) != 0;
+                                    value_12 = value_14;
                                 }
-                                if (value_13) {
-                                    Checker* value_15 = c;
-                                    ZirSourceSpan value_16 = span;
-                                    uint8_t* value_17 = compiler_check_types_CheckCString(StringLiteral("binding shadows a compile-time definition"));
-                                    private_check_error(value_15, value_16, value_17, name);
+                                bool value_15 = value_12;
+                                bool value_16 = value_15;
+                                if (value_16) {
+                                    bool value_17 = zir_foreign_compiler_check__strcmp((uint8_t*)(&((scope->defines[d]).name)), name) != 0;
+                                    value_16 = !value_17;
+                                }
+                                if (value_16) {
+                                    Checker* value_18 = c;
+                                    ZirSourceSpan value_19 = span;
+                                    uint8_t* value_20 = compiler_check_types_CheckCString(StringLiteral("binding shadows a compile-time definition"));
+                                    private_check_error(value_18, value_19, value_20, name);
                                     return;
                                 }
                                 compiler_check_types_CheckPost0(&(d));
@@ -2561,70 +2591,70 @@ private_check_bind(Checker* c, uint8_t* name, uint8_t* type, ZirSourceSpan span)
             if (!check_loop_45) {
                 break;
             }
-            bool value_18 = !((c->bindings[i]).is_using_namespace != 0);
-            bool value_19 = value_18;
-            if (value_19) {
-                bool value_20 = zir_foreign_compiler_check__strcmp((uint8_t*)(&(((c->bindings[i]).name).items)), name) != 0;
-                value_19 = !value_20;
+            bool value_21 = !((c->bindings[i]).is_using_namespace != 0);
+            bool value_22 = value_21;
+            if (value_22) {
+                bool value_23 = zir_foreign_compiler_check__strcmp((uint8_t*)(&(((c->bindings[i]).name).items)), name) != 0;
+                value_22 = !value_23;
             }
-            if (value_19) {
-                Checker* value_21 = c;
-                ZirSourceSpan value_22 = span;
-                uint8_t* value_23 = compiler_check_types_CheckCString(StringLiteral("duplicate binding"));
-                private_check_error(value_21, value_22, value_23, name);
+            if (value_22) {
+                Checker* value_24 = c;
+                ZirSourceSpan value_25 = span;
+                uint8_t* value_26 = compiler_check_types_CheckCString(StringLiteral("duplicate binding"));
+                private_check_error(value_24, value_25, value_26, name);
                 return;
             }
             compiler_check_types_CheckPost9(&(i));
         }
     }
     if (c->count == c->capacity) {
-        int32_t value_24 = 0;
+        int32_t value_27 = 0;
         if (c->capacity != 0) {
-            value_24 = (int32_t)((uint32_t)(c->capacity) * 2u);
+            value_27 = (int32_t)((uint32_t)(c->capacity) * 2u);
         } else {
-            value_24 = 32;
+            value_27 = 32;
         }
-        int32_t size = value_24;
-        void* value_25 = zir_foreign_compiler_check__CompilerRealloc((void*)(c->bindings), (size_t)(((uint64_t)((uint64_t)((size_t)(size)) * (uint64_t)(sizeof(Binding))))));
-        Binding* next = (Binding*)(value_25);
+        int32_t size = value_27;
+        void* value_28 = zir_foreign_compiler_check__CompilerRealloc((void*)(c->bindings), (size_t)(((uint64_t)((uint64_t)((size_t)(size)) * (uint64_t)(sizeof(Binding))))));
+        Binding* next = (Binding*)(value_28);
         if (!(next != ((void *)0))) {
             compiler_check_types_CheckPost0(&(c->errors));
-            int32_t* value_26 = &(c->failed);
-            (*value_26) = 1;
+            int32_t* value_29 = &(c->failed);
+            (*value_29) = 1;
             return;
         }
-        Binding** value_27 = &(c->bindings);
-        (*value_27) = next;
-        int32_t* value_28 = &(c->capacity);
-        (*value_28) = size;
+        Binding** value_30 = &(c->bindings);
+        (*value_30) = next;
+        int32_t* value_31 = &(c->capacity);
+        (*value_31) = size;
     }
     zir_foreign_compiler_check__copy_text((uint8_t*)(&(((c->bindings[c->count]).name).items)), (size_t)(128LL), name);
     zir_foreign_compiler_check__copy_text((uint8_t*)(&(((c->bindings[c->count]).type).items)), (size_t)(128LL), type);
-    ZirSourceSpan* value_29 = &((c->bindings[c->count]).span);
-    (*value_29) = span;
-    uint8_t* value_30 = &((((c->bindings[c->count]).using_path).items)[0]);
-    (*value_30) = 0;
-    int32_t* value_31 = &((c->bindings[c->count]).depth);
-    (*value_31) = c->depth;
-    int32_t* value_32 = &((c->bindings[c->count]).is_using_namespace);
-    (*value_32) = 0;
-    int32_t* value_33 = &((c->bindings[c->count]).is_enum_namespace);
+    ZirSourceSpan* value_32 = &((c->bindings[c->count]).span);
+    (*value_32) = span;
+    uint8_t* value_33 = &((((c->bindings[c->count]).using_path).items)[0]);
     (*value_33) = 0;
-    int32_t* value_34 = &((c->bindings[c->count]).root_index);
-    (*value_34) = -1;
-    int32_t* value_35 = &((c->bindings[c->count]).moved);
+    int32_t* value_34 = &((c->bindings[c->count]).depth);
+    (*value_34) = c->depth;
+    int32_t* value_35 = &((c->bindings[c->count]).is_using_namespace);
     (*value_35) = 0;
-    int32_t* value_36 = &((c->bindings[c->count]).moved_path_count);
+    int32_t* value_36 = &((c->bindings[c->count]).is_enum_namespace);
     (*value_36) = 0;
-    int32_t* value_37 = &((c->bindings[c->count]).touched);
-    (*value_37) = 0;
-    int32_t* value_38 = &((c->bindings[c->count]).borrow_count);
+    int32_t* value_37 = &((c->bindings[c->count]).root_index);
+    (*value_37) = -1;
+    int32_t* value_38 = &((c->bindings[c->count]).moved);
     (*value_38) = 0;
-    int32_t* value_39 = &((c->bindings[c->count]).borrows_index);
-    (*value_39) = -1;
-    int32_t value_40 = compiler_check_types_CheckPost0(&(c->count));
-    uint8_t* value_41 = &((((c->bindings[value_40]).using_filter).items)[0]);
+    int32_t* value_39 = &((c->bindings[c->count]).moved_path_count);
+    (*value_39) = 0;
+    int32_t* value_40 = &((c->bindings[c->count]).touched);
+    (*value_40) = 0;
+    int32_t* value_41 = &((c->bindings[c->count]).borrow_count);
     (*value_41) = 0;
+    int32_t* value_42 = &((c->bindings[c->count]).borrows_index);
+    (*value_42) = -1;
+    int32_t value_43 = compiler_check_types_CheckPost0(&(c->count));
+    uint8_t* value_44 = &((((c->bindings[value_43]).using_filter).items)[0]);
+    (*value_44) = 0;
 }
 
 static uint8_t*

@@ -88,6 +88,46 @@ compiler_ir_HostProviderVisible(ZirFunction* function)
 }
 
 bool
+compiler_ir_SamePackage(ZirModule* viewer, ZirModule* owner)
+{
+    if (viewer == ((void *)0) || owner == ((void *)0)) {
+        return false;
+    }
+    String value_0 = compiler_ir_CText(&(viewer->package[0]));
+    return StringEqual(value_0, compiler_ir_CText(&(owner->package[0])));
+}
+
+bool
+compiler_ir_PackageVisible(ZirModule* viewer, ZirModule* owner, int32_t is_public, int32_t is_package_private, int32_t is_file_private)
+{
+    if (is_file_private != 0) {
+        return false;
+    }
+    if (is_public != 0) {
+        return true;
+    }
+    bool value_0 = is_package_private != 0;
+    if (value_0) {
+        ZirModule* value_1 = viewer;
+        ZirModule* value_2 = owner;
+        bool value_3 = false;
+        {
+            ZirModule* viewer = value_1;
+            ZirModule* owner = value_2;
+            if (viewer == ((void *)0) || owner == ((void *)0)) {
+                value_3 = false;
+                goto value_4;
+            }
+            String value_5 = compiler_ir_CText(&(viewer->package[0]));
+            value_3 = StringEqual(value_5, compiler_ir_CText(&(owner->package[0])));
+        value_4: ;
+        }
+        value_0 = value_3;
+    }
+    return value_0;
+}
+
+bool
 compiler_ir_CaptureEnvironmentBinding(ZirFunction* function)
 {
     if ((function->capture_environment)[0] == 0) {

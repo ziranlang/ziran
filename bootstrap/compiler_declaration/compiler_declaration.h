@@ -93,6 +93,14 @@ typedef struct PrintRewrite PrintRewrite;
 #define ZIRAN_TYPE_FORWARD_StatementOutput
 typedef struct StatementOutput StatementOutput;
 #endif
+#ifndef ZIRAN_TYPE_FORWARD_BuilderPrintPiece
+#define ZIRAN_TYPE_FORWARD_BuilderPrintPiece
+typedef struct BuilderPrintPiece BuilderPrintPiece;
+#endif
+#ifndef ZIRAN_TYPE_FORWARD_BuilderPrintScan
+#define ZIRAN_TYPE_FORWARD_BuilderPrintScan
+typedef struct BuilderPrintScan BuilderPrintScan;
+#endif
 #ifdef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
 #ifndef ZIRAN_TYPE_FORWARD_QuotedText
 #define ZIRAN_TYPE_FORWARD_QuotedText
@@ -345,6 +353,18 @@ struct PrintRewrite {
 struct StatementOutput {
     Slice bytes;
 };
+
+struct BuilderPrintPiece {
+    bool literal;
+    String text;
+    int32_t argument;
+};
+
+struct BuilderPrintScan {
+    DeclarationError error;
+    int32_t count;
+    BuilderPrintPiece pieces[64];
+};
 #ifdef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
 
 struct QuotedText {
@@ -392,6 +412,8 @@ TextRewrite compiler_declaration_RewriteLocalNames(String source, Slice names, S
 SymmetricRewrite compiler_declaration_RewriteSymmetric(String source, Slice header_output, Slice wrapper_output, int64_t name_limit);
 bool compiler_declaration_PrintfSpelling(String format, bool loose);
 int32_t FormatPrintfSpelling(uint8_t* format, int32_t loose);
+void compiler_declaration_BuilderPrintLiteral(Slice output, int64_t* used, String text);
+BuilderPrintScan compiler_declaration_ScanPrintFormat(String format, int32_t arguments);
 PrintRewrite compiler_declaration_BuilderPrintPieces(String source, Slice output, int32_t maximum);
 
 /* Small procedures other modules inline; compiler_declaration.c defines them. */

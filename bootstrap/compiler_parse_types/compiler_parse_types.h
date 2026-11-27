@@ -357,6 +357,7 @@ struct DeferredLine {
     int32_t line_no;
     int32_t scope_public;
     int32_t scope_file;
+    int32_t scope_package;
 };
 
 struct DeferredLines {
@@ -437,6 +438,7 @@ struct LoadFrame {
     int32_t have_look;
     int32_t scope_public;
     int32_t scope_file;
+    int32_t scope_package;
     int32_t in_block_comment;
     int32_t conditional_depth;
     int32_t inserting;
@@ -600,6 +602,7 @@ struct ZirDeferredType {
     int32_t line;
     int32_t is_public;
     int32_t is_file_private;
+    int32_t is_package_private;
 };
 
 struct ZirDeferredTypes {

@@ -734,7 +734,7 @@ resolve_function_uncached :: (module: *IR.ZirModule, name: *u8, source_path: *u8
                     f: s32 = 0
                     while check_loop_6 := (f < (target).function_count) {
                         candidate: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)((target).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
-                        if (((candidate).is_public != 0) && !(strcmp(cast(*u8)(*((candidate).name)), cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8))) != 0)) {
+                        if ((IR.PackageVisible(module, target, (candidate).is_public, (candidate).is_package_private, (candidate).is_file_private)) && !(strcmp(cast(*u8)(*((candidate).name)), cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8))) != 0)) {
                             if (((function)[0] != cast(*IR.ZirFunction)((null))) && ((function)[0] != candidate)) {
                                 ParserSet5(owner, null)
                                 ParserSet6(function, null)
@@ -752,7 +752,7 @@ resolve_function_uncached :: (module: *IR.ZirModule, name: *u8, source_path: *u8
                 if (status < 0) {
                     return (-1)
                 }
-                if (((status > 0) && ((nested).is_public != 0)) && !((nested).is_file_private != 0)) {
+                if (((status > 0) && (IR.PackageVisible(module, nested_owner, (nested).is_public, (nested).is_package_private, (nested).is_file_private) != false))) {
                     if (((function)[0] != cast(*IR.ZirFunction)((null))) && ((function)[0] != nested)) {
                         return (-1)
                     }
@@ -766,9 +766,9 @@ resolve_function_uncached :: (module: *IR.ZirModule, name: *u8, source_path: *u8
             target: *IR.ZirModule = reachable_module(module, name, alias_length)
             {
                 f: s32 = 0
-                while check_loop_7 := ((target != cast(*IR.ZirModule)((null))) && (f < (target).function_count)) {
-                    candidate: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)((target).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
-                    if ((((candidate).is_public != 0) && !((candidate).is_file_private != 0)) && !(strcmp(cast(*u8)(*((candidate).name)), cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8))) != 0)) {
+                    while check_loop_7 := ((target != cast(*IR.ZirModule)((null))) && (f < (target).function_count)) {
+                        candidate: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)((target).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
+                        if ((IR.PackageVisible(module, target, (candidate).is_public, (candidate).is_package_private, (candidate).is_file_private)) && !(strcmp(cast(*u8)(*((candidate).name)), cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8))) != 0)) {
                         ParserSet5(owner, target)
                         ParserSet6(function, candidate)
                         break check_loop_7
@@ -825,7 +825,7 @@ resolve_function_uncached :: (module: *IR.ZirModule, name: *u8, source_path: *u8
                 f: s32 = 0
                 while check_loop_10 := (f < (imported).function_count) {
                     candidate: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)((imported).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
-                    if (!((candidate).is_public != 0) || (strcmp(cast(*u8)(*((candidate).name)), name) != 0)) {
+                    if ((!IR.PackageVisible(module, imported, (candidate).is_public, (candidate).is_package_private, (candidate).is_file_private)) || (strcmp(cast(*u8)(*((candidate).name)), name) != 0)) {
                         ParserPost2(*(f))
                         continue check_loop_10
                     }
@@ -845,7 +845,7 @@ resolve_function_uncached :: (module: *IR.ZirModule, name: *u8, source_path: *u8
             if (status < 0) {
                 return (-1)
             }
-            if (((status > 0) && ((nested).is_public != 0)) && !((nested).is_file_private != 0)) {
+            if (((status > 0) && (IR.PackageVisible(module, nested_owner, (nested).is_public, (nested).is_package_private, (nested).is_file_private) != false))) {
                 if (((function)[0] != cast(*IR.ZirFunction)((null))) && ((function)[0] != nested)) {
                     return (-1)
                 }
@@ -899,7 +899,7 @@ ForeignVisit :: struct {
     next: *ForeignVisit
 }
 
-ResolveForeignDepth :: (module: *IR.ZirModule, name: *u8, source_path: *u8,
+ResolveForeignDepth :: (module: *IR.ZirModule, viewer: *IR.ZirModule, name: *u8, source_path: *u8,
                         exported_only: bool, visits: *ForeignVisit,
                         owner: **IR.ZirModule, declaration: **IR.ZirImport) -> s32 {
     owner[0] = null; declaration[0] = null
@@ -916,7 +916,7 @@ ResolveForeignDepth :: (module: *IR.ZirModule, name: *u8, source_path: *u8,
             candidate := *module.imports[index]
             if candidate.kind != .EXTERN || strcmp(*candidate.name[0], name) != 0 ||
                file_scope_visible_at(source_path, candidate.is_file_private, candidate.span) == 0 ||
-               (exported_only && (candidate.is_public == 0 || candidate.is_file_private != 0)) { continue }
+               (exported_only && !(IR.PackageVisible(viewer, module, candidate.is_public, candidate.is_package_private, candidate.is_file_private))) { continue }
             if declaration[0] != null && declaration[0] != candidate { return -1 }
             owner[0] = module; declaration[0] = candidate
         }
@@ -926,7 +926,7 @@ ResolveForeignDepth :: (module: *IR.ZirModule, name: *u8, source_path: *u8,
         binding := *module.imports[index]
         if binding.resolved_module == null ||
            file_scope_visible_at(source_path, binding.is_file_private, binding.span) == 0 ||
-           (exported_only && binding.is_file_private != 0) { continue }
+           (exported_only && !(IR.PackageVisible(viewer, module, binding.is_public, binding.is_package_private, binding.is_file_private))) { continue }
         wanted := name
         if dot != null {
             length := cast(usize)dot - cast(usize)name
@@ -937,7 +937,7 @@ ResolveForeignDepth :: (module: *IR.ZirModule, name: *u8, source_path: *u8,
                     (binding.kind == .MODULE && binding.is_using != 0)) { continue }
         nested_owner: *IR.ZirModule = null
         nested: *IR.ZirImport = null
-        status := ResolveForeignDepth(binding.resolved_module, wanted, null, true, *visit,
+        status := ResolveForeignDepth(binding.resolved_module, viewer, wanted, null, true, *visit,
                                       *nested_owner, *nested)
         if status < 0 || (status > 0 && declaration[0] != null && declaration[0] != nested) { return -1 }
         if status > 0 { owner[0] = nested_owner; declaration[0] = nested }
@@ -949,7 +949,7 @@ ResolveForeignDepth :: (module: *IR.ZirModule, name: *u8, source_path: *u8,
 #program_export "ResolveForeignImportAt"
 ResolveForeignImportAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8,
                           owner: **IR.ZirModule, declaration: **IR.ZirImport) -> s32 {
-    return ResolveForeignDepth(module, name, source_path, false, null, owner, declaration)
+    return ResolveForeignDepth(module, module, name, source_path, false, null, owner, declaration)
 }
 
 
@@ -1304,7 +1304,7 @@ imported_type :: (module: *IR.ZirModule, name: *u8, alias: *u8, alias_length: us
                         continue check_loop_23
                     }
                     declared = 1
-                    if !((candidate).is_public != 0) {
+                    if (!IR.PackageVisible(module, scope, (candidate).is_public, (candidate).is_package_private, (candidate).is_file_private)) {
                         ParserPost2(*(i))
                         continue check_loop_23
                     }
@@ -1324,7 +1324,7 @@ imported_type :: (module: *IR.ZirModule, name: *u8, alias: *u8, alias_length: us
                 i: s32 = 0
                 while check_loop_24 := (i < (scope).import_count) {
                     import_local: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)((scope).imports) + cast(usize)(i) * size_of(IR.ZirImport))
-                    if ((((!((import_local).is_using != 0) || !((import_local).is_public != 0)) || ((import_local).is_file_private != 0)) || ((cast(s32)((import_local).kind) != cast(s32)(1)) && (cast(s32)((import_local).kind) != cast(s32)(2)))) || ((import_local).resolved_module == cast(*IR.ZirModule)((null)))) {
+                    if ((((!((import_local).is_using != 0) || (!IR.PackageVisible(module, scope, (import_local).is_public, (import_local).is_package_private, (import_local).is_file_private))) || ((import_local).is_file_private != 0)) || ((cast(s32)((import_local).kind) != cast(s32)(1)) && (cast(s32)((import_local).kind) != cast(s32)(2)))) || ((import_local).resolved_module == cast(*IR.ZirModule)((null)))) {
                         ParserPost2(*(i))
                         continue check_loop_24
                     }
@@ -1382,7 +1382,7 @@ find_type :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.Zi
             i: s32 = 0
             while check_loop_25 := ((target != cast(*IR.ZirModule)((null))) && (i < (target).type_count)) {
                 candidate: *IR.ZirType = cast(*IR.ZirType)(cast(usize)((target).types) + cast(usize)(i) * size_of(IR.ZirType))
-                if ((((candidate).is_public != 0) && !((candidate).is_file_private != 0)) && !(strcmp(cast(*u8)(*((candidate).name)), cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8))) != 0)) {
+                if ((IR.PackageVisible(module, target, (candidate).is_public, (candidate).is_package_private, (candidate).is_file_private)) && !(strcmp(cast(*u8)(*((candidate).name)), cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8))) != 0)) {
                     type = candidate
                     scope = target
                     break check_loop_25
@@ -1405,7 +1405,7 @@ find_type :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.Zi
 
 
 #scope_file
-exported_define_uncached :: (module: *IR.ZirModule, name: *u8, depth: s32, definition: **IR.ZirDefine, owner: **IR.ZirModule, visits: **DefineVisit) -> s32 {
+exported_define_uncached :: (viewer: *IR.ZirModule, module: *IR.ZirModule, name: *u8, depth: s32, definition: **IR.ZirDefine, owner: **IR.ZirModule, visits: **DefineVisit) -> s32 {
     if (depth >= 32) {
         return (-1)
     }
@@ -1415,7 +1415,7 @@ exported_define_uncached :: (module: *IR.ZirModule, name: *u8, depth: s32, defin
         d: s32 = 0
         while check_loop_26 := (d < (module).define_count) {
             candidate: *IR.ZirDefine = cast(*IR.ZirDefine)(cast(usize)((module).defines) + cast(usize)(d) * size_of(IR.ZirDefine))
-            if ((!((candidate).is_public != 0) || ((candidate).is_file_private != 0)) || (strcmp(cast(*u8)(*((candidate).name)), name) != 0)) {
+            if ((!IR.PackageVisible(viewer, module, (candidate).is_public, (candidate).is_package_private, (candidate).is_file_private)) || (strcmp(cast(*u8)(*((candidate).name)), name) != 0)) {
                 ParserPost2(*(d))
                 continue check_loop_26
             }
@@ -1434,13 +1434,13 @@ exported_define_uncached :: (module: *IR.ZirModule, name: *u8, depth: s32, defin
         i: s32 = 0
         while check_loop_27 := (i < (module).import_count) {
             import_local: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)((module).imports) + cast(usize)(i) * size_of(IR.ZirImport))
-            if (((!((import_local).is_using != 0) || !((import_local).is_public != 0)) || ((import_local).is_file_private != 0)) || ((import_local).resolved_module == cast(*IR.ZirModule)((null)))) {
+            if (((!((import_local).is_using != 0) || (!IR.PackageVisible(viewer, module, (import_local).is_public, (import_local).is_package_private, (import_local).is_file_private))) || ((import_local).is_file_private != 0)) || ((import_local).resolved_module == cast(*IR.ZirModule)((null)))) {
                 ParserPost2(*(i))
                 continue check_loop_27
             }
             candidate: *IR.ZirDefine = null
             candidate_owner: *IR.ZirModule = null
-            found: s32 = exported_define_depth((import_local).resolved_module, name, (depth + 1), *(candidate), *(candidate_owner), visits)
+            found: s32 = exported_define_depth(viewer, (import_local).resolved_module, name, (depth + 1), *(candidate), *(candidate_owner), visits)
             if ((found < 0) || (((found == 1) && ((definition)[0] != cast(*IR.ZirDefine)((null)))) && ((definition)[0] != candidate))) {
                 return (-1)
             }
@@ -1456,7 +1456,7 @@ exported_define_uncached :: (module: *IR.ZirModule, name: *u8, depth: s32, defin
 
 
 #scope_file
-exported_define_depth :: (module: *IR.ZirModule, name: *u8, depth: s32, definition: **IR.ZirDefine, owner: **IR.ZirModule, visits: **DefineVisit) -> s32 {
+exported_define_depth :: (viewer: *IR.ZirModule, module: *IR.ZirModule, name: *u8, depth: s32, definition: **IR.ZirDefine, owner: **IR.ZirModule, visits: **DefineVisit) -> s32 {
     {
         visit: *DefineVisit = (visits)[0]
         while check_loop_28 := (visit != cast(*DefineVisit)((null))) {
@@ -1472,7 +1472,7 @@ exported_define_depth :: (module: *IR.ZirModule, name: *u8, depth: s32, definiti
     visit: *DefineVisit = cast(*DefineVisit)((ifx ((pool).used < 96) then cast(*void)(cast(*DefineVisit)(cast(usize)(cast(*DefineVisit)(*(((pool).local).items))) + cast(usize)(ParserPost2(*((pool).used))) * size_of(DefineVisit))) else AllocateOrExit(cast(usize)size_of(DefineVisit))))
     ParserSet14(visit, DefineVisit.{module, depth, 0, null, null, (visits)[0]})
     ParserSet15(visits, visit)
-    (visit).status = exported_define_uncached(module, name, depth, *((visit).definition), *((visit).owner), visits)
+    (visit).status = exported_define_uncached(viewer, module, name, depth, *((visit).definition), *((visit).owner), visits)
     ParserSet13(definition, (visit).definition)
     ParserSet5(owner, (visit).owner)
     return (visit).status
@@ -1480,7 +1480,7 @@ exported_define_depth :: (module: *IR.ZirModule, name: *u8, depth: s32, definiti
 
 
 #scope_file
-define_once :: (once: *DefineOnces, module: *IR.ZirModule, depth: s32, definition: **IR.ZirDefine, owner: **IR.ZirModule, height: *s32) -> s32 {
+define_once :: (once: *DefineOnces, viewer: *IR.ZirModule, module: *IR.ZirModule, depth: s32, definition: **IR.ZirDefine, owner: **IR.ZirModule, height: *s32) -> s32 {
     if (depth >= 32) {
         return 2
     }
@@ -1515,7 +1515,7 @@ define_once :: (once: *DefineOnces, module: *IR.ZirModule, depth: s32, definitio
         d: s32 = 0
         while check_loop_30 := ((d < (module).define_count) && (status == 0)) {
             candidate: *IR.ZirDefine = cast(*IR.ZirDefine)(cast(usize)((module).defines) + cast(usize)(d) * size_of(IR.ZirDefine))
-            if ((!((candidate).is_public != 0) || ((candidate).is_file_private != 0)) || (strcmp(cast(*u8)(*((candidate).name)), (once).name) != 0)) {
+            if ((!IR.PackageVisible(viewer, module, (candidate).is_public, (candidate).is_package_private, (candidate).is_file_private)) || (strcmp(cast(*u8)(*((candidate).name)), (once).name) != 0)) {
                 ParserPost2(*(d))
                 continue check_loop_30
             }
@@ -1535,14 +1535,14 @@ define_once :: (once: *DefineOnces, module: *IR.ZirModule, depth: s32, definitio
         i: s32 = 0
         while check_loop_31 := ((i < (module).import_count) && (status == 0)) {
             import_local: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)((module).imports) + cast(usize)(i) * size_of(IR.ZirImport))
-            if (((!((import_local).is_using != 0) || !((import_local).is_public != 0)) || ((import_local).is_file_private != 0)) || ((import_local).resolved_module == cast(*IR.ZirModule)((null)))) {
+            if (((!((import_local).is_using != 0) || (!IR.PackageVisible(viewer, module, (import_local).is_public, (import_local).is_package_private, (import_local).is_file_private))) || ((import_local).is_file_private != 0)) || ((import_local).resolved_module == cast(*IR.ZirModule)((null)))) {
                 ParserPost2(*(i))
                 continue check_loop_31
             }
             candidate: *IR.ZirDefine = null
             candidate_owner: *IR.ZirModule = null
             below: s32 = 0
-            result: s32 = define_once(once, (import_local).resolved_module, (depth + 1), *(candidate), *(candidate_owner), *(below))
+            result: s32 = define_once(once, viewer, (import_local).resolved_module, (depth + 1), *(candidate), *(candidate_owner), *(below))
             if (result == 2) {
                 return 2
             }
@@ -1577,11 +1577,11 @@ define_once :: (once: *DefineOnces, module: *IR.ZirModule, depth: s32, definitio
 
 
 #scope_file
-exported_define_by_depth :: (module: *IR.ZirModule, name: *u8, depth: s32, definition: **IR.ZirDefine, owner: **IR.ZirModule) -> s32 {
+exported_define_by_depth :: (viewer: *IR.ZirModule, module: *IR.ZirModule, name: *u8, depth: s32, definition: **IR.ZirDefine, owner: **IR.ZirModule) -> s32 {
     visits: DefineVisits
     (visits).head = null
     (visits).used = 0
-    status: s32 = exported_define_depth(module, name, depth, definition, owner, *((visits).head))
+    status: s32 = exported_define_depth(viewer, module, name, depth, definition, owner, *((visits).head))
     {
         visit: *DefineVisit = (visits).head
         while check_loop_32 := (visit != cast(*DefineVisit)((null))) {
@@ -1597,16 +1597,16 @@ exported_define_by_depth :: (module: *IR.ZirModule, name: *u8, depth: s32, defin
 
 
 #scope_file
-exported_define :: (module: *IR.ZirModule, name: *u8, depth: s32, definition: **IR.ZirDefine, owner: **IR.ZirModule) -> s32 {
+exported_define :: (viewer: *IR.ZirModule, module: *IR.ZirModule, name: *u8, depth: s32, definition: **IR.ZirDefine, owner: **IR.ZirModule) -> s32 {
     once: DefineOnces
     (once).name = name
     (once).count = 0
     height: s32 = 0
-    status: s32 = define_once(*(once), module, depth, definition, owner, *(height))
+    status: s32 = define_once(*(once), viewer, module, depth, definition, owner, *(height))
     if (status != 2) {
         return status
     }
-    return exported_define_by_depth(module, name, depth, definition, owner)
+    return exported_define_by_depth(viewer, module, name, depth, definition, owner)
 }
 
 
@@ -1670,7 +1670,7 @@ resolve_define_uncached :: (module: *IR.ZirModule, name: *u8, definition: **IR.Z
                     } else {
                         candidate: *IR.ZirDefine = null
                         candidate_owner: *IR.ZirModule = null
-                        found: s32 = exported_define(scope, symbol, 0, *(candidate), *(candidate_owner))
+                        found: s32 = exported_define(module, scope, symbol, 0, *(candidate), *(candidate_owner))
                         if ((found < 0) || (((found == 1) && ((definition)[0] != cast(*IR.ZirDefine)((null)))) && ((definition)[0] != candidate))) {
                             return (-1)
                         }

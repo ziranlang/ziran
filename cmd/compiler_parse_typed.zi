@@ -949,11 +949,13 @@ evaluate_typed_node_with_buffers_in_state :: (evaluation: *EvaluationState, prob
                 if ((snprintf(cast(*u8)(*((qualified_storage_2[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("%s.%s"), (((probe).exprs)[(expression).left]).name, (expression).name) < cast(s32)(cast(usize)size_of(ParserArray128_u8))) && (evaluate_imported_typed_define_in_state(evaluation, module, path, cast(*u8)(*((qualified_storage_2[0]).items)), (depth + 1), fuel, result) != 0)) {
                     return 1
                 }
-                enumeration: *IR.ZirType = FindType(module, (((probe).exprs)[(expression).left]).name, null)
+                enum_owner: *IR.ZirModule = null
+                enumeration: *IR.ZirType = FindType(module, (((probe).exprs)[(expression).left]).name, *enum_owner)
                 member_value: s64
-                if ((((law_evaluation[0] != 0) && (enumeration != cast(*IR.ZirType)((null)))) && ((enumeration).is_enum != 0)) && (EnumMemberValue(enumeration, (expression).name, *(member_value)) != 0)) {
+                if (((enumeration != cast(*IR.ZirType)((null))) && ((enumeration).is_enum != 0)) && (EnumMemberValue(enumeration, (expression).name, *(member_value)) != 0)) {
                     (result).kind = 1
                     (result).integer = cast(s64)(member_value)
+                    result.type_owner = enum_owner
                     copy_text(cast(*u8)(*(((result).type).items)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((enumeration).name)))
                     return compile_value_literal(result)
                 }
@@ -2847,6 +2849,10 @@ EvaluateCompileLiteral_in_state :: (evaluation: *EvaluationState, module: *IR.Zi
     if ((literal == cast(**u8)((null))) || !(evaluate_compile_value_in_state(evaluation, module, source, span, executing, *(fuel), *(value_storage_0[0])) != 0)) {
         return 0
     }
+    // Keep enum identity for ordinary expression checking. A bare integer
+    // literal would lose that identity, and type_owner here describes an
+    // aggregate literal for qualification, rather than an enum value.
+    if value_storage_0[0].kind == 1 && value_storage_0[0].type_owner != null { return 0 }
     S14ParserSet6(literal, KeepText(compile_literal(*(value_storage_0[0]))))
     if (type_owner != cast(**IR.ZirModule)((null))) {
         S14ParserSet8(type_owner, (value_storage_0[0]).type_owner)

@@ -2251,7 +2251,7 @@ try_conversion :: (c: *Checker, index: s32, to: *u8, span: IR.ZirSourceSpan) -> 
                             f: s32 = 0
                             while check_loop_187 := (f < ((import_local).resolved_module).function_count) {
                                 candidate: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)(((import_local).resolved_module).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
-                                if ((((candidate).is_conversion != 0) && ((candidate).is_public != 0)) && (conversion_matches(c, candidate, from, to) != 0)) {
+                                if ((((candidate).is_conversion != 0) && (IR.PackageVisible((c).module, (import_local).resolved_module, (candidate).is_public, (candidate).is_package_private, (candidate).is_file_private) != false)) && (conversion_matches(c, candidate, from, to) != 0)) {
                                     if ((conversion != cast(*IR.ZirFunction)((null))) && (conversion != candidate)) {
                                         error(c, span, CheckCString("ambiguous #as conversion"), to)
                                         return null

@@ -674,7 +674,7 @@ select_overload :: (c: *Checker, index: s32) {
                 f: s32 = 0
                 while check_loop_215 := (f < ((modules)[m]).function_count) {
                     fn: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)(((modules)[m]).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
-                    if ((strcmp(cast(*u8)(*((fn).overload_name)), cast(*u8)(*((base_storage_1[0]).items))) != 0) || (((modules)[m] != (c).module) && !((fn).is_public != 0))) {
+                    if ((strcmp(cast(*u8)(*((fn).overload_name)), cast(*u8)(*((base_storage_1[0]).items))) != 0) || (((modules)[m] != (c).module) && !(IR.PackageVisible((c).module, (modules)[m], (fn).is_public, (fn).is_package_private, (fn).is_file_private) != false))) {
                         CheckPost0(*(f))
                         continue check_loop_215
                     }
@@ -1246,7 +1246,7 @@ visible_operator :: (c: *Checker, name: *u8, callee: *u8, size: usize) -> s32 {
                 f: s32 = 0
                 while check_loop_230 := (f < (other).function_count) {
                     fn: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)((other).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
-                    if (!((fn).is_public != 0) || ((strcmp(cast(*u8)(*((fn).name)), name) != 0) && (strcmp(cast(*u8)(*((fn).overload_name)), name) != 0))) {
+                    if ((!IR.PackageVisible((c).module, other, (fn).is_public, (fn).is_package_private, (fn).is_file_private)) || ((strcmp(cast(*u8)(*((fn).name)), name) != 0) && (strcmp(cast(*u8)(*((fn).overload_name)), name) != 0))) {
                         CheckPost0(*(f))
                         continue check_loop_230
                     }
@@ -1288,7 +1288,7 @@ program_callable :: (c: *Checker, name: *u8) -> s32 {
             {
                 j: s32 = 0
                 while check_loop_232 := (j < (other).import_count) {
-                    if ((((cast(s32)((((other).imports)[j]).kind) == 3) && ((((other).imports)[j]).is_public != 0)) && !((((other).imports)[j]).is_file_private != 0)) && !(strcmp(cast(*u8)(*((((other).imports)[j]).name)), name) != 0)) {
+                    if (((cast(s32)((((other).imports)[j]).kind) == 3) && (IR.PackageVisible((c).module, other, (((other).imports)[j]).is_public, (((other).imports)[j]).is_package_private, (((other).imports)[j]).is_file_private) != false)) && !(strcmp(cast(*u8)(*((((other).imports)[j]).name)), name) != 0)) {
                         return 1
                     }
                     CheckPost0(*(j))
@@ -1513,7 +1513,7 @@ unresolved_detail :: (c: *Checker, name: *u8, procedures: s32, out: *u8, size: u
         if other == null || !unqualified || in_lookup_file(module, (imported).is_file_private, (imported).span) == 0 { continue }
         for f: 0..(other).function_count - 1 {
             candidate: *IR.ZirFunction = *((other).functions[f])
-            if (candidate).is_public != 0 && (candidate).is_specialization == 0 && (candidate).is_global_initializer == 0 {
+            if IR.PackageVisible(module, other, (candidate).is_public, (candidate).is_package_private, (candidate).is_file_private) != false && (candidate).is_specialization == 0 && (candidate).is_global_initializer == 0 {
                 consider_name(name, cast(*u8)*((candidate).name), *(best), *(choice))
             }
         }
@@ -1526,6 +1526,11 @@ unresolved_detail :: (c: *Checker, name: *u8, procedures: s32, out: *u8, size: u
         return out
     }
     if (choice == cast(*u8)((null))) {
+        hidden := package_private_declaring(module, name)
+        if hidden != null {
+            snprintf(out, size, CheckCString("%s (package-private in %s; export it with #scope_export to use it here)"), name, hidden)
+            return out
+        }
         standard := standard_module_declaring(name)
         if standard != "" {
             snprintf(out, size, CheckCString("%s (declared in std/%s; add #import \"std/%s\")"), name, CheckCString(standard), CheckCString(standard))
@@ -1536,6 +1541,39 @@ unresolved_detail :: (c: *Checker, name: *u8, procedures: s32, out: *u8, size: u
     CheckSet12(replacement, choice)
     snprintf(out, size, CheckCString("%s (did you mean %s?)"), name, choice)
     return out
+}
+
+#scope_file
+package_private_declaring :: (module: *IR.ZirModule, name: *u8) -> *u8 {
+    dot: *u8 = null
+    scan: *u8 = name
+    while (scan)[0] != 0 {
+        if (scan)[0] == 46 { dot = scan }
+        scan = cast(*u8)(cast(usize)(scan) + size_of(u8))
+    }
+    member: *u8 = ifx (dot == cast(*u8)((null))) then name else cast(*u8)(cast(usize)(dot) + cast(usize)1 * size_of(u8))
+    for i: 0..(module).import_count - 1 {
+        imported: *IR.ZirImport = *((module).imports[i])
+        other: *IR.ZirModule = (imported).resolved_module
+        if other == null || (cast(s32)((imported).kind) != 1 && cast(s32)((imported).kind) != 2) { continue }
+        if dot != null {
+            alias_length: usize = cast(usize)((cast(isize)(cast(usize)(dot) - cast(usize)(name)) / cast(isize)size_of(u8)))
+            if cast(s32)((imported).kind) != 2 || cast(usize)(CheckCStringLength(cast(*u8)*((imported).name))) != alias_length || strncmp(cast(*u8)*((imported).name), name, alias_length) != 0 { continue }
+        }
+        for f: 0..(other).function_count - 1 {
+            fn: *IR.ZirFunction = *((other).functions[f])
+            if (fn).is_package_private != 0 && (fn).is_public == 0 && strcmp(cast(*u8)*((fn).name), member) == 0 { return cast(*u8)*((other).name) }
+        }
+        for d: 0..(other).define_count - 1 {
+            def: *IR.ZirDefine = *((other).defines[d])
+            if (def).is_package_private != 0 && (def).is_public == 0 && strcmp(cast(*u8)*((def).name), member) == 0 { return cast(*u8)*((other).name) }
+        }
+        for t: 0..(other).type_count - 1 {
+            ty: *IR.ZirType = *((other).types[t])
+            if (ty).is_package_private != 0 && (ty).is_public == 0 && strcmp(cast(*u8)*((ty).name), member) == 0 { return cast(*u8)*((other).name) }
+        }
+    }
+    return null
 }
 
 #scope_file

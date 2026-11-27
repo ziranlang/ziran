@@ -962,7 +962,19 @@ compiler_zir_serial_describe_import_fields(void* input, Field* output)
         value_107 = (Field){.offset = (size_t)(member) - (size_t)(record), .size = size, .kind = kind};
     }
     (*value_104) = value_107;
-    return 22;
+    Field* value_109 = &(output[22]);
+    void* value_110 = (void*)(&(record->is_package_private));
+    size_t value_111 = sizeof(int32_t);
+    Field value_112 = {0};
+    {
+        void* record = input;
+        void* member = value_110;
+        size_t size = value_111;
+        FieldKind kind = (FieldKind)(FieldKind_Integer);
+        value_112 = (Field){.offset = (size_t)(member) - (size_t)(record), .size = size, .kind = kind};
+    }
+    (*value_109) = value_112;
+    return 23;
 }
 
 static size_t
@@ -1775,7 +1787,19 @@ compiler_zir_serial_describe_function_fields(void* input, Field* output)
         value_155 = (Field){.offset = (size_t)(member) - (size_t)(record), .size = size, .kind = kind};
     }
     (*value_152) = value_155;
-    return 32;
+    Field* value_157 = &(output[32]);
+    void* value_158 = (void*)(&(record->is_package_private));
+    size_t value_159 = sizeof(int32_t);
+    Field value_160 = {0};
+    {
+        void* record = input;
+        void* member = value_158;
+        size_t size = value_159;
+        FieldKind kind = (FieldKind)(FieldKind_Integer);
+        value_160 = (Field){.offset = (size_t)(member) - (size_t)(record), .size = size, .kind = kind};
+    }
+    (*value_157) = value_160;
+    return 33;
 }
 
 static size_t
@@ -1919,7 +1943,19 @@ compiler_zir_serial_describe_define_fields(void* input, Field* output)
         value_22 = (Field){.offset = (size_t)(member) - (size_t)(record), .size = size, .kind = kind};
     }
     (*value_19) = value_22;
-    return 5;
+    Field* value_24 = &(output[5]);
+    void* value_25 = (void*)(&(record->is_package_private));
+    size_t value_26 = sizeof(int32_t);
+    Field value_27 = {0};
+    {
+        void* record = input;
+        void* member = value_25;
+        size_t size = value_26;
+        FieldKind kind = (FieldKind)(FieldKind_Integer);
+        value_27 = (Field){.offset = (size_t)(member) - (size_t)(record), .size = size, .kind = kind};
+    }
+    (*value_24) = value_27;
+    return 6;
 }
 
 static size_t
@@ -2650,7 +2686,19 @@ compiler_zir_serial_describe_type_fields(void* input, Field* output)
         value_148 = (Field){.offset = (size_t)(member) - (size_t)(record), .size = size, .kind = kind};
     }
     (*value_145) = value_148;
-    return 30;
+    Field* value_150 = &(output[30]);
+    void* value_151 = (void*)(&(record->is_package_private));
+    size_t value_152 = sizeof(int32_t);
+    Field value_153 = {0};
+    {
+        void* record = input;
+        void* member = value_151;
+        size_t size = value_152;
+        FieldKind kind = (FieldKind)(FieldKind_Integer);
+        value_153 = (Field){.offset = (size_t)(member) - (size_t)(record), .size = size, .kind = kind};
+    }
+    (*value_150) = value_153;
+    return 31;
 }
 
 static int32_t
@@ -3067,7 +3115,19 @@ compiler_zir_serial_describe_module_fields(void* input, Field* output)
         value_18 = (Field){.offset = (size_t)(member) - (size_t)(record), .size = size, .kind = kind};
     }
     (*value_15) = value_18;
-    return 4;
+    Field* value_20 = &(output[4]);
+    void* value_21 = (void*)(&(record->package));
+    size_t value_22 = (128) * (sizeof(uint8_t));
+    Field value_23 = {0};
+    {
+        void* record = input;
+        void* member = value_21;
+        size_t size = value_22;
+        FieldKind kind = (FieldKind)(FieldKind_String);
+        value_23 = (Field){.offset = (size_t)(member) - (size_t)(record), .size = size, .kind = kind};
+    }
+    (*value_20) = value_23;
+    return 5;
 }
 
 static int32_t
@@ -6522,6 +6582,9 @@ compiler_zir_serial_validate_program(ZirProgram* program)
                     if (value_41 || ((module->imports[i]).is_file_private != 0 && (module->imports[i]).is_public != 0)) {
                         return 0;
                     }
+                    if ((module->imports[i]).is_package_private != 0 && ((module->imports[i]).is_package_private != 1 || (module->imports[i]).is_public != 0 || (module->imports[i]).is_file_private != 0)) {
+                        return 0;
+                    }
                     int32_t* value_42 = &(i);
                     int32_t value_43 = 0;
                     {
@@ -6570,6 +6633,9 @@ compiler_zir_serial_validate_program(ZirProgram* program)
                     if (((module->defines[d]).is_file_private != 0 && (module->defines[d]).is_file_private != 1) || ((module->defines[d]).is_file_private != 0 && (module->defines[d]).is_public != 0)) {
                         return 0;
                     }
+                    if ((module->defines[d]).is_package_private != 0 && ((module->defines[d]).is_package_private != 1 || (module->defines[d]).is_public != 0 || (module->defines[d]).is_file_private != 0)) {
+                        return 0;
+                    }
                     int32_t* value_51 = &(d);
                     int32_t value_52 = 0;
                     {
@@ -6591,6 +6657,9 @@ compiler_zir_serial_validate_program(ZirProgram* program)
                     }
                     ZirType* type = (ZirType*)(((size_t)(module->types) + ((size_t)(t) * sizeof(ZirType))));
                     if (type->requires_all_fields != 0 && type->requires_all_fields != 1) {
+                        return 0;
+                    }
+                    if (type->is_package_private != 0 && (type->is_package_private != 1 || type->is_public != 0 || type->is_file_private != 0)) {
                         return 0;
                     }
                     if (type->is_owned_callable != 0 || type->is_scoped_callable != 0) {
@@ -6873,6 +6942,9 @@ compiler_zir_serial_validate_program(ZirProgram* program)
                     }
                     {
                         if (function->is_native_arrow < 0 || function->is_native_arrow > 1) {
+                            return 0;
+                        }
+                        if (function->is_package_private != 0 && (function->is_package_private != 1 || function->is_public != 0 || function->is_file_private != 0)) {
                             return 0;
                         }
                         bool value_167 = (function->capture_environment)[0] != 0;
@@ -7230,7 +7302,7 @@ compiler_zir_serial_write_program(ZirProgram* program, Writer* out, int32_t vali
     bool value_9 = value_7;
     bool value_10 = value_9;
     if (!value_10) {
-        bool value_11 = compiler_zir_serial_write_version(out, 70) != 0;
+        bool value_11 = compiler_zir_serial_write_version(out, 71) != 0;
         value_10 = !value_11;
     }
     bool value_12 = value_10 || program->module_count < 0;
@@ -7339,7 +7411,7 @@ compiler_zir_serial_ProgramWriteQuiet(ZirProgram* program, void* out)
 int32_t
 compiler_zir_serial_ZirFormatVersion(void)
 {
-    return 70;
+    return 71;
 }
 
 static ZirProgram*
@@ -7391,7 +7463,7 @@ compiler_zir_serial_ProgramRead_in_context(void* in, uint8_t* path, int32_t vali
             if (!value_12) {
                 goto zir_loop_break_1;
             }
-            if (version != 70) {
+            if (version != 71) {
                 compiler_zir_serial_ParserArray1024_u8 reader_path = {0};
                 bool value_13 = zir_foreign_compiler_zir_serial__ExecutablePath((uint8_t*)(&(reader_path.items)), (size_t)(sizeof(compiler_zir_serial_ParserArray1024_u8))) != 0;
                 if (!value_13) {
@@ -7417,7 +7489,7 @@ compiler_zir_serial_ProgramRead_in_context(void* in, uint8_t* path, int32_t vali
                     uint8_t* value_22 = compiler_parse_types_ParserCString(StringLiteral(""));
                     value_21 = value_22;
                 }
-                zir_foreign_compiler_zir_serial__snprintf((uint8_t*)(&(mismatch.items)), (size_t)(sizeof(ParserArray2560_u8)), value_15, value_16, (uint8_t*)(&(reader_path.items)), 70, value_20, value_21);
+                zir_foreign_compiler_zir_serial__snprintf((uint8_t*)(&(mismatch.items)), (size_t)(sizeof(ParserArray2560_u8)), value_15, value_16, (uint8_t*)(&(reader_path.items)), 71, value_20, value_21);
                 uint8_t** value_23 = &(reader.problem);
                 (*value_23) = (uint8_t*)(&(mismatch.items));
                 goto zir_loop_break_1;

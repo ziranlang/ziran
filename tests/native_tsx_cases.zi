@@ -63,6 +63,7 @@ ZI
 
 TSX_PRIVATE_A :: "#scope_file\nCell :: struct($T: Type) { first: T; }\nLeaf :: struct { first: s32; }\n#scope_export\nPrivateA :: () -> s32 { item: Cell(Box(Leaf)) = .{first = .{value = .{first = 11}}}; return item.first.value.first }\n"
 TSX_PRIVATE_B :: "#scope_file\nCell :: struct($T: Type) { second: T; }\nLeaf :: struct { second: s32; }\n#scope_export\nPrivateB :: () -> s32 { item: Cell(Box(Leaf)) = .{second = .{value = .{second = 12}}}; return item.second.value.second }\n"
+TSX_OTHER_OPTION :: "Option :: struct($T: Type) { has_value: bool; value: T; }\n"
 
 TSX_GLOBAL_STATE :: #string ZI
 Native :: #import "domain";
@@ -129,6 +130,8 @@ import * as Facade from "generic_facade";
 import * as GenericProps from "generic_props";
 import { Scope } from "scope_component";
 import { Vec } from "std/vec";
+import { Option as Maybe } from "std/option";
+import * as OptionNamespace from "std/option";
 import { Owned, Scoped } from "std/callable";
 import { Text, TextCopy } from "std/vec";
 interface Props { value: number; other: number; }
@@ -165,6 +168,12 @@ function TextAction(): Owned<Domain.Action> {
     const label: Text = TextCopy("owned");
     return (value: number): number => value + number(TextView(label).count);
 }
+function FormatLabel(): string {
+    let line = nativeInit<Vec<u8>>({});
+    BuilderPrint(nativeRef(line), "% of % (%%) ratio % ok=%", s64(3), s64(8), 0.375, true);
+    BuilderPrint(nativeRef(line), " % % %", u8(200), u64(18446744073709551615n), s64(-42));
+    return BuilderFinish(line);
+}
 function Wrap(value: number): Holder<number> { return {value: value}; }
 export function main(): s32 {
     if (Logic.Globals() !== s32(23) || Logic.BumpGlobals() !== s32(2) || Logic.Globals() !== s32(24)) { return s32(30); }
@@ -175,11 +184,14 @@ export function main(): s32 {
     const genericFrame: GenericFrame = {slot: s32(40)};
     if (Facade.Draw(genericFrame, {value: s32(1)}) !== s32(42)) { return s32(25); }
     const snapshot: Domain.Model = Domain.Snapshot();
+    const initialized = nativeInit<Domain.Model>({value: 7});
+    const initializedBox = nativeInit<Domain.Box<Domain.Model>>({value: {id: u64(18446744073709551615n)}});
+    if (initialized.value !== 7 || initialized.id !== u64(0) || initializedBox.value.value !== 0 || initializedBox.value.id !== snapshot.id) { return s32(47); }
     if (Domain.CompositionValue() !== snapshot.value || Domain.Starts() !== s32(1)) { return s32(44); }
-    GlobalState.model = snapshot;
+    nativeSet(nativeRef(GlobalState.model), snapshot);
     GlobalState.models[s32(0)] = GlobalState.model;
-    GlobalState.model_ptr = nativeRef(GlobalState.model);
-    GlobalState.box = {value: snapshot};
+    nativeSet(nativeRef(GlobalState.model_ptr), nativeRef(GlobalState.model));
+    nativeSet(nativeRef(GlobalState.box), nativeInit<Domain.Box<Domain.Model>>({value: snapshot}));
     const globalModel: OtherAlias.Model = GlobalState.models[s32(0)];
     if (globalModel.value !== snapshot.value || GlobalState.model.value !== snapshot.value ||
         GlobalState.model_ptr.id !== snapshot.id || GlobalState.box.value.id !== snapshot.id ||
@@ -224,9 +236,9 @@ export function main(): s32 {
     }
     if (total !== 10) { return s32(8); }
     const values: [number, number, number, number] = [1, 2, 3, 4];
-    const view: number[] = nativeSlice(values);
-    const middle: number[] = nativeSlice(values, s32(1), s32(3));
-    const tail: number[] = nativeSlice(values, s32(3));
+    const view: NativeSlice<number> = nativeSlice(values);
+    const middle: NativeSlice<number> = nativeSlice(values, s32(1), s32(3));
+    const tail: NativeSlice<number> = nativeSlice(values, s32(3));
     if (view.count !== s64(4) || middle.count !== s64(2) || middle[s32(0)] !== 2 || tail[s32(0)] !== 4) { return s32(33); }
     let scalar: s32 = s32(2);
     nativeSet(nativeRef(scalar), s32(4));
@@ -234,6 +246,7 @@ export function main(): s32 {
     nativeSet(mutable, s64(1), s32(9));
     if (scalar !== s32(4) || nativeAt(mutable, s64(1)) !== s32(9) || nativeAt(values, s64(3)) !== 4 ||
         nativeAt("é", s64(0)) !== u8(195) || nativeAt("é", s64(1)) !== u8(169)) { return s32(46); }
+    if (FormatLabel() !== "3 of 8 (%) ratio 0.375 ok=true 200 18446744073709551615 -42") { return s32(49); }
     const flags: u64 = u64(1) << u64(63) | u64(3);
     if ((flags & u64(3)) !== u64(3) || (flags >> u64(63)) !== u64(1) ||
         (u32(1) | u32(2) & u32(4)) !== u32(1) ||
@@ -257,6 +270,9 @@ export function main(): s32 {
     if (!VecPush(owned, 4)) { return s32(16); }
     const make: Factory = (value: number): Holder<number> => Wrap(value);
     if (make(4).value !== 4 || owned.count !== s64(4)) { return s32(17); }
+    const firstItem: Maybe<number> = VecGet(owned, s64(0));
+    const popped: OptionNamespace.Option<number> = VecPop(owned);
+    if (!firstItem.has_value || firstItem.value !== 1 || !popped.has_value || popped.value !== 4 || owned.count !== s64(3)) { return s32(48); }
     const wrapped: Domain.Box<number> = Domain.Wrapped();
     const localBox: Box<number> = {local: 8};
     const logicBox: Logic.Box<number> = Logic.Wrapped();
@@ -510,6 +526,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         !NativeWrite(*test, CheckPath(root, "global_state.zi"), TSX_GLOBAL_STATE) ||
         !NativeWrite(*test, CheckPath(root, "private_a.zi"), TSX_PRIVATE_A) ||
         !NativeWrite(*test, CheckPath(root, "private_b.zi"), TSX_PRIVATE_B) ||
+        !NativeWrite(*test, CheckPath(root, "other_option.zi"), TSX_OTHER_OPTION) ||
         !NativeWrite(*test, CheckPath(root, "generic_facade.zi"), TSX_FACADE) ||
         !NativeWrite(*test, CheckPath(root, "generic_widget.zi"), TSX_GENERIC_WIDGET) ||
         !NativeWrite(*test, CheckPath(root, "generic_support.zi"), TSX_GENERIC_SUPPORT) ||
@@ -556,6 +573,11 @@ main :: (argc: s32, argv: **u8) -> s32 {
         TextContains(foreign_result.error, "Scoped parameters require a checked nonescaping procedure body") &&
         TextContains(foreign_result.error, "foreign_scoped.zi:"), "foreign procedure accepted a scoped callback without a checked body") { return 1 }
     if !TsxReject(*test, root, "default_type", "export function Value(extra: s32 = true): s32 { return extra; }", "type") ||
+       !TsxReject(*test, root, "native_init_type_argument", "export function Value(): s32 { const value = nativeInit({}); return s32(0); }", "requires an explicit native record type") ||
+       !TsxReject(*test, root, "native_init_unknown_field", "import * as Domain from \"domain\"; export function Value(): s32 { const value = nativeInit<Domain.Model>({missing: true}); return s32(0); }", "unknown initializer field") ||
+       !TsxReject(*test, root, "native_init_required_field", "interface Required { value: number; } export function Value(): s32 { const value = nativeInit<Required>({}); return s32(0); }", "missing required initializer field") ||
+       !TsxReject(*test, root, "vec_option_missing", "import * as Domain from \"domain\"; export function Value(): s32 { const values = Domain.Numbers(); const value = VecPop(values); return s32(0); }", "Vec result requires the Option record") ||
+       !TsxReject(*test, root, "vec_option_ambiguous", "import * as Domain from \"domain\"; import * as First from \"std/option\"; import * as Other from \"other_option\"; export function Value(): s32 { const values = Domain.Numbers(); const value = VecPop(values); return s32(0); }", "Vec result has ambiguous Option imports") ||
        !TsxReject(*test, root, "default_location_type", "export function Value(extra: s32 = nativeCallerLocation()): s32 { return extra; }", "nativeCallerLocation() requires a Source_Code_Location parameter") ||
        !TsxReject(*test, root, "native_intrinsic_binding", "export function nativeRef(): s32 { return s32(0); }", "reserved for a native TypeScript intrinsic") ||
        !TsxReject(*test, root, "native_reference_type", "export function Value(value: *s32): s32 { return s32(0); }", "use NativeRef<T>") ||
@@ -567,6 +589,10 @@ main :: (argc: s32, argv: **u8) -> s32 {
        !TsxReject(*test, root, "native_float_bitwise", "export function Value(): number { return 1 | 2; }", "integer") ||
        !TsxReject(*test, root, "native_string_write", "export function Value(): s32 { const text = \"read-only\"; nativeSet(text, s64(0), u8(0)); return s32(0); }", "borrowed string bytes are read-only") ||
        !TsxReject(*test, root, "native_index_type", "export function Value(): s32 { const values: [number] = [1]; return s32(nativeAt(values, true)); }", "integer") ||
+       !TsxReject(*test, root, "builder_print_format", "import { Vec } from \"std/vec\"; export function main(): s32 { let line = nativeInit<Vec<u8>>({}); let f = \"%\"; BuilderPrint(nativeRef(line), f, s64(1)); return s32(0); }", "BuilderPrint needs a builder and a literal format") ||
+       !TsxReject(*test, root, "builder_print_percent", "import { Vec } from \"std/vec\"; export function main(): s32 { let line = nativeInit<Vec<u8>>({}); BuilderPrint(nativeRef(line), \"% %\", s64(1)); return s32(0); }", "BuilderPrint format has more % than arguments") ||
+       !TsxReject(*test, root, "builder_print_arguments", "import { Vec } from \"std/vec\"; export function main(): s32 { let line = nativeInit<Vec<u8>>({}); BuilderPrint(nativeRef(line), \"%\", s64(1), s64(2)); return s32(0); }", "BuilderPrint has more arguments than % in its format") ||
+       !TsxReject(*test, root, "builder_print_conversion", "import { Vec } from \"std/vec\"; export function main(): s32 { let line = nativeInit<Vec<u8>>({}); BuilderPrint(nativeRef(line), \"%d\", s64(1)); return s32(0); }", "BuilderPrint format uses a C or Go conversion") ||
        !TsxNestedBorrows(*test, root) || !TsxProject(*test) { return 1 }
     print("native TSX: typed imports, JSX, cache/project invalidation and source/saved C, Go, engine, native executable and Wasm parity passed\n")
     return 0

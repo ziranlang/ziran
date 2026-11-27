@@ -69,6 +69,11 @@ arrow functions and procedure type signatures are currently rejected.</p>
   lifetime rules and cannot be captured by an owned callback. These are native
   intrinsics with TypeScript syntax; no runtime wrapper or second representation
   is allocated. Ziran modules retain their ordinary pointer syntax.</li>
+<li><code>NativeSlice&lt;T&gt;</code> names a checked native borrowed slice, including slices
+  returned by Ziran actions and <code>nativeSlice(array)</code>. It supports native
+  indexing with explicit native integers and <code>.count</code>, with the same borrowing
+  rules as Ziran <code>[]T</code>; for example, <code>view[s64(0)]</code> reads its first element.
+  It is distinct from a JavaScript array object and exposes no array methods.</li>
 <li><code>s8</code> through <code>s64</code>, <code>u8</code> through <code>u64</code>, <code>isize</code>, <code>usize</code>, <code>float32</code> and
   <code>float64</code> name explicit native scalar types. Conversions use <code>s32(value)</code>,
   <code>u64(value)</code> and the other native type names. These follow the existing
@@ -118,7 +123,28 @@ including a wide index. On a native UTF-8 string it returns a <code>u8</code> by
 borrowed string bytes remain read-only. <code>nativeSet</code> is a statement, so a callback
 which writes uses a block body. The same common assignment and borrow checks
 apply as for Ziran storage. These operations need no wrappers or extra copies.</p>
-<p><code>NativeRef</code>, <code>nativeRef</code>, <code>nativeDeref</code>, <code>nativeSlice</code>, <code>nativeAt</code>, <code>nativeSet</code>
+<p>Imported module bindings are read-only, as in TypeScript modules. Prefer exported
+native actions for domain updates. A mutable native global can also be updated
+through <code>nativeSet(nativeRef(Model.scene), value)</code>; the common checker verifies
+that the referenced storage is mutable and that the write respects its lifetime.</p>
+<p><code>nativeInit&lt;T&gt;({...})</code> constructs a checked native record. Fields omitted from
+a native zero-initialized record receive their native defaults; the result
+has the full record type, so reading an omitted numeric field returns zero.
+For example, <code>nativeInit&lt;Rectangle&gt;({width: 100, height: 40})</code> initializes <code>x</code>
+and <code>y</code> to zero. Declared required fields remain required, including fields
+of TS interfaces. Unknown fields, wrong field types and unsafe ownership
+transfers are rejected by the common record checker. This operation uses
+ordinary native record storage and introduces no allocation or wrapper.</p>
+<p><code>BuilderPrint(nativeRef(builder), "Count: %", count)</code> appends formatted values
+to a native <code>Vec&lt;u8&gt;</code> through the same formatting operations as Ziran. Each <code>%</code>
+takes one argument and <code>%%</code> writes a percent sign. The format must be a literal;
+C/Go conversion suffixes and mismatched argument counts are rejected at the
+authored call. Integer formatting writes directly into the builder without an
+intermediate owned string. Keep the finished result as a native <code>Text</code> for a
+bounded owned lifetime, and use <code>TextView</code> to borrow its UTF-8 bytes. Finishing
+into <code>string</code> instead detaches the bytes for the rest of the program, following
+the native builder contract.</p>
+<p><code>NativeRef</code>, <code>NativeSlice</code>, <code>nativeInit</code>, <code>nativeRef</code>, <code>nativeDeref</code>, <code>nativeSlice</code>, <code>nativeAt</code>, <code>nativeSet</code>
 and <code>nativeCallerLocation</code> are reserved intrinsic names. <code>nativeCallerLocation()</code> is supported only as a
 named function parameter default. The old <code>*Type</code>, <code>&amp;place</code>, <code>*pointer</code>, colon
 slice and <code>#caller_location</code> source extensions are not TypeScript syntax and

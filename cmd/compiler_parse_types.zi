@@ -53,6 +53,7 @@ DeferredLine :: struct {
     line_no: s32
     scope_public: s32
     scope_file: s32
+    scope_package: s32
 }
 
 DeferredLines :: struct {
@@ -133,6 +134,7 @@ LoadFrame :: struct {
     have_look: s32
     scope_public: s32
     scope_file: s32
+    scope_package: s32
     in_block_comment: s32
     conditional_depth: s32
     inserting: s32
@@ -296,6 +298,7 @@ ZirDeferredType :: struct {
     line: s32
     is_public: s32
     is_file_private: s32
+    is_package_private: s32
 }
 
 ZirDeferredTypes :: struct {

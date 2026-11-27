@@ -1185,7 +1185,7 @@ NativeConstantOwner :: (module: *IR.ZirModule, name: *u8) -> *IR.ZirModule {
             scope := ifx pass == 0 then module else module.imports[i].resolved_module
             if scope == null { continue }
             for j: cast(s32)0..scope.define_count - 1 {
-                if (pass == 0 || scope.defines[j].is_public != 0) &&
+                if (pass == 0 || IR.PackageVisible(module, scope, scope.defines[j].is_public, scope.defines[j].is_package_private, scope.defines[j].is_file_private) != false) &&
                    strcmp(*scope.defines[j].name[0], name) == 0 {
                     return scope
                 }

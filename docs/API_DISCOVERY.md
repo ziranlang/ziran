@@ -18,6 +18,22 @@ again removes stale generated declarations and publishes the manifest last;
 a failed check invalidates the previous manifest. Unrelated output files are
 preserved.
 
+Declarations are requester scoped. Each authored import selects a projection
+using its checked package identity. `#scope_package` declarations and reexports
+appear for requesters in that package; external imports receive public names
+only. Transitive references keep the original requester. Saved checked graphs retain
+that identity; TS/TSX import spellings use their recorded authored source paths
+when those source files remain available. File/module-private
+names stay hidden in every projection. A reachable private signature type can
+use an anonymous generated support name; it does not publish its source name.
+Native qualified lookup selects reexports, so plain internal open imports do
+not add names to the exported surface. A module alias, type and procedure may
+share a spelling without losing the nested type names or callable signature. Native
+constants and procedures with the same spelling share a typed callable
+intersection, preserving value and call use. Reserved JavaScript parameter
+labels receive deterministic collision-free labels; their checked types stay
+unchanged.
+
 This is an editor projection. Records, procedure signatures, generic record
 applications, enum members, argument defaults and callable parameter/result
 types come from checked declarations. Explicit native 64-bit and pointer-size
@@ -28,7 +44,15 @@ ordinary TypeScript arithmetic discards the brand, so the emitter does not
 pretend stock TypeScript enforces those rules. Owned and scoped callbacks retain
 their precise call signatures and a distinct optional mode tag; assigning a
 contextual arrow remains possible. References preserve their element type and
-record member access, and native arrays/slices retain their element types.
+record member access; a narrowed boolean place remains writable as a boolean, and native arrays/slices retain their element types.
+Record read fields remain required. Function inputs and JSX props use
+`NativeInput<T>` to allow native zero initialization, recursively, only for
+records whose checked declarations permit omitted fields. References and
+callback signatures keep their exact types. For a typed local initializer,
+use `nativeInit<Native.Record>({...})`: the explicit type argument selects
+the native record construction, and the resulting value has the full record
+read type. Unknown fields and omitted required TypeScript interface fields
+remain errors.
 Stock TypeScript permits only number indices and gives `string[index]` a
 JavaScript string result. Use the native `nativeAt(values, index)` operation
 for a wide integer index or a UTF-8 byte, and `nativeSet` for explicit native
@@ -37,6 +61,8 @@ without changing ordinary TypeScript array or string diagnostics.
 
 The generated JSX contract accepts typed callable components with any result,
 including an optional caller-location parameter, and checks their actual props.
+Scoped callback children accept immediate JSX child expressions as well as
+their precise callback signature; ordinary callable fields retain that signature.
 Stock TypeScript gives all JSX expressions one fixed `JSX.Element` type (`void`
 here), so it cannot express arbitrary per-component JSX result types. Use an
 ordinary component call when consuming an immediate result, for example
@@ -46,6 +72,14 @@ and other types without a supported projection produce an explicit error,
 rather than an erased fallback. Generating declarations is an explicit command;
 the language service uses the generated files without compiling on ordinary
 open, hover, edit or save operations.
+
+Standard Vec primitives are declared by their native bare names when the checked
+graph includes `std/vec`, using the same builtin metadata as JSON discovery.
+Their element and result types stay generic. `VecPop` and `VecGet` additionally
+need the checked `std/option` declaration; they are omitted with an explanatory
+comment when that module is absent, matching the native import requirement.
+Enum aliases and selected `#defined` constants retain their checked values and
+types rather than relying on textual inference in the editor.
 
 `ziran api --json --root DIR file.zi` loads and checks the input and its
 transitive imports, then prints one bounded JSON object describing visible declarations
@@ -104,8 +138,8 @@ checked usage examples when supplied by a module. Use `ziran capabilities
 --json` for target-wide limits and [`ziran explain`](DIAGNOSTICS.md) to decode
 diagnostic codes.
 
-The `std/vec` module also lists the Vec and builder operations the compiler
-implements itself, such as `VecPush`, `VecPop` and `BuilderFinish`: text output
+The `std/vec` module also lists the Vec, text and builder operations the compiler
+implements itself, such as `VecPush`, `VecPop`, `TextView` and `BuilderFinish`: text output
 prints them as `builtin` lines, and JSON adds a `builtins` array of `name`,
 `parameters`, `return_type` and `summary` to that module. `ziran std --list
 [--json]` names every standard module with the first sentence of its leading

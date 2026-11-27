@@ -16,7 +16,7 @@ int32_t private_check_check_foreign_slice_returns(ZirProgram** programs, int32_t
 int32_t private_check_canonical_type_arguments(uint8_t* source, uint8_t* output, size_t capacity);
 int32_t private_check_type_application_identity(ZirModule* module, uint8_t* canonical, uint8_t* output, size_t capacity);
 uint64_t private_check_type_application_hash(ZirModule* owner, ZirType* generic, uint8_t* identity);
-void TypeApplicationScope(ZirModule* module, uint8_t* arguments, int32_t template_public, int32_t template_file_private, ZirType* instance);
+void TypeApplicationScope(ZirModule* module, uint8_t* arguments, int32_t template_public, int32_t template_file_private, int32_t template_package_private, ZirType* instance);
 int32_t private_check_rewrite_type_applications(ZirModule* module, uint8_t* source, uint8_t* output, size_t capacity, ZirSourceSpan span, int32_t recursion);
 int32_t private_check_normalize_type_applications(ZirModule* module);
 int32_t private_check_order_local_types(ZirModule* module);

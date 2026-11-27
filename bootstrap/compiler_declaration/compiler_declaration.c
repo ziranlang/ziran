@@ -36,6 +36,7 @@ static int64_t compiler_declaration_AfterComment(String source, int64_t at) ZIRA
 static bool compiler_declaration_IsAsciiLetter(uint8_t byte) ZIRAN_MAYBE_UNUSED;
 static bool compiler_declaration_IsPrintfFlag(uint8_t byte) ZIRAN_MAYBE_UNUSED;
 static bool compiler_declaration_IsPrintfConversion(uint8_t byte) ZIRAN_MAYBE_UNUSED;
+static void compiler_declaration_AddScanPiece(BuilderPrintScan* result, BuilderPrintPiece piece) ZIRAN_MAYBE_UNUSED;
 static void compiler_declaration_AddPrintPiece(PrintRewrite* result, Slice output, int32_t maximum, String builder, String value, bool literal) ZIRAN_MAYBE_UNUSED;
 
 static int64_t
@@ -3623,6 +3624,152 @@ compiler_declaration_IsPrintfConversion(uint8_t byte)
     return false;
 }
 
+static void
+compiler_declaration_AddScanPiece(BuilderPrintScan* result, BuilderPrintPiece piece)
+{
+    if (result->count == 64) {
+        DeclarationError* value_0 = &(result->error);
+        (*value_0) = DeclarationError_BuilderPieces;
+        return;
+    }
+    BuilderPrintPiece* value_1 = &(result->pieces[result->count]);
+    (*value_1) = piece;
+    int32_t* value_2 = &(result->count);
+    (*value_2) = (int32_t)((uint32_t)((*value_2)) + 1u);
+}
+
+void
+compiler_declaration_BuilderPrintLiteral(Slice output, int64_t* used, String text)
+{
+    int64_t at = 0LL;
+    while (at < (int64_t)(text).length) {
+        uint8_t byte = (uint8_t)text.data[at];
+        compiler_declaration_Put(output, used, StringRangeAt(text, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + UINT64_C(1)))));
+        at = (int64_t)((uint64_t)at + UINT64_C(1));
+        if (byte == 92 && at < (int64_t)(text).length) {
+            compiler_declaration_Put(output, used, StringRangeAt(text, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + UINT64_C(1)))));
+            at = (int64_t)((uint64_t)at + UINT64_C(1));
+        } else if (byte == 37 && at < (int64_t)(text).length && (uint8_t)text.data[at] == 37) {
+            at = (int64_t)((uint64_t)at + UINT64_C(1));
+        }
+    }
+}
+
+BuilderPrintScan
+compiler_declaration_ScanPrintFormat(String format, int32_t arguments)
+{
+    BuilderPrintScan result = {0};
+    if (compiler_declaration_PrintfSpelling(format, false)) {
+        DeclarationError* value_0 = &(result.error);
+        (*value_0) = DeclarationError_BuilderPrintf;
+        return result;
+    }
+    int32_t argument = 0;
+    int64_t begin = 0LL;
+    int64_t at = 0LL;
+    while (at < (int64_t)(format).length) {
+        uint8_t byte = (uint8_t)format.data[at];
+        if (byte == 92 && (int64_t)((uint64_t)at + UINT64_C(1)) < (int64_t)(format).length) {
+            at = (int64_t)((uint64_t)at + UINT64_C(2));
+            continue;
+        }
+        if (byte == 37 && (int64_t)((uint64_t)at + UINT64_C(1)) < (int64_t)(format).length && (uint8_t)format.data[((int64_t)((uint64_t)at + UINT64_C(1)))] == 37) {
+            at = (int64_t)((uint64_t)at + UINT64_C(2));
+            continue;
+        }
+        if (byte != 37) {
+            at = (int64_t)((uint64_t)at + UINT64_C(1));
+            continue;
+        }
+        if (argument == arguments) {
+            DeclarationError* value_1 = &(result.error);
+            bool value_2 = compiler_declaration_PrintfSpelling(format, true);
+            DeclarationError value_3 = (DeclarationError)(0);
+            if (value_2) {
+                value_3 = DeclarationError_BuilderPrintf;
+            } else {
+                value_3 = DeclarationError_BuilderPercent;
+            }
+            (*value_1) = value_3;
+            return result;
+        }
+        if (at > begin) {
+            BuilderPrintScan* value_4 = &(result);
+            BuilderPrintPiece value_5 = (BuilderPrintPiece){.literal = true, .text = StringRangeAt(format, (int64_t)begin, (int64_t)at), .argument = 0};
+            {
+                BuilderPrintScan* result = value_4;
+                BuilderPrintPiece piece = value_5;
+                if (result->count == 64) {
+                    DeclarationError* value_7 = &(result->error);
+                    (*value_7) = DeclarationError_BuilderPieces;
+                    goto value_6;
+                }
+                BuilderPrintPiece* value_8 = &(result->pieces[result->count]);
+                (*value_8) = piece;
+                int32_t* value_9 = &(result->count);
+                (*value_9) = (int32_t)((uint32_t)((*value_9)) + 1u);
+            value_6: ;
+            }
+        }
+        if (((DeclarationError)(result.error)) != DeclarationError_None) {
+            return result;
+        }
+        BuilderPrintScan* value_10 = &(result);
+        BuilderPrintPiece value_11 = (BuilderPrintPiece){.literal = false, .text = StringLiteral(""), .argument = argument};
+        {
+            BuilderPrintScan* result = value_10;
+            BuilderPrintPiece piece = value_11;
+            if (result->count == 64) {
+                DeclarationError* value_13 = &(result->error);
+                (*value_13) = DeclarationError_BuilderPieces;
+                goto value_12;
+            }
+            BuilderPrintPiece* value_14 = &(result->pieces[result->count]);
+            (*value_14) = piece;
+            int32_t* value_15 = &(result->count);
+            (*value_15) = (int32_t)((uint32_t)((*value_15)) + 1u);
+        value_12: ;
+        }
+        if (((DeclarationError)(result.error)) != DeclarationError_None) {
+            return result;
+        }
+        argument = (int32_t)((uint32_t)argument + 1u);
+        at = (int64_t)((uint64_t)at + UINT64_C(1));
+        begin = at;
+    }
+    if (argument != arguments) {
+        DeclarationError* value_16 = &(result.error);
+        bool value_17 = compiler_declaration_PrintfSpelling(format, true);
+        DeclarationError value_18 = (DeclarationError)(0);
+        if (value_17) {
+            value_18 = DeclarationError_BuilderPrintf;
+        } else {
+            value_18 = DeclarationError_BuilderArguments;
+        }
+        (*value_16) = value_18;
+        return result;
+    }
+    if (at > begin) {
+        BuilderPrintScan* value_19 = &(result);
+        BuilderPrintPiece value_20 = (BuilderPrintPiece){.literal = true, .text = StringRangeAt(format, (int64_t)begin, (int64_t)at), .argument = 0};
+        {
+            BuilderPrintScan* result = value_19;
+            BuilderPrintPiece piece = value_20;
+            if (result->count == 64) {
+                DeclarationError* value_22 = &(result->error);
+                (*value_22) = DeclarationError_BuilderPieces;
+                goto value_21;
+            }
+            BuilderPrintPiece* value_23 = &(result->pieces[result->count]);
+            (*value_23) = piece;
+            int32_t* value_24 = &(result->count);
+            (*value_24) = (int32_t)((uint32_t)((*value_24)) + 1u);
+        value_21: ;
+        }
+    }
+    return result;
+}
+
 PrintRewrite
 compiler_declaration_BuilderPrintPieces(String source, Slice output, int32_t maximum)
 {
@@ -3688,69 +3835,31 @@ compiler_declaration_BuilderPrintPieces(String source, Slice output, int32_t max
         (*value_12) = DeclarationError_BuilderFormat;
         return result;
     }
-    format = StringRangeAt(format, (int64_t)1LL, (int64_t)((int64_t)((uint64_t)((int64_t)(format).length) - UINT64_C(1))));
-    if (compiler_declaration_PrintfSpelling(format, false)) {
+    BuilderPrintScan scan = compiler_declaration_ScanPrintFormat(StringRangeAt(format, (int64_t)1LL, (int64_t)((int64_t)((uint64_t)((int64_t)(format).length) - UINT64_C(1)))), (int32_t)((uint32_t)count - 2u));
+    if (((DeclarationError)(scan.error)) != DeclarationError_None) {
         DeclarationError* value_13 = &(result.error);
-        (*value_13) = DeclarationError_BuilderPrintf;
+        (*value_13) = (DeclarationError)(scan.error);
         return result;
     }
-    int32_t argument = 2;
-    int64_t begin = 0LL;
-    at = 0LL;
-    while (at < (int64_t)(format).length) {
-        uint8_t byte = (uint8_t)format.data[at];
-        if (byte == 92 && (int64_t)((uint64_t)at + UINT64_C(1)) < (int64_t)(format).length) {
-            at = (int64_t)((uint64_t)at + UINT64_C(2));
-            continue;
-        }
-        if (byte == 37 && (int64_t)((uint64_t)at + UINT64_C(1)) < (int64_t)(format).length && (uint8_t)format.data[((int64_t)((uint64_t)at + UINT64_C(1)))] == 37) {
-            at = (int64_t)((uint64_t)at + UINT64_C(2));
-            continue;
-        }
-        if (byte != 37) {
-            at = (int64_t)((uint64_t)at + UINT64_C(1));
-            continue;
-        }
-        if (argument == count) {
-            DeclarationError* value_14 = &(result.error);
-            bool value_15 = compiler_declaration_PrintfSpelling(format, true);
-            DeclarationError value_16 = (DeclarationError)(0);
-            if (value_15) {
-                value_16 = DeclarationError_BuilderPrintf;
-            } else {
-                value_16 = DeclarationError_BuilderPercent;
+    {
+        int32_t range_first_42 = 0;
+        int32_t range_last_42 = (int32_t)((uint32_t)(scan.count) - 1u);
+        int32_t index = range_first_42;
+        if (index <= range_last_42) for (;;) {
+            BuilderPrintPiece piece = (scan.pieces)[index];
+            String value = piece.text;
+            if (!piece.literal) {
+                value = (parts)[((int32_t)(2u + (uint32_t)(piece.argument)))];
             }
-            (*value_14) = value_16;
-            return result;
+            compiler_declaration_AddPrintPiece(&(result), output, maximum, (parts)[0], value, piece.literal);
+            if (((DeclarationError)(result.error)) != DeclarationError_None) {
+                return result;
+            }
+            if (index == range_last_42) {
+                break;
+            }
+            index = (int32_t)((uint32_t)index + 1u);
         }
-        if (at > begin) {
-            compiler_declaration_AddPrintPiece(&(result), output, maximum, (parts)[0], StringRangeAt(format, (int64_t)begin, (int64_t)at), true);
-        }
-        if (((DeclarationError)(result.error)) != DeclarationError_None) {
-            return result;
-        }
-        compiler_declaration_AddPrintPiece(&(result), output, maximum, (parts)[0], (parts)[argument], false);
-        if (((DeclarationError)(result.error)) != DeclarationError_None) {
-            return result;
-        }
-        argument = (int32_t)((uint32_t)argument + 1u);
-        at = (int64_t)((uint64_t)at + UINT64_C(1));
-        begin = at;
-    }
-    if (argument != count) {
-        DeclarationError* value_17 = &(result.error);
-        bool value_18 = compiler_declaration_PrintfSpelling(format, true);
-        DeclarationError value_19 = (DeclarationError)(0);
-        if (value_18) {
-            value_19 = DeclarationError_BuilderPrintf;
-        } else {
-            value_19 = DeclarationError_BuilderArguments;
-        }
-        (*value_17) = value_19;
-        return result;
-    }
-    if (at > begin) {
-        compiler_declaration_AddPrintPiece(&(result), output, maximum, (parts)[0], StringRangeAt(format, (int64_t)begin, (int64_t)at), true);
     }
     return result;
 }
@@ -3775,18 +3884,7 @@ compiler_declaration_AddPrintPiece(PrintRewrite* result, Slice output, int32_t m
     compiler_declaration_Put(slot, &(used), StringLiteral(", "));
     if (literal) {
         compiler_declaration_Put(slot, &(used), StringLiteral("\""));
-        int64_t at = 0LL;
-        while (at < (int64_t)(value).length) {
-            uint8_t byte = (uint8_t)value.data[at];
-            compiler_declaration_PutByte(slot, &(used), byte);
-            at = (int64_t)((uint64_t)at + UINT64_C(1));
-            if (byte == 92 && at < (int64_t)(value).length) {
-                compiler_declaration_PutByte(slot, &(used), (uint8_t)value.data[at]);
-                at = (int64_t)((uint64_t)at + UINT64_C(1));
-            } else if (byte == 37 && at < (int64_t)(value).length && (uint8_t)value.data[at] == 37) {
-                at = (int64_t)((uint64_t)at + UINT64_C(1));
-            }
-        }
+        compiler_declaration_BuilderPrintLiteral(slot, &(used), value);
         compiler_declaration_Put(slot, &(used), StringLiteral("\""));
     } else {
         compiler_declaration_Put(slot, &(used), value);

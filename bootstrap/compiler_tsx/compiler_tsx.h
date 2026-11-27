@@ -55,9 +55,14 @@ typedef struct Parser Parser;
 #define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
 typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_03dabf6e228fe315
+#define ZIRAN_CONCRETE_FORWARD___type_03dabf6e228fe315
+typedef struct __type_03dabf6e228fe315 __type_03dabf6e228fe315;
+#endif
 #include "compiler_ir.h"
 #include "compiler_scan.h"
 #include "compiler_services.h"
+#include "compiler_declaration.h"
 #include "vec.h"
 
 #ifdef __cplusplus
@@ -135,6 +140,7 @@ struct Parser {
     ZirModule* module;
     ZirFunction* fn;
     bool failed;
+    bool format_import;
     int32_t depth;
     int32_t loop_serial;
     int32_t loop;
@@ -154,6 +160,15 @@ struct Parser {
 
 struct __type_131eebaaeb761e42 {
     uint8_t* data;
+    int64_t count;
+    int64_t capacity;
+};
+#endif
+#ifndef ZIRAN_CONCRETE___type_03dabf6e228fe315
+#define ZIRAN_CONCRETE___type_03dabf6e228fe315
+
+struct __type_03dabf6e228fe315 {
+    int32_t* data;
     int64_t count;
     int64_t capacity;
 };

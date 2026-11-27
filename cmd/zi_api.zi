@@ -124,28 +124,25 @@ FunctionText :: struct {
     spelled: [IR.ZIR_TEXT_MAX]u8
 }
 
-VecBuiltin :: struct {
-    name: *u8
-    parameters: *u8
-    result: *u8
-    summary: *u8
-}
-
-vec_builtins: [14]VecBuiltin = .{
-    .{name = CStr("VecPush"), parameters = CStr("values: Vec($T), value: T"), result = CStr("bool"), summary = CStr("append one element; false when growth fails")},
-    .{name = CStr("VecPop"), parameters = CStr("values: Vec($T)"), result = CStr("Option(T)"), summary = CStr("remove the last element (#import \"std/option\")")},
-    .{name = CStr("VecGet"), parameters = CStr("values: Vec($T), index: s64"), result = CStr("Option(T)"), summary = CStr("copy one element when the index is in range")},
-    .{name = CStr("VecSlice"), parameters = CStr("values: Vec($T), low: s64, high: s64"), result = CStr("[]T"), summary = CStr("borrow elements low..high-1 in place")},
-    .{name = CStr("VecClear"), parameters = CStr("values: Vec($T)"), result = CStr("void"), summary = CStr("drop every element and keep the capacity")},
-    .{name = CStr("VecFree"), parameters = CStr("values: Vec($T)"), result = CStr("void"), summary = CStr("drop every element and the storage")},
-    .{name = CStr("VecSwap"), parameters = CStr("left: Vec($T), right: Vec($T)"), result = CStr("void"), summary = CStr("exchange the storage of two Vecs")},
-    .{name = CStr("VecClone"), parameters = CStr("values: Vec($T)"), result = CStr("bool"), summary = CStr("copy a Vec whose elements own nothing")},
-    .{name = CStr("VecReserve"), parameters = CStr("values: Vec($T), capacity: s64"), result = CStr("bool"), summary = CStr("reserve total capacity without changing count")},
-    .{name = CStr("VecResize"), parameters = CStr("values: Vec($T), count: s64"), result = CStr("bool"), summary = CStr("set count; new elements start at zero")},
-    .{name = CStr("VecResizeBounded"), parameters = CStr("values: Vec($T), count: s64, maximum_capacity: s64"), result = CStr("bool"), summary = CStr("VecResize with a capacity ceiling")},
-    .{name = CStr("BuilderAppend"), parameters = CStr("bytes: Vec(u8), text: string"), result = CStr("bool"), summary = CStr("append text bytes")},
-    .{name = CStr("BuilderPrint"), parameters = CStr("bytes: *Vec(u8), format: string, .."), result = CStr("void"), summary = CStr("append a format with one bare % per argument")},
-    .{name = CStr("BuilderFinish"), parameters = CStr("bytes: Vec(u8)"), result = CStr("string"), summary = CStr("take the bytes as text")},
+vec_builtins: [18]TypeScript.Builtin = .{
+    .{name = CStr("VecPush"), parameters = CStr("values: Vec($T), value: T"), result = CStr("bool"), standard = CStr("vec"), summary = CStr("append one element; false when growth fails")},
+    .{name = CStr("VecPop"), parameters = CStr("values: Vec($T)"), result = CStr("Option(T)"), standard = CStr("vec"), summary = CStr("remove the last element (#import \"std/option\")")},
+    .{name = CStr("VecGet"), parameters = CStr("values: Vec($T), index: s64"), result = CStr("Option(T)"), standard = CStr("vec"), summary = CStr("copy one element when the index is in range")},
+    .{name = CStr("VecSlice"), parameters = CStr("values: Vec($T), low: s64, high: s64"), result = CStr("[]T"), standard = CStr("vec"), summary = CStr("borrow elements low..high-1 in place")},
+    .{name = CStr("VecClear"), parameters = CStr("values: Vec($T)"), result = CStr("void"), standard = CStr("vec"), summary = CStr("drop every element and keep the capacity")},
+    .{name = CStr("VecFree"), parameters = CStr("values: Vec($T)"), result = CStr("void"), standard = CStr("vec"), summary = CStr("drop every element and the storage")},
+    .{name = CStr("VecSwap"), parameters = CStr("left: Vec($T), right: Vec($T)"), result = CStr("void"), standard = CStr("vec"), summary = CStr("exchange the storage of two Vecs")},
+    .{name = CStr("VecClone"), parameters = CStr("destination: Vec($T), source: Vec(T)"), result = CStr("bool"), standard = CStr("vec"), summary = CStr("copy a Vec whose elements own nothing into a fresh or moved-from destination")},
+    .{name = CStr("VecReserve"), parameters = CStr("values: Vec($T), capacity: s64"), result = CStr("bool"), standard = CStr("vec"), summary = CStr("reserve total capacity without changing count")},
+    .{name = CStr("VecResize"), parameters = CStr("values: Vec($T), count: s64"), result = CStr("bool"), standard = CStr("vec"), summary = CStr("set count; new elements start at zero")},
+    .{name = CStr("VecResizeBounded"), parameters = CStr("values: Vec($T), count: s64, maximum_capacity: s64"), result = CStr("bool"), standard = CStr("vec"), summary = CStr("VecResize with a capacity ceiling")},
+    .{name = CStr("BuilderAppend"), parameters = CStr("bytes: Vec(u8), text: string"), result = CStr("bool"), standard = CStr("vec"), summary = CStr("append text bytes")},
+    .{name = CStr("BuilderPrint"), parameters = CStr("bytes: *Vec(u8), format: string, .."), result = CStr("void"), standard = CStr("vec"), summary = CStr("append a format with one bare % per argument")},
+    .{name = CStr("BuilderFinish"), parameters = CStr("bytes: Vec(u8)"), result = CStr("string"), standard = CStr("vec"), summary = CStr("take the bytes as text")},
+    .{name = CStr("TextView"), parameters = CStr("value: string"), result = CStr("string"), summary = CStr("borrow an existing text view")},
+    .{name = CStr("TextView"), parameters = CStr("value: []u8"), result = CStr("string"), summary = CStr("borrow a byte slice as text")},
+    .{name = CStr("TextView"), parameters = CStr("value: Text"), result = CStr("string"), standard = CStr("vec"), summary = CStr("borrow owned Text in place")},
+    .{name = CStr("TextView"), parameters = CStr("value: *Text"), result = CStr("string"), standard = CStr("vec"), summary = CStr("borrow referenced owned Text in place")},
 };
 
 #scope_file
@@ -925,7 +922,7 @@ ListsVecBuiltins :: (module: *IR.ZirModule) -> s32 {
 ShowVecBuiltins :: (module: *IR.ZirModule, json: s32) {
     if ListsVecBuiltins(module) == 0 { return }
     i: usize = 0
-    while i < 14 {
+    while i < cast(usize)vec_builtins.count {
         builtin := vec_builtins[i]
         if json != 0 {
             if i != 0 { PutChar(#char ",") }
@@ -1430,7 +1427,7 @@ RunApi :: (argc: s32, argv: **u8) -> s32 {
         i += 1
     }
     qsort(cast(*u8)modules, cast(usize)module_count, size_of(*IR.ZirModule), ModuleOrder)
-    if typescript != 0 { return TypeScript.Emit(*(set), modules, module_count, output_directory) }
+    if typescript != 0 { return TypeScript.Emit(*(set), modules, module_count, output_directory, vec_builtins[:]) }
     // A name that selects nothing is a mistake, not an empty API.
     selected: s32 = 0
     i = 0

@@ -195,6 +195,21 @@ builds the same way in both modes when each export has its module's name.
 With <code>--project</code>, <code>--module-path DIR</code> adds a folder of generated modules to
 the project's own package only; see
 <a href="packages.html#generated-modules">generated modules</a>.</p>
+<h3 id="package-private-declarations">Package-private declarations</h3>
+<p><code>#scope_file</code>, <code>#scope_module</code>, <code>#scope_export</code>, and <code>#scope_package</code> change
+the visibility of the declarations that follow them. <code>#scope_package</code> makes
+procedures, constants, types and imports visible only within their package.
+The package map and lock supply the resolved owner identity; a manifest's name
+alone does not establish membership. Modules loaded without a package map
+share the implicit empty package. Saved <code>.zir</code> preserves the checked owner
+identity when loaded without a new package map.</p>
+<p>Re-export chains keep the original requester, so a package-private declaration
+cannot be exposed by re-exporting it from another package. A package-private
+global becomes an ordinary
+module static and never appears in a bundle state interface. An importer that
+lacks package visibility gets the ordinary unresolved-symbol diagnostic naming
+the declaring module (<code>package-private in ...; export it with #scope_export
+to use it here</code>).</p>
 <p><code>#import, file "../lib/helper.zi";</code> loads an explicit source file relative to
 the importing file. Saved <code>.zir</code> builds resolve its module by name from the
 saved IR directory or a module path.
@@ -1999,8 +2014,10 @@ shadow space and stack arguments, including aligned copies for <code>string</cod
 slice arguments. Scalar returns are supported; record returns, other record
 layouts, forwarded DLL exports and call frames needing stack probes report a
 gap. Missing providers and unsupported signatures never select another engine.
-Use <code>#scope_file</code>, <code>#scope_module</code>, and <code>#scope_export</code> to change the
-visibility of following declarations.</p>
+Use <code>#scope_file</code>, <code>#scope_module</code>, <code>#scope_export</code>, and <code>#scope_package</code> to
+change the visibility of following declarations; <code>#scope_package</code> keeps a
+declaration callable only inside its own package (see
+<a href="#package-private-declarations">package-private declarations</a>).</p>
 <h2 id="assembly-with-a-portable-body">Assembly with a portable body</h2>
 <p>An ordinary procedure can supply architecture-specific assembly and a required
 Ziran implementation. C output selects assembly when built by GCC or Clang

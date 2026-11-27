@@ -341,7 +341,7 @@ static void compiler_frontend_ir_free_symbol_visits(SymbolVisits* visits) ZIRAN_
 static int32_t compiler_frontend_ir_resolve_function_uncached(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirFunction** function, int32_t depth, SymbolVisit** visits) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_frontend_ir_resolve_function_depth(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirFunction** function, int32_t depth, SymbolVisit** visits) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_frontend_ir_resolve_function_at(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirFunction** function) ZIRAN_MAYBE_UNUSED;
-static int32_t compiler_frontend_ir_ResolveForeignDepth(ZirModule* module, uint8_t* name, uint8_t* source_path, bool exported_only, ForeignVisit* visits, ZirModule** owner, ZirImport** declaration) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_frontend_ir_ResolveForeignDepth(ZirModule* module, ZirModule* viewer, uint8_t* name, uint8_t* source_path, bool exported_only, ForeignVisit* visits, ZirModule** owner, ZirImport** declaration) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_frontend_ir_resolve_global_uncached(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirGlobal** global, int32_t depth, SymbolVisit** visits) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_frontend_ir_resolve_global_depth(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirGlobal** global, int32_t depth, SymbolVisit** visits) ZIRAN_MAYBE_UNUSED;
 static size_t compiler_frontend_ir_module_visit_slot(ZirModule** slots, size_t capacity, ZirModule* module) ZIRAN_MAYBE_UNUSED;
@@ -351,11 +351,11 @@ static ZirType* compiler_frontend_ir_local_type(ZirModule* module, uint8_t* name
 static void compiler_frontend_ir_push_type_module(TypeSearch* search, ZirModule* module) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_frontend_ir_imported_type(ZirModule* module, uint8_t* name, uint8_t* alias, size_t alias_length, ZirType** type, ZirModule** owner, ZirModule** alias_scope) ZIRAN_MAYBE_UNUSED;
 static ZirType* compiler_frontend_ir_find_type(ZirModule* module, uint8_t* name, ZirModule** owner) ZIRAN_MAYBE_UNUSED;
-static int32_t compiler_frontend_ir_exported_define_uncached(ZirModule* module, uint8_t* name, int32_t depth, ZirDefine** definition, ZirModule** owner, DefineVisit** visits) ZIRAN_MAYBE_UNUSED;
-static int32_t compiler_frontend_ir_exported_define_depth(ZirModule* module, uint8_t* name, int32_t depth, ZirDefine** definition, ZirModule** owner, DefineVisit** visits) ZIRAN_MAYBE_UNUSED;
-static int32_t compiler_frontend_ir_define_once(DefineOnces* once, ZirModule* module, int32_t depth, ZirDefine** definition, ZirModule** owner, int32_t* height) ZIRAN_MAYBE_UNUSED;
-static int32_t compiler_frontend_ir_exported_define_by_depth(ZirModule* module, uint8_t* name, int32_t depth, ZirDefine** definition, ZirModule** owner) ZIRAN_MAYBE_UNUSED;
-static int32_t compiler_frontend_ir_exported_define(ZirModule* module, uint8_t* name, int32_t depth, ZirDefine** definition, ZirModule** owner) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_frontend_ir_exported_define_uncached(ZirModule* viewer, ZirModule* module, uint8_t* name, int32_t depth, ZirDefine** definition, ZirModule** owner, DefineVisit** visits) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_frontend_ir_exported_define_depth(ZirModule* viewer, ZirModule* module, uint8_t* name, int32_t depth, ZirDefine** definition, ZirModule** owner, DefineVisit** visits) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_frontend_ir_define_once(DefineOnces* once, ZirModule* viewer, ZirModule* module, int32_t depth, ZirDefine** definition, ZirModule** owner, int32_t* height) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_frontend_ir_exported_define_by_depth(ZirModule* viewer, ZirModule* module, uint8_t* name, int32_t depth, ZirDefine** definition, ZirModule** owner) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_frontend_ir_exported_define(ZirModule* viewer, ZirModule* module, uint8_t* name, int32_t depth, ZirDefine** definition, ZirModule** owner) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_frontend_ir_resolve_define_uncached(ZirModule* module, uint8_t* name, ZirDefine** definition, ZirModule** owner, ZirImport** selected_import) ZIRAN_MAYBE_UNUSED;
 static void compiler_frontend_ir_kept_text_failed(void) ZIRAN_MAYBE_UNUSED;
 static void compiler_frontend_ir_free_symbol_lookups(void* value) ZIRAN_MAYBE_UNUSED;
@@ -1389,7 +1389,7 @@ compiler_frontend_ir_resolve_function_uncached(ZirModule* module, uint8_t* name,
                                 break;
                             }
                             ZirFunction* candidate = (ZirFunction*)(((size_t)(target->functions) + ((size_t)(f) * sizeof(ZirFunction))));
-                            bool value_22 = candidate->is_public != 0;
+                            bool value_22 = compiler_ir_PackageVisible(module, target, candidate->is_public, candidate->is_package_private, candidate->is_file_private);
                             bool value_23 = value_22;
                             if (value_23) {
                                 bool value_24 = zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), (uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t))))) != 0;
@@ -1504,39 +1504,45 @@ compiler_frontend_ir_resolve_function_uncached(ZirModule* module, uint8_t* name,
                     if (status < 0) {
                         return -1;
                     }
-                    if (status > 0 && nested->is_public != 0 && !(nested->is_file_private != 0)) {
+                    bool value_63 = status > 0;
+                    bool value_64 = value_63;
+                    if (value_64) {
+                        bool value_65 = compiler_ir_PackageVisible(module, nested_owner, nested->is_public, nested->is_package_private, nested->is_file_private);
+                        value_64 = (value_65 != false);
+                    }
+                    if (value_64) {
                         if (function[0] != (ZirFunction*)(((void *)0)) && function[0] != nested) {
                             return -1;
                         }
-                        ZirModule* value_63 = (void *)0;
+                        ZirModule* value_66 = (void *)0;
                         {
                             ZirModule** p = owner;
                             ZirModule* value = nested_owner;
-                            ZirModule** value_65 = &(p[0]);
-                            (*value_65) = value;
-                            value_63 = value;
-                        }
-                        (void)value_63;
-                        ZirFunction* value_66 = (void *)0;
-                        {
-                            ZirFunction** p = function;
-                            ZirFunction* value = nested;
-                            ZirFunction** value_68 = &(p[0]);
+                            ZirModule** value_68 = &(p[0]);
                             (*value_68) = value;
                             value_66 = value;
                         }
                         (void)value_66;
+                        ZirFunction* value_69 = (void *)0;
+                        {
+                            ZirFunction** p = function;
+                            ZirFunction* value = nested;
+                            ZirFunction** value_71 = &(p[0]);
+                            (*value_71) = value;
+                            value_69 = value;
+                        }
+                        (void)value_69;
                     }
-                    int32_t* value_69 = &(i);
-                    int32_t value_70 = 0;
+                    int32_t* value_72 = &(i);
+                    int32_t value_73 = 0;
                     {
-                        int32_t* p = value_69;
+                        int32_t* p = value_72;
                         int32_t old = p[0];
-                        int32_t* value_72 = &(p[0]);
-                        (*value_72) = (int32_t)((uint32_t)(p[0]) + 1u);
-                        value_70 = old;
+                        int32_t* value_75 = &(p[0]);
+                        (*value_75) = (int32_t)((uint32_t)(p[0]) + 1u);
+                        value_73 = old;
                     }
-                    (void)value_70;
+                    (void)value_73;
                 }
                 zir_loop_continue_1: ;
             }
@@ -1553,54 +1559,54 @@ compiler_frontend_ir_resolve_function_uncached(ZirModule* module, uint8_t* name,
                             break;
                         }
                         ZirFunction* candidate = (ZirFunction*)(((size_t)(target->functions) + ((size_t)(f) * sizeof(ZirFunction))));
-                        bool value_73 = candidate->is_public != 0 && !(candidate->is_file_private != 0);
-                        bool value_74 = value_73;
-                        if (value_74) {
-                            bool value_75 = zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), (uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t))))) != 0;
-                            value_74 = !value_75;
+                        bool value_76 = compiler_ir_PackageVisible(module, target, candidate->is_public, candidate->is_package_private, candidate->is_file_private);
+                        bool value_77 = value_76;
+                        if (value_77) {
+                            bool value_78 = zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), (uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t))))) != 0;
+                            value_77 = !value_78;
                         }
-                        if (value_74) {
-                            ZirModule* value_76 = (void *)0;
+                        if (value_77) {
+                            ZirModule* value_79 = (void *)0;
                             {
                                 ZirModule** p = owner;
                                 ZirModule* value = target;
-                                ZirModule** value_78 = &(p[0]);
-                                (*value_78) = value;
-                                value_76 = value;
-                            }
-                            (void)value_76;
-                            ZirFunction* value_79 = (void *)0;
-                            {
-                                ZirFunction** p = function;
-                                ZirFunction* value = candidate;
-                                ZirFunction** value_81 = &(p[0]);
+                                ZirModule** value_81 = &(p[0]);
                                 (*value_81) = value;
                                 value_79 = value;
                             }
                             (void)value_79;
+                            ZirFunction* value_82 = (void *)0;
+                            {
+                                ZirFunction** p = function;
+                                ZirFunction* value = candidate;
+                                ZirFunction** value_84 = &(p[0]);
+                                (*value_84) = value;
+                                value_82 = value;
+                            }
+                            (void)value_82;
                             goto zir_loop_break_3;
                         }
-                        int32_t* value_82 = &(f);
-                        int32_t value_83 = 0;
+                        int32_t* value_85 = &(f);
+                        int32_t value_86 = 0;
                         {
-                            int32_t* p = value_82;
+                            int32_t* p = value_85;
                             int32_t old = p[0];
-                            int32_t* value_85 = &(p[0]);
-                            (*value_85) = (int32_t)((uint32_t)(p[0]) + 1u);
-                            value_83 = old;
+                            int32_t* value_88 = &(p[0]);
+                            (*value_88) = (int32_t)((uint32_t)(p[0]) + 1u);
+                            value_86 = old;
                         }
-                        (void)value_83;
+                        (void)value_86;
                     }
                     zir_loop_continue_3: ;
                 }
                 zir_loop_break_3: ;
             }
         }
-        int32_t value_86 = 0;
+        int32_t value_89 = 0;
         if (function[0] != (ZirFunction*)(((void *)0))) {
-            value_86 = 1;
+            value_89 = 1;
         }
-        return value_86;
+        return value_89;
     }
     {
         int32_t i = 0;
@@ -1611,97 +1617,97 @@ compiler_frontend_ir_resolve_function_uncached(ZirModule* module, uint8_t* name,
                     break;
                 }
                 ZirFunction* candidate = (ZirFunction*)(((size_t)(module->functions) + ((size_t)(i) * sizeof(ZirFunction))));
-                bool value_87 = zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), name) != 0;
-                bool value_88 = value_87;
-                if (!value_88) {
-                    bool value_89 = compiler_frontend_ir_file_scope_visible_at(source_path, candidate->is_file_private, candidate->span) != 0;
-                    value_88 = !value_89;
+                bool value_90 = zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), name) != 0;
+                bool value_91 = value_90;
+                if (!value_91) {
+                    bool value_92 = compiler_frontend_ir_file_scope_visible_at(source_path, candidate->is_file_private, candidate->span) != 0;
+                    value_91 = !value_92;
                 }
-                if (value_88) {
-                    int32_t* value_90 = &(i);
-                    int32_t value_91 = 0;
+                if (value_91) {
+                    int32_t* value_93 = &(i);
+                    int32_t value_94 = 0;
                     {
-                        int32_t* p = value_90;
+                        int32_t* p = value_93;
                         int32_t old = p[0];
-                        int32_t* value_93 = &(p[0]);
-                        (*value_93) = (int32_t)((uint32_t)(p[0]) + 1u);
-                        value_91 = old;
+                        int32_t* value_96 = &(p[0]);
+                        (*value_96) = (int32_t)((uint32_t)(p[0]) + 1u);
+                        value_94 = old;
                     }
-                    (void)value_91;
+                    (void)value_94;
                     goto zir_loop_continue_4;
                 }
                 if (candidate->is_file_private != 0) {
-                    ZirModule* value_94 = (void *)0;
+                    ZirModule* value_97 = (void *)0;
                     {
                         ZirModule** p = owner;
                         ZirModule* value = module;
-                        ZirModule** value_96 = &(p[0]);
-                        (*value_96) = value;
-                        value_94 = value;
-                    }
-                    (void)value_94;
-                    ZirFunction* value_97 = (void *)0;
-                    {
-                        ZirFunction** p = function;
-                        ZirFunction* value = candidate;
-                        ZirFunction** value_99 = &(p[0]);
+                        ZirModule** value_99 = &(p[0]);
                         (*value_99) = value;
                         value_97 = value;
                     }
                     (void)value_97;
+                    ZirFunction* value_100 = (void *)0;
+                    {
+                        ZirFunction** p = function;
+                        ZirFunction* value = candidate;
+                        ZirFunction** value_102 = &(p[0]);
+                        (*value_102) = value;
+                        value_100 = value;
+                    }
+                    (void)value_100;
                     return 1;
                 }
                 if (function[0] != (ZirFunction*)(((void *)0))) {
-                    ZirModule* value_100 = (void *)0;
-                    ZirModule* value_101 = (void *)0;
+                    ZirModule* value_103 = (void *)0;
+                    ZirModule* value_104 = (void *)0;
                     {
                         ZirModule** p = owner;
-                        ZirModule* value = value_100;
-                        ZirModule** value_103 = &(p[0]);
-                        (*value_103) = value;
-                        value_101 = value;
+                        ZirModule* value = value_103;
+                        ZirModule** value_106 = &(p[0]);
+                        (*value_106) = value;
+                        value_104 = value;
                     }
-                    (void)value_101;
-                    ZirFunction* value_104 = (void *)0;
-                    ZirFunction* value_105 = (void *)0;
+                    (void)value_104;
+                    ZirFunction* value_107 = (void *)0;
+                    ZirFunction* value_108 = (void *)0;
                     {
                         ZirFunction** p = function;
-                        ZirFunction* value = value_104;
-                        ZirFunction** value_107 = &(p[0]);
-                        (*value_107) = value;
-                        value_105 = value;
+                        ZirFunction* value = value_107;
+                        ZirFunction** value_110 = &(p[0]);
+                        (*value_110) = value;
+                        value_108 = value;
                     }
-                    (void)value_105;
+                    (void)value_108;
                     return -1;
                 }
-                ZirModule* value_108 = (void *)0;
+                ZirModule* value_111 = (void *)0;
                 {
                     ZirModule** p = owner;
                     ZirModule* value = module;
-                    ZirModule** value_110 = &(p[0]);
-                    (*value_110) = value;
-                    value_108 = value;
-                }
-                (void)value_108;
-                ZirFunction* value_111 = (void *)0;
-                {
-                    ZirFunction** p = function;
-                    ZirFunction* value = candidate;
-                    ZirFunction** value_113 = &(p[0]);
+                    ZirModule** value_113 = &(p[0]);
                     (*value_113) = value;
                     value_111 = value;
                 }
                 (void)value_111;
-                int32_t* value_114 = &(i);
-                int32_t value_115 = 0;
+                ZirFunction* value_114 = (void *)0;
                 {
-                    int32_t* p = value_114;
-                    int32_t old = p[0];
-                    int32_t* value_117 = &(p[0]);
-                    (*value_117) = (int32_t)((uint32_t)(p[0]) + 1u);
-                    value_115 = old;
+                    ZirFunction** p = function;
+                    ZirFunction* value = candidate;
+                    ZirFunction** value_116 = &(p[0]);
+                    (*value_116) = value;
+                    value_114 = value;
                 }
-                (void)value_115;
+                (void)value_114;
+                int32_t* value_117 = &(i);
+                int32_t value_118 = 0;
+                {
+                    int32_t* p = value_117;
+                    int32_t old = p[0];
+                    int32_t* value_120 = &(p[0]);
+                    (*value_120) = (int32_t)((uint32_t)(p[0]) + 1u);
+                    value_118 = old;
+                }
+                (void)value_118;
             }
             zir_loop_continue_4: ;
         }
@@ -1719,54 +1725,54 @@ compiler_frontend_ir_resolve_function_uncached(ZirModule* module, uint8_t* name,
                     break;
                 }
                 if (depth > 0 && !((module->imports[i]).is_using != 0)) {
-                    int32_t* value_118 = &(i);
-                    int32_t value_119 = 0;
+                    int32_t* value_121 = &(i);
+                    int32_t value_122 = 0;
                     {
-                        int32_t* p = value_118;
+                        int32_t* p = value_121;
                         int32_t old = p[0];
-                        int32_t* value_121 = &(p[0]);
-                        (*value_121) = (int32_t)((uint32_t)(p[0]) + 1u);
-                        value_119 = old;
+                        int32_t* value_124 = &(p[0]);
+                        (*value_124) = (int32_t)((uint32_t)(p[0]) + 1u);
+                        value_122 = old;
                     }
-                    (void)value_119;
+                    (void)value_122;
                     goto zir_loop_continue_5;
                 }
-                bool value_122 = (int32_t)(((ZirImportKind)((module->imports[i]).kind))) != 1;
-                if (value_122) {
-                    bool value_123 = (int32_t)(((ZirImportKind)((module->imports[i]).kind))) == 2 && (module->imports[i]).is_using != 0;
-                    value_122 = !value_123;
-                }
-                bool value_124 = value_122;
-                bool value_125 = value_124;
-                if (!value_125) {
-                    bool value_126 = compiler_frontend_ir_file_scope_visible_at(source_path, (module->imports[i]).is_file_private, (module->imports[i]).span) != 0;
+                bool value_125 = (int32_t)(((ZirImportKind)((module->imports[i]).kind))) != 1;
+                if (value_125) {
+                    bool value_126 = (int32_t)(((ZirImportKind)((module->imports[i]).kind))) == 2 && (module->imports[i]).is_using != 0;
                     value_125 = !value_126;
                 }
-                if (value_125) {
-                    int32_t* value_127 = &(i);
-                    int32_t value_128 = 0;
+                bool value_127 = value_125;
+                bool value_128 = value_127;
+                if (!value_128) {
+                    bool value_129 = compiler_frontend_ir_file_scope_visible_at(source_path, (module->imports[i]).is_file_private, (module->imports[i]).span) != 0;
+                    value_128 = !value_129;
+                }
+                if (value_128) {
+                    int32_t* value_130 = &(i);
+                    int32_t value_131 = 0;
                     {
-                        int32_t* p = value_127;
+                        int32_t* p = value_130;
                         int32_t old = p[0];
-                        int32_t* value_130 = &(p[0]);
-                        (*value_130) = (int32_t)((uint32_t)(p[0]) + 1u);
-                        value_128 = old;
+                        int32_t* value_133 = &(p[0]);
+                        (*value_133) = (int32_t)((uint32_t)(p[0]) + 1u);
+                        value_131 = old;
                     }
-                    (void)value_128;
+                    (void)value_131;
                     goto zir_loop_continue_5;
                 }
                 ZirModule* imported = (ZirModule*)(module->imports[i]).resolved_module;
                 if (imported == (ZirModule*)(((void *)0))) {
-                    int32_t* value_131 = &(i);
-                    int32_t value_132 = 0;
+                    int32_t* value_134 = &(i);
+                    int32_t value_135 = 0;
                     {
-                        int32_t* p = value_131;
+                        int32_t* p = value_134;
                         int32_t old = p[0];
-                        int32_t* value_134 = &(p[0]);
-                        (*value_134) = (int32_t)((uint32_t)(p[0]) + 1u);
-                        value_132 = old;
+                        int32_t* value_137 = &(p[0]);
+                        (*value_137) = (int32_t)((uint32_t)(p[0]) + 1u);
+                        value_135 = old;
                     }
-                    (void)value_132;
+                    (void)value_135;
                     goto zir_loop_continue_5;
                 }
                 {
@@ -1778,71 +1784,71 @@ compiler_frontend_ir_resolve_function_uncached(ZirModule* module, uint8_t* name,
                                 break;
                             }
                             ZirFunction* candidate = (ZirFunction*)(((size_t)(imported->functions) + ((size_t)(f) * sizeof(ZirFunction))));
-                            bool value_135 = !(candidate->is_public != 0);
-                            if (value_135 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), name) != 0) {
-                                int32_t* value_136 = &(f);
-                                int32_t value_137 = 0;
+                            bool value_138 = compiler_ir_PackageVisible(module, imported, candidate->is_public, candidate->is_package_private, candidate->is_file_private);
+                            if (!value_138 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), name) != 0) {
+                                int32_t* value_139 = &(f);
+                                int32_t value_140 = 0;
                                 {
-                                    int32_t* p = value_136;
+                                    int32_t* p = value_139;
                                     int32_t old = p[0];
-                                    int32_t* value_139 = &(p[0]);
-                                    (*value_139) = (int32_t)((uint32_t)(p[0]) + 1u);
-                                    value_137 = old;
+                                    int32_t* value_142 = &(p[0]);
+                                    (*value_142) = (int32_t)((uint32_t)(p[0]) + 1u);
+                                    value_140 = old;
                                 }
-                                (void)value_137;
+                                (void)value_140;
                                 goto zir_loop_continue_6;
                             }
                             if (function[0] != (ZirFunction*)(((void *)0)) && function[0] != candidate) {
-                                ZirModule* value_140 = (void *)0;
-                                ZirModule* value_141 = (void *)0;
+                                ZirModule* value_143 = (void *)0;
+                                ZirModule* value_144 = (void *)0;
                                 {
                                     ZirModule** p = owner;
-                                    ZirModule* value = value_140;
-                                    ZirModule** value_143 = &(p[0]);
-                                    (*value_143) = value;
-                                    value_141 = value;
+                                    ZirModule* value = value_143;
+                                    ZirModule** value_146 = &(p[0]);
+                                    (*value_146) = value;
+                                    value_144 = value;
                                 }
-                                (void)value_141;
-                                ZirFunction* value_144 = (void *)0;
-                                ZirFunction* value_145 = (void *)0;
+                                (void)value_144;
+                                ZirFunction* value_147 = (void *)0;
+                                ZirFunction* value_148 = (void *)0;
                                 {
                                     ZirFunction** p = function;
-                                    ZirFunction* value = value_144;
-                                    ZirFunction** value_147 = &(p[0]);
-                                    (*value_147) = value;
-                                    value_145 = value;
+                                    ZirFunction* value = value_147;
+                                    ZirFunction** value_150 = &(p[0]);
+                                    (*value_150) = value;
+                                    value_148 = value;
                                 }
-                                (void)value_145;
+                                (void)value_148;
                                 return -1;
                             }
-                            ZirModule* value_148 = (void *)0;
+                            ZirModule* value_151 = (void *)0;
                             {
                                 ZirModule** p = owner;
                                 ZirModule* value = imported;
-                                ZirModule** value_150 = &(p[0]);
-                                (*value_150) = value;
-                                value_148 = value;
-                            }
-                            (void)value_148;
-                            ZirFunction* value_151 = (void *)0;
-                            {
-                                ZirFunction** p = function;
-                                ZirFunction* value = candidate;
-                                ZirFunction** value_153 = &(p[0]);
+                                ZirModule** value_153 = &(p[0]);
                                 (*value_153) = value;
                                 value_151 = value;
                             }
                             (void)value_151;
-                            int32_t* value_154 = &(f);
-                            int32_t value_155 = 0;
+                            ZirFunction* value_154 = (void *)0;
                             {
-                                int32_t* p = value_154;
-                                int32_t old = p[0];
-                                int32_t* value_157 = &(p[0]);
-                                (*value_157) = (int32_t)((uint32_t)(p[0]) + 1u);
-                                value_155 = old;
+                                ZirFunction** p = function;
+                                ZirFunction* value = candidate;
+                                ZirFunction** value_156 = &(p[0]);
+                                (*value_156) = value;
+                                value_154 = value;
                             }
-                            (void)value_155;
+                            (void)value_154;
+                            int32_t* value_157 = &(f);
+                            int32_t value_158 = 0;
+                            {
+                                int32_t* p = value_157;
+                                int32_t old = p[0];
+                                int32_t* value_160 = &(p[0]);
+                                (*value_160) = (int32_t)((uint32_t)(p[0]) + 1u);
+                                value_158 = old;
+                            }
+                            (void)value_158;
                         }
                         zir_loop_continue_6: ;
                     }
@@ -1850,101 +1856,107 @@ compiler_frontend_ir_resolve_function_uncached(ZirModule* module, uint8_t* name,
                 }
                 ZirModule* nested_owner = (void *)0;
                 ZirFunction* nested = (void *)0;
-                uint8_t* value_158 = name;
-                uint8_t* value_159 = (void *)0;
-                ZirModule** value_160 = &(nested_owner);
-                ZirFunction** value_161 = &(nested);
-                int32_t value_162 = (int32_t)((uint32_t)depth + 1u);
-                SymbolVisit** value_163 = visits;
-                int32_t value_164 = 0;
+                uint8_t* value_161 = name;
+                uint8_t* value_162 = (void *)0;
+                ZirModule** value_163 = &(nested_owner);
+                ZirFunction** value_164 = &(nested);
+                int32_t value_165 = (int32_t)((uint32_t)depth + 1u);
+                SymbolVisit** value_166 = visits;
+                int32_t value_167 = 0;
                 {
                     ZirModule* module = imported;
-                    uint8_t* name = value_158;
-                    uint8_t* source_path = value_159;
-                    ZirModule** owner = value_160;
-                    ZirFunction** function = value_161;
-                    int32_t depth = value_162;
-                    SymbolVisit** visits = value_163;
+                    uint8_t* name = value_161;
+                    uint8_t* source_path = value_162;
+                    ZirModule** owner = value_163;
+                    ZirFunction** function = value_164;
+                    int32_t depth = value_165;
+                    SymbolVisit** visits = value_166;
                     int32_t created = 0;
                     SymbolVisit* visit = compiler_frontend_ir_symbol_visit(visits, module, name, source_path, depth, &(created));
                     if (created != 0) {
-                        int32_t* value_166 = &(visit->status);
-                        int32_t value_167 = compiler_frontend_ir_resolve_function_uncached(module, name, source_path, owner, function, depth, visits);
-                        (*value_166) = value_167;
-                        ZirModule** value_168 = &(visit->owner);
-                        (*value_168) = owner[0];
-                        void** value_169 = &(visit->symbol);
-                        (*value_169) = (void*)(function[0]);
+                        int32_t* value_169 = &(visit->status);
+                        int32_t value_170 = compiler_frontend_ir_resolve_function_uncached(module, name, source_path, owner, function, depth, visits);
+                        (*value_169) = value_170;
+                        ZirModule** value_171 = &(visit->owner);
+                        (*value_171) = owner[0];
+                        void** value_172 = &(visit->symbol);
+                        (*value_172) = (void*)(function[0]);
                     }
-                    ZirModule* value_170 = visit->owner;
-                    ZirModule* value_171 = (void *)0;
+                    ZirModule* value_173 = visit->owner;
+                    ZirModule* value_174 = (void *)0;
                     {
                         ZirModule** p = owner;
-                        ZirModule* value = value_170;
-                        ZirModule** value_173 = &(p[0]);
-                        (*value_173) = value;
-                        value_171 = value;
+                        ZirModule* value = value_173;
+                        ZirModule** value_176 = &(p[0]);
+                        (*value_176) = value;
+                        value_174 = value;
                     }
-                    (void)value_171;
-                    ZirFunction* value_174 = (ZirFunction*)(visit->symbol);
-                    ZirFunction* value_175 = (void *)0;
+                    (void)value_174;
+                    ZirFunction* value_177 = (ZirFunction*)(visit->symbol);
+                    ZirFunction* value_178 = (void *)0;
                     {
                         ZirFunction** p = function;
-                        ZirFunction* value = value_174;
-                        ZirFunction** value_177 = &(p[0]);
-                        (*value_177) = value;
-                        value_175 = value;
-                    }
-                    (void)value_175;
-                    value_164 = visit->status;
-                }
-                int32_t status = value_164;
-                if (status < 0) {
-                    return -1;
-                }
-                if (status > 0 && nested->is_public != 0 && !(nested->is_file_private != 0)) {
-                    if (function[0] != (ZirFunction*)(((void *)0)) && function[0] != nested) {
-                        return -1;
-                    }
-                    ZirModule* value_178 = (void *)0;
-                    {
-                        ZirModule** p = owner;
-                        ZirModule* value = nested_owner;
-                        ZirModule** value_180 = &(p[0]);
+                        ZirFunction* value = value_177;
+                        ZirFunction** value_180 = &(p[0]);
                         (*value_180) = value;
                         value_178 = value;
                     }
                     (void)value_178;
-                    ZirFunction* value_181 = (void *)0;
+                    value_167 = visit->status;
+                }
+                int32_t status = value_167;
+                if (status < 0) {
+                    return -1;
+                }
+                bool value_181 = status > 0;
+                bool value_182 = value_181;
+                if (value_182) {
+                    bool value_183 = compiler_ir_PackageVisible(module, nested_owner, nested->is_public, nested->is_package_private, nested->is_file_private);
+                    value_182 = (value_183 != false);
+                }
+                if (value_182) {
+                    if (function[0] != (ZirFunction*)(((void *)0)) && function[0] != nested) {
+                        return -1;
+                    }
+                    ZirModule* value_184 = (void *)0;
+                    {
+                        ZirModule** p = owner;
+                        ZirModule* value = nested_owner;
+                        ZirModule** value_186 = &(p[0]);
+                        (*value_186) = value;
+                        value_184 = value;
+                    }
+                    (void)value_184;
+                    ZirFunction* value_187 = (void *)0;
                     {
                         ZirFunction** p = function;
                         ZirFunction* value = nested;
-                        ZirFunction** value_183 = &(p[0]);
-                        (*value_183) = value;
-                        value_181 = value;
+                        ZirFunction** value_189 = &(p[0]);
+                        (*value_189) = value;
+                        value_187 = value;
                     }
-                    (void)value_181;
+                    (void)value_187;
                 }
-                int32_t* value_184 = &(i);
-                int32_t value_185 = 0;
+                int32_t* value_190 = &(i);
+                int32_t value_191 = 0;
                 {
-                    int32_t* p = value_184;
+                    int32_t* p = value_190;
                     int32_t old = p[0];
-                    int32_t* value_187 = &(p[0]);
-                    (*value_187) = (int32_t)((uint32_t)(p[0]) + 1u);
-                    value_185 = old;
+                    int32_t* value_193 = &(p[0]);
+                    (*value_193) = (int32_t)((uint32_t)(p[0]) + 1u);
+                    value_191 = old;
                 }
-                (void)value_185;
+                (void)value_191;
             }
             zir_loop_continue_5: ;
         }
         zir_loop_break_5: ;
     }
-    int32_t value_188 = 0;
+    int32_t value_194 = 0;
     if (function[0] != (ZirFunction*)(((void *)0))) {
-        value_188 = 1;
+        value_194 = 1;
     }
-    return value_188;
+    return value_194;
 }
 
 static int32_t
@@ -2052,7 +2064,7 @@ ResolveFunction(ZirModule* module, uint8_t* name, ZirModule** owner, ZirFunction
 }
 
 static int32_t
-compiler_frontend_ir_ResolveForeignDepth(ZirModule* module, uint8_t* name, uint8_t* source_path, bool exported_only, ForeignVisit* visits, ZirModule** owner, ZirImport** declaration)
+compiler_frontend_ir_ResolveForeignDepth(ZirModule* module, ZirModule* viewer, uint8_t* name, uint8_t* source_path, bool exported_only, ForeignVisit* visits, ZirModule** owner, ZirImport** declaration)
 {
     ZirModule** value_0 = &(owner[0]);
     (*value_0) = (void *)0;
@@ -2082,7 +2094,18 @@ compiler_frontend_ir_ResolveForeignDepth(ZirModule* module, uint8_t* name, uint8
                 bool value_4 = value_3 || zir_foreign_compiler_frontend_ir__strcmp(&(candidate->name[0]), name) != 0;
                 bool value_5 = value_4;
                 bool value_6 = value_5 || compiler_frontend_ir_file_scope_visible_at(source_path, candidate->is_file_private, candidate->span) == 0;
-                if (value_6 || (exported_only && (candidate->is_public == 0 || candidate->is_file_private != 0))) {
+                bool value_7 = value_6;
+                bool value_8 = value_7;
+                if (!value_8) {
+                    bool value_9 = exported_only;
+                    bool value_10 = value_9;
+                    if (value_10) {
+                        bool value_11 = compiler_ir_PackageVisible(viewer, module, candidate->is_public, candidate->is_package_private, candidate->is_file_private);
+                        value_10 = !value_11;
+                    }
+                    value_8 = value_10;
+                }
+                if (value_8) {
                     if (index == range_last_15) {
                         break;
                     }
@@ -2092,10 +2115,10 @@ compiler_frontend_ir_ResolveForeignDepth(ZirModule* module, uint8_t* name, uint8
                 if (declaration[0] != ((void *)0) && declaration[0] != candidate) {
                     return -1;
                 }
-                ZirModule** value_7 = &(owner[0]);
-                (*value_7) = module;
-                ZirImport** value_8 = &(declaration[0]);
-                (*value_8) = candidate;
+                ZirModule** value_12 = &(owner[0]);
+                (*value_12) = module;
+                ZirImport** value_13 = &(declaration[0]);
+                (*value_13) = candidate;
                 if (index == range_last_15) {
                     break;
                 }
@@ -2112,9 +2135,20 @@ compiler_frontend_ir_ResolveForeignDepth(ZirModule* module, uint8_t* name, uint8
         int32_t index = range_first_30;
         if (index <= range_last_30) for (;;) {
             ZirImport* binding = &(module->imports[index]);
-            bool value_9 = ((ZirModule*)binding->resolved_module) == ((void *)0);
-            bool value_10 = value_9 || compiler_frontend_ir_file_scope_visible_at(source_path, binding->is_file_private, binding->span) == 0;
-            if (value_10 || (exported_only && binding->is_file_private != 0)) {
+            bool value_14 = ((ZirModule*)binding->resolved_module) == ((void *)0);
+            bool value_15 = value_14 || compiler_frontend_ir_file_scope_visible_at(source_path, binding->is_file_private, binding->span) == 0;
+            bool value_16 = value_15;
+            bool value_17 = value_16;
+            if (!value_17) {
+                bool value_18 = exported_only;
+                bool value_19 = value_18;
+                if (value_19) {
+                    bool value_20 = compiler_ir_PackageVisible(viewer, module, binding->is_public, binding->is_package_private, binding->is_file_private);
+                    value_19 = !value_20;
+                }
+                value_17 = value_19;
+            }
+            if (value_17) {
                 if (index == range_last_30) {
                     break;
                 }
@@ -2124,14 +2158,14 @@ compiler_frontend_ir_ResolveForeignDepth(ZirModule* module, uint8_t* name, uint8
             uint8_t* wanted = name;
             if (dot != ((void *)0)) {
                 size_t length = (size_t)(dot) - (size_t)(name);
-                bool value_11 = ((ZirImportKind)(binding->kind)) != ((ZirImportKind)(2));
-                bool value_12 = value_11;
-                if (!value_12) {
-                    size_t value_13 = zir_foreign_compiler_frontend_ir__strlen(&(binding->name[0]));
-                    value_12 = (value_13 != length);
+                bool value_21 = ((ZirImportKind)(binding->kind)) != ((ZirImportKind)(2));
+                bool value_22 = value_21;
+                if (!value_22) {
+                    size_t value_23 = zir_foreign_compiler_frontend_ir__strlen(&(binding->name[0]));
+                    value_22 = (value_23 != length);
                 }
-                bool value_14 = value_12;
-                if (value_14 || zir_foreign_compiler_frontend_ir__strncmp(&(binding->name[0]), name, length) != 0) {
+                bool value_24 = value_22;
+                if (value_24 || zir_foreign_compiler_frontend_ir__strncmp(&(binding->name[0]), name, length) != 0) {
                     if (index == range_last_30) {
                         break;
                     }
@@ -2140,8 +2174,8 @@ compiler_frontend_ir_ResolveForeignDepth(ZirModule* module, uint8_t* name, uint8
                 }
                 wanted = (uint8_t*)(((size_t)(dot) + 1));
             } else {
-                bool value_15 = (((ZirImportKind)(binding->kind)) == ((ZirImportKind)(1)) && !exported_only) || (((ZirImportKind)(binding->kind)) == ((ZirImportKind)(2)) && binding->is_using != 0);
-                if (!value_15) {
+                bool value_25 = (((ZirImportKind)(binding->kind)) == ((ZirImportKind)(1)) && !exported_only) || (((ZirImportKind)(binding->kind)) == ((ZirImportKind)(2)) && binding->is_using != 0);
+                if (!value_25) {
                     if (index == range_last_30) {
                         break;
                     }
@@ -2151,15 +2185,15 @@ compiler_frontend_ir_ResolveForeignDepth(ZirModule* module, uint8_t* name, uint8
             }
             ZirModule* nested_owner = (void *)0;
             ZirImport* nested = (void *)0;
-            int32_t status = compiler_frontend_ir_ResolveForeignDepth((ZirModule*)binding->resolved_module, wanted, (void *)0, true, &(visit), &(nested_owner), &(nested));
+            int32_t status = compiler_frontend_ir_ResolveForeignDepth((ZirModule*)binding->resolved_module, viewer, wanted, (void *)0, true, &(visit), &(nested_owner), &(nested));
             if (status < 0 || (status > 0 && declaration[0] != ((void *)0) && declaration[0] != nested)) {
                 return -1;
             }
             if (status > 0) {
-                ZirModule** value_16 = &(owner[0]);
-                (*value_16) = nested_owner;
-                ZirImport** value_17 = &(declaration[0]);
-                (*value_17) = nested;
+                ZirModule** value_26 = &(owner[0]);
+                (*value_26) = nested_owner;
+                ZirImport** value_27 = &(declaration[0]);
+                (*value_27) = nested;
             }
             if (index == range_last_30) {
                 break;
@@ -2167,17 +2201,17 @@ compiler_frontend_ir_ResolveForeignDepth(ZirModule* module, uint8_t* name, uint8
             index = (int32_t)((uint32_t)index + 1u);
         }
     }
-    int32_t value_18 = 0;
+    int32_t value_28 = 0;
     if (declaration[0] != ((void *)0)) {
-        value_18 = 1;
+        value_28 = 1;
     }
-    return value_18;
+    return value_28;
 }
 
 int32_t
 ResolveForeignImportAt(ZirModule* module, uint8_t* name, uint8_t* source_path, ZirModule** owner, ZirImport** declaration)
 {
-    return compiler_frontend_ir_ResolveForeignDepth(module, name, source_path, false, (void *)0, owner, declaration);
+    return compiler_frontend_ir_ResolveForeignDepth(module, module, name, source_path, false, (void *)0, owner, declaration);
 }
 
 static int32_t
@@ -3169,51 +3203,52 @@ compiler_frontend_ir_imported_type(ZirModule* module, uint8_t* name, uint8_t* al
                                     goto zir_loop_continue_4;
                                 }
                                 declared = 1;
-                                if (!(candidate->is_public != 0)) {
-                                    int32_t* value_51 = &(i);
-                                    int32_t value_52 = 0;
+                                bool value_51 = compiler_ir_PackageVisible(module, scope, candidate->is_public, candidate->is_package_private, candidate->is_file_private);
+                                if (!value_51) {
+                                    int32_t* value_52 = &(i);
+                                    int32_t value_53 = 0;
                                     {
-                                        int32_t* p = value_51;
+                                        int32_t* p = value_52;
                                         int32_t old = p[0];
-                                        int32_t* value_54 = &(p[0]);
-                                        (*value_54) = (int32_t)((uint32_t)(p[0]) + 1u);
-                                        value_52 = old;
+                                        int32_t* value_55 = &(p[0]);
+                                        (*value_55) = (int32_t)((uint32_t)(p[0]) + 1u);
+                                        value_53 = old;
                                     }
-                                    (void)value_52;
+                                    (void)value_53;
                                     goto zir_loop_continue_4;
                                 }
                                 if (type[0] != (ZirType*)(((void *)0)) && type[0] != candidate) {
                                     status = -1;
                                     goto zir_loop_break_1;
                                 }
-                                ZirType* value_55 = (void *)0;
+                                ZirType* value_56 = (void *)0;
                                 {
                                     ZirType** p = type;
                                     ZirType* value = candidate;
-                                    ZirType** value_57 = &(p[0]);
-                                    (*value_57) = value;
-                                    value_55 = value;
+                                    ZirType** value_58 = &(p[0]);
+                                    (*value_58) = value;
+                                    value_56 = value;
                                 }
-                                (void)value_55;
-                                ZirModule* value_58 = (void *)0;
+                                (void)value_56;
+                                ZirModule* value_59 = (void *)0;
                                 {
                                     ZirModule** p = owner;
                                     ZirModule* value = scope;
-                                    ZirModule** value_60 = &(p[0]);
-                                    (*value_60) = value;
-                                    value_58 = value;
+                                    ZirModule** value_61 = &(p[0]);
+                                    (*value_61) = value;
+                                    value_59 = value;
                                 }
-                                (void)value_58;
-                                int32_t* value_61 = &(i);
-                                int32_t value_62 = 0;
+                                (void)value_59;
+                                int32_t* value_62 = &(i);
+                                int32_t value_63 = 0;
                                 {
-                                    int32_t* p = value_61;
+                                    int32_t* p = value_62;
                                     int32_t old = p[0];
-                                    int32_t* value_64 = &(p[0]);
-                                    (*value_64) = (int32_t)((uint32_t)(p[0]) + 1u);
-                                    value_62 = old;
+                                    int32_t* value_65 = &(p[0]);
+                                    (*value_65) = (int32_t)((uint32_t)(p[0]) + 1u);
+                                    value_63 = old;
                                 }
-                                (void)value_62;
+                                (void)value_63;
                             }
                             zir_loop_continue_4: ;
                         }
@@ -3231,32 +3266,37 @@ compiler_frontend_ir_imported_type(ZirModule* module, uint8_t* name, uint8_t* al
                                     break;
                                 }
                                 ZirImport* import_local = (ZirImport*)(((size_t)(scope->imports) + ((size_t)(i) * sizeof(ZirImport))));
-                                bool value_65 = !(import_local->is_using != 0) || !(import_local->is_public != 0) || import_local->is_file_private != 0;
-                                bool value_66 = value_65 || ((int32_t)(((ZirImportKind)(import_local->kind))) != 1 && (int32_t)(((ZirImportKind)(import_local->kind))) != 2);
-                                if (value_66 || ((ZirModule*)import_local->resolved_module) == (ZirModule*)(((void *)0))) {
-                                    int32_t* value_67 = &(i);
-                                    int32_t value_68 = 0;
+                                bool value_66 = !(import_local->is_using != 0);
+                                bool value_67 = value_66;
+                                if (!value_67) {
+                                    bool value_68 = compiler_ir_PackageVisible(module, scope, import_local->is_public, import_local->is_package_private, import_local->is_file_private);
+                                    value_67 = !value_68;
+                                }
+                                bool value_69 = value_67 || import_local->is_file_private != 0 || ((int32_t)(((ZirImportKind)(import_local->kind))) != 1 && (int32_t)(((ZirImportKind)(import_local->kind))) != 2);
+                                if (value_69 || ((ZirModule*)import_local->resolved_module) == (ZirModule*)(((void *)0))) {
+                                    int32_t* value_70 = &(i);
+                                    int32_t value_71 = 0;
                                     {
-                                        int32_t* p = value_67;
+                                        int32_t* p = value_70;
                                         int32_t old = p[0];
-                                        int32_t* value_70 = &(p[0]);
-                                        (*value_70) = (int32_t)((uint32_t)(p[0]) + 1u);
-                                        value_68 = old;
+                                        int32_t* value_73 = &(p[0]);
+                                        (*value_73) = (int32_t)((uint32_t)(p[0]) + 1u);
+                                        value_71 = old;
                                     }
-                                    (void)value_68;
+                                    (void)value_71;
                                     goto zir_loop_continue_5;
                                 }
                                 compiler_frontend_ir_push_type_module(&(search), (ZirModule*)import_local->resolved_module);
-                                int32_t* value_71 = &(i);
-                                int32_t value_72 = 0;
+                                int32_t* value_74 = &(i);
+                                int32_t value_75 = 0;
                                 {
-                                    int32_t* p = value_71;
+                                    int32_t* p = value_74;
                                     int32_t old = p[0];
-                                    int32_t* value_74 = &(p[0]);
-                                    (*value_74) = (int32_t)((uint32_t)(p[0]) + 1u);
-                                    value_72 = old;
+                                    int32_t* value_77 = &(p[0]);
+                                    (*value_77) = (int32_t)((uint32_t)(p[0]) + 1u);
+                                    value_75 = old;
                                 }
-                                (void)value_72;
+                                (void)value_75;
                             }
                             zir_loop_continue_5: ;
                         }
@@ -3266,11 +3306,11 @@ compiler_frontend_ir_imported_type(ZirModule* module, uint8_t* name, uint8_t* al
                 zir_loop_continue_3: ;
             }
             zir_loop_break_3: ;
-            int32_t value_75 = 0;
+            int32_t value_78 = 0;
             if (type[0] != (ZirType*)(((void *)0))) {
-                value_75 = 1;
+                value_78 = 1;
             }
-            status = value_75;
+            status = value_78;
             break;
         }
         zir_loop_continue_1: ;
@@ -3283,26 +3323,26 @@ compiler_frontend_ir_imported_type(ZirModule* module, uint8_t* name, uint8_t* al
         zir_foreign_compiler_frontend_ir__CompilerFree((void*)(search.pending));
     }
     if (status < 0) {
-        ZirType* value_76 = (void *)0;
-        ZirType* value_77 = (void *)0;
+        ZirType* value_79 = (void *)0;
+        ZirType* value_80 = (void *)0;
         {
             ZirType** p = type;
-            ZirType* value = value_76;
-            ZirType** value_79 = &(p[0]);
-            (*value_79) = value;
-            value_77 = value;
+            ZirType* value = value_79;
+            ZirType** value_82 = &(p[0]);
+            (*value_82) = value;
+            value_80 = value;
         }
-        (void)value_77;
-        ZirModule* value_80 = (void *)0;
-        ZirModule* value_81 = (void *)0;
+        (void)value_80;
+        ZirModule* value_83 = (void *)0;
+        ZirModule* value_84 = (void *)0;
         {
             ZirModule** p = owner;
-            ZirModule* value = value_80;
-            ZirModule** value_83 = &(p[0]);
-            (*value_83) = value;
-            value_81 = value;
+            ZirModule* value = value_83;
+            ZirModule** value_86 = &(p[0]);
+            (*value_86) = value;
+            value_84 = value;
         }
-        (void)value_81;
+        (void)value_84;
     }
     return status;
 }
@@ -3386,7 +3426,7 @@ compiler_frontend_ir_find_type(ZirModule* module, uint8_t* name, ZirModule** own
                         break;
                     }
                     ZirType* candidate = (ZirType*)(((size_t)(target->types) + ((size_t)(i) * sizeof(ZirType))));
-                    bool value_13 = candidate->is_public != 0 && !(candidate->is_file_private != 0);
+                    bool value_13 = compiler_ir_PackageVisible(module, target, candidate->is_public, candidate->is_package_private, candidate->is_file_private);
                     bool value_14 = value_13;
                     if (value_14) {
                         bool value_15 = zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), (uint8_t*)(((size_t)(dot) + ((size_t)(1LL) * sizeof(uint8_t))))) != 0;
@@ -3446,7 +3486,7 @@ compiler_frontend_ir_find_type(ZirModule* module, uint8_t* name, ZirModule** own
 }
 
 static int32_t
-compiler_frontend_ir_exported_define_uncached(ZirModule* module, uint8_t* name, int32_t depth, ZirDefine** definition, ZirModule** owner, DefineVisit** visits)
+compiler_frontend_ir_exported_define_uncached(ZirModule* viewer, ZirModule* module, uint8_t* name, int32_t depth, ZirDefine** definition, ZirModule** owner, DefineVisit** visits)
 {
     if (depth >= 32) {
         return -1;
@@ -3480,8 +3520,8 @@ compiler_frontend_ir_exported_define_uncached(ZirModule* module, uint8_t* name, 
                     break;
                 }
                 ZirDefine* candidate = (ZirDefine*)(((size_t)(module->defines) + ((size_t)(d) * sizeof(ZirDefine))));
-                bool value_8 = !(candidate->is_public != 0) || candidate->is_file_private != 0;
-                if (value_8 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), name) != 0) {
+                bool value_8 = compiler_ir_PackageVisible(viewer, module, candidate->is_public, candidate->is_package_private, candidate->is_file_private);
+                if (!value_8 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), name) != 0) {
                     int32_t* value_9 = &(d);
                     int32_t value_10 = 0;
                     {
@@ -3542,70 +3582,75 @@ compiler_frontend_ir_exported_define_uncached(ZirModule* module, uint8_t* name, 
                     break;
                 }
                 ZirImport* import_local = (ZirImport*)(((size_t)(module->imports) + ((size_t)(i) * sizeof(ZirImport))));
-                bool value_23 = !(import_local->is_using != 0) || !(import_local->is_public != 0) || import_local->is_file_private != 0;
-                if (value_23 || ((ZirModule*)import_local->resolved_module) == (ZirModule*)(((void *)0))) {
-                    int32_t* value_24 = &(i);
-                    int32_t value_25 = 0;
+                bool value_23 = !(import_local->is_using != 0);
+                bool value_24 = value_23;
+                if (!value_24) {
+                    bool value_25 = compiler_ir_PackageVisible(viewer, module, import_local->is_public, import_local->is_package_private, import_local->is_file_private);
+                    value_24 = !value_25;
+                }
+                if (value_24 || import_local->is_file_private != 0 || ((ZirModule*)import_local->resolved_module) == (ZirModule*)(((void *)0))) {
+                    int32_t* value_26 = &(i);
+                    int32_t value_27 = 0;
                     {
-                        int32_t* p = value_24;
+                        int32_t* p = value_26;
                         int32_t old = p[0];
-                        int32_t* value_27 = &(p[0]);
-                        (*value_27) = (int32_t)((uint32_t)(p[0]) + 1u);
-                        value_25 = old;
+                        int32_t* value_29 = &(p[0]);
+                        (*value_29) = (int32_t)((uint32_t)(p[0]) + 1u);
+                        value_27 = old;
                     }
-                    (void)value_25;
+                    (void)value_27;
                     goto zir_loop_continue_2;
                 }
                 ZirDefine* candidate = (void *)0;
                 ZirModule* candidate_owner = (void *)0;
-                int32_t found = compiler_frontend_ir_exported_define_depth((ZirModule*)import_local->resolved_module, name, (int32_t)((uint32_t)depth + 1u), &(candidate), &(candidate_owner), visits);
+                int32_t found = compiler_frontend_ir_exported_define_depth(viewer, (ZirModule*)import_local->resolved_module, name, (int32_t)((uint32_t)depth + 1u), &(candidate), &(candidate_owner), visits);
                 if (found < 0 || (found == 1 && definition[0] != (ZirDefine*)(((void *)0)) && definition[0] != candidate)) {
                     return -1;
                 }
                 if (found == 1) {
-                    ZirDefine* value_28 = (void *)0;
+                    ZirDefine* value_30 = (void *)0;
                     {
                         ZirDefine** p = definition;
                         ZirDefine* value = candidate;
-                        ZirDefine** value_30 = &(p[0]);
-                        (*value_30) = value;
-                        value_28 = value;
+                        ZirDefine** value_32 = &(p[0]);
+                        (*value_32) = value;
+                        value_30 = value;
                     }
-                    (void)value_28;
-                    ZirModule* value_31 = (void *)0;
+                    (void)value_30;
+                    ZirModule* value_33 = (void *)0;
                     {
                         ZirModule** p = owner;
                         ZirModule* value = candidate_owner;
-                        ZirModule** value_33 = &(p[0]);
-                        (*value_33) = value;
-                        value_31 = value;
+                        ZirModule** value_35 = &(p[0]);
+                        (*value_35) = value;
+                        value_33 = value;
                     }
-                    (void)value_31;
+                    (void)value_33;
                 }
-                int32_t* value_34 = &(i);
-                int32_t value_35 = 0;
+                int32_t* value_36 = &(i);
+                int32_t value_37 = 0;
                 {
-                    int32_t* p = value_34;
+                    int32_t* p = value_36;
                     int32_t old = p[0];
-                    int32_t* value_37 = &(p[0]);
-                    (*value_37) = (int32_t)((uint32_t)(p[0]) + 1u);
-                    value_35 = old;
+                    int32_t* value_39 = &(p[0]);
+                    (*value_39) = (int32_t)((uint32_t)(p[0]) + 1u);
+                    value_37 = old;
                 }
-                (void)value_35;
+                (void)value_37;
             }
             zir_loop_continue_2: ;
         }
         zir_loop_break_2: ;
     }
-    int32_t value_38 = 0;
+    int32_t value_40 = 0;
     if (definition[0] != (ZirDefine*)(((void *)0))) {
-        value_38 = 1;
+        value_40 = 1;
     }
-    return value_38;
+    return value_40;
 }
 
 static int32_t
-compiler_frontend_ir_exported_define_depth(ZirModule* module, uint8_t* name, int32_t depth, ZirDefine** definition, ZirModule** owner, DefineVisit** visits)
+compiler_frontend_ir_exported_define_depth(ZirModule* viewer, ZirModule* module, uint8_t* name, int32_t depth, ZirDefine** definition, ZirModule** owner, DefineVisit** visits)
 {
     {
         DefineVisit* visit = visits[0];
@@ -3680,7 +3725,7 @@ compiler_frontend_ir_exported_define_depth(ZirModule* module, uint8_t* name, int
     }
     (void)value_20;
     int32_t* value_23 = &(visit->status);
-    int32_t value_24 = compiler_frontend_ir_exported_define_uncached(module, name, depth, &(visit->definition), &(visit->owner), visits);
+    int32_t value_24 = compiler_frontend_ir_exported_define_uncached(viewer, module, name, depth, &(visit->definition), &(visit->owner), visits);
     (*value_23) = value_24;
     ZirDefine* value_25 = visit->definition;
     ZirDefine* value_26 = (void *)0;
@@ -3706,7 +3751,7 @@ compiler_frontend_ir_exported_define_depth(ZirModule* module, uint8_t* name, int
 }
 
 static int32_t
-compiler_frontend_ir_define_once(DefineOnces* once, ZirModule* module, int32_t depth, ZirDefine** definition, ZirModule** owner, int32_t* height)
+compiler_frontend_ir_define_once(DefineOnces* once, ZirModule* viewer, ZirModule* module, int32_t depth, ZirDefine** definition, ZirModule** owner, int32_t* height)
 {
     if (depth >= 32) {
         return 2;
@@ -3808,8 +3853,8 @@ compiler_frontend_ir_define_once(DefineOnces* once, ZirModule* module, int32_t d
                     break;
                 }
                 ZirDefine* candidate = (ZirDefine*)(((size_t)(module->defines) + ((size_t)(d) * sizeof(ZirDefine))));
-                bool value_24 = !(candidate->is_public != 0) || candidate->is_file_private != 0;
-                if (value_24 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), once->name) != 0) {
+                bool value_24 = compiler_ir_PackageVisible(viewer, module, candidate->is_public, candidate->is_package_private, candidate->is_file_private);
+                if (!value_24 || zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(&(candidate->name)), once->name) != 0) {
                     int32_t* value_25 = &(d);
                     int32_t value_26 = 0;
                     {
@@ -3855,24 +3900,29 @@ compiler_frontend_ir_define_once(DefineOnces* once, ZirModule* module, int32_t d
                     break;
                 }
                 ZirImport* import_local = (ZirImport*)(((size_t)(module->imports) + ((size_t)(i) * sizeof(ZirImport))));
-                bool value_33 = !(import_local->is_using != 0) || !(import_local->is_public != 0) || import_local->is_file_private != 0;
-                if (value_33 || ((ZirModule*)import_local->resolved_module) == (ZirModule*)(((void *)0))) {
-                    int32_t* value_34 = &(i);
-                    int32_t value_35 = 0;
+                bool value_33 = !(import_local->is_using != 0);
+                bool value_34 = value_33;
+                if (!value_34) {
+                    bool value_35 = compiler_ir_PackageVisible(viewer, module, import_local->is_public, import_local->is_package_private, import_local->is_file_private);
+                    value_34 = !value_35;
+                }
+                if (value_34 || import_local->is_file_private != 0 || ((ZirModule*)import_local->resolved_module) == (ZirModule*)(((void *)0))) {
+                    int32_t* value_36 = &(i);
+                    int32_t value_37 = 0;
                     {
-                        int32_t* p = value_34;
+                        int32_t* p = value_36;
                         int32_t old = p[0];
-                        int32_t* value_37 = &(p[0]);
-                        (*value_37) = (int32_t)((uint32_t)(p[0]) + 1u);
-                        value_35 = old;
+                        int32_t* value_39 = &(p[0]);
+                        (*value_39) = (int32_t)((uint32_t)(p[0]) + 1u);
+                        value_37 = old;
                     }
-                    (void)value_35;
+                    (void)value_37;
                     goto zir_loop_continue_3;
                 }
                 ZirDefine* candidate = (void *)0;
                 ZirModule* candidate_owner = (void *)0;
                 int32_t below = 0;
-                int32_t result = compiler_frontend_ir_define_once(once, (ZirModule*)import_local->resolved_module, (int32_t)((uint32_t)depth + 1u), &(candidate), &(candidate_owner), &(below));
+                int32_t result = compiler_frontend_ir_define_once(once, viewer, (ZirModule*)import_local->resolved_module, (int32_t)((uint32_t)depth + 1u), &(candidate), &(candidate_owner), &(below));
                 if (result == 2) {
                     return 2;
                 }
@@ -3887,79 +3937,79 @@ compiler_frontend_ir_define_once(DefineOnces* once, ZirModule* module, int32_t d
                         found_owner = candidate_owner;
                     }
                 }
-                int32_t* value_38 = &(i);
-                int32_t value_39 = 0;
+                int32_t* value_40 = &(i);
+                int32_t value_41 = 0;
                 {
-                    int32_t* p = value_38;
+                    int32_t* p = value_40;
                     int32_t old = p[0];
-                    int32_t* value_41 = &(p[0]);
-                    (*value_41) = (int32_t)((uint32_t)(p[0]) + 1u);
-                    value_39 = old;
+                    int32_t* value_43 = &(p[0]);
+                    (*value_43) = (int32_t)((uint32_t)(p[0]) + 1u);
+                    value_41 = old;
                 }
-                (void)value_39;
+                (void)value_41;
             }
             zir_loop_continue_3: ;
         }
         zir_loop_break_3: ;
     }
     if (status == 0) {
-        int32_t value_42 = 0;
+        int32_t value_44 = 0;
         if (found != (ZirDefine*)(((void *)0))) {
-            value_42 = 1;
+            value_44 = 1;
         }
-        status = value_42;
+        status = value_44;
     }
-    ptrdiff_t value_43 = (ptrdiff_t)(((size_t)(visit) - (size_t)((DefineOnce*)(&(once->items.items))))) / (ptrdiff_t)(sizeof(DefineOnce));
-    visit = (DefineOnce*)(((size_t)((DefineOnce*)(&(once->items.items))) + ((size_t)(value_43) * sizeof(DefineOnce))));
-    int32_t* value_44 = &(visit->status);
-    (*value_44) = status;
-    int32_t* value_45 = &(visit->height);
-    (*value_45) = tallest;
-    ZirDefine** value_46 = &(visit->definition);
-    (*value_46) = found;
-    ZirModule** value_47 = &(visit->owner);
-    (*value_47) = found_owner;
-    int32_t* value_48 = &(visit->done);
-    (*value_48) = 1;
-    ZirDefine* value_49 = (void *)0;
+    ptrdiff_t value_45 = (ptrdiff_t)(((size_t)(visit) - (size_t)((DefineOnce*)(&(once->items.items))))) / (ptrdiff_t)(sizeof(DefineOnce));
+    visit = (DefineOnce*)(((size_t)((DefineOnce*)(&(once->items.items))) + ((size_t)(value_45) * sizeof(DefineOnce))));
+    int32_t* value_46 = &(visit->status);
+    (*value_46) = status;
+    int32_t* value_47 = &(visit->height);
+    (*value_47) = tallest;
+    ZirDefine** value_48 = &(visit->definition);
+    (*value_48) = found;
+    ZirModule** value_49 = &(visit->owner);
+    (*value_49) = found_owner;
+    int32_t* value_50 = &(visit->done);
+    (*value_50) = 1;
+    ZirDefine* value_51 = (void *)0;
     {
         ZirDefine** p = definition;
         ZirDefine* value = found;
-        ZirDefine** value_51 = &(p[0]);
-        (*value_51) = value;
-        value_49 = value;
+        ZirDefine** value_53 = &(p[0]);
+        (*value_53) = value;
+        value_51 = value;
     }
-    (void)value_49;
-    ZirModule* value_52 = (void *)0;
+    (void)value_51;
+    ZirModule* value_54 = (void *)0;
     {
         ZirModule** p = owner;
         ZirModule* value = found_owner;
-        ZirModule** value_54 = &(p[0]);
-        (*value_54) = value;
-        value_52 = value;
+        ZirModule** value_56 = &(p[0]);
+        (*value_56) = value;
+        value_54 = value;
     }
-    (void)value_52;
-    int32_t value_55 = 0;
+    (void)value_54;
+    int32_t value_57 = 0;
     {
         int32_t* p = height;
         int32_t value = tallest;
-        int32_t* value_57 = &(p[0]);
-        (*value_57) = value;
-        value_55 = value;
+        int32_t* value_59 = &(p[0]);
+        (*value_59) = value;
+        value_57 = value;
     }
-    (void)value_55;
+    (void)value_57;
     return status;
 }
 
 static int32_t
-compiler_frontend_ir_exported_define_by_depth(ZirModule* module, uint8_t* name, int32_t depth, ZirDefine** definition, ZirModule** owner)
+compiler_frontend_ir_exported_define_by_depth(ZirModule* viewer, ZirModule* module, uint8_t* name, int32_t depth, ZirDefine** definition, ZirModule** owner)
 {
     DefineVisits visits = {0};
     DefineVisit** value_0 = &(visits.head);
     (*value_0) = (void *)0;
     int32_t* value_1 = &(visits.used);
     (*value_1) = 0;
-    int32_t status = compiler_frontend_ir_exported_define_depth(module, name, depth, definition, owner, &(visits.head));
+    int32_t status = compiler_frontend_ir_exported_define_depth(viewer, module, name, depth, definition, owner, &(visits.head));
     {
         DefineVisit* visit = visits.head;
         while (true) {
@@ -3978,7 +4028,7 @@ compiler_frontend_ir_exported_define_by_depth(ZirModule* module, uint8_t* name, 
 }
 
 static int32_t
-compiler_frontend_ir_exported_define(ZirModule* module, uint8_t* name, int32_t depth, ZirDefine** definition, ZirModule** owner)
+compiler_frontend_ir_exported_define(ZirModule* viewer, ZirModule* module, uint8_t* name, int32_t depth, ZirDefine** definition, ZirModule** owner)
 {
     DefineOnces once = {0};
     uint8_t** value_0 = &(once.name);
@@ -3986,11 +4036,11 @@ compiler_frontend_ir_exported_define(ZirModule* module, uint8_t* name, int32_t d
     int32_t* value_1 = &(once.count);
     (*value_1) = 0;
     int32_t height = 0;
-    int32_t status = compiler_frontend_ir_define_once(&(once), module, depth, definition, owner, &(height));
+    int32_t status = compiler_frontend_ir_define_once(&(once), viewer, module, depth, definition, owner, &(height));
     if (status != 2) {
         return status;
     }
-    return compiler_frontend_ir_exported_define_by_depth(module, name, depth, definition, owner);
+    return compiler_frontend_ir_exported_define_by_depth(viewer, module, name, depth, definition, owner);
 }
 
 static int32_t
@@ -4218,7 +4268,7 @@ compiler_frontend_ir_resolve_define_uncached(ZirModule* module, uint8_t* name, Z
                             } else {
                                 ZirDefine* candidate = (void *)0;
                                 ZirModule* candidate_owner = (void *)0;
-                                int32_t found = compiler_frontend_ir_exported_define(scope, symbol, 0, &(candidate), &(candidate_owner));
+                                int32_t found = compiler_frontend_ir_exported_define(module, scope, symbol, 0, &(candidate), &(candidate_owner));
                                 if (found < 0 || (found == 1 && definition[0] != (ZirDefine*)(((void *)0)) && definition[0] != candidate)) {
                                     return -1;
                                 }

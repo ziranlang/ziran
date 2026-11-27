@@ -702,7 +702,7 @@ compiler_frontend_parse_trim_declaration_end(uint8_t* text, size_t length)
 }
 
 void
-private_parse_parse_file_global(ZirModule* module, uint8_t* declaration, ZirSourceSpan span, int32_t scope_public, int32_t scope_file, uint8_t* name_out, size_t name_size)
+private_parse_parse_file_global(ZirModule* module, uint8_t* declaration, ZirSourceSpan span, int32_t scope_public, int32_t scope_file, int32_t scope_package, uint8_t* name_out, size_t name_size)
 {
     size_t length = zir_foreign_compiler_frontend_parse__strlen(declaration);
     uint8_t* colon = zir_foreign_compiler_frontend_parse__strchr(declaration, 58);
@@ -831,7 +831,7 @@ private_parse_parse_file_global(ZirModule* module, uint8_t* declaration, ZirSour
         (*value_33) = 0;
         init = trimmed;
     }
-    if (scope_public != 0) {
+    if (scope_public != 0 && scope_package == 0) {
         zir_foreign_compiler_frontend_parse__ModuleAddGlobal(module, name_text, type_text, init, span);
     } else {
         zir_foreign_compiler_frontend_parse__ModuleAddStatic(module, name_text, type_text, init, span);

@@ -32,7 +32,7 @@ int32_t TemplateBinderPrefix(uint8_t* type);
 int32_t private_parse_contains_source_directive(uint8_t* source, uint8_t* directive);
 int32_t private_parse_source_column_for_trimmed(uint8_t* line, uint8_t* trimmed);
 int32_t private_parse_source_end_column_for_trimmed(uint8_t* line, uint8_t* trimmed);
-void private_parse_parse_file_global(ZirModule* module, uint8_t* declaration, ZirSourceSpan span, int32_t scope_public, int32_t scope_file, uint8_t* name_out, size_t name_size);
+void private_parse_parse_file_global(ZirModule* module, uint8_t* declaration, ZirSourceSpan span, int32_t scope_public, int32_t scope_file, int32_t scope_package, uint8_t* name_out, size_t name_size);
 int32_t private_parse_parse_symbol_before_colons(uint8_t* text, uint8_t* output, size_t capacity);
 int32_t private_parse_parse_type_parameters(uint8_t* after, uint8_t* keyword, uint8_t* names, size_t capacity);
 int32_t private_parse_line_is_abi_incomplete(uint8_t* line, size_t length);

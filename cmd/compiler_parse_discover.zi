@@ -63,9 +63,9 @@ memset :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memset";
 net_block_braces :: (s: *u8) -> s32 #foreign compiler "private_parse_net_block_braces";
 normalize_record_separators :: (body: *u8, split_commas: s32) #foreign compiler "private_parse_normalize_record_separators";
 opening_brace_outside_literals :: (text: *u8) -> *u8 #foreign compiler "private_parse_opening_brace_outside_literals";
-parse_file_global :: (module: *IR.ZirModule, declaration: *u8, span: IR.ZirSourceSpan, scope_public: s32, scope_file: s32, name_out: *u8, name_size: usize) #foreign compiler "private_parse_parse_file_global";
+parse_file_global :: (module: *IR.ZirModule, declaration: *u8, span: IR.ZirSourceSpan, scope_public: s32, scope_file: s32, scope_package: s32, name_out: *u8, name_size: usize) #foreign compiler "private_parse_parse_file_global";
 parse_function_header :: (name: *u8, name_size: usize, args: *u8, args_size: usize, ret: *u8, ret_size: usize, line: *u8) #foreign compiler "private_parse_parse_function_header";
-parse_import_line :: (module: *IR.ZirModule, path: *u8, line_no: s32, line: *u8, scope_public: s32) -> s32 #foreign compiler "private_parse_parse_import_line";
+parse_import_line :: (module: *IR.ZirModule, path: *u8, line_no: s32, line: *u8, scope_public: s32, scope_package: s32) -> s32 #foreign compiler "private_parse_parse_import_line";
 parse_insert_line :: (line: *u8, name: *u8, size: usize, span: IR.ZirSourceSpan) -> s32 #foreign compiler "private_parse_parse_insert_line";
 parse_symbol_before_colons :: (s: *u8, out: *u8, out_size: usize) -> s32 #foreign compiler "private_parse_parse_symbol_before_colons";
 parse_type_parameters :: (after: *u8, keyword: *u8, names: *u8, capacity: usize) -> s32 #foreign compiler "private_parse_parse_type_parameters";
@@ -583,7 +583,7 @@ is_named_type_header :: (line: *u8) -> s32 {
 }
 
 #scope_file
-discover_named_type_with_buffers :: (source: *u8, path: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32, future: *ZirTypes, buffers: *DiscoverNamedTypeBuffers, uses_resizable_arrays: *s32) {
+discover_named_type_with_buffers :: (source: *u8, path: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32, scope_package: s32, future: *ZirTypes, buffers: *DiscoverNamedTypeBuffers, uses_resizable_arrays: *s32) {
     ((buffers).normalized).items[0] = cast(u8)(0)
     normalized_length: usize = cast(usize)(0)
     physical_line: s32 = line_no
@@ -673,6 +673,7 @@ discover_named_type_with_buffers :: (source: *u8, path: *u8, rel: *u8, line_no: 
     ((buffers).type).span = Span(rel, line_no, 1)
     ((buffers).type).is_public = scope_public
     ((buffers).type).is_file_private = scope_file
+    ((buffers).type).is_package_private = scope_package
     ((buffers).type).is_union = starts_word(after, ParserCString("union"))
     ((buffers).type).is_enum_flags = starts_word(after, ParserCString("enum_flags"))
     ((buffers).type).is_enum = cast(s32)((((buffers).type).is_enum_flags != 0) || (starts_word(after, ParserCString("enum")) != 0))
@@ -757,10 +758,10 @@ discover_named_type_with_buffers :: (source: *u8, path: *u8, rel: *u8, line_no: 
 }
 
 #scope_file
-discover_named_type :: (source: *u8, path: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32, future: *ZirTypes, uses_resizable_arrays: *s32) {
+discover_named_type :: (source: *u8, path: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32, scope_package: s32, future: *ZirTypes, uses_resizable_arrays: *s32) {
     buffers := cast(*DiscoverNamedTypeBuffers)ParserScratchTake(*discover_named_type_scratch, size_of(DiscoverNamedTypeBuffers))
     defer ParserScratchRelease(*discover_named_type_scratch, cast(*void)buffers)
-    discover_named_type_with_buffers(source, path, rel, line_no, scope_public, scope_file, future, buffers, uses_resizable_arrays)
+    discover_named_type_with_buffers(source, path, rel, line_no, scope_public, scope_file, scope_package, future, buffers, uses_resizable_arrays)
 }
 
 #scope_file
@@ -780,7 +781,7 @@ append_type_source :: (target: *u8, capacity: usize, line: *u8, overflow: *s32) 
 }
 
 #scope_file
-defer_conditional_type :: (deferred: *ZirDeferredTypes, source: *u8, path: *u8, rel: *u8, line: s32, is_public: s32, is_file_private: s32) {
+defer_conditional_type :: (deferred: *ZirDeferredTypes, source: *u8, path: *u8, rel: *u8, line: s32, is_public: s32, is_file_private: s32, is_package_private: s32) {
     if ((deferred).count == (deferred).capacity) {
         capacity: s32 = (ifx ((deferred).capacity > 0) then ((deferred).capacity * 2) else 8)
         items: *ZirDeferredType = cast(*ZirDeferredType)(CompilerRealloc(cast(*void)((deferred).items), (cast(usize)(capacity) * cast(usize)size_of(ZirDeferredType))))
@@ -803,6 +804,7 @@ defer_conditional_type :: (deferred: *ZirDeferredTypes, source: *u8, path: *u8, 
     (item).line = line
     (item).is_public = is_public
     (item).is_file_private = is_file_private
+    (item).is_package_private = is_package_private
 }
 
 #scope_export
@@ -820,7 +822,7 @@ free_deferred_types :: (deferred: *ZirDeferredTypes) {
 }
 
 #scope_file
-discover_function_header_with_buffers :: (source: *u8, path: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32, future: *ZirFunctions, buffers: *DiscoverFunctionHeaderBuffers, uses_resizable_arrays: *s32) {
+discover_function_header_with_buffers :: (source: *u8, path: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32, scope_package: s32, future: *ZirFunctions, buffers: *DiscoverFunctionHeaderBuffers, uses_resizable_arrays: *s32) {
     if (!(looks_like_function_header(source) != 0) || ((strchr(source, 123) == cast(*u8)((null))) && (strstr(source, ParserCString("#foreign")) == cast(*u8)((null))))) {
         return
     }
@@ -857,13 +859,14 @@ discover_function_header_with_buffers :: (source: *u8, path: *u8, rel: *u8, line
     (function).span = Span(rel, line_no, 1)
     (function).is_public = scope_public
     (function).is_file_private = scope_file
+    (function).is_package_private = scope_package
 }
 
 #scope_file
-discover_function_header :: (source: *u8, path: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32, future: *ZirFunctions, uses_resizable_arrays: *s32) {
+discover_function_header :: (source: *u8, path: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32, scope_package: s32, future: *ZirFunctions, uses_resizable_arrays: *s32) {
     buffers := cast(*DiscoverFunctionHeaderBuffers)ParserScratchTake(*discover_function_header_scratch, size_of(DiscoverFunctionHeaderBuffers))
     defer ParserScratchRelease(*discover_function_header_scratch, cast(*void)buffers)
-    discover_function_header_with_buffers(source, path, rel, line_no, scope_public, scope_file, future, buffers, uses_resizable_arrays)
+    discover_function_header_with_buffers(source, path, rel, line_no, scope_public, scope_file, scope_package, future, buffers, uses_resizable_arrays)
 }
 
 #scope_file
@@ -1036,7 +1039,7 @@ discover_compile_body :: (function: *IR.ZirFunction, body: *u8, start_line: s32)
 }
 
 #scope_file
-discover_typed_global :: (source: *u8, path: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32, future: *ZirGlobals, uses_resizable_arrays: *s32) {
+discover_typed_global :: (source: *u8, path: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32, scope_package: s32, future: *ZirGlobals, uses_resizable_arrays: *s32) {
     length: usize = strlen(source)
     if (((((length == cast(usize)(0)) || (cast(s32)(cast(s8)((source)[(length - cast(usize)(1))])) != 59)) || (strchr(source, 58) == cast(*u8)((null)))) || (strstr(source, ParserCString("::")) != cast(*u8)((null)))) || (!(isalpha(cast(s32)(((cast(u8)((source)[0]))))) != 0) && (cast(s32)(cast(s8)((source)[0])) != 95))) {
         return
@@ -1045,7 +1048,7 @@ discover_typed_global :: (source: *u8, path: *u8, rel: *u8, line_no: s32, scope_
     parsed: IR.ZirModule = .{}
     copy_text(line, cast(usize)(16384), source)
     normalize_jai_source_tokens(line, rel, path, line_no, uses_resizable_arrays)
-    parse_file_global(*(parsed), line, Span(rel, line_no, 1), scope_public, scope_file, null, cast(usize)(0))
+    parse_file_global(*(parsed), line, Span(rel, line_no, 1), scope_public, scope_file, scope_package, null, cast(usize)(0))
     CompilerFree(cast(*void)(line))
     if ((parsed).global_count != 1) {
         CompilerFree(cast(*void)((parsed).globals))
@@ -1152,16 +1155,19 @@ discover_file_scope_with_buffers :: (source: *u8, path: *u8, rel: *u8, root: *u8
     brace_depth: s32 = 0
     scope_file: s32 = 0
     scope_public: s32 = 1
+    scope_package: s32 = 0
     collecting_type: s32 = 0
     type_overflow: s32 = 0
     type_start_line: s32 = 0
     type_scope_file: s32 = 0
     type_scope_public: s32 = 1
+    type_scope_package: s32 = 0
     collecting_function: s32 = 0
     function_overflow: s32 = 0
     function_start_line: s32 = 0
     function_scope_file: s32 = 0
     function_scope_public: s32 = 1
+    function_scope_package: s32 = 0
     simple_body_index: s32 = (-1)
     simple_body_overflow: s32 = 0
     simple_body_start_line: s32 = 0
@@ -1187,14 +1193,15 @@ discover_file_scope_with_buffers :: (source: *u8, path: *u8, rel: *u8, root: *u8
                     type_start_line = line_no
                     type_scope_file = scope_file
                     type_scope_public = scope_public
+                    type_scope_package = scope_package
                 }
                 append_type_source(cast(*u8)(*(((buffers).type_source).items)), cast(usize)size_of(ParserArray24576_u8), t, *(type_overflow))
                 if ((strchr(cast(*u8)(*(((buffers).type_source).items)), 123) != cast(*u8)((null))) && ((brace_depth + brace_delta) == 0)) {
                     if !(type_overflow != 0) {
                         if (contains_source_directive(cast(*u8)(*(((buffers).type_source).items)), ParserCString("#if")) != 0) {
-                            defer_conditional_type(deferred_types, cast(*u8)(*(((buffers).type_source).items)), path, rel, type_start_line, type_scope_public, type_scope_file)
+                            defer_conditional_type(deferred_types, cast(*u8)(*(((buffers).type_source).items)), path, rel, type_start_line, type_scope_public, type_scope_file, type_scope_package)
                         } else {
-                            discover_named_type(cast(*u8)(*(((buffers).type_source).items)), path, rel, type_start_line, type_scope_public, type_scope_file, future_types, uses_resizable_arrays)
+                            discover_named_type(cast(*u8)(*(((buffers).type_source).items)), path, rel, type_start_line, type_scope_public, type_scope_file, type_scope_package, future_types, uses_resizable_arrays)
                         }
                     }
                     collecting_type = 0
@@ -1208,12 +1215,13 @@ discover_file_scope_with_buffers :: (source: *u8, path: *u8, rel: *u8, root: *u8
                         function_start_line = line_no
                         function_scope_file = scope_file
                         function_scope_public = scope_public
+                        function_scope_package = scope_package
                     }
                     append_type_source(cast(*u8)(*(((buffers).function_source).items)), cast(usize)size_of(ParserArray24576_u8), t, *(function_overflow))
                     closing: *u8 = (ifx (function_overflow != 0) then null else closing_parenthesis(strchr(cast(*u8)(*(((buffers).function_source).items)), 40)))
                     if ((closing != cast(*u8)((null))) && ((opening_brace_outside_literals(cast(*u8)(cast(usize)(closing) + cast(usize)(1) * size_of(u8))) != cast(*u8)((null))) || (strstr(cast(*u8)(cast(usize)(closing) + cast(usize)(1) * size_of(u8)), ParserCString("#foreign")) != cast(*u8)((null))))) {
                         previous: s32 = (future_functions).count
-                        discover_function_header(cast(*u8)(*(((buffers).function_source).items)), path, rel, function_start_line, function_scope_public, function_scope_file, future_functions, uses_resizable_arrays)
+                        discover_function_header(cast(*u8)(*(((buffers).function_source).items)), path, rel, function_start_line, function_scope_public, function_scope_file, function_scope_package, future_functions, uses_resizable_arrays)
                         open: *u8 = opening_brace_outside_literals(cast(*u8)(cast(usize)(closing) + cast(usize)(1) * size_of(u8)))
                         if ((open != cast(*u8)((null))) && ((future_functions).count > previous)) {
                             simple_body_index = previous
@@ -1239,10 +1247,12 @@ discover_file_scope_with_buffers :: (source: *u8, path: *u8, rel: *u8, root: *u8
                         if !(strcmp(t, ParserCString("#scope_file")) != 0) {
                             scope_file = 1
                             scope_public = 0
+                            scope_package = 0
                         } else {
-                            if (!(strcmp(t, ParserCString("#scope_module")) != 0) || !(strcmp(t, ParserCString("#scope_export")) != 0)) {
+                            if (!(strcmp(t, ParserCString("#scope_module")) != 0) || !(strcmp(t, ParserCString("#scope_export")) != 0) || !(strcmp(t, ParserCString("#scope_package")) != 0)) {
                                 scope_file = 0
-                                scope_public = cast(s32)(!(strcmp(t, ParserCString("#scope_export")) != 0))
+                                scope_public = cast(s32)(strcmp(t, ParserCString("#scope_export")) == 0)
+                                scope_package = cast(s32)(!(strcmp(t, ParserCString("#scope_package")) != 0))
                             } else {
                                 if (starts_word(t, ParserCString("#insert")) != 0) {
                                     name_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
@@ -1327,7 +1337,7 @@ discover_file_scope_with_buffers :: (source: *u8, path: *u8, rel: *u8, root: *u8
                                                 }
                                             }
                                         } else {
-                                            discover_typed_global(t, path, rel, line_no, scope_public, scope_file, future_globals, uses_resizable_arrays)
+                                            discover_typed_global(t, path, rel, line_no, scope_public, scope_file, scope_package, future_globals, uses_resizable_arrays)
                                             colons: *u8 = strstr(t, ParserCString("::"))
                                             declaration: *u8 = (ifx (colons != cast(*u8)((null))) then skip_ws(cast(*u8)(cast(usize)(colons) + cast(usize)(2) * size_of(u8))) else t)
                                             if ((starts_word(declaration, ParserCString("#type")) != 0) && (starts_word(skip_ws(cast(*u8)(cast(usize)(declaration) + cast(usize)(strlen(ParserCString("#type"))) * size_of(u8))), ParserCString("#foreign")) != 0)) {
@@ -1351,6 +1361,7 @@ discover_file_scope_with_buffers :: (source: *u8, path: *u8, rel: *u8, root: *u8
                                                     (type).is_extern = 1
                                                     (type).is_public = scope_public
                                                     (type).is_file_private = scope_file
+                                                    (type).is_package_private = scope_package
                                                     (type).span = Span(rel, line_no, 1)
                                                 }
                                             }
@@ -1362,7 +1373,7 @@ discover_file_scope_with_buffers :: (source: *u8, path: *u8, rel: *u8, root: *u8
                                                 }
                                                 if !(string_import != 0) {
                                                     memset(cast(*void)(*((buffers).discovered)), 0, cast(usize)size_of(IR.ZirModule))
-                                                    if ((parse_import_line(*((buffers).discovered), rel, line_no, t, scope_public) != 0) && (((buffers).discovered).import_count > 0)) {
+                                                    if ((parse_import_line(*((buffers).discovered), rel, line_no, t, scope_public, scope_package) != 0) && (((buffers).discovered).import_count > 0)) {
                                                         if ((future_imports).count == (future_imports).capacity) {
                                                             capacity: s32 = (ifx ((future_imports).capacity > 0) then ((future_imports).capacity * 2) else 8)
                                                             items: *IR.ZirImport = cast(*IR.ZirImport)(CompilerRealloc(cast(*void)((future_imports).items), (cast(usize)(capacity) * cast(usize)size_of(IR.ZirImport))))
@@ -1376,6 +1387,7 @@ discover_file_scope_with_buffers :: (source: *u8, path: *u8, rel: *u8, root: *u8
                                                         import_local: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)((future_imports).items) + cast(usize)(ParserPost0(*((future_imports).count))) * size_of(IR.ZirImport))
                                                         ParserSet8(import_local, (((buffers).discovered).imports)[0])
                                                         (import_local).is_file_private = scope_file
+                                                        (import_local).is_package_private = scope_package
                                                     }
                                                     CompilerFree(cast(*void)(((buffers).discovered).imports))
                                                 }
@@ -1589,7 +1601,7 @@ discover_conditional_type_with_buffers :: (item: *ZirDeferredType, module: *IR.Z
         append_type_source(cast(*u8)(*(((buffers).selected).items)), cast(usize)size_of(ParserArray24576_u8), text, *(overflow))
     }
     if (!(overflow != 0) && (frame_count == 0)) {
-        discover_named_type(cast(*u8)(*(((buffers).selected).items)), (item).path, cast(*u8)(*(((item).rel).items)), (item).line, (item).is_public, (item).is_file_private, future, uses_resizable_arrays)
+        discover_named_type(cast(*u8)(*(((buffers).selected).items)), (item).path, cast(*u8)(*(((item).rel).items)), (item).line, (item).is_public, (item).is_file_private, (item).is_package_private, future, uses_resizable_arrays)
     }
     return 1
 }

@@ -37,7 +37,7 @@ ScalarByteWidth :: (type: *u8) -> usize #foreign compiler "ScalarByteWidth";
 ScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
 SliceElementType :: (type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "SliceElementType";
 TemplateParameterIndex :: (list: *u8, name: *u8, length: usize) -> s32 #foreign compiler "TemplateParameterIndex";
-TypeApplicationScope :: (module: *IR.ZirModule, arguments: *u8, template_public: s32, template_file_private: s32, instance: *IR.ZirType) #foreign compiler "TypeApplicationScope";
+TypeApplicationScope :: (module: *IR.ZirModule, arguments: *u8, template_public: s32, template_file_private: s32, template_package_private: s32, instance: *IR.ZirType) #foreign compiler "TypeApplicationScope";
 TypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
 VecElementType :: (module: *IR.ZirModule, type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "VecElementType";
 ZirIntegerLiteral :: (text: *u8, value: *u64) -> s32 #foreign compiler "ZirIntegerLiteral";
@@ -846,7 +846,7 @@ compound_type_at_use :: (module: *IR.ZirModule, compound: *CompoundConstant, sou
             return 1
         }
     }
-    if declaring != null && declared.is_public != 0 && declared.is_file_private == 0 {
+    if declaring != null && IR.PackageVisible(module, declaring, declared.is_public, declared.is_package_private, declared.is_file_private) != false {
         written: s32 = snprintf(target, size, CheckCString("%s.%s"), cast(*u8)(*((declaring).name)), cast(*u8)(*((declared).name)))
         if (((written >= 0) && (cast(usize)(written) < size)) && (FindType(module, target, null) == declared)) {
             return 1
@@ -2108,7 +2108,30 @@ vec_option_result_type :: (c: *Checker, element: *u8, span: IR.ZirSourceSpan, ou
         return 0
     }
     generic_owner: *IR.ZirModule = null
-    generic := FindType(c.module, CheckCString("Option"), *generic_owner)
+    option_name: [IR.ZIR_NAME_MAX + 8]u8
+    copy_text(*option_name[0], cast(usize)option_name.count, CheckCString("Option"))
+    generic := FindType(c.module, *option_name[0], *generic_owner)
+    if generic == null {
+        // A namespace or named import need not open Option in this module.
+        // Resolve its ordinary qualified export, preserving visibility and
+        // declaration identity rather than selecting a similarly shaped type.
+        for index: 0..c.module.import_count - 1 {
+            imported := *c.module.imports[index]
+            if imported.kind != .MODULE || imported.resolved_module == null { continue }
+            qualified: [IR.ZIR_NAME_MAX + 8]u8
+            snprintf(*qualified[0], cast(usize)qualified.count, CheckCString("%s.Option"), *imported.name[0])
+            candidate_owner: *IR.ZirModule = null
+            candidate := FindType(c.module, *qualified[0], *candidate_owner)
+            if candidate == null { continue }
+            if generic != null && (candidate != generic || candidate_owner != generic_owner) {
+                error(c, span, CheckCString("Vec result has ambiguous Option imports"), element)
+                return 0
+            }
+            generic = candidate
+            generic_owner = candidate_owner
+            copy_text(*option_name[0], cast(usize)option_name.count, *qualified[0])
+        }
+    }
     if generic == null || generic_owner == null || generic.is_record_template == 0 {
         error(c, span, CheckCString("Vec result requires the Option record; import option"), element)
         return 0
@@ -2156,12 +2179,12 @@ vec_option_result_type :: (c: *Checker, element: *u8, span: IR.ZirSourceSpan, ou
         error(c, span, CheckCString("cannot register Vec result record"), cast(*u8)(*((name_storage_1[0]).items)))
         return 0
     }
-    TypeApplicationScope((c).module, cast(*u8)(*((canonical_storage_0[0]).items)), generic_public, generic_file_private, instance)
+    TypeApplicationScope((c).module, cast(*u8)(*((canonical_storage_0[0]).items)), generic_public, generic_file_private, (generic).is_package_private, instance)
     (instance).is_type_instance = 1
     (instance).is_synthetic_application = 1
-    copy_text(cast(*u8)(*((instance).template_name)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("Option"))
+    copy_text(cast(*u8)(*((instance).template_name)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), *option_name[0])
     copy_text(cast(*u8)(*((instance).template_args)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), cast(*u8)(*((canonical_storage_0[0]).items)))
-    generic = FindType((c).module, CheckCString("Option"), null)
+    generic = FindType((c).module, *option_name[0], null)
     instance = null
     {
         t: s32 = 0

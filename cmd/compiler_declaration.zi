@@ -113,6 +113,10 @@ TextRewrite :: struct { error: DeclarationError; changed: bool; count: s64 }
 NameReplacement :: struct { source: string; target: string }
 PrintRewrite :: struct { error: DeclarationError; statements: s32; lengths: [64]s64 }
 StatementOutput :: struct { bytes: []u8 }
+// One BuilderPrint emission piece: literal text whose %% escapes already
+// collapsed, or the next call argument addressed by its zero-based index.
+BuilderPrintPiece :: struct { literal: bool; text: string; argument: s32; }
+BuilderPrintScan :: struct { error: DeclarationError; count: s32; pieces: [64]BuilderPrintPiece }
 
 #scope_file
 Find :: (source: string, needle: string) -> s64 {
@@ -1386,7 +1390,58 @@ IsPrintfConversion :: (byte: u8) -> bool {
     return false
 }
 
+#scope_file
+AddScanPiece :: (result: *BuilderPrintScan, piece: BuilderPrintPiece) {
+    if result.count == 64 { result.error = .BuilderPieces; return }
+    result.pieces[result.count] = piece
+    result.count += 1
+}
+
 #scope_export
+// Write or measure a literal without allocating. Preserve source escapes and
+// collapse %% here, so the scan itself only borrows the authored format.
+BuilderPrintLiteral :: (output: []u8, used: *s64, text: string) {
+    at: s64 = 0
+    while at < text.count {
+        byte := text[at]
+        Put(output, used, text[at:at + 1])
+        at += 1
+        if byte == #char "\\" && at < text.count {
+            Put(output, used, text[at:at + 1]); at += 1
+        } else if byte == #char "%" && at < text.count && text[at] == #char "%" { at += 1 }
+    }
+}
+
+// Shared BuilderPrint format semantics for both statement lowerings: a bare
+// % consumes the next argument in order, %% writes one percent, authored
+// backslash escapes stay verbatim, and C or Go conversion spellings such as
+// %d are rejected. The Ziran source expansion and the native TS/TSX
+// lowering both build their statements from these pieces.
+ScanPrintFormat :: (format: string, arguments: s32) -> BuilderPrintScan {
+    result: BuilderPrintScan
+    if PrintfSpelling(format) { result.error = .BuilderPrintf; return result }
+    argument: s32 = 0
+    begin: s64 = 0
+    at: s64 = 0
+    while at < format.count {
+        byte := format[at]
+        if byte == #char "\\" && at + 1 < format.count { at += 2; continue }
+        if byte == #char "%" && at + 1 < format.count && format[at + 1] == #char "%" { at += 2; continue }
+        if byte != #char "%" { at += 1; continue }
+        if argument == arguments { result.error = ifx PrintfSpelling(format, true) then .BuilderPrintf else .BuilderPercent; return result }
+        if at > begin { AddScanPiece(*result, .{literal = true, text = format[begin:at], argument = 0}) }
+        if result.error != .None { return result }
+        AddScanPiece(*result, .{literal = false, text = "", argument = argument})
+        if result.error != .None { return result }
+        argument += 1
+        at += 1
+        begin = at
+    }
+    if argument != arguments { result.error = ifx PrintfSpelling(format, true) then .BuilderPrintf else .BuilderArguments; return result }
+    if at > begin { AddScanPiece(*result, .{literal = true, text = format[begin:at], argument = 0}) }
+    return result
+}
+
 // Each output slot receives its bounded statement prefix. Missing slots still
 // get measured, so callers can size storage without retaining native buffers.
 BuilderPrintPieces :: (source: string, output: []StatementOutput, maximum: s32 = 64) -> PrintRewrite {
@@ -1416,27 +1471,15 @@ BuilderPrintPieces :: (source: string, output: []StatementOutput, maximum: s32 =
         result.error = .BuilderFormat
         return result
     }
-    format = format[1:format.count - 1]
-    if PrintfSpelling(format) { result.error = .BuilderPrintf; return result }
-    argument: s32 = 2
-    begin: s64 = 0
-    at = 0
-    while at < format.count {
-        byte := format[at]
-        if byte == #char "\\" && at + 1 < format.count { at += 2; continue }
-        if byte == #char "%" && at + 1 < format.count && format[at + 1] == #char "%" { at += 2; continue }
-        if byte != #char "%" { at += 1; continue }
-        if argument == count { result.error = ifx PrintfSpelling(format, true) then .BuilderPrintf else .BuilderPercent; return result }
-        if at > begin { AddPrintPiece(*result, output, maximum, parts[0], format[begin:at], true) }
+    scan := ScanPrintFormat(format[1:format.count - 1], count - 2)
+    if scan.error != .None { result.error = scan.error; return result }
+    for index: 0..scan.count - 1 {
+        piece := scan.pieces[index]
+        value := piece.text
+        if !piece.literal { value = parts[2 + piece.argument] }
+        AddPrintPiece(*result, output, maximum, parts[0], value, piece.literal)
         if result.error != .None { return result }
-        AddPrintPiece(*result, output, maximum, parts[0], parts[argument], false)
-        if result.error != .None { return result }
-        argument += 1
-        at += 1
-        begin = at
     }
-    if argument != count { result.error = ifx PrintfSpelling(format, true) then .BuilderPrintf else .BuilderArguments; return result }
-    if at > begin { AddPrintPiece(*result, output, maximum, parts[0], format[begin:at], true) }
     return result
 }
 
@@ -1452,14 +1495,7 @@ AddPrintPiece :: (result: *PrintRewrite, output: []StatementOutput, maximum: s32
     Put(slot, *used, ", ")
     if literal {
         Put(slot, *used, "\"")
-        at: s64 = 0
-        while at < value.count {
-            byte := value[at]
-            PutByte(slot, *used, byte)
-            at += 1
-            if byte == #char "\\" && at < value.count { PutByte(slot, *used, value[at]); at += 1 }
-            else if byte == #char "%" && at < value.count && value[at] == #char "%" { at += 1 }
-        }
+        BuilderPrintLiteral(slot, *used, value)
         Put(slot, *used, "\"")
     } else { Put(slot, *used, value) }
     Put(slot, *used, ");")

@@ -3141,8 +3141,14 @@ NativeConstantOwner(ZirModule* module, uint8_t* name)
                     int32_t range_last_7 = (int32_t)((uint32_t)(scope->define_count) - 1u);
                     int32_t j = range_first_7;
                     if (j <= range_last_7) for (;;) {
-                        bool value_2 = pass == 0LL || (scope->defines[j]).is_public != 0;
-                        if (value_2 && zir_foreign_compiler_c_emit__strcmp(&(((scope->defines[j]).name)[0]), name) == 0) {
+                        bool value_2 = pass == 0LL;
+                        bool value_3 = value_2;
+                        if (!value_3) {
+                            bool value_4 = compiler_ir_PackageVisible(module, scope, (scope->defines[j]).is_public, (scope->defines[j]).is_package_private, (scope->defines[j]).is_file_private);
+                            value_3 = (value_4 != false);
+                        }
+                        bool value_5 = value_3;
+                        if (value_5 && zir_foreign_compiler_c_emit__strcmp(&(((scope->defines[j]).name)[0]), name) == 0) {
                             return scope;
                         }
                         if (j == range_last_7) {

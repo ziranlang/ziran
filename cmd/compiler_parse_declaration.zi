@@ -697,7 +697,7 @@ canonical_parameters :: (list: string) -> *u8 {
 
 #scope_export
 #program_export "private_parse_parse_import_line"
-parse_import_line :: (module: *IR.ZirModule, path: *u8, line_no: s32, line: *u8, scope_public: s32) -> s32 {
+parse_import_line :: (module: *IR.ZirModule, path: *u8, line_no: s32, line: *u8, scope_public: s32, scope_package: s32) -> s32 {
     declaration: Declaration.ModuleImport = Declaration.ImportDeclaration(declaration_text(line), cast(s64)(128), cast(s64)(1024))
     if !((declaration).present != false) {
         return 0
@@ -728,6 +728,7 @@ parse_import_line :: (module: *IR.ZirModule, path: *u8, line_no: s32, line: *u8,
     imported: *IR.ZirImport = ModuleAddImport(module, kind, cast(*u8)(*((name_storage_0[0]).items)), cast(*u8)(*((target_storage_1[0]).items)), cast(*u8)(*((signature_storage_2[0]).items)), scope_public, span)
     if (imported != cast(*IR.ZirImport)((null))) {
         (imported).is_public = scope_public
+        (imported).is_package_private = scope_package
         (imported).is_using = cast(s32)((declaration).using_import)
         if ((declaration).parameterized != false) {
             (imported).parameters = canonical_parameters((declaration).parameters)
@@ -1017,7 +1018,7 @@ parse_foreign_library_line :: (path: *u8, line_no: s32, line: *u8, names: *Parse
 
 #scope_export
 #program_export "private_parse_parse_foreign_line"
-parse_foreign_line :: (module: *IR.ZirModule, path: *u8, line_no: s32, line: *u8, scope_public: s32, names: *ParserArray128_u8, targets: *ParserArray1024_u8, paths: *ParserArray1024_u8, file_private: *s32, count: s32) -> s32 {
+parse_foreign_line :: (module: *IR.ZirModule, path: *u8, line_no: s32, line: *u8, scope_public: s32, scope_package: s32, names: *ParserArray128_u8, targets: *ParserArray1024_u8, paths: *ParserArray1024_u8, file_private: *s32, count: s32) -> s32 {
     span: IR.ZirSourceSpan = Span(path, line_no, 1)
     declaration: Declaration.ForeignDeclaration = Declaration.ParseForeign(declaration_text(line), cast(s64)(128))
     check_declaration_error(cast(Declaration.DeclarationError)((declaration).error), span)
@@ -1069,6 +1070,7 @@ parse_foreign_line :: (module: *IR.ZirModule, path: *u8, line_no: s32, line: *u8
         }
         (type).is_extern = 1
         (type).is_public = scope_public
+        (type).is_package_private = scope_package
         copy_text(cast(*u8)(*((type).foreign_target)), cast(usize)size_of(ParserArray1024_u8), cast(*u8)(*((target_storage_0[0]).items)))
         return 1
     }
@@ -1078,6 +1080,7 @@ parse_foreign_line :: (module: *IR.ZirModule, path: *u8, line_no: s32, line: *u8
         defer CompilerFree(cast(*void)parsed_name_storage_3)
         memset(cast(*void)parsed_name_storage_3, 0, size_of(ParserArray128_u8))
         (imp).is_public = scope_public
+        (imp).is_package_private = scope_package
         parse_function_header(cast(*u8)(*((parsed_name_storage_3[0]).items)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((imp).args)), cast(usize)size_of(ParserArray4096_u8), cast(*u8)(*((imp).return_type)), cast(usize)size_of(ParserArray128_u8), line)
         (imp).must_use = function_must_use(line, cast(*u8)(*((imp).return_type)), (imp).span)
         if (function_target(line, (imp).span) != 0) {
@@ -1157,7 +1160,7 @@ symmetric_operator_wrapper :: (header: *u8, wrapper: *u8, size: usize, span: IR.
 
 #scope_export
 #program_export "private_parse_defer_line"
-defer_line :: (lines: *DeferredLines, line: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32) {
+defer_line :: (lines: *DeferredLines, line: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32, scope_package: s32) {
     grown: *DeferredLine = cast(*DeferredLine)(CompilerRealloc(cast(*void)((lines).items), (cast(usize)((((lines).count + 1))) * cast(usize)size_of(DeferredLine))))
     if (grown == cast(*DeferredLine)((null))) {
         die(ParserCString("out of memory"))
@@ -1174,6 +1177,7 @@ defer_line :: (lines: *DeferredLines, line: *u8, rel: *u8, line_no: s32, scope_p
     (added).line_no = line_no
     (added).scope_public = scope_public
     (added).scope_file = scope_file
+    (added).scope_package = scope_package
 }
 
 #scope_export
@@ -1262,7 +1266,7 @@ line_starts_compile_condition :: (line: *u8) -> s32 {
 
 #scope_export
 #program_export "private_parse_declare_multiple_results"
-declare_multiple_results :: (module: *IR.ZirModule, name: *u8, ret: *u8, ret_size: usize, is_public: s32, is_file_private: s32, template_parameters: *u8, span: IR.ZirSourceSpan) -> s32 {
+declare_multiple_results :: (module: *IR.ZirModule, name: *u8, ret: *u8, ret_size: usize, is_public: s32, is_file_private: s32, is_package_private: s32, template_parameters: *u8, span: IR.ZirSourceSpan) -> s32 {
     results: Declaration.ResultDeclaration = Declaration.ParseResults(declaration_text(ret), declaration_text(template_parameters))
     check_declaration_error(cast(Declaration.DeclarationError)((results).error), span)
     if !((results).count != 0) {
@@ -1295,6 +1299,7 @@ declare_multiple_results :: (module: *IR.ZirModule, name: *u8, ret: *u8, ret_siz
     (body)[used] = cast(u8)(0)
     cast(void)(is_public)
     cast(void)(is_file_private)
+    cast(void)(is_package_private)
     type: *IR.ZirType = null
     {
         i: s32 = 0
@@ -1316,8 +1321,9 @@ declare_multiple_results :: (module: *IR.ZirModule, name: *u8, ret: *u8, ret_siz
             die(ParserCString("out of memory declaring multiple results"))
             unreachable
         }
-        (type).is_public = 1
+        (type).is_public = cast(s32)(is_package_private == 0)
         (type).is_file_private = 0
+        (type).is_package_private = is_package_private
         (type).is_results = 1
         (type).is_record_template = cast(s32)(cast(s32)(cast(s8)((parameters_storage_1[0]).items[0])) != 0)
         copy_text(cast(*u8)(*((type).template_params)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((parameters_storage_1[0]).items)))

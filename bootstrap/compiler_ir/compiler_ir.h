@@ -3,7 +3,7 @@
 #define ZIRAN_COMPILER_IR_H
 
 #include <stdbool.h>
-#include "zir_string_types.h"
+#include "zir_string.h"
 #include "zir_slice.h"
 #ifndef ZIRAN_TYPE_FORWARD_ZirImportKind
 #define ZIRAN_TYPE_FORWARD_ZirImportKind
@@ -242,6 +242,7 @@ struct ZirImport {
     ZirExternKind extern_kind;
     int32_t is_public;
     int32_t is_file_private;
+    int32_t is_package_private;
     char name[128];
     char target[1024];
     char extern_symbol[128];
@@ -338,6 +339,7 @@ struct ZirFunction {
     ZirExternKind extern_kind;
     int32_t is_public;
     int32_t is_file_private;
+    int32_t is_package_private;
     int32_t is_template;
     int32_t is_specialization;
     int32_t is_global_initializer;
@@ -382,6 +384,7 @@ struct ZirDefine {
     const char * value;
     int32_t is_public;
     int32_t is_file_private;
+    int32_t is_package_private;
     int32_t requires_open_enum;
     int32_t native_name_collision;
     ZirSourceSpan span;
@@ -476,6 +479,7 @@ struct ZirType {
     char procedure_return_type[128];
     int32_t is_public;
     int32_t is_file_private;
+    int32_t is_package_private;
     int32_t is_enum;
     int32_t is_union;
     int32_t is_go_anonymous;
@@ -514,6 +518,7 @@ struct ZirModule {
     char source_root[1024];
     char lookup_path[1024];
     char standard_name[128];
+    char package[128];
     ZirSourceSpan span;
     ZirGlobal* globals;
     int32_t global_count;
@@ -595,16 +600,22 @@ Slice compiler_ir_CBuffer(uint8_t* data, size_t count);
 String compiler_ir_BufferText(Slice buffer);
 bool compiler_ir_CopyText(Slice output, String text);
 bool compiler_ir_HostProviderVisible(ZirFunction* function);
+bool compiler_ir_SamePackage(ZirModule* viewer, ZirModule* owner);
+bool compiler_ir_PackageVisible(ZirModule* viewer, ZirModule* owner, int32_t is_public, int32_t is_package_private, int32_t is_file_private);
 bool compiler_ir_CaptureEnvironmentBinding(ZirFunction* function);
 
 /* Small procedures other modules inline; compiler_ir.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_IR_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include <stdbool.h>
-#include "zir_string_types.h"
+#include "zir_string.h"
 static inline bool compiler_ir_CopyText_ziran_inline(Slice output, String text);
 #define compiler_ir_CopyText(...) compiler_ir_CopyText_ziran_inline(__VA_ARGS__)
 static inline bool compiler_ir_HostProviderVisible_ziran_inline(ZirFunction* function);
 #define compiler_ir_HostProviderVisible(...) compiler_ir_HostProviderVisible_ziran_inline(__VA_ARGS__)
+static inline bool compiler_ir_SamePackage_ziran_inline(ZirModule* viewer, ZirModule* owner);
+#define compiler_ir_SamePackage(...) compiler_ir_SamePackage_ziran_inline(__VA_ARGS__)
+static inline bool compiler_ir_PackageVisible_ziran_inline(ZirModule* viewer, ZirModule* owner, int32_t is_public, int32_t is_package_private, int32_t is_file_private);
+#define compiler_ir_PackageVisible(...) compiler_ir_PackageVisible_ziran_inline(__VA_ARGS__)
 
 static inline bool
 compiler_ir_CopyText_ziran_inline(Slice output, String text)
@@ -642,6 +653,46 @@ static inline bool
 compiler_ir_HostProviderVisible_ziran_inline(ZirFunction* function)
 {
     return function->is_extern == 0 && function->is_template == 0 && (function->exported != 0 || (function->is_public != 0 && function->is_file_private == 0));
+}
+
+static inline bool
+compiler_ir_SamePackage_ziran_inline(ZirModule* viewer, ZirModule* owner)
+{
+    if (viewer == ((void *)0) || owner == ((void *)0)) {
+        return false;
+    }
+    String value_0 = compiler_ir_CText(&(viewer->package[0]));
+    return StringEqual(value_0, compiler_ir_CText(&(owner->package[0])));
+}
+
+static inline bool
+compiler_ir_PackageVisible_ziran_inline(ZirModule* viewer, ZirModule* owner, int32_t is_public, int32_t is_package_private, int32_t is_file_private)
+{
+    if (is_file_private != 0) {
+        return false;
+    }
+    if (is_public != 0) {
+        return true;
+    }
+    bool value_0 = is_package_private != 0;
+    if (value_0) {
+        ZirModule* value_1 = viewer;
+        ZirModule* value_2 = owner;
+        bool value_3 = false;
+        {
+            ZirModule* viewer = value_1;
+            ZirModule* owner = value_2;
+            if (viewer == ((void *)0) || owner == ((void *)0)) {
+                value_3 = false;
+                goto value_4;
+            }
+            String value_5 = compiler_ir_CText(&(viewer->package[0]));
+            value_3 = StringEqual(value_5, compiler_ir_CText(&(owner->package[0])));
+        value_4: ;
+        }
+        value_0 = value_3;
+    }
+    return value_0;
 }
 #endif
 

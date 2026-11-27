@@ -398,12 +398,14 @@ signature modifier is rejected.
 File-scope variables use `name: Type;` or `name: Type = value;`. The old
 `name :: Type #global` and C-style `static name: Type` forms are rejected.
 Visibility for following declarations uses Jai's `#scope_file`,
-`#scope_module`, and `#scope_export` directives. The old `#private` suffix is
-rejected. `#load` adds files to one module. File-private declarations and
-imports remain visible to their own file; module-scoped declarations remain
-visible across loaded files. Private procedures, constants, globals, and types
-with the same source name in separate loaded files receive distinct checked
-identities.
+`#scope_module`, `#scope_export`, and `#scope_package` directives. The old
+`#private` suffix is rejected. `#load` adds files to one module. File-private
+declarations and imports remain visible to their own file; module-scoped
+declarations remain visible across loaded files; package-scoped declarations
+remain visible across the modules of one manifest package and are invisible to
+other packages, in source and saved IR alike. Private procedures, constants,
+globals, and types with the same source name in separate loaded files receive
+distinct checked identities.
 Foreign procedures use `lib :: #system_library "lib";` and
 `Call :: (...) -> Ret #foreign lib;`. An alternate symbol may follow the
 library name in quotes. `#extern` is rejected in source. Ziran's `host_api`

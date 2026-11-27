@@ -2748,14 +2748,17 @@ compiler_parse_typed_evaluate_typed_node_with_buffers_in_state(EvaluationState* 
                     zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
                     return cleanup_return_45;
                 }
-                ZirType* enumeration = zir_foreign_compiler_parse_typed__FindType(module, (uint8_t*)(probe->exprs[expression->left]).name, (void *)0);
+                ZirModule* enum_owner = (void *)0;
+                ZirType* enumeration = zir_foreign_compiler_parse_typed__FindType(module, (uint8_t*)(probe->exprs[expression->left]).name, &(enum_owner));
                 int64_t member_value = 0;
-                bool value_289 = law_evaluation[0] != 0 && enumeration != (ZirType*)(((void *)0)) && enumeration->is_enum != 0;
+                bool value_289 = enumeration != (ZirType*)(((void *)0)) && enumeration->is_enum != 0;
                 if (value_289 && zir_foreign_compiler_parse_typed__EnumMemberValue(enumeration, (uint8_t*)expression->name, &(member_value)) != 0) {
                     int32_t* value_290 = &(result->kind);
                     (*value_290) = 1;
                     int64_t* value_291 = &(result->integer);
                     (*value_291) = member_value;
+                    ZirModule** value_292 = &(result->type_owner);
+                    (*value_292) = enum_owner;
                     zir_foreign_compiler_parse_typed__copy_text((uint8_t*)(&(result->type.items)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)(&(enumeration->name)));
                     int32_t cleanup_return_46 = zir_foreign_compiler_parse_typed__compile_value_literal(result);
                     zir_foreign_compiler_parse_typed__CompilerFree((void*)(qualified_storage_2));
@@ -2765,99 +2768,99 @@ compiler_parse_typed_evaluate_typed_node_with_buffers_in_state(EvaluationState* 
                 }
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(qualified_storage_2));
             }
-            bool value_292 = private_parse_evaluate_typed_node_in_state(evaluation, probe, expression->left, module, path, (int32_t)((uint32_t)depth + 1u), fuel, &(left_storage_0[0])) != 0;
-            bool value_293 = !value_292;
-            if (!value_293) {
-                bool value_294 = (uint32_t)((left_storage_0[0]).kind) == 6;
-                bool value_295 = value_294;
-                if (value_295) {
-                    bool value_296 = compiler_parse_typed_compile_dereference_in_state(evaluation, &(left_storage_0[0]), (int32_t)((uint32_t)depth + 1u), fuel) != 0;
-                    value_295 = !value_296;
+            bool value_293 = private_parse_evaluate_typed_node_in_state(evaluation, probe, expression->left, module, path, (int32_t)((uint32_t)depth + 1u), fuel, &(left_storage_0[0])) != 0;
+            bool value_294 = !value_293;
+            if (!value_294) {
+                bool value_295 = (uint32_t)((left_storage_0[0]).kind) == 6;
+                bool value_296 = value_295;
+                if (value_296) {
+                    bool value_297 = compiler_parse_typed_compile_dereference_in_state(evaluation, &(left_storage_0[0]), (int32_t)((uint32_t)depth + 1u), fuel) != 0;
+                    value_296 = !value_297;
                 }
-                value_293 = value_295;
+                value_294 = value_296;
             }
-            if (value_293) {
+            if (value_294) {
                 int32_t cleanup_return_47 = 0;
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
                 return cleanup_return_47;
             }
             if ((uint32_t)((left_storage_0[0]).kind) == 5) {
-                EvaluationState* value_297 = evaluation;
-                CompileValue* value_298 = &(left_storage_0[0]);
-                CompileText* value_299 = (void *)0;
+                EvaluationState* value_298 = evaluation;
+                CompileValue* value_299 = &(left_storage_0[0]);
+                CompileText* value_300 = (void *)0;
                 {
-                    EvaluationState* evaluation = value_297;
-                    CompileValue* value = value_298;
-                    bool value_301 = (uint32_t)(value->kind) == 5;
-                    if (value_301) {
-                        int64_t value_302 = value->integer;
-                        value_301 = (value_302 >= 0LL);
+                    EvaluationState* evaluation = value_298;
+                    CompileValue* value = value_299;
+                    bool value_302 = (uint32_t)(value->kind) == 5;
+                    if (value_302) {
+                        int64_t value_303 = value->integer;
+                        value_302 = (value_303 >= 0LL);
                     }
-                    bool value_303 = value_301;
-                    if (value_303) {
-                        int64_t value_304 = value->integer;
-                        int64_t value_305 = (int64_t)(evaluation->compile_store.builder_count);
-                        value_303 = (value_304 < value_305);
+                    bool value_304 = value_302;
+                    if (value_304) {
+                        int64_t value_305 = value->integer;
+                        int64_t value_306 = (int64_t)(evaluation->compile_store.builder_count);
+                        value_304 = (value_305 < value_306);
                     }
-                    CompileText* value_306 = (void *)0;
-                    if (value_303) {
-                        CompileText* value_307 = (CompileText*)(((size_t)(evaluation->compile_store.builders) + ((size_t)(value->integer) * sizeof(CompileText))));
-                        value_306 = value_307;
+                    CompileText* value_307 = (void *)0;
+                    if (value_304) {
+                        CompileText* value_308 = (CompileText*)(((size_t)(evaluation->compile_store.builders) + ((size_t)(value->integer) * sizeof(CompileText))));
+                        value_307 = value_308;
                     } else {
-                        value_306 = (void *)0;
+                        value_307 = (void *)0;
                     }
-                    value_299 = value_306;
+                    value_300 = value_307;
                 }
-                CompileText* builder = value_299;
-                bool value_308 = builder == (CompileText*)(((void *)0));
-                bool value_309 = value_308;
-                if (!value_309) {
-                    uint8_t* value_310 = (uint8_t*)expression->name;
-                    bool value_311 = zir_foreign_compiler_parse_typed__strcmp(value_310, compiler_parse_types_ParserCString(StringLiteral("count"))) != 0;
-                    value_309 = value_311;
+                CompileText* builder = value_300;
+                bool value_309 = builder == (CompileText*)(((void *)0));
+                bool value_310 = value_309;
+                if (!value_310) {
+                    uint8_t* value_311 = (uint8_t*)expression->name;
+                    bool value_312 = zir_foreign_compiler_parse_typed__strcmp(value_311, compiler_parse_types_ParserCString(StringLiteral("count"))) != 0;
+                    value_310 = value_312;
                 }
-                if (value_309) {
+                if (value_310) {
                     int32_t cleanup_return_48 = 0;
                     zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
                     zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
                     return cleanup_return_48;
                 }
-                int32_t* value_312 = &(result->kind);
-                (*value_312) = 1;
-                int64_t* value_313 = &(result->integer);
-                (*value_313) = (int64_t)(builder->used);
+                int32_t* value_313 = &(result->kind);
+                (*value_313) = 1;
+                int64_t* value_314 = &(result->integer);
+                (*value_314) = (int64_t)(builder->used);
                 int32_t cleanup_return_49 = zir_foreign_compiler_parse_typed__compile_value_literal(result);
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
                 return cleanup_return_49;
             }
-            bool value_314 = (uint32_t)((left_storage_0[0]).kind) == 3;
-            bool value_315 = value_314;
-            if (value_315) {
-                uint8_t* value_316 = (uint8_t*)expression->name;
-                bool value_317 = zir_foreign_compiler_parse_typed__strcmp(value_316, compiler_parse_types_ParserCString(StringLiteral("count"))) != 0;
-                value_315 = !value_317;
+            bool value_315 = (uint32_t)((left_storage_0[0]).kind) == 3;
+            bool value_316 = value_315;
+            if (value_316) {
+                uint8_t* value_317 = (uint8_t*)expression->name;
+                bool value_318 = zir_foreign_compiler_parse_typed__strcmp(value_317, compiler_parse_types_ParserCString(StringLiteral("count"))) != 0;
+                value_316 = !value_318;
             }
-            if (value_315) {
+            if (value_316) {
                 size_t length = (size_t)(0LL);
                 uint8_t* bytes = zir_foreign_compiler_parse_typed__compile_string_bytes(&(left_storage_0[0]), &(length));
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(bytes));
-                bool value_318 = bytes == ((void *)0);
-                if (!value_318) {
-                    uint64_t value_319 = (uint64_t)(length);
-                    value_318 = (value_319 > 9223372036854775807ULL);
+                bool value_319 = bytes == ((void *)0);
+                if (!value_319) {
+                    uint64_t value_320 = (uint64_t)(length);
+                    value_319 = (value_320 > 9223372036854775807ULL);
                 }
-                if (value_318) {
+                if (value_319) {
                     int32_t cleanup_return_50 = 0;
                     zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
                     zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
                     return cleanup_return_50;
                 }
-                int32_t* value_320 = &(result->kind);
-                (*value_320) = 1;
-                int64_t* value_321 = &(result->integer);
-                (*value_321) = (int64_t)(length);
+                int32_t* value_321 = &(result->kind);
+                (*value_321) = 1;
+                int64_t* value_322 = &(result->integer);
+                (*value_322) = (int64_t)(length);
                 int32_t cleanup_return_51 = zir_foreign_compiler_parse_typed__compile_value_literal(result);
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
@@ -2865,18 +2868,18 @@ compiler_parse_typed_evaluate_typed_node_with_buffers_in_state(EvaluationState* 
             }
             if ((uint32_t)((left_storage_0[0]).kind) == 4) {
                 int32_t capacity = 0;
-                bool value_322 = zir_foreign_compiler_parse_typed__ArrayElementType((uint8_t*)(&(((left_storage_0[0]).type).items)), (void *)0, (size_t)(0LL), &(capacity)) != 0;
-                bool value_323 = value_322;
-                if (value_323) {
-                    uint8_t* value_324 = (uint8_t*)expression->name;
-                    bool value_325 = zir_foreign_compiler_parse_typed__strcmp(value_324, compiler_parse_types_ParserCString(StringLiteral("count"))) != 0;
-                    value_323 = !value_325;
+                bool value_323 = zir_foreign_compiler_parse_typed__ArrayElementType((uint8_t*)(&(((left_storage_0[0]).type).items)), (void *)0, (size_t)(0LL), &(capacity)) != 0;
+                bool value_324 = value_323;
+                if (value_324) {
+                    uint8_t* value_325 = (uint8_t*)expression->name;
+                    bool value_326 = zir_foreign_compiler_parse_typed__strcmp(value_325, compiler_parse_types_ParserCString(StringLiteral("count"))) != 0;
+                    value_324 = !value_326;
                 }
-                if (value_323) {
-                    int32_t* value_326 = &(result->kind);
-                    (*value_326) = 1;
-                    int64_t* value_327 = &(result->integer);
-                    (*value_327) = (int64_t)(capacity);
+                if (value_324) {
+                    int32_t* value_327 = &(result->kind);
+                    (*value_327) = 1;
+                    int64_t* value_328 = &(result->integer);
+                    (*value_328) = (int64_t)(capacity);
                     int32_t cleanup_return_52 = zir_foreign_compiler_parse_typed__compile_value_literal(result);
                     zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
                     zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
@@ -2898,15 +2901,15 @@ compiler_parse_typed_evaluate_typed_node_with_buffers_in_state(EvaluationState* 
             zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
             return cleanup_return_55;
         } else if (choice_77 == ((ZirExprKind)(16))) {
-            ZirExpr* value_328 = (void *)0;
+            ZirExpr* value_329 = (void *)0;
             if (expression->left >= 0) {
-                value_328 = (ZirExpr*)(((size_t)(probe->exprs) + ((size_t)(expression->left) * sizeof(ZirExpr))));
+                value_329 = (ZirExpr*)(((size_t)(probe->exprs) + ((size_t)(expression->left) * sizeof(ZirExpr))));
             } else {
-                value_328 = (void *)0;
+                value_329 = (void *)0;
             }
-            ZirExpr* base = value_328;
-            bool value_329 = base == (ZirExpr*)(((void *)0)) || (int32_t)(((ZirExprKind)(base->kind))) != 1 || expression->right >= 0;
-            if (value_329 || expression->third >= 0) {
+            ZirExpr* base = value_329;
+            bool value_330 = base == (ZirExpr*)(((void *)0)) || (int32_t)(((ZirExprKind)(base->kind))) != 1 || expression->right >= 0;
+            if (value_330 || expression->third >= 0) {
                 int32_t cleanup_return_56 = 0;
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
@@ -2917,24 +2920,24 @@ compiler_parse_typed_evaluate_typed_node_with_buffers_in_state(EvaluationState* 
             zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
             return cleanup_return_57;
         } else if (choice_77 == ((ZirExprKind)(10))) {
-            bool value_330 = private_parse_evaluate_typed_node_in_state(evaluation, probe, expression->left, module, path, (int32_t)((uint32_t)depth + 1u), fuel, &(left_storage_0[0])) != 0;
-            bool value_331 = !value_330;
-            if (!value_331) {
-                bool value_332 = (uint32_t)((left_storage_0[0]).kind) == 6;
-                bool value_333 = value_332;
-                if (value_333) {
-                    bool value_334 = compiler_parse_typed_compile_dereference_in_state(evaluation, &(left_storage_0[0]), (int32_t)((uint32_t)depth + 1u), fuel) != 0;
-                    value_333 = !value_334;
+            bool value_331 = private_parse_evaluate_typed_node_in_state(evaluation, probe, expression->left, module, path, (int32_t)((uint32_t)depth + 1u), fuel, &(left_storage_0[0])) != 0;
+            bool value_332 = !value_331;
+            if (!value_332) {
+                bool value_333 = (uint32_t)((left_storage_0[0]).kind) == 6;
+                bool value_334 = value_333;
+                if (value_334) {
+                    bool value_335 = compiler_parse_typed_compile_dereference_in_state(evaluation, &(left_storage_0[0]), (int32_t)((uint32_t)depth + 1u), fuel) != 0;
+                    value_334 = !value_335;
                 }
-                value_331 = value_333;
+                value_332 = value_334;
             }
-            bool value_335 = value_331;
-            bool value_336 = value_335;
-            if (!value_336) {
-                bool value_337 = private_parse_evaluate_typed_node_in_state(evaluation, probe, expression->right, module, path, (int32_t)((uint32_t)depth + 1u), fuel, &(right_storage_1[0])) != 0;
-                value_336 = !value_337;
+            bool value_336 = value_332;
+            bool value_337 = value_336;
+            if (!value_337) {
+                bool value_338 = private_parse_evaluate_typed_node_in_state(evaluation, probe, expression->right, module, path, (int32_t)((uint32_t)depth + 1u), fuel, &(right_storage_1[0])) != 0;
+                value_337 = !value_338;
             }
-            if (value_336 || (uint32_t)((left_storage_0[0]).kind) != 4 || (uint32_t)((right_storage_1[0]).kind) != 1) {
+            if (value_337 || (uint32_t)((left_storage_0[0]).kind) != 4 || (uint32_t)((right_storage_1[0]).kind) != 1) {
                 int32_t cleanup_return_58 = 0;
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
@@ -2951,8 +2954,8 @@ compiler_parse_typed_evaluate_typed_node_with_buffers_in_state(EvaluationState* 
             zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
             return cleanup_return_60;
         } else if (choice_77 == ((ZirExprKind)(11))) {
-            bool value_338 = private_parse_evaluate_typed_node_in_state(evaluation, probe, expression->right, module, path, (int32_t)((uint32_t)depth + 1u), fuel, result) != 0;
-            if (!value_338) {
+            bool value_339 = private_parse_evaluate_typed_node_in_state(evaluation, probe, expression->right, module, path, (int32_t)((uint32_t)depth + 1u), fuel, result) != 0;
+            if (!value_339) {
                 int32_t cleanup_return_61 = 0;
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
@@ -2960,23 +2963,23 @@ compiler_parse_typed_evaluate_typed_node_with_buffers_in_state(EvaluationState* 
             }
             if ((uint32_t)(result->kind) == 1) {
                 ZirType* type = zir_foreign_compiler_parse_typed__FindType(module, (uint8_t*)expression->name, (void *)0);
-                uint8_t* value_339 = (void *)0;
+                uint8_t* value_340 = (void *)0;
                 if (type != ((void *)0) && type->is_enum != 0) {
-                    value_339 = (uint8_t*)(&(type->enum_backing));
+                    value_340 = (uint8_t*)(&(type->enum_backing));
                 } else {
-                    value_339 = (uint8_t*)expression->name;
+                    value_340 = (uint8_t*)expression->name;
                 }
-                uint8_t* scalar = value_339;
-                uint8_t* value_340 = (uint8_t*)expression->name;
-                bool value_341 = zir_foreign_compiler_parse_typed__strcmp(value_340, compiler_parse_types_ParserCString(StringLiteral("bool"))) != 0;
-                if (!value_341) {
-                    int64_t* value_342 = &(result->integer);
-                    int64_t value_343 = result->integer;
-                    int32_t value_344 = 0;
-                    if (value_343 != 0LL) {
-                        value_344 = 1;
+                uint8_t* scalar = value_340;
+                uint8_t* value_341 = (uint8_t*)expression->name;
+                bool value_342 = zir_foreign_compiler_parse_typed__strcmp(value_341, compiler_parse_types_ParserCString(StringLiteral("bool"))) != 0;
+                if (!value_342) {
+                    int64_t* value_343 = &(result->integer);
+                    int64_t value_344 = result->integer;
+                    int32_t value_345 = 0;
+                    if (value_344 != 0LL) {
+                        value_345 = 1;
                     }
-                    (*value_342) = (int64_t)(value_344);
+                    (*value_343) = (int64_t)(value_345);
                 } else {
                     if (zir_foreign_compiler_parse_typed__wrap_compile_integer(scalar, &(result->integer)) != 0) {
                         zir_foreign_compiler_parse_typed__copy_text((uint8_t*)(&(result->type.items)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)expression->name);
@@ -2988,113 +2991,113 @@ compiler_parse_typed_evaluate_typed_node_with_buffers_in_state(EvaluationState* 
                         }
                     }
                 }
-                bool value_345 = law_evaluation[0] != 0;
-                bool value_346 = value_345;
-                if (value_346) {
-                    uint8_t* value_347 = scalar;
-                    bool value_348 = zir_foreign_compiler_parse_typed__strcmp(value_347, compiler_parse_types_ParserCString(StringLiteral("float32"))) != 0;
-                    bool value_349 = !value_348;
-                    if (!value_349) {
-                        uint8_t* value_350 = scalar;
-                        bool value_351 = zir_foreign_compiler_parse_typed__strcmp(value_350, compiler_parse_types_ParserCString(StringLiteral("float64"))) != 0;
-                        value_349 = !value_351;
+                bool value_346 = law_evaluation[0] != 0;
+                bool value_347 = value_346;
+                if (value_347) {
+                    uint8_t* value_348 = scalar;
+                    bool value_349 = zir_foreign_compiler_parse_typed__strcmp(value_348, compiler_parse_types_ParserCString(StringLiteral("float32"))) != 0;
+                    bool value_350 = !value_349;
+                    if (!value_350) {
+                        uint8_t* value_351 = scalar;
+                        bool value_352 = zir_foreign_compiler_parse_typed__strcmp(value_351, compiler_parse_types_ParserCString(StringLiteral("float64"))) != 0;
+                        value_350 = !value_352;
                     }
-                    value_346 = value_349;
+                    value_347 = value_350;
                 }
-                if (value_346) {
-                    uint8_t* value_352 = scalar;
-                    bool value_353 = zir_foreign_compiler_parse_typed__strcmp(value_352, compiler_parse_types_ParserCString(StringLiteral("float32"))) == 0;
-                    int64_t value_354 = 0;
-                    if (value_353) {
-                        value_354 = 16777216LL;
+                if (value_347) {
+                    uint8_t* value_353 = scalar;
+                    bool value_354 = zir_foreign_compiler_parse_typed__strcmp(value_353, compiler_parse_types_ParserCString(StringLiteral("float32"))) == 0;
+                    int64_t value_355 = 0;
+                    if (value_354) {
+                        value_355 = 16777216LL;
                     } else {
-                        value_354 = 9007199254740992LL;
+                        value_355 = 9007199254740992LL;
                     }
-                    int64_t limit = value_354;
-                    bool value_355 = zir_foreign_compiler_parse_typed__strcmp((uint8_t*)(&(result->type.items)), compiler_parse_types_ParserCString(StringLiteral("u64"))) != 0;
-                    int32_t value_356 = 0;
-                    if (!value_355) {
-                        uint64_t value_357 = (uint64_t)(result->integer);
-                        uint64_t value_358 = (uint64_t)(limit);
-                        int32_t value_359 = 0;
-                        if (value_357 > value_358) {
-                            value_359 = 1;
+                    int64_t limit = value_355;
+                    bool value_356 = zir_foreign_compiler_parse_typed__strcmp((uint8_t*)(&(result->type.items)), compiler_parse_types_ParserCString(StringLiteral("u64"))) != 0;
+                    int32_t value_357 = 0;
+                    if (!value_356) {
+                        uint64_t value_358 = (uint64_t)(result->integer);
+                        uint64_t value_359 = (uint64_t)(limit);
+                        int32_t value_360 = 0;
+                        if (value_358 > value_359) {
+                            value_360 = 1;
                         }
-                        value_356 = value_359;
+                        value_357 = value_360;
                     } else {
-                        int64_t value_360 = result->integer;
-                        int64_t value_361 = (int64_t)(UINT64_C(0) - (uint64_t)limit);
-                        bool value_362 = value_360 < value_361;
-                        if (!value_362) {
-                            int64_t value_363 = result->integer;
-                            value_362 = (value_363 > limit);
+                        int64_t value_361 = result->integer;
+                        int64_t value_362 = (int64_t)(UINT64_C(0) - (uint64_t)limit);
+                        bool value_363 = value_361 < value_362;
+                        if (!value_363) {
+                            int64_t value_364 = result->integer;
+                            value_363 = (value_364 > limit);
                         }
-                        int32_t value_364 = 0;
-                        if (value_362) {
-                            value_364 = 1;
+                        int32_t value_365 = 0;
+                        if (value_363) {
+                            value_365 = 1;
                         }
-                        value_356 = value_364;
+                        value_357 = value_365;
                     }
-                    if (value_356 != 0) {
+                    if (value_357 != 0) {
                         int32_t cleanup_return_63 = 0;
                         zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
                         zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
                         return cleanup_return_63;
                     }
-                    double* value_365 = &(result->real);
-                    (*value_365) = (double)(result->integer);
-                    int32_t* value_366 = &(result->kind);
-                    (*value_366) = 2;
+                    double* value_366 = &(result->real);
+                    (*value_366) = (double)(result->integer);
+                    int32_t* value_367 = &(result->kind);
+                    (*value_367) = 2;
                 }
             }
-            bool value_367 = zir_foreign_compiler_parse_typed__eval_integer_type((uint8_t*)expression->name, 0LL) != 0;
-            if (value_367 && (uint32_t)(result->kind) == 2) {
+            bool value_368 = zir_foreign_compiler_parse_typed__eval_integer_type((uint8_t*)expression->name, 0LL) != 0;
+            if (value_368 && (uint32_t)(result->kind) == 2) {
                 if (result->real < (double)((-INT64_C(9223372036854775807)-1)) || result->real >= -(double)((-INT64_C(9223372036854775807)-1))) {
                     int32_t cleanup_return_64 = 0;
                     zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
                     zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
                     return cleanup_return_64;
                 }
-                int64_t* value_368 = &(result->integer);
-                (*value_368) = (int64_t)SignedBits(FloatToInt(result->real, 64, 1), 64);
-                int32_t* value_369 = &(result->kind);
-                (*value_369) = 1;
+                int64_t* value_369 = &(result->integer);
+                (*value_369) = (int64_t)SignedBits(FloatToInt(result->real, 64, 1), 64);
+                int32_t* value_370 = &(result->kind);
+                (*value_370) = 1;
             }
             int32_t cleanup_return_65 = zir_foreign_compiler_parse_typed__compile_type_value((uint8_t*)expression->name, result);
             zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
             zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
             return cleanup_return_65;
         } else if (choice_77 == ((ZirExprKind)(14))) {
-            bool value_370 = private_parse_evaluate_typed_node_in_state(evaluation, probe, expression->left, module, path, (int32_t)((uint32_t)depth + 1u), fuel, &(left_storage_0[0])) != 0;
-            bool value_371 = !value_370;
-            if (!value_371) {
-                bool value_372 = zir_foreign_compiler_parse_typed__compile_truth(&(left_storage_0[0]), &(truth)) != 0;
-                value_371 = !value_372;
+            bool value_371 = private_parse_evaluate_typed_node_in_state(evaluation, probe, expression->left, module, path, (int32_t)((uint32_t)depth + 1u), fuel, &(left_storage_0[0])) != 0;
+            bool value_372 = !value_371;
+            if (!value_372) {
+                bool value_373 = zir_foreign_compiler_parse_typed__compile_truth(&(left_storage_0[0]), &(truth)) != 0;
+                value_372 = !value_373;
             }
-            if (value_371) {
+            if (value_372) {
                 int32_t cleanup_return_66 = 0;
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
                 return cleanup_return_66;
             }
-            int32_t value_373 = 0;
+            int32_t value_374 = 0;
             if (truth != 0) {
-                value_373 = expression->right;
+                value_374 = expression->right;
             } else {
-                value_373 = expression->third;
+                value_374 = expression->third;
             }
-            int32_t cleanup_return_67 = private_parse_evaluate_typed_node_in_state(evaluation, probe, value_373, module, path, (int32_t)((uint32_t)depth + 1u), fuel, result);
+            int32_t cleanup_return_67 = private_parse_evaluate_typed_node_in_state(evaluation, probe, value_374, module, path, (int32_t)((uint32_t)depth + 1u), fuel, result);
             zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
             zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
             return cleanup_return_67;
         } else if (choice_77 == ((ZirExprKind)(5))) {
-            void* value_374 = zir_foreign_compiler_parse_typed__AllocateOrExit(sizeof(ParserArray128_u8));
-            ParserArray128_u8* name_storage_3 = (ParserArray128_u8*)(value_374);
+            void* value_375 = zir_foreign_compiler_parse_typed__AllocateOrExit(sizeof(ParserArray128_u8));
+            ParserArray128_u8* name_storage_3 = (ParserArray128_u8*)(value_375);
             zir_foreign_compiler_parse_typed__memset((void*)(name_storage_3), 0, sizeof(ParserArray128_u8));
             int32_t count = 0;
             zir_foreign_compiler_parse_typed__copy_text((uint8_t*)(&((name_storage_3[0]).items)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)expression->name);
-            bool value_375 = zir_foreign_compiler_parse_typed__strcmp((uint8_t*)(&((name_storage_3[0]).items)), compiler_parse_types_ParserCString(StringLiteral("defined"))) != 0;
-            if (!value_375) {
+            bool value_376 = zir_foreign_compiler_parse_typed__strcmp((uint8_t*)(&((name_storage_3[0]).items)), compiler_parse_types_ParserCString(StringLiteral("defined"))) != 0;
+            if (!value_376) {
                 int32_t probe_name = expression->first_child;
                 if (probe_name < 0 || (int32_t)(((ZirExprKind)((probe->exprs[probe_name]).kind))) != 1 || (probe->exprs[probe_name]).next_sibling >= 0) {
                     int32_t cleanup_return_68 = 0;
@@ -3103,11 +3106,11 @@ compiler_parse_typed_evaluate_typed_node_with_buffers_in_state(EvaluationState* 
                     zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
                     return cleanup_return_68;
                 }
-                int32_t* value_376 = &(result->kind);
-                (*value_376) = 1;
-                int64_t* value_377 = &(result->integer);
-                int32_t value_378 = compiler_parse_typed_compile_name_defined_in_state(evaluation, module, path, (uint8_t*)(probe->exprs[probe_name]).name);
-                (*value_377) = (int64_t)(value_378);
+                int32_t* value_377 = &(result->kind);
+                (*value_377) = 1;
+                int64_t* value_378 = &(result->integer);
+                int32_t value_379 = compiler_parse_typed_compile_name_defined_in_state(evaluation, module, path, (uint8_t*)(probe->exprs[probe_name]).name);
+                (*value_378) = (int64_t)(value_379);
                 int32_t cleanup_return_69 = zir_foreign_compiler_parse_typed__compile_value_literal(result);
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(name_storage_3));
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
@@ -3116,15 +3119,15 @@ compiler_parse_typed_evaluate_typed_node_with_buffers_in_state(EvaluationState* 
             }
             if (!(((name_storage_3[0]).items)[0] != 0) && expression->left >= 0) {
                 ZirExpr* callee = (ZirExpr*)(((size_t)(probe->exprs) + ((size_t)(expression->left) * sizeof(ZirExpr))));
-                bool value_379 = (int32_t)(((ZirExprKind)(callee->kind))) != 8 || callee->left < 0 || (int32_t)(((ZirExprKind)((probe->exprs[callee->left]).kind))) != 1;
-                bool value_380 = value_379;
+                bool value_380 = (int32_t)(((ZirExprKind)(callee->kind))) != 8 || callee->left < 0 || (int32_t)(((ZirExprKind)((probe->exprs[callee->left]).kind))) != 1;
                 bool value_381 = value_380;
-                if (!value_381) {
-                    uint8_t* value_382 = compiler_parse_types_ParserCString(StringLiteral("%s.%s"));
-                    bool value_383 = zir_foreign_compiler_parse_typed__snprintf((uint8_t*)(&((name_storage_3[0]).items)), (size_t)(sizeof(ParserArray128_u8)), value_382, (uint8_t*)(probe->exprs[callee->left]).name, (uint8_t*)callee->name) >= (int32_t)((size_t)(sizeof(ParserArray128_u8)));
-                    value_381 = value_383;
+                bool value_382 = value_381;
+                if (!value_382) {
+                    uint8_t* value_383 = compiler_parse_types_ParserCString(StringLiteral("%s.%s"));
+                    bool value_384 = zir_foreign_compiler_parse_typed__snprintf((uint8_t*)(&((name_storage_3[0]).items)), (size_t)(sizeof(ParserArray128_u8)), value_383, (uint8_t*)(probe->exprs[callee->left]).name, (uint8_t*)callee->name) >= (int32_t)((size_t)(sizeof(ParserArray128_u8)));
+                    value_382 = value_384;
                 }
-                if (value_381) {
+                if (value_382) {
                     int32_t cleanup_return_70 = 0;
                     zir_foreign_compiler_parse_typed__CompilerFree((void*)(name_storage_3));
                     zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
@@ -3140,34 +3143,34 @@ compiler_parse_typed_evaluate_typed_node_with_buffers_in_state(EvaluationState* 
                         break;
                     }
                     if (count < 16) {
-                        CompileValue* value_384 = (CompileValue*)(((size_t)((CompileValue*)(&(buffers->args.items))) + ((size_t)(count) * sizeof(CompileValue))));
+                        CompileValue* value_385 = (CompileValue*)(((size_t)((CompileValue*)(&(buffers->args.items))) + ((size_t)(count) * sizeof(CompileValue))));
                         {
-                            CompileValue* value = value_384;
-                            int32_t* value_386 = &(value->kind);
-                            (*value_386) = 0;
-                            int64_t* value_387 = &(value->integer);
-                            (*value_387) = 0LL;
-                            double* value_388 = &(value->real);
-                            (*value_388) = (double)(0LL);
-                            uint8_t* value_389 = &(value->type.items[0]);
-                            (*value_389) = 0;
-                            uint8_t** value_390 = &(value->kept);
-                            (*value_390) = (void *)0;
-                            uint8_t* value_391 = &(value->spelling.items[0]);
-                            (*value_391) = 0;
-                            ZirModule** value_392 = &(value->type_owner);
-                            (*value_392) = (void *)0;
+                            CompileValue* value = value_385;
+                            int32_t* value_387 = &(value->kind);
+                            (*value_387) = 0;
+                            int64_t* value_388 = &(value->integer);
+                            (*value_388) = 0LL;
+                            double* value_389 = &(value->real);
+                            (*value_389) = (double)(0LL);
+                            uint8_t* value_390 = &(value->type.items[0]);
+                            (*value_390) = 0;
+                            uint8_t** value_391 = &(value->kept);
+                            (*value_391) = (void *)0;
+                            uint8_t* value_392 = &(value->spelling.items[0]);
+                            (*value_392) = 0;
+                            ZirModule** value_393 = &(value->type_owner);
+                            (*value_393) = (void *)0;
                         }
-                        uint8_t* value_393 = &(((buffers->names.items[count]).items)[0]);
-                        (*value_393) = 0;
+                        uint8_t* value_394 = &(((buffers->names.items[count]).items)[0]);
+                        (*value_394) = 0;
                     }
-                    bool value_394 = count == 16;
-                    bool value_395 = value_394;
-                    if (!value_395) {
-                        bool value_396 = private_parse_evaluate_typed_node_in_state(evaluation, probe, child, module, path, (int32_t)((uint32_t)depth + 1u), fuel, (CompileValue*)(((size_t)((CompileValue*)(&(buffers->args.items))) + ((size_t)(count) * sizeof(CompileValue))))) != 0;
-                        value_395 = !value_396;
+                    bool value_395 = count == 16;
+                    bool value_396 = value_395;
+                    if (!value_396) {
+                        bool value_397 = private_parse_evaluate_typed_node_in_state(evaluation, probe, child, module, path, (int32_t)((uint32_t)depth + 1u), fuel, (CompileValue*)(((size_t)((CompileValue*)(&(buffers->args.items))) + ((size_t)(count) * sizeof(CompileValue))))) != 0;
+                        value_396 = !value_397;
                     }
-                    if (value_395) {
+                    if (value_396) {
                         int32_t cleanup_return_71 = 0;
                         zir_foreign_compiler_parse_typed__CompilerFree((void*)(name_storage_3));
                         zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
@@ -3187,13 +3190,13 @@ compiler_parse_typed_evaluate_typed_node_with_buffers_in_state(EvaluationState* 
                 zir_foreign_compiler_parse_typed__CompilerFree((void*)(left_storage_0));
                 return cleanup_return_72;
             }
-            ZirSourceSpan value_397 = {0};
+            ZirSourceSpan value_398 = {0};
             if (expression->left >= 0) {
-                value_397 = (probe->exprs[expression->left]).span;
+                value_398 = (probe->exprs[expression->left]).span;
             } else {
-                value_397 = expression->span;
+                value_398 = expression->span;
             }
-            ZirSourceSpan call_span = value_397;
+            ZirSourceSpan call_span = value_398;
             int32_t cleanup_return_73 = compiler_parse_typed_evaluate_typed_function_in_state(evaluation, module, (uint8_t*)(&((name_storage_3[0]).items)), call_span, (CompileValue*)(&(buffers->args.items)), (ParserArray128_u8*)(&(buffers->names.items)), count, (int32_t)((uint32_t)depth + 1u), fuel, result);
             zir_foreign_compiler_parse_typed__CompilerFree((void*)(name_storage_3));
             zir_foreign_compiler_parse_typed__CompilerFree((void*)(right_storage_1));
@@ -6720,6 +6723,11 @@ compiler_parse_typed_EvaluateCompileLiteral_in_state(EvaluationState* evaluation
         zir_foreign_compiler_parse_typed__CompilerFree((void*)(value_storage_0));
         return cleanup_return_0;
     }
+    if ((value_storage_0[0]).kind == 1 && (value_storage_0[0]).type_owner != ((void *)0)) {
+        int32_t cleanup_return_1 = 0;
+        zir_foreign_compiler_parse_typed__CompilerFree((void*)(value_storage_0));
+        return cleanup_return_1;
+    }
     CompileValue* value_4 = &(value_storage_0[0]);
     uint8_t* value_5 = (void *)0;
     {
@@ -6736,9 +6744,9 @@ compiler_parse_typed_EvaluateCompileLiteral_in_state(EvaluationState* evaluation
     if (type_owner != (ZirModule**)(((void *)0))) {
         compiler_parse_s14_types_S14ParserSet8(type_owner, (value_storage_0[0]).type_owner);
     }
-    int32_t cleanup_return_1 = 1;
+    int32_t cleanup_return_2 = 1;
     zir_foreign_compiler_parse_typed__CompilerFree((void*)(value_storage_0));
-    return cleanup_return_1;
+    return cleanup_return_2;
 }
 
 int32_t

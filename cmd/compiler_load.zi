@@ -521,6 +521,16 @@ add_program_named :: (context_local: *LoadContext, path: *u8, root: *u8, identit
     }
     if ((program).module_count == 1) {
         standard_module_name(context_local, canonical, cast(*u8)(*((((program).modules)[0]).standard_name)), cast(usize)size_of(ParserArray128_u8))
+        loaded: *IR.ZirModule = *((program).modules)[0]
+        // Authoritative package identity: the package map decides which
+        // modules share `#scope_package` visibility, for source and saved
+        // IR alike. A mapped owner overrides the serialized name; without
+        // one, a saved module keeps its serialized package and a freshly
+        // parsed module stays in the implicit shared package (empty name).
+        package_owner: *u8 = (ifx ((context_local).packages == cast(*Packages.ZirPackageMap)((null))) then cast(*u8)((null)) else Packages.PackageOwner((context_local).packages, canonical))
+        if (package_owner != cast(*u8)((null))) {
+            copy_text(cast(*u8)(*((loaded).package)), cast(usize)IR.ZIR_NAME_MAX, package_owner)
+        }
     }
     {
         m: s32 = 0

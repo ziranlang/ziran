@@ -145,7 +145,10 @@ typedef size_t (*DescribeFields)(void*, Field*);
 extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
-#define ZIR_FORMAT_VERSION 70
+#define ZIR_FORMAT_VERSION 71
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
+#define SerialFieldCapacity 64
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
 
@@ -294,7 +297,7 @@ struct ParserArray8_u8 {
 #ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
 
 struct SerialFields {
-    Field items[32];
+    Field items[64];
 };
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_SERIAL_H_PRIVATE
@@ -351,7 +354,7 @@ static inline int32_t compiler_zir_serial_ZirFormatVersion_ziran_inline(void);
 static inline int32_t
 compiler_zir_serial_ZirFormatVersion_ziran_inline(void)
 {
-    return 70;
+    return 71;
 }
 #endif
 

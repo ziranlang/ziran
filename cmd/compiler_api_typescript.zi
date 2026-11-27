@@ -11,6 +11,8 @@ Rules :: #import "compiler_text"
 #import "std/text_tools"
 using Vectors :: #import "std/vec"
 
+Builtin :: struct { name: *u8; parameters: *u8; result: *u8; summary: *u8; standard: *u8; }
+
 #scope_file
 compiler :: #system_library "ziran";
 FindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
@@ -21,10 +23,12 @@ ScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
 ArrayCapacity :: (module: *IR.ZirModule, type: *u8, capacity: *s32) -> s32 #foreign compiler "private_check_array_capacity";
 DocumentForSpan :: (module: *IR.ZirModule, span: IR.ZirSourceSpan) -> *Check.ZirDocument #foreign compiler "DocumentForSpan";
 DocumentOffset :: (document: *Check.ZirDocument, line: s32, column: s32, offset: *usize) -> s32 #foreign compiler "DocumentOffset";
+DocumentRecord :: (path: *u8, bytes: *u8, count: usize) -> *Check.ZirDocument #foreign compiler "DocumentRecord";
 SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
 CanonicalPath :: (path: *u8) -> *u8 #foreign compiler "CanonicalPath";
 ParseExpr :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan) -> s32 #foreign compiler "CompilerParseExpr";
 ExpressionType :: (checker: *Check.Checker, index: s32) -> *u8 #foreign compiler "private_check_expression_type";
+Allocate :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
 CompilerFree :: (memory: *void) #foreign compiler "CompilerFree";
 BuiltinType :: (name: *u8) -> *IR.ZirType #foreign compiler "BuiltinType";
 ResolveFunction :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunction";
@@ -33,15 +37,23 @@ ResolveGlobal :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, globa
 ResolveForeignImport :: (module: *IR.ZirModule, name: *u8, source: *u8, owner: **IR.ZirModule, declaration: **IR.ZirImport) -> s32 #foreign compiler "ResolveForeignImportAt";
 EvaluateConstant :: (module: *IR.ZirModule, source: *u8, span: IR.ZirSourceSpan, result: *Parse.CompileValue) -> s32 #foreign compiler "EvaluateCompileValue";
 
-TypeUse :: struct { module: *IR.ZirModule; record: *IR.ZirType; }
+TypeUse :: struct { projection: s32; record: *IR.ZirType; }
+Projection :: struct { module: *IR.ZirModule; viewer: *IR.ZirModule; scope: *IR.ZirModule; text: string; }
+NamespaceModule :: struct { module: *IR.ZirModule; viewer: *IR.ZirModule; }
 ExportName :: struct { name: string; kind: s32; owner: *IR.ZirModule; target: *IR.ZirModule; }
+NamespaceUse :: struct { module: *IR.ZirModule; viewer: *IR.ZirModule; name: string; target: *IR.ZirModule; }
 State :: struct {
     modules: **IR.ZirModule
     module_count: s32
     programs: *IR.ProgramSet
     span: IR.ZirSourceSpan
     failed: bool
+    viewer: *IR.ZirModule
+    projections: Vec(Projection)
     used: Vec(TypeUse)
+    builtins: []Builtin
+    namespace_modules: Vec(NamespaceModule)
+    namespaces: Vec(NamespaceUse)
 }
 Append :: (out: *Vec(u8), text: string) { unused BuilderAppend(<<out, text) }
 Join :: (a: string, b: string, c: string = "") -> string {
@@ -67,14 +79,52 @@ ModuleIndex :: (state: *State, module: *IR.ZirModule) -> s32 {
 }
 ModuleFile :: (index: s32) -> string { return Join("module-", Number(cast(s64)index), ".d.ts") }
 ModuleSpecifier :: (index: s32) -> string { return Join("./module-", Number(cast(s64)index)) }
+SameViewer :: (left: *IR.ZirModule, right: *IR.ZirModule) -> bool {
+    if left == null || right == null { return left == right }; return IR.SamePackage(left, right)
+}
+ProjectionIndex :: (state: *State, module: *IR.ZirModule) -> s32 {
+    for projection, index: state.projections {
+        if projection.module == module && SameViewer(projection.viewer, state.viewer) { return cast(s32)index }
+    }
+    if ModuleIndex(state, module) < 0 { unused Fail(state, "declaration owner is absent from the checked graph"); return -1 }
+    index := cast(s32)state.projections.count
+    unused VecPush(state.projections, Projection.{module = module, viewer = state.viewer})
+    return index
+}
+// Resolve an explicitly qualified export using the original requester's
+// package identity, without inheriting the target's plain internal imports.
+ExportScope :: (state: *State, module: *IR.ZirModule) -> *IR.ZirModule {
+    index := ProjectionIndex(state, module); if index < 0 { return module }
+    if state.projections[index].scope != null { return state.projections[index].scope }
+    scope := cast(*IR.ZirModule)Allocate(size_of(IR.ZirModule)); scope[0] = .{}
+    scope.context = module.context
+    if state.viewer != null { IR.CopyText(scope.package[:], IR.CText(*state.viewer.package[0])) }
+    else {
+        identity := "__nativeApiPublic"
+        while true {
+            present := false; at: s32 = 0
+            while at < state.module_count {
+                if IR.CText(*state.modules[at].package[0]) == identity { present = true; break }; at += 1
+            }
+            if !present { break }; identity = Join(identity, "_")
+        }
+        IR.CopyText(scope.package[:], identity)
+    }
+    item := cast(*IR.ZirImport)Allocate(size_of(IR.ZirImport)); item[0] = .{}
+    item.kind = .MODULE; item.resolved_module = module; item.is_public = 1
+    IR.CopyText(item.name[:], "Native"); scope.imports = item; scope.import_count = 1
+    state.projections[index].scope = scope
+    return scope
+}
+ExportSymbol :: (name: string) -> *u8 { return Services.KeepName(Join("Native.", name)) }
 Reference :: (state: *State, module: *IR.ZirModule, name: string) -> string {
-    index := ModuleIndex(state, module)
-    if index < 0 { return Fail(state, "type owner is absent from the checked graph:", name) }
+    index := ProjectionIndex(state, module)
+    if index < 0 { return "" }
     if !Identifier(name) { return Fail(state, "native name has no TypeScript identifier:", name) }
     return Join(Join("import(\"", ModuleSpecifier(index), "\")."), name)
 }
-RecordName :: (module: *IR.ZirModule, record: *IR.ZirType) -> string {
-    if VisibleType(record) { return IR.CText(*record.name[0]) }
+RecordName :: (state: *State, module: *IR.ZirModule, record: *IR.ZirType) -> string {
+    if VisibleType(state, module, record) { return IR.CText(*record.name[0]) }
     index: s32 = 0
     while index < module.type_count {
         if *module.types[index] == record { return Join("__nativePrivate", Number(cast(s64)index)) }
@@ -83,12 +133,12 @@ RecordName :: (module: *IR.ZirModule, record: *IR.ZirType) -> string {
     return IR.CText(*record.name[0])
 }
 TypeReference :: (state: *State, module: *IR.ZirModule, record: *IR.ZirType) -> string {
-    if !VisibleType(record) {
-        found := false
-        for use: state.used { if use.record == record { found = true; break } }
-        if !found { unused VecPush(state.used, TypeUse.{module = module, record = record}) }
+    if !VisibleType(state, module, record) {
+        projection := ProjectionIndex(state, module); found := false
+        for use: state.used { if use.record == record && use.projection == projection { found = true; break } }
+        if !found { unused VecPush(state.used, TypeUse.{projection = projection, record = record}) }
     }
-    return Reference(state, module, RecordName(module, record))
+    return Reference(state, module, RecordName(state, module, record))
 }
 // Checked type arguments may contain nested applications and array extents.
 Parts :: (text: string) -> Vec(string) {
@@ -117,8 +167,22 @@ TemplateName :: (parameters: string, name: string) -> bool {
     for item: names { if item == name { return true } }
     return false
 }
+// Parameter labels have no native ABI meaning. Rename reserved JS bindings
+// deterministically, avoiding every authored label in the same signature.
+ParameterName :: (parameters: *Check.ZirParameters, index: s32, source: string) -> string {
+    reserved := "|await|break|case|catch|class|const|continue|debugger|default|delete|do|else|enum|export|extends|false|finally|for|function|if|implements|import|in|instanceof|interface|let|new|null|package|private|protected|public|return|static|super|switch|this|throw|true|try|typeof|var|void|while|with|yield|arguments|eval|"
+    if !TextContains(reserved, Join("|", source, "|")) { return source }
+    name := Join("__nativeArgument", Number(cast(s64)index))
+    while true {
+        duplicate := false; at: s32 = 0
+        while at < parameters.count {
+            if IR.CText(parameters.items.items[at].binding_name) == name { duplicate = true; break }; at += 1
+        }
+        if !duplicate { return name }; name = Join(name, "_")
+    }
+}
 Arguments :: (state: *State, module: *IR.ZirModule, text: *u8, defaults: *u8,
-    templates: string, skip: s32 = 0, depth: s32 = 0) -> string {
+    templates: string, skip: s32 = 0, depth: s32 = 0, construction: bool = false) -> string {
     parameters := ParametersOf(text)
     default_parameters := ParametersOf(defaults)
     out: Vec(u8); index := skip
@@ -127,7 +191,7 @@ Arguments :: (state: *State, module: *IR.ZirModule, text: *u8, defaults: *u8,
         name := IR.CText(parameter.binding_name)
         if !Identifier(name) { return Fail(state, "unrepresentable procedure parameter:", name) }
         if index > skip { Append(*out, ", ") }
-        Append(*out, name)
+        Append(*out, ParameterName(parameters, index, name))
         optional := false
         if index < default_parameters.count {
             value := default_parameters.items.items[index].default_value
@@ -142,7 +206,13 @@ Arguments :: (state: *State, module: *IR.ZirModule, text: *u8, defaults: *u8,
         }
         if optional { Append(*out, "?") }
         Append(*out, ": ")
-        Append(*out, Type(state, module, IR.CText(parameter.value_type), templates, depth + 1))
+        projected := Type(state, module, IR.CText(parameter.value_type), templates, depth + 1)
+        source_type := IR.CText(parameter.value_type); record := FindType(module, parameter.value_type, null)
+        if construction && templates.count == 0 && record != null && record.is_procedure_type == 0 &&
+            record.is_owned_callable == 0 && record.is_scoped_callable == 0 && record.is_results == 0 && !TextHasPrefix(source_type, "*") {
+            projected = Join("NativeInput<", projected, ">")
+        }
+        Append(*out, projected)
         index += 1
     }
     return BuilderFinish(out)
@@ -211,7 +281,7 @@ Type :: (state: *State, module: *IR.ZirModule, source: string, templates: string
             }
             Append(*out, "]"); return BuilderFinish(out)
         }
-        if record.is_procedure_type != 0 && (record.is_public == 0 || TextHasPrefix(IR.CText(*record.name[0]), "__")) {
+        if record.is_procedure_type != 0 && (!VisibleType(state, owner, record) || TextHasPrefix(IR.CText(*record.name[0]), "__")) {
             return Join("(", Procedure(state, owner, record, templates, 0, depth + 1), ")")
         }
         return TypeReference(state, owner, record)
@@ -234,17 +304,17 @@ Application :: (state: *State, module: *IR.ZirModule, name: string, arguments: s
     }
     Append(*out, ">"); return BuilderFinish(out)
 }
-VisibleType :: (record: *IR.ZirType) -> bool {
-    return record.is_public != 0 && record.is_file_private == 0 && record.is_results == 0 &&
+VisibleType :: (state: *State, module: *IR.ZirModule, record: *IR.ZirType) -> bool {
+    return IR.PackageVisible(state.viewer, module, record.is_public, record.is_package_private, record.is_file_private) && record.is_results == 0 &&
         record.is_synthetic_application == 0 && record.is_type_instance == 0 && !TextHasPrefix(IR.CText(*record.name[0]), "__")
 }
-VisibleFunction :: (fn: *IR.ZirFunction) -> bool {
+VisibleFunction :: (state: *State, module: *IR.ZirModule, fn: *IR.ZirFunction) -> bool {
     name := IR.CText(*fn.name[0])
-    return fn.is_public != 0 && fn.is_file_private == 0 && fn.is_specialization == 0 &&
+    return IR.PackageVisible(state.viewer, module, fn.is_public, fn.is_package_private, fn.is_file_private) && fn.is_specialization == 0 &&
         fn.is_global_initializer == 0 && !TextHasPrefix(name, "__") && !(TextHasPrefix(name, "zi_default_") && name.count == 27)
 }
 Enum :: (state: *State, module: *IR.ZirModule, record: *IR.ZirType) -> string {
-    name := RecordName(module, record); out: Vec(u8)
+    name := RecordName(state, module, record); out: Vec(u8)
     Append(*out, Join("export declare const ", name, ": {\n"))
     body := IR.CText(*record.body[0]); at: s64 = 0; first := true
     while at < body.count {
@@ -267,7 +337,7 @@ Enum :: (state: *State, module: *IR.ZirModule, record: *IR.ZirType) -> string {
 }
 Record :: (state: *State, module: *IR.ZirModule, record: *IR.ZirType) -> string {
     state.span = record.span
-    name := RecordName(module, record); templates := ParameterNames(IR.CText(*record.template_params[0]))
+    name := RecordName(state, module, record); templates := ParameterNames(IR.CText(*record.template_params[0]))
     if !Identifier(name) { return Fail(state, "type name has no TypeScript identifier:", name) }
     if record.is_enum != 0 { return Enum(state, module, record) }
     if record.is_map != 0 || record.is_union != 0 { return Fail(state, "native union or foreign map is not representable:", name) }
@@ -303,7 +373,7 @@ ConstantType :: (state: *State, module: *IR.ZirModule, definition: *IR.ZirDefine
     if EvaluateConstant(module, definition.value, definition.span, *value) != 0 {
         native_type := IR.CText(*value.type.items[0])
         if value.kind == 1 {
-            if native_type.count > 0 { return Type(state, module, native_type) }
+            if native_type.count > 0 { return Type(state, ifx value.type_owner != null then value.type_owner else module, native_type) }
             literal := Number(value.integer)
             if value.integer >= -9007199254740991 && value.integer <= 9007199254740991 { return literal }
             return Join(literal, "n")
@@ -329,31 +399,115 @@ ConstantType :: (state: *State, module: *IR.ZirModule, definition: *IR.ZirDefine
     }
     if checked == "real" { return "number" }; return Type(state, module, checked)
 }
-Function :: (state: *State, module: *IR.ZirModule, fn: *IR.ZirFunction) -> string {
+FunctionSignature :: (state: *State, module: *IR.ZirModule, fn: *IR.ZirFunction) -> string {
     state.span = fn.span
-    name := IR.CText(*fn.overload_name[0]); if name.count == 0 { name = IR.CText(*fn.name[0]) }
+    templates := ParameterNames(IR.CText(*fn.template_param[0])); signature := ""
+    if templates.count > 0 { signature = Join("<", templates, ">") }
+    args := Arguments(state, module, fn.args_text, fn.default_args_text, templates, 0, 0, true)
+    result := Type(state, module, IR.CText(*fn.return_type[0]), templates)
+    return Join(Join(signature, Join("(", args, "): ")), result)
+}
+FunctionName :: (fn: *IR.ZirFunction) -> string {
+    name := IR.CText(*fn.overload_name[0]); if name.count == 0 { name = IR.CText(*fn.name[0]) }; return name
+}
+Function :: (state: *State, module: *IR.ZirModule, fn: *IR.ZirFunction) -> string {
+    name := FunctionName(fn)
     if TextHasPrefix(name, "operator") || TextHasPrefix(name, "__operator") { return "" }
     if !Identifier(name) { return Fail(state, "procedure name has no TypeScript identifier:", name) }
-    templates := ParameterNames(IR.CText(*fn.template_param[0])); declaration := Join("export declare function ", name)
-    if templates.count > 0 { declaration = Join(declaration, Join("<", templates, ">")) }
-    args := Arguments(state, module, fn.args_text, fn.default_args_text, templates)
-    result := Type(state, module, IR.CText(*fn.return_type[0]), templates)
-    return Join(Join(declaration, Join("(", args, "): ")), result, ";\n")
+    return Join(Join("export declare function ", name, FunctionSignature(state, module, fn)), ";\n")
 }
-ExportNames :: (module: *IR.ZirModule, rows: *Vec(ExportName), visited: *Vec(*IR.ZirModule)) {
+// Native call and value lookup are separate. A constant and a procedure may
+// share a spelling: preserve both contexts as a typed callable intersection.
+MergedValue :: (state: *State, module: *IR.ZirModule, name: string) -> string {
+    scope := ExportScope(state, module); symbol := ExportSymbol(name)
+    owner: *IR.ZirModule; fn: *IR.ZirFunction; value_owner: *IR.ZirModule; value: *IR.ZirDefine
+    if ResolveFunction(scope, symbol, *owner, *fn) != 1 || fn == null || !VisibleFunction(state, owner, fn) { return "" }
+    if ResolveDefine(scope, symbol, *value, *value_owner, null) != 1 || value == null ||
+        !IR.PackageVisible(state.viewer, value_owner, value.is_public, value.is_package_private, value.is_file_private) { return "" }
+    out: Vec(u8); Append(*out, Join(Join("export declare const ", name, ": "), ConstantType(state, value_owner, value), " & {\n"))
+    index: s32 = 0
+    while index < owner.function_count {
+        candidate := *owner.functions[index]; index += 1
+        if FunctionName(candidate) == name && VisibleFunction(state, owner, candidate) {
+            Append(*out, Join("  ", FunctionSignature(state, owner, candidate), ";\n"))
+        }
+    }
+    Append(*out, "};\n"); return BuilderFinish(out)
+}
+BuiltinParameters :: (text: string) -> string {
+    names: Vec(string); index: s64 = 0
+    while index < text.count {
+        if text[index] != #char "$" { index += 1; continue }
+        start := index + 1; index = start
+        while index < text.count && Rules.IdentifierByte(text[index]) { index += 1 }
+        name := text[start:index]; found := false
+        for previous: names { if previous == name { found = true; break } }
+        if name.count > 0 && !found { unused VecPush(names, name) }
+    }
+    out: Vec(u8)
+    for name, index: names { if index > 0 { Append(*out, ", ") }; Append(*out, name) }
+    return BuilderFinish(out)
+}
+Builtins :: (state: *State) -> string {
+    out: Vec(u8)
+    for builtin: state.builtins {
+        module := state.modules[0]
+        required := IR.CText(builtin.standard)
+        if required.count > 0 {
+            module = null; index: s32 = 0
+            while index < state.module_count {
+                candidate := state.modules[index]; index += 1
+                if IR.CText(*candidate.standard_name[0]) == required { module = candidate; break }
+            }
+            if module == null { continue }
+        }
+        parameters := IR.CText(builtin.parameters); result := IR.CText(builtin.result)
+        templates := BuiltinParameters(parameters); result_module := module
+        opening := TextFind(result, "(")
+        if opening >= 0 && FindType(module, Services.KeepName(result[:opening]), null) == null {
+            // A compiler primitive's result can require an explicitly imported
+            // standard module. Use that checked declaration only when present.
+            result_module = null; index: s32 = 0
+            while index < state.module_count {
+                candidate := state.modules[index]; index += 1
+                if candidate.standard_name[0] != 0 && FindType(candidate, Services.KeepName(result[:opening]), null) != null { result_module = candidate; break }
+            }
+            if result_module == null {
+                Append(*out, Join("// ", IR.CText(builtin.name), " requires its result's standard module in the checked graph.\n")); continue
+            }
+        }
+        variadic := TextFind(parameters, "..")
+        if variadic >= 0 {
+            parameters = TextTrim(parameters[:variadic])
+            if TextHasSuffix(parameters, ",") { parameters = TextTrim(parameters[:parameters.count - 1]) }
+        }
+        args := Arguments(state, module, Services.Keep(parameters), Services.Keep(""), templates)
+        generics := templates
+        if variadic >= 0 {
+            if generics.count > 0 { generics = Join(generics, ", ") }
+            generics = Join(generics, "Values extends readonly unknown[]")
+            args = Join(args, ", ...values: Values & { [I in keyof Values]: NativePrintable<Values[I]> }")
+        }
+        Append(*out, Join("export declare function ", IR.CText(builtin.name)))
+        if generics.count > 0 { Append(*out, Join("<", generics, ">")) }
+        Append(*out, Join("(", args, "): ")); Append(*out, Type(state, result_module, result, templates)); Append(*out, ";\n")
+    }
+    return BuilderFinish(out)
+}
+ExportNames :: (state: *State, module: *IR.ZirModule, rows: *Vec(ExportName), visited: *Vec(*IR.ZirModule)) {
     seen: s64 = 0
     while seen < visited.count { if (<<visited)[seen] == module { return }; seen += 1 }
     unused VecPush(<<visited, module)
     index: s32 = 0
     while index < module.type_count {
         item := *module.types[index]
-        if VisibleType(item) { unused VecPush(<<rows, ExportName.{IR.CText(*item.name[0]), 0, module, null}) }
+        if VisibleType(state, module, item) { unused VecPush(<<rows, ExportName.{IR.CText(*item.name[0]), 0, module, null}) }
         index += 1
     }
     index = 0
     while index < module.function_count {
         item := *module.functions[index]
-        if VisibleFunction(item) {
+        if VisibleFunction(state, module, item) {
             name := IR.CText(*item.overload_name[0]); if name.count == 0 { name = IR.CText(*item.name[0]) }
             if Identifier(name) { unused VecPush(<<rows, ExportName.{name, 1, module, null}) }
         }
@@ -362,7 +516,7 @@ ExportNames :: (module: *IR.ZirModule, rows: *Vec(ExportName), visited: *Vec(*IR
     index = 0
     while index < module.define_count {
         item := *module.defines[index]
-        if item.is_public != 0 && item.is_file_private == 0 && item.requires_open_enum == 0 {
+        if IR.PackageVisible(state.viewer, module, item.is_public, item.is_package_private, item.is_file_private) && item.requires_open_enum == 0 {
             unused VecPush(<<rows, ExportName.{IR.CText(*item.name[0]), 2, module, null})
         }
         index += 1
@@ -376,35 +530,131 @@ ExportNames :: (module: *IR.ZirModule, rows: *Vec(ExportName), visited: *Vec(*IR
     index = 0
     while index < module.import_count {
         item := *module.imports[index]; index += 1
-        if item.is_public == 0 || item.is_file_private != 0 { continue }
+        if !IR.PackageVisible(state.viewer, module, item.is_public, item.is_package_private, item.is_file_private) { continue }
         if item.resolved_module != null {
             name := IR.CText(*item.name[0])
             if item.kind == .MODULE && !TextHasPrefix(name, "__") {
                 unused VecPush(<<rows, ExportName.{name, 5, module, item.resolved_module})
             }
-            if item.kind == .OPEN || item.is_using != 0 { ExportNames(item.resolved_module, rows, visited) }
+            if item.is_using != 0 { ExportNames(state, item.resolved_module, rows, visited) }
         } else if item.kind == .EXTERN { unused VecPush(<<rows, ExportName.{IR.CText(*item.name[0]), 4, module, null}) }
     }
+}
+NamespaceTarget :: (state: *State, module: *IR.ZirModule, name: string) -> *IR.ZirModule {
+    index: s32 = 0
+    while index < module.import_count {
+        item := *module.imports[index]; index += 1
+        if item.kind == .MODULE && IR.CText(*item.name[0]) == name {
+            return ifx IR.PackageVisible(state.viewer, module, item.is_public, item.is_package_private, item.is_file_private) then item.resolved_module else null
+        }
+    }
+    cached := false
+    for saved: state.namespace_modules { if saved.module == module && SameViewer(saved.viewer, state.viewer) { cached = true; break } }
+    if !cached {
+        unused VecPush(state.namespace_modules, NamespaceModule.{module, state.viewer})
+        rows: Vec(ExportName); visited: Vec(*IR.ZirModule); ExportNames(state, module, *rows, *visited)
+        for row, position: rows {
+            if row.kind != 5 { continue }
+            duplicate := false
+            for earlier: 0..position - 1 { if rows[earlier].kind == 5 && rows[earlier].name == row.name { duplicate = true; break } }
+            if duplicate { continue }
+            target := row.target
+            for candidate: rows { if candidate.kind == 5 && candidate.name == row.name && candidate.target != target { target = null; break } }
+            unused VecPush(state.namespaces, NamespaceUse.{module = module, viewer = state.viewer, name = row.name, target = target})
+        }
+    }
+    for saved: state.namespaces { if saved.module == module && SameViewer(saved.viewer, state.viewer) && saved.name == name { return saved.target } }
+    return null
+}
+CallableNamespace :: (state: *State, module: *IR.ZirModule, target: *IR.ZirModule, name: string) -> string {
+    owner: *IR.ZirModule; selected: *IR.ZirFunction
+    if ResolveFunction(ExportScope(state, module), ExportSymbol(name), *owner, *selected) != 1 { return "" }
+    if selected == null || !VisibleFunction(state, owner, selected) { return "" }
+    out: Vec(u8); index: s32 = 0
+    while index < owner.function_count {
+        fn := *owner.functions[index]; index += 1
+        spelling := IR.CText(*fn.overload_name[0]); if spelling.count == 0 { spelling = IR.CText(*fn.name[0]) }
+        if spelling == name && VisibleFunction(state, owner, fn) { Append(*out, Function(state, owner, fn)) }
+    }
+    // A native procedure and module alias can share a spelling. An ambient
+    // function/namespace merge preserves calls, values and nested type names.
+    target_index := ProjectionIndex(state, target)
+    if target_index < 0 { return Fail(state, "namespace target is absent from the graph:", name) }
+    binding := Join(Join("__nativeNamespace", Number(cast(s64)target_index), "_"), name)
+    Append(*out, Join(Join("import * as ", binding, " from "), JsonQuote(ModuleSpecifier(target_index)), ";\n"))
+    Append(*out, Join("export declare namespace ", name, " {\n"))
+    rows: Vec(ExportName); visited: Vec(*IR.ZirModule); ExportNames(state, target, *rows, *visited)
+    for row, position: rows {
+        duplicate := false
+        for earlier: 0..position - 1 { if rows[earlier].name == row.name && rows[earlier].kind == row.kind { duplicate = true; break } }
+        if duplicate { continue }
+        alias := NamespaceTarget(state, target, row.name)
+        if alias != null {
+            if row.kind == 5 { Append(*out, Join(Join("  export import ", row.name, " = "), binding, Join(".", row.name, ";\n"))) }
+            continue
+        }
+        scope := ExportScope(state, target); symbol := ExportSymbol(row.name); symbol_owner: *IR.ZirModule = null
+        if row.kind == 0 {
+            record := FindType(scope, symbol, *symbol_owner)
+            if record == null { continue }
+            templates := ParameterNames(IR.CText(*record.template_params[0])); arguments := ""
+            if templates.count > 0 { arguments = Join("<", templates, ">") }
+            Append(*out, Join(Join("  export type ", row.name, arguments), " = ", Reference(state, target, row.name)))
+            Append(*out, Join(arguments, ";\n"))
+            if record.is_enum != 0 { Append(*out, Join(Join("  export const ", row.name, ": typeof "), binding, Join(".", row.name, ";\n"))) }
+            continue
+        }
+        if row.kind == 1 { fn: *IR.ZirFunction; if ResolveFunction(scope, symbol, *symbol_owner, *fn) != 1 { continue } }
+        else if row.kind == 2 { value: *IR.ZirDefine; if ResolveDefine(scope, symbol, *value, *symbol_owner, null) != 1 { continue } }
+        else if row.kind == 3 { value: *IR.ZirGlobal; if ResolveGlobal(scope, symbol, *symbol_owner, *value) != 1 { continue } }
+        else if row.kind == 4 {
+            fn: *IR.ZirFunction; if ResolveFunction(scope, symbol, *symbol_owner, *fn) == 1 { continue }
+            value: *IR.ZirImport; if ResolveForeignImport(scope, symbol, Services.Keep(""), *symbol_owner, *value) != 1 { continue }
+        } else { continue }
+        keyword := ifx row.kind == 3 then "  export let " else "  export const "
+        Append(*out, Join(Join(keyword, row.name, ": typeof "), binding, Join(".", row.name, ";\n")))
+    }
+    Append(*out, "}\n"); return BuilderFinish(out)
 }
 Reexports :: (state: *State, module: *IR.ZirModule) -> string {
     rows: Vec(ExportName); visited: Vec(*IR.ZirModule); unused VecPush(visited, module)
     index: s32 = 0
     while index < module.import_count {
         item := *module.imports[index]; index += 1
-        if item.resolved_module != null && item.is_public != 0 && item.is_file_private == 0 &&
-            (item.kind == .OPEN || item.is_using != 0) { ExportNames(item.resolved_module, *rows, *visited) }
+        if item.resolved_module != null && IR.PackageVisible(state.viewer, module, item.is_public, item.is_package_private, item.is_file_private) &&
+            item.is_using != 0 { ExportNames(state, item.resolved_module, *rows, *visited) }
     }
     out: Vec(u8)
     for row, position: rows {
         duplicate := false
         for earlier: 0..position - 1 { if rows[earlier].name == row.name && rows[earlier].kind == row.kind { duplicate = true; break } }
         if duplicate { continue }
-        owner: *IR.ZirModule = null; name := Services.KeepName(row.name); record: *IR.ZirType = null
-        if row.kind == 0 { record = FindType(module, name, *owner) }
-        else if row.kind == 1 { selected: *IR.ZirFunction; if ResolveFunction(module, name, *owner, *selected) != 1 { continue } }
-        else if row.kind == 2 { selected: *IR.ZirDefine; if ResolveDefine(module, name, *selected, *owner, null) != 1 { continue } }
-        else if row.kind == 3 { selected: *IR.ZirGlobal; if ResolveGlobal(module, name, *owner, *selected) != 1 { continue } }
-        else if row.kind == 4 { selected: *IR.ZirImport; if ResolveForeignImport(module, name, Services.Keep(""), *owner, *selected) != 1 { continue } }
+        if row.kind == 1 || row.kind == 2 {
+            merged := MergedValue(state, module, row.name)
+            if merged.count > 0 {
+                for earlier: 0..position - 1 {
+                    if rows[earlier].name == row.name && (rows[earlier].kind == 1 || rows[earlier].kind == 2) { duplicate = true; break }
+                }
+                if !duplicate { Append(*out, merged) }; continue
+            }
+        }
+        owner: *IR.ZirModule = null; scope := ExportScope(state, module); name := ExportSymbol(row.name); record: *IR.ZirType = null
+        if row.kind == 0 { record = FindType(scope, name, *owner) }
+        else if row.kind == 1 {
+            selected: *IR.ZirFunction; if ResolveFunction(scope, name, *owner, *selected) != 1 { continue }
+            if NamespaceTarget(state, module, row.name) != null { continue }
+        }
+        else if row.kind == 2 { selected: *IR.ZirDefine; if ResolveDefine(scope, name, *selected, *owner, null) != 1 { continue } }
+        else if row.kind == 3 { selected: *IR.ZirGlobal; if ResolveGlobal(scope, name, *owner, *selected) != 1 { continue } }
+        else if row.kind == 4 {
+            // Native calls select an ordinary procedure before looking for a
+            // foreign declaration with the same name. They share TS's value
+            // namespace, so do not publish a second foreign binding.
+            procedure: *IR.ZirFunction; procedure_owner: *IR.ZirModule
+            if ResolveFunction(scope, name, *procedure_owner, *procedure) == 1 { continue }
+            selected: *IR.ZirImport
+            if ResolveForeignImport(scope, name, Services.Keep(""), *owner, *selected) != 1 { continue }
+        }
         else {
             // Namespace aliases have no standalone value symbol. An alias is
             // usable across these open edges only when all targets agree.
@@ -417,7 +667,16 @@ Reexports :: (state: *State, module: *IR.ZirModule) -> string {
             }
         }
         if owner == null || owner == module { continue }
-        target := ModuleIndex(state, owner)
+        if row.kind == 5 {
+            // Keep module aliases as namespace exports even across open
+            // imports; a bare re-export also claims the native type's name.
+            target := ProjectionIndex(state, row.target)
+            if target < 0 { return Fail(state, "namespace target is absent from the graph:", row.name) }
+            merged := CallableNamespace(state, module, row.target, row.name)
+            if merged.count > 0 { Append(*out, merged); continue }
+            Append(*out, Join(Join("export * as ", row.name, " from "), JsonQuote(ModuleSpecifier(target)), ";\n")); continue
+        }
+        target := ProjectionIndex(state, owner)
         if target < 0 { return Fail(state, "re-export owner is absent from the graph:", row.name) }
         if record != null && record.is_enum == 0 {
             // A native type and a module namespace can share a name. A local
@@ -437,17 +696,19 @@ Module :: (state: *State, module: *IR.ZirModule) -> string {
     while index < module.import_count {
         item := *module.imports[index]
         if item.resolved_module != null {
-            target := ModuleIndex(state, item.resolved_module)
+            target := ProjectionIndex(state, item.resolved_module)
             if target < 0 { return Fail(state, "resolved import is absent from the graph") }
             path := ModuleSpecifier(target)
             if item.kind == .MODULE {
                 alias := IR.CText(*item.name[0])
                 if !Identifier(alias) { return Fail(state, "module alias has no TypeScript identifier:", alias) }
-                if item.is_public != 0 && item.is_file_private == 0 && !TextHasPrefix(alias, "__") {
-                    Append(*out, Join(Join("export * as ", alias, " from "), JsonQuote(path), ";\n"))
+                if IR.PackageVisible(state.viewer, module, item.is_public, item.is_package_private, item.is_file_private) && !TextHasPrefix(alias, "__") {
+                    merged := CallableNamespace(state, module, item.resolved_module, alias)
+                    if merged.count > 0 { Append(*out, merged) }
+                    else { Append(*out, Join(Join("export * as ", alias, " from "), JsonQuote(path), ";\n")) }
                 }
             }
-        } else if item.kind == .EXTERN && item.is_public != 0 && item.is_file_private == 0 {
+        } else if item.kind == .EXTERN && IR.PackageVisible(state.viewer, module, item.is_public, item.is_package_private, item.is_file_private) {
             state.span = item.span; name := IR.CText(*item.name[0])
             if !Identifier(name) { return Fail(state, "foreign procedure has no TypeScript identifier:", name) }
             args := Arguments(state, module, *item.args[0], Services.Keep(""), "")
@@ -458,13 +719,14 @@ Module :: (state: *State, module: *IR.ZirModule) -> string {
     }
     Append(*out, Reexports(state, module))
     index = 0
-    while index < module.type_count { record := *module.types[index]; if VisibleType(record) { Append(*out, Record(state, module, record)) }; index += 1 }
+    while index < module.type_count { record := *module.types[index]; if VisibleType(state, module, record) { Append(*out, Record(state, module, record)) }; index += 1 }
     index = 0
     while index < module.define_count {
         item := *module.defines[index]
-        if item.is_public != 0 && item.is_file_private == 0 && item.requires_open_enum == 0 {
+        if IR.PackageVisible(state.viewer, module, item.is_public, item.is_package_private, item.is_file_private) && item.requires_open_enum == 0 {
             state.span = item.span; name := IR.CText(*item.name[0])
             if !Identifier(name) { return Fail(state, "constant has no TypeScript identifier:", name) }
+            if MergedValue(state, module, name).count > 0 { index += 1; continue }
             Append(*out, Join(Join("export declare const ", name, ": "), ConstantType(state, module, item), ";\n"))
         }
         index += 1
@@ -480,7 +742,21 @@ Module :: (state: *State, module: *IR.ZirModule) -> string {
         index += 1
     }
     index = 0
-    while index < module.function_count { fn := *module.functions[index]; if VisibleFunction(fn) { Append(*out, Function(state, module, fn)) }; index += 1 }
+    while index < module.function_count {
+        fn := *module.functions[index]; index += 1
+        name := IR.CText(*fn.overload_name[0]); if name.count == 0 { name = IR.CText(*fn.name[0]) }
+        if VisibleFunction(state, module, fn) && NamespaceTarget(state, module, name) == null {
+            merged := MergedValue(state, module, name)
+            if merged.count > 0 {
+                duplicate := false; earlier: s32 = 0
+                while earlier < index - 1 {
+                    candidate := *module.functions[earlier]; earlier += 1
+                    if FunctionName(candidate) == name && VisibleFunction(state, module, candidate) { duplicate = true; break }
+                }
+                if !duplicate { Append(*out, merged) }
+            } else { Append(*out, Function(state, module, fn)) }
+        }
+    }
     Append(*out, "export {};\n"); return BuilderFinish(out)
 }
 
@@ -499,7 +775,20 @@ interface NativeSlice<T> { readonly count: bigint; [index: number]: T; [Symbol.i
 type NativeArray<T, N extends number> = T[] & { readonly length: N };
 type NativeOwned<F> = F & { readonly [nativeCallable]?: "owned" };
 type NativeScoped<F> = F & { readonly [nativeCallable]?: "scoped" };
-declare function nativeRef<T>(place: T): NativeRef<T>;
+type NativeInput<T> = typeof nativeReference extends keyof T ? T :
+    T extends (...args: never[]) => unknown ? T :
+    typeof nativeInitialization extends keyof T ? { [K in keyof T]?: NativeInput<T[K]> } :
+    T extends object ? { [K in keyof T]: NativeInput<T[K]> } : T;
+type NativePrintable<T> = typeof nativeReference extends keyof T ? never :
+    T extends (...args: never[]) => unknown ? never :
+    T extends string | number | bigint | boolean ? T :
+    T extends readonly unknown[] ? { [K in keyof T]: NativePrintable<T[K]> } :
+    T extends object ? { [K in keyof T]: K extends symbol ? T[K] : NativePrintable<T[K]> } : never;
+type NativeJsxChild<T> = T extends { readonly [nativeCallable]?: "scoped" } ?
+    typeof nativeCallable extends keyof T ? T | void | readonly void[] : T : T;
+type NativeJsxProps<P> = { [K in keyof P]: K extends "children" ? NativeJsxChild<P[K]> : NativeInput<P[K]> };
+declare function nativeInit<T = never>(value: NativeInput<NoInfer<T>>): T;
+declare function nativeRef<T>(place: T): NativeRef<T extends boolean ? boolean : T>;
 declare function nativeDeref<T>(reference: NativeRef<T>): T;
 declare function nativeAt(values: string, index: number | bigint): u8;
 declare function nativeAt<T>(values: T[] | NativeSlice<T>, index: number | bigint): T;
@@ -535,10 +824,13 @@ declare namespace JSX {
     type Element = void;
     type ElementType = (props: never) => unknown;
     interface ElementChildrenAttribute { children: {}; }
-    type LibraryManagedAttributes<C, P> = P extends NativeZeroInitialized ? Partial<P> : P;
+    type LibraryManagedAttributes<C, P> = typeof nativeInitialization extends keyof P ? Partial<NativeJsxProps<P>> : NativeJsxProps<P>;
 }
 TS
     out: Vec(u8); Append(*out, language)
+    // Compiler primitives are bare names, with checked standard declarations
+    // supplying any library types their signatures require.
+    Append(*out, TextReplace(Builtins(state), "export ", ""))
     names := string.["Source_Code_Location", "OS", "CPU", "TARGET"]
     for name: names {
         record := BuiltinType(Services.KeepName(name))
@@ -579,13 +871,17 @@ Manifest :: (state: *State) -> string {
             item := *module.imports[edge]; edge += 1
             if item.resolved_module == null { continue }
             authored := DocumentForSpan(module, item.span)
-            if authored == null { continue }
-            path := DocumentPath(authored)
+            path := IR.CText(SpanPath(item.span))
+            if authored != null { path = DocumentPath(authored) }
             if !TextHasSuffix(path, ".ts") && !TextHasSuffix(path, ".tsx") { continue }
             state.span = item.span; canonical := CanonicalPath(Services.Keep(path))
             if canonical == null { unused Fail(state, "cannot resolve authored source:", path); break }
             path = IR.CText(canonical); source, ok := ReadEntireFile(path)
             if !ok { unused Fail(state, "cannot read authored import:", path); break }
+            // Checked IR keeps authored spans and package identities, but raw
+            // source documents are intentionally not serialized. Recreate only
+            // the byte-offset index from the exact recorded source path.
+            if authored == null { authored = DocumentRecord(canonical, Services.Keep(source), cast(usize)source.count) }
             spelling := ImportSpelling(state, item, authored, source); slot: s64 = -1
             for saved, position: paths { if saved == path { slot = position; break } }
             if slot < 0 {
@@ -594,7 +890,8 @@ Manifest :: (state: *State) -> string {
                 unused JsonSet(*document, row, "imports", entries); unused JsonAppend(*document, resolutions, row)
                 slot = paths.count; unused VecPush(paths, path); unused VecPush(imports, entries)
             }
-            target := ModuleIndex(state, item.resolved_module)
+            state.viewer = module
+            target := ProjectionIndex(state, item.resolved_module)
             if target < 0 { unused Fail(state, "manifest import is absent from the checked graph"); break }
             existing := JsonMember(*document, imports[slot], spelling); file := ModuleFile(target)
             if existing >= 0 && !JsonIs(*document, existing, file) { unused Fail(state, "one authored import resolves to different checked modules:", spelling); break }
@@ -636,26 +933,46 @@ Invalidate :: (directory: *u8) -> s32 {
     return 0
 }
 
-Emit :: (programs: *IR.ProgramSet, modules: **IR.ZirModule, module_count: s32, directory: *u8) -> s32 {
-    state: State = .{modules = modules, module_count = module_count, programs = programs}; output := IR.CText(directory)
+#scope_file
+ReleaseScopes :: (state: *State) {
+    for projection: state.projections {
+        if projection.scope != null {
+            CompilerFree(cast(*void)projection.scope.imports)
+            CompilerFree(cast(*void)projection.scope)
+        }
+    }
+}
+#scope_export
+
+Emit :: (programs: *IR.ProgramSet, modules: **IR.ZirModule, module_count: s32, directory: *u8, builtins: []Builtin) -> s32 {
+    state: State = .{modules = modules, module_count = module_count, programs = programs, builtins = builtins}; output := IR.CText(directory)
     manifest_path := Join(output, "/manifest.json")
     if PathExists(manifest_path) && !RemoveFile(manifest_path) { unused Fail(*state, "cannot invalidate manifest:", output); return 1 }
-    declarations: Vec(string); index: s32 = 0
-    while index < module_count && !state.failed { unused VecPush(declarations, Module(*state, modules[index])); index += 1 }
-    // Private types reachable through public fields/results need declarations
-    // too. Their generated support names keep private source names unexported.
-    position: s64 = 0
-    while position < state.used.count && !state.failed {
-        use := state.used[position]; owner := ModuleIndex(*state, use.module)
-        if owner < 0 { unused Fail(*state, "private type owner is absent from the graph"); break }
-        declarations[owner] = Join(declarations[owner], Record(*state, use.module, use.record))
-        position += 1
+    defer ReleaseScopes(*state)
+    // Stable public baselines retain their graph module numbers. Authored
+    // imports and every transitive reference add requester-package variants.
+    index: s32 = 0
+    while index < module_count { unused ProjectionIndex(*state, modules[index]); index += 1 }
+    manifest := Manifest(*state); state.viewer = null; globals := Globals(*state)
+    module_position: s64 = 0; type_position: s64 = 0
+    while !state.failed && (module_position < state.projections.count || type_position < state.used.count) {
+        if module_position < state.projections.count {
+            projection := state.projections[module_position]; state.viewer = projection.viewer
+            text := Module(*state, projection.module)
+            state.projections[module_position].text = text; module_position += 1
+        } else {
+            use := state.used[type_position]; projection := state.projections[use.projection]
+            state.viewer = projection.viewer
+            text := Record(*state, projection.module, use.record)
+            state.projections[use.projection].text = Join(state.projections[use.projection].text, text)
+            type_position += 1
+        }
     }
-    manifest := Manifest(*state); globals := Globals(*state); if state.failed { return 1 }
+    if state.failed { return 1 }
     if !Directories(output) || !Clean(output) { unused Fail(*state, "cannot prepare output directory:", output); return 1 }
     if !WriteEntireFile(Join(output, "/native.d.ts"), globals) { unused Fail(*state, "cannot write native declarations:", output); return 1 }
-    for text, position: declarations {
-        if !WriteEntireFile(Join(output, "/", ModuleFile(cast(s32)position)), text) { unused Fail(*state, "cannot write module declarations:", output); return 1 }
+    for projection, position: state.projections {
+        if !WriteEntireFile(Join(output, "/", ModuleFile(cast(s32)position)), projection.text) { unused Fail(*state, "cannot write module declarations:", output); return 1 }
     }
     temporary := Join(manifest_path, ".tmp")
     if !WriteEntireFile(temporary, Join(manifest, "\n")) || !RenamePath(temporary, manifest_path) { unused Fail(*state, "cannot publish declaration manifest:", output); return 1 }

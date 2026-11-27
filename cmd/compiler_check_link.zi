@@ -259,9 +259,10 @@ type_application_hash :: (owner: *IR.ZirModule, generic: *IR.ZirType, identity: 
 
 #scope_export
 #program_export "TypeApplicationScope"
-TypeApplicationScope :: (module: *IR.ZirModule, arguments: *u8, template_public: s32, template_file_private: s32, instance: *IR.ZirType) {
+TypeApplicationScope :: (module: *IR.ZirModule, arguments: *u8, template_public: s32, template_file_private: s32, template_package_private: s32, instance: *IR.ZirType) {
     is_public: s32 = template_public
     is_file_private: s32 = template_file_private
+    is_package_private: s32 = template_package_private
     cursor: *u8 = arguments
     while check_loop_145 := ((cursor != cast(*u8)((null))) && ((cursor)[0] != 0)) {
         if ((isalpha(cast(s32)(cast(u8)((cursor)[0]))) != 0) || (cast(s32)(cast(s8)((cursor)[0])) == 95)) {
@@ -285,13 +286,20 @@ TypeApplicationScope :: (module: *IR.ZirModule, arguments: *u8, template_public:
                 if ((type).is_file_private != 0) {
                     is_file_private = 1
                 }
+                if ((type).is_package_private != 0) {
+                    is_package_private = 1
+                }
             }
             continue check_loop_145
         }
         S12Post1(*(cursor))
     }
+    if (is_package_private != 0) {
+        is_public = 0
+    }
     (instance).is_public = is_public
     (instance).is_file_private = is_file_private
+    (instance).is_package_private = is_package_private
 }
 
 #scope_file
@@ -416,7 +424,7 @@ rewrite_type_applications_with_buffers :: (module: *IR.ZirModule, source: *u8, o
                         if (instance == cast(*IR.ZirType)((null))) {
                             return 0
                         }
-                        TypeApplicationScope(module, cast(*u8)(*(((buffers).canonical).items)), generic_public, generic_file_private, instance)
+                        TypeApplicationScope(module, cast(*u8)(*(((buffers).canonical).items)), generic_public, generic_file_private, (generic).is_package_private, instance)
                         (instance).is_type_instance = 1
                         (instance).is_synthetic_application = 1
                         copy_text(cast(*u8)(*((instance).template_name)), cast(usize)(cast(u64)size_of(S12Array128_u8)), cast(*u8)(*((base_storage_0[0]).items)))

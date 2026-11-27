@@ -234,6 +234,24 @@ With `--project`, `--module-path DIR` adds a folder of generated modules to
 the project's own package only; see
 [generated modules](PACKAGES.md#generated-modules).
 
+### Package-private declarations
+
+`#scope_file`, `#scope_module`, `#scope_export`, and `#scope_package` change
+the visibility of the declarations that follow them. `#scope_package` makes
+procedures, constants, types and imports visible only within their package.
+The package map and lock supply the resolved owner identity; a manifest's name
+alone does not establish membership. Modules loaded without a package map
+share the implicit empty package. Saved `.zir` preserves the checked owner
+identity when loaded without a new package map.
+
+Re-export chains keep the original requester, so a package-private declaration
+cannot be exposed by re-exporting it from another package. A package-private
+global becomes an ordinary
+module static and never appears in a bundle state interface. An importer that
+lacks package visibility gets the ordinary unresolved-symbol diagnostic naming
+the declaring module (`package-private in ...; export it with #scope_export
+to use it here`).
+
 `#import, file "../lib/helper.zi";` loads an explicit source file relative to
 the importing file. Saved `.zir` builds resolve its module by name from the
 saved IR directory or a module path.
@@ -2290,8 +2308,10 @@ shadow space and stack arguments, including aligned copies for `string` and
 slice arguments. Scalar returns are supported; record returns, other record
 layouts, forwarded DLL exports and call frames needing stack probes report a
 gap. Missing providers and unsupported signatures never select another engine.
-Use `#scope_file`, `#scope_module`, and `#scope_export` to change the
-visibility of following declarations.
+Use `#scope_file`, `#scope_module`, `#scope_export`, and `#scope_package` to
+change the visibility of following declarations; `#scope_package` keeps a
+declaration callable only inside its own package (see
+[package-private declarations](#package-private-declarations)).
 
 ## Assembly with a portable body
 

@@ -74,7 +74,7 @@ ApiDiscovery :: (test: *NativeTest) -> bool {
         if !NativeAssert(test, JsonKindOf(*document, JsonMember(*document, choice, "procedure")) == .False && CheckField(*document, choice, "return_type") == "" &&
             JsonKindOf(*document, JsonMember(*document, handler, "procedure")) == .True && CheckField(*document, handler, "return_type") == "bool" &&
             CheckField(*document, handler, "body") == "value: s32", "API confused procedure and record types") ||
-            !ApiNames(test, *document, JsonMember(*document, library, "constants"), "PUBLIC_CONSTANT") ||
+            !ApiNames(test, *document, JsonMember(*document, library, "constants"), "PUBLIC_CONSTANT|FEATURE") ||
             !ApiNames(test, *document, JsonMember(*document, library, "globals"), "public_global") ||
             !NativeAssert(test, CheckField(*document, JsonElement(*document, JsonMember(*document, library, "globals"), 0), "type") == "s32", "API global lost its type") { return false }
         imports := JsonMember(*document, main, "imports")
@@ -94,16 +94,134 @@ ApiDiscovery :: (test: *NativeTest) -> bool {
     return ApiNames(test, *defined, JsonMember(*defined, library, "functions"), "Visible|Again|Extra")
 }
 
+ApiImportFile :: (test: *NativeTest, output: string, source: string, spelling: string) -> string {
+    document: JsonDocument
+    if !JsonRead(*document, NativeRead(test, CheckPath(output, "manifest.json"))) { return "" }
+    rows := JsonMember(*document, document.root, "resolutions")
+    for index: cast(s32)0..JsonCount(*document, rows) - 1 {
+        row := JsonElement(*document, rows, index)
+        if CheckField(*document, row, "source") == source {
+            return CheckField(*document, JsonMember(*document, row, "imports"), spelling)
+        }
+    }
+    return ""
+}
+ApiRequesterScope :: (test: *NativeTest, root: string) -> bool {
+    client := CheckPath(root, "client"); provider := CheckPath(root, "provider")
+    source := CheckPath(client, "main.tsx"); wrapper := CheckPath(provider, "wrapper.tsx")
+    domain := CheckPath(provider, "domain.zi"); map := CheckPath(root, "packages.tsv")
+    output := CheckPath(root, "declarations")
+    native := #string ZI
+using Shapes :: #import "shapes"
+#import "noise"
+PublicCall :: () -> s32 { return 1 }
+#scope_package
+InternalToken :: struct($T: Type) { value: T; }
+InternalValue :: 7
+using Internals :: #import "inside"
+InternalCall :: (value: InternalToken(s32)) -> s32 { return value.value }
+#scope_module
+ModuleSecret :: () -> s32 { return 0 }
+#scope_file
+FileSecret :: () -> s32 { return 0 }
+ZI
+    wrapper_source := #string TSX
+import * as Domain from "domain";
+export function Wrapped(): s32 {
+    const token: Domain.InternalToken<s32> = {value: s32(7)};
+    const props: Domain.Props = {value: s32(2)};
+    return Domain.InternalCall(token) + props.value;
+}
+TSX
+    client_source := #string TSX
+import * as Domain from "library/domain";
+import * as Wrapper from "library/wrapper";
+export function Result(): s32 {
+    const props: Domain.Props = {value: s32(2)};
+    return Domain.PublicCall() + Wrapper.Wrapped() + props.value;
+}
+TSX
+    if !NativeWrite(test, domain, native) || !NativeWrite(test, wrapper, wrapper_source) ||
+        !NativeWrite(test, source, client_source) ||
+        !NativeWrite(test, CheckPath(provider, "shapes.zi"), "Props :: struct { value: s32; }\n") ||
+        !NativeWrite(test, CheckPath(provider, "noise.zi"), "Props :: struct { unrelated: string; }\n") ||
+        !NativeWrite(test, CheckPath(provider, "inside.zi"), "InternalAliasValue :: 11\n") { return false }
+    parts := string.["P\troot\t", client, "\nP\tprovider\t", provider,
+        "\nM\troot\tmain\t", source, "\nM\tprovider\tdomain\t", domain,
+        "\nM\tprovider\twrapper\t", wrapper,
+        "\nM\tprovider\tshapes\t", CheckPath(provider, "shapes.zi"),
+        "\nM\tprovider\tnoise\t", CheckPath(provider, "noise.zi"),
+        "\nM\tprovider\tinside\t", CheckPath(provider, "inside.zi"),
+        "\nD\troot\tlibrary/domain\tprovider\tdomain\nD\troot\tlibrary/wrapper\tprovider\twrapper\n"]
+    if !NativeWrite(test, map, TextJoin(parts[:], "")) { return false }
+    saved_environment: Vec(string); unused VecClone(saved_environment, test.environment)
+    defer VecSwap(test.environment, saved_environment)
+    NativeSet(test, "ZIRAN_PACKAGE_MAP", map)
+    args := string.[CheckPath(PathParent(test.ziran), "zi-api"), "--typescript", "--out", output, "--target", "c", "--root", client, source]
+    unused NativeRun(test, args[:]); if test.failed { return false }
+    internal_file := ApiImportFile(test, output, wrapper, "domain")
+    external_file := ApiImportFile(test, output, source, "library/domain")
+    if !NativeAssert(test, internal_file != "" && external_file != "" && internal_file != external_file,
+        "manifest reused public declarations for a package requester") { return false }
+    internal := NativeRead(test, CheckPath(output, internal_file)); external := NativeRead(test, CheckPath(output, external_file))
+    private_names := string.["InternalCall", "InternalToken", "InternalValue", "Internals", "InternalAliasValue"]
+    for name: private_names {
+        if !NativeAssert(test, TextContains(internal, name) && !TextContains(external, name),
+            CheckConcat("requester visibility differs from native package access: ", name)) { return false }
+    }
+    declarations := string.[internal, external]
+    for declaration: declarations {
+        if !NativeAssert(test, TextContains(declaration, "export type Props") && !TextContains(declaration, "ModuleSecret") &&
+            !TextContains(declaration, "FileSecret"), "qualified exports lost Props or exposed module/file scope") { return false }
+    }
+    // Saved checked graphs retain the original package identity even when the
+    // source package map is absent during declaration projection.
+    ir := CheckPath(root, "ir"); saved_output := CheckPath(root, "saved-declarations")
+    ir_args := string.[CheckPath(PathParent(test.ziran), "zi2zir"), "--target=c", "--root", client, "-o", ir, source]
+    unused NativeRun(test, ir_args[:]); if test.failed { return false }
+    NativeUnset(test, "ZIRAN_PACKAGE_MAP")
+    saved_args := string.[CheckPath(PathParent(test.ziran), "zi-api"), "--typescript", "--out", saved_output, "--target", "c", "--root", ir, CheckPath(ir, "main.zir")]
+    unused NativeRun(test, saved_args[:]); if test.failed { return false }
+    NativeSet(test, "ZIRAN_PACKAGE_MAP", map)
+    saved_internal_file := ApiImportFile(test, saved_output, wrapper, "domain")
+    saved_external_file := ApiImportFile(test, saved_output, source, "library/domain")
+    if !NativeAssert(test, saved_internal_file != "" && saved_external_file != "" && saved_internal_file != saved_external_file,
+        "saved graph lost requester-specific package projections") { return false }
+    saved_internal := NativeRead(test, CheckPath(saved_output, saved_internal_file))
+    saved_external := NativeRead(test, CheckPath(saved_output, saved_external_file))
+    for name: private_names {
+        if !NativeAssert(test, TextContains(saved_internal, name) && !TextContains(saved_external, name),
+            CheckConcat("saved graph changed native package visibility: ", name)) { return false }
+    }
+    saved_declarations := string.[saved_internal, saved_external]
+    for declaration: saved_declarations {
+        if !NativeAssert(test, TextContains(declaration, "export type Props") && !TextContains(declaration, "ModuleSecret") &&
+            !TextContains(declaration, "FileSecret"), "saved graph lost Props or exposed module/file scope") { return false }
+    }
+    invalid := CheckConcat(client_source, "\nexport function Invalid(): s32 { return Domain.InternalCall({value: s32(1)}); }\n")
+    if !NativeWrite(test, source, invalid) { return false }
+    rejected := NativeInvoke(test, args[:])
+    return NativeAssert(test, rejected.code != 0 && !PathExists(CheckPath(output, "manifest.json")),
+        "external native package access succeeded or retained stale declarations")
+}
+
 ApiTypeScript :: (test: *NativeTest) -> bool {
     root := CheckPath(test.work, "typescript"); output := CheckPath(root, "build/.ziran/types")
     source := CheckPath(root, "main.tsx")
     native := #string ZI
 using Callables :: #import "std/callable"
+using Vectors :: #import "std/vec"
+using Options :: #import "std/option"
+using Shared :: #import "native_exports"
 Box :: struct($T: Type) { value: T; }
 Model :: struct { value: float64; id: u64; }
 Mode :: enum u8 { Off; On :: 7; }
+ModeDefault :: Mode.On
 Action :: #type (model: Model) -> void;
 Props :: struct { model: Model; action: Owned(Action); }
+Block :: #type () -> void;
+PanelProps :: struct { children: Scoped(Block); }
+Panel :: (props: PanelProps) { props.children() }
 Widget :: (props: Props) { props.action(props.model) }
 BooleanWidget :: (props: Props, location: Source_Code_Location = #caller_location) -> bool { return props.model.value > 0 }
 RecordWidget :: (props: Props) -> Model { return props.model }
@@ -112,15 +230,28 @@ Defaulted :: (value: s32 = 7) -> s32 { return value }
 Wide :: () -> u64 { return 18446744073709551615 }
 Rshift :: 3;
 Runit :: (1 << Rshift);
+Enabled :: #defined(API_FEATURE) || false;
+FeatureDependent :: Enabled || false;
+Values :: () -> Vec(s32) { values: Vec(s32); return values }
+Read :: () -> s32 { return 7 }
+HostCall :: #type (function: string, arguments: s32, __nativeArgument0: s32) -> s32;
+Reserved :: (function: string, arguments: s32, __nativeArgument0: s32) -> s32 { return arguments + __nativeArgument0 }
+ConstantCall :: 15;
+ConstantCall :: (value: s32) -> s32 { return value }
 #scope_module
 Hidden :: () -> s32 { return 0 }
 ZI
     authored := #string TSX
 import * as Domain from "native_domain";
+import * as Tokens from "native_namespace";
 import { Owned } from "std/callable";
+import { Vec } from "std/vec";
 export interface Box<T> { value: T; }
 export function Wide(): u64 { return Domain.Wide(); }
 export function Render(): void {
+    const initialized: Domain.Model = nativeInit<Domain.Model>({value: 1});
+    const initializedId: u64 = initialized.id;
+    const nested: Domain.Box<Domain.Model> = nativeInit<Domain.Box<Domain.Model>>({value: {value: 2}});
     const model: Domain.Model = {value: 2, id: u64(18446744073709551615n)};
     const action: Owned<Domain.Action> = (value: Domain.Model): void => {};
     <Domain.Widget model={model} action={action} />;
@@ -128,10 +259,24 @@ export function Render(): void {
     <Domain.RecordWidget model={model} action={(value: Domain.Model): void => {}} />;
     const pressed: boolean = Domain.BooleanWidget({model: model, action: (value: Domain.Model): void => {}});
     const result: Domain.Model = Domain.RecordWidget({model: model, action: (value: Domain.Model): void => {}});
+    const partial: Domain.Model = Domain.RecordWidget({model: {value: 3}, action: (value: Domain.Model): void => {}});
+    <Domain.Panel><Domain.Widget model={model} action={(value: Domain.Model): void => {}} /></Domain.Panel>;
+    const values: Vec<s32> = Domain.Values();
+    VecPush(values, s32(7));
+    const read: s32 = Domain.Read();
+    const token: Tokens.Token<s32> = {value: s32(1)};
+    const kind: s32 = Domain.ConstantCall;
+    const called: s32 = Domain.ConstantCall(kind);
+    const importedKind: s32 = Domain.ExportCall;
+    const importedCall: s32 = Domain.ExportCall(importedKind);
+    const reserved: s32 = Domain.Reserved("value", s32(2), s32(3));
 }
 TSX
-    if !NativeWrite(test, CheckPath(root, "native_domain.zi"), native) || !NativeWrite(test, source, authored) { return false }
-    args := string.[test.ziran, "api", "--typescript", "--out", output, "--target", "c", "--root", root, source]
+    if !NativeWrite(test, CheckPath(root, "native_domain.zi"), native) ||
+        !NativeWrite(test, CheckPath(root, "native_exports.zi"), "Read :: #import \"native_namespace\"\nExportCall :: 16;\nExportCall :: (value: s32) -> s32 { return value }\n") ||
+        !NativeWrite(test, CheckPath(root, "native_namespace.zi"), "Token :: struct($T: Type) { value: T; }\nValue :: 3\n") ||
+        !NativeWrite(test, source, authored) { return false }
+    args := string.[test.ziran, "api", "--typescript", "--out", output, "--target", "c", "--define", "API_FEATURE", "--root", root, source]
     result := NativeRun(test, args[:]); manifest_path := CheckPath(output, "manifest.json")
     if test.failed || !NativeAssert(test, result.output == "", "declaration generator wrote API text") { return false }
     text := NativeRead(test, manifest_path); document: JsonDocument
@@ -144,8 +289,13 @@ TSX
     file := CheckField(*document, entries, "native_domain")
     if !NativeAssert(test, file != "" && CheckField(*document, entries, "std/callable") != "", "manifest lost authored native imports") { return false }
     declaration := NativeRead(test, CheckPath(output, file))
-    expected := string.["interface Box<T>", "interface Model", "\"id\": bigint", "readonly On: 7", "function Identity<T>(value: T): T", "function Defaulted(value?: number): number", "function Wide(): bigint", "const Runit: bigint"]
+    expected := string.["interface Box<T>", "interface Model", "\"id\": bigint", "readonly On: 7", "const ModeDefault: import(", "function Identity<T>(value: T): T", "function Defaulted(value?: number): number", "function Wide(): bigint", "const Runit: bigint", "const Enabled: boolean", "const FeatureDependent: boolean", "const ConstantCall: 15 & {", "const ExportCall: 16 & {", "function Reserved(__nativeArgument0_: string, __nativeArgument1: number, __nativeArgument0: number): number", "type HostCall = (__nativeArgument0_: string, __nativeArgument1: number, __nativeArgument0: number) => number"]
     for part: expected { if !NativeAssert(test, TextContains(declaration, part), CheckConcat("declaration missing checked type: ", part)) { return false } }
+    globals := NativeRead(test, CheckPath(output, "native.d.ts"))
+    projected := string.["function RecordWidget(props: NativeInput<", "interface PanelProps", "\"children\": import(", ").Scoped<", "function Read(): number", "namespace Read", "export type Token<T>"]
+    for part: projected { if !NativeAssert(test, TextContains(declaration, part), CheckConcat("declaration missing native input contract: ", part)) { return false } }
+    primitives := string.["nativeInit<T = never>", "NativeInput<NoInfer<T>>", "NativeJsxChild<T>", "function VecPush<T>", "function VecPop<T>", "function VecClone<T>(destination:", "source:", "function TextView(value: string): string", "function TextView(value: NativeSlice<number>): string"]
+    for part: primitives { if !NativeAssert(test, TextContains(globals, part), CheckConcat("native declarations missing checked primitive: ", part)) { return false } }
     if !NativeAssert(test, !TextContains(declaration, "Hidden") && !TextContains(declaration, ": any") && !TextContains(declaration, ": never"), "declarations erased types or exposed private functions") { return false }
     if !NativeWrite(test, CheckPath(output, "module-999999.d.ts"), "stale") || !NativeWrite(test, CheckPath(output, "keep.txt"), "owner") { return false }
     unused NativeRun(test, args[:])
@@ -153,7 +303,8 @@ TSX
         !PathExists(CheckPath(output, "module-999999.d.ts")) && NativeRead(test, CheckPath(output, "keep.txt")) == "owner", "generation is nondeterministic or stale cleanup changed unrelated files") { return false }
     if !NativeWrite(test, source, CheckConcat(authored, "\nexport function Invalid(): number { return false; }\n")) { return false }
     rejected := NativeInvoke(test, args[:])
-    return NativeAssert(test, rejected.code != 0 && !PathExists(manifest_path), "failed source check left a valid-looking stale manifest")
+    return NativeAssert(test, rejected.code != 0 && !PathExists(manifest_path), "failed source check left a valid-looking stale manifest") &&
+        ApiRequesterScope(test, CheckPath(root, "visibility"))
 }
 
 ApiMetadata :: (test: *NativeTest) -> bool {

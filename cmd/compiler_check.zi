@@ -243,7 +243,7 @@ file_scope_symbol_visible :: (module: *IR.ZirModule, name: *u8) -> s32 {
                     {
                         d: s32 = 0
                         while check_loop_15 := (d < (scope).define_count) {
-                            if ((((pass == 0) || ((((scope).defines)[d]).is_public != 0)) && ((pass != 0) || (in_lookup_file(module, (((scope).defines)[d]).is_file_private, (((scope).defines)[d]).span) != 0))) && (strcmp(cast(*u8)(*((((scope).defines)[d]).name)), name) == 0)) {
+                            if ((((pass == 0) || (IR.PackageVisible(module, scope, (((scope).defines)[d]).is_public, (((scope).defines)[d]).is_package_private, (((scope).defines)[d]).is_file_private) != false)) && ((pass != 0) || (in_lookup_file(module, (((scope).defines)[d]).is_file_private, (((scope).defines)[d]).span) != 0))) && (strcmp(cast(*u8)(*((((scope).defines)[d]).name)), name) == 0)) {
                                 return 1
                             }
                             CheckPost0(*(d))
@@ -252,7 +252,7 @@ file_scope_symbol_visible :: (module: *IR.ZirModule, name: *u8) -> s32 {
                     {
                         f: s32 = 0
                         while check_loop_16 := (f < (scope).function_count) {
-                            if ((((pass == 0) || ((((scope).functions)[f]).is_public != 0)) && ((pass != 0) || (in_lookup_file(module, (((scope).functions)[f]).is_file_private, (((scope).functions)[f]).span) != 0))) && (strcmp(cast(*u8)(*((((scope).functions)[f]).name)), name) == 0)) {
+                            if ((((pass == 0) || (IR.PackageVisible(module, scope, (((scope).functions)[f]).is_public, (((scope).functions)[f]).is_package_private, (((scope).functions)[f]).is_file_private) != false)) && ((pass != 0) || (in_lookup_file(module, (((scope).functions)[f]).is_file_private, (((scope).functions)[f]).span) != 0))) && (strcmp(cast(*u8)(*((((scope).functions)[f]).name)), name) == 0)) {
                                 return 1
                             }
                             CheckPost0(*(f))
@@ -261,7 +261,7 @@ file_scope_symbol_visible :: (module: *IR.ZirModule, name: *u8) -> s32 {
                     {
                         t: s32 = 0
                         while check_loop_17 := (t < (scope).type_count) {
-                            if ((((pass == 0) || ((((scope).types)[t]).is_public != 0)) && ((pass != 0) || (in_lookup_file(module, (((scope).types)[t]).is_file_private, (((scope).types)[t]).span) != 0))) && (strcmp(cast(*u8)(*((((scope).types)[t]).name)), name) == 0)) {
+                            if ((((pass == 0) || (IR.PackageVisible(module, scope, (((scope).types)[t]).is_public, (((scope).types)[t]).is_package_private, (((scope).types)[t]).is_file_private) != false)) && ((pass != 0) || (in_lookup_file(module, (((scope).types)[t]).is_file_private, (((scope).types)[t]).span) != 0))) && (strcmp(cast(*u8)(*((((scope).types)[t]).name)), name) == 0)) {
                                 return 1
                             }
                             CheckPost0(*(t))
@@ -433,7 +433,7 @@ check_file_scope_enum_names :: (module: *IR.ZirModule, expression: *IR.ZirFuncti
                                 while check_loop_24 := (t < (scope).type_count) {
                                     type: *IR.ZirType = cast(*IR.ZirType)(cast(usize)((scope).types) + cast(usize)(t) * size_of(IR.ZirType))
                                     value: s64
-                                    if (((((pass != 0) && !((type).is_public != 0)) || ((pass == 0) && !(in_lookup_file(module, (type).is_file_private, (type).span) != 0))) || !((type).is_enum != 0)) || !(EnumMemberValue(type, (node).name, *(value)) != 0)) {
+                                    if (((((pass != 0) && !(IR.PackageVisible(module, scope, (type).is_public, (type).is_package_private, (type).is_file_private) != false)) || ((pass == 0) && !(in_lookup_file(module, (type).is_file_private, (type).span) != 0))) || !((type).is_enum != 0)) || !(EnumMemberValue(type, (node).name, *(value)) != 0)) {
                                         CheckPost0(*(t))
                                         continue check_loop_24
                                     }
@@ -1112,7 +1112,7 @@ bind :: (c: *Checker, name: *u8, type: *u8, span: IR.ZirSourceSpan) {
                     {
                         d: s32 = 0
                         while check_loop_44 := (d < (scope).define_count) {
-                            if ((((pass == 0) || ((((scope).defines)[d]).is_public != 0)) && ((pass != 0) || (in_lookup_file((c).module, (((scope).defines)[d]).is_file_private, (((scope).defines)[d]).span) != 0))) && !(strcmp(cast(*u8)(*((((scope).defines)[d]).name)), name) != 0)) {
+                            if ((((pass == 0) || (IR.PackageVisible((c).module, scope, (((scope).defines)[d]).is_public, (((scope).defines)[d]).is_package_private, (((scope).defines)[d]).is_file_private) != false)) && ((pass != 0) || (in_lookup_file((c).module, (((scope).defines)[d]).is_file_private, (((scope).defines)[d]).span) != 0))) && !(strcmp(cast(*u8)(*((((scope).defines)[d]).name)), name) != 0)) {
                                 error(c, span, CheckCString("binding shadows a compile-time definition"), name)
                                 return
                             }

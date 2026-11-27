@@ -56,8 +56,8 @@ cond_frame_settle :: (frames: *ZirCondFrame, count: s32) #foreign compiler "priv
 cond_top_step :: (line: *u8, frames: *ZirCondFrame, count: *s32, module: *IR.ZirModule, consts: *ZirConsts, context: *CompileParseContext, source_path: *u8, path: *u8, line_no: s32, deferred: *s32) -> s32 #foreign compiler "private_parse_cond_top_step";
 contains_source_directive :: (source: *u8, directive: *u8) -> s32 #foreign compiler "private_parse_contains_source_directive";
 copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
-declare_multiple_results :: (module: *IR.ZirModule, name: *u8, ret: *u8, ret_size: usize, is_public: s32, is_file_private: s32, template_parameters: *u8, span: IR.ZirSourceSpan) -> s32 #foreign compiler "private_parse_declare_multiple_results";
-defer_line :: (lines: *DeferredLines, line: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32) #foreign compiler "private_parse_defer_line";
+declare_multiple_results :: (module: *IR.ZirModule, name: *u8, ret: *u8, ret_size: usize, is_public: s32, is_file_private: s32, is_package_private: s32, template_parameters: *u8, span: IR.ZirSourceSpan) -> s32 #foreign compiler "private_parse_declare_multiple_results";
+defer_line :: (lines: *DeferredLines, line: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32, scope_package: s32) #foreign compiler "private_parse_defer_line";
 die :: (fmt: *u8, varargs: ..any) #foreign compiler "private_parse_die";
 die_at :: (span: IR.ZirSourceSpan, fmt: *u8, varargs: ..any) #foreign compiler "private_parse_die_at";
 discover_conditional_types :: (deferred: *ZirDeferredTypes, module: *IR.ZirModule, constants: *ZirConsts, context: *CompileParseContext, future: *ZirTypes, uses_resizable_arrays: *s32) #foreign compiler "private_parse_discover_conditional_types";
@@ -103,12 +103,12 @@ parse_block_call_header :: (text: *u8, callee: *u8, callee_size: usize, name: *u
 parse_compile_check :: (module: *IR.ZirModule, path: *u8, line_no: s32, line: *u8, consts: *ZirConsts) -> s32 #foreign compiler "private_parse_parse_compile_check";
 parse_cond_start :: (line: *u8, condition: **u8) -> s32 #foreign compiler "private_parse_parse_cond_start";
 parse_enum_backing :: (type: *IR.ZirType, header: *u8) #foreign compiler "private_parse_parse_enum_backing";
-parse_file_global :: (module: *IR.ZirModule, declaration: *u8, span: IR.ZirSourceSpan, scope_public: s32, scope_file: s32, name_out: *u8, name_size: usize) #foreign compiler "private_parse_parse_file_global";
+parse_file_global :: (module: *IR.ZirModule, declaration: *u8, span: IR.ZirSourceSpan, scope_public: s32, scope_file: s32, scope_package: s32, name_out: *u8, name_size: usize) #foreign compiler "private_parse_parse_file_global";
 parse_foreign_library_line :: (path: *u8, line_no: s32, line: *u8, names: *ParserArray128_u8, targets: *ParserArray1024_u8, count: *s32) -> s32 #foreign compiler "private_parse_parse_foreign_library_line";
-parse_foreign_line :: (module: *IR.ZirModule, path: *u8, line_no: s32, line: *u8, scope_public: s32, names: *ParserArray128_u8, targets: *ParserArray1024_u8, paths: *ParserArray1024_u8, file_private: *s32, count: s32) -> s32 #foreign compiler "private_parse_parse_foreign_line";
+parse_foreign_line :: (module: *IR.ZirModule, path: *u8, line_no: s32, line: *u8, scope_public: s32, scope_package: s32, names: *ParserArray128_u8, targets: *ParserArray1024_u8, paths: *ParserArray1024_u8, file_private: *s32, count: s32) -> s32 #foreign compiler "private_parse_parse_foreign_line";
 parse_function_header :: (name: *u8, name_size: usize, args: *u8, args_size: usize, ret: *u8, ret_size: usize, line: *u8) #foreign compiler "private_parse_parse_function_header";
 parse_go_method :: (line: *u8, function: *IR.ZirFunction, span: IR.ZirSourceSpan) #foreign compiler "private_parse_parse_go_method";
-parse_import_line :: (module: *IR.ZirModule, path: *u8, line_no: s32, line: *u8, scope_public: s32) -> s32 #foreign compiler "private_parse_parse_import_line";
+parse_import_line :: (module: *IR.ZirModule, path: *u8, line_no: s32, line: *u8, scope_public: s32, scope_package: s32) -> s32 #foreign compiler "private_parse_parse_import_line";
 parse_insert_line :: (line: *u8, name: *u8, size: usize, span: IR.ZirSourceSpan) -> s32 #foreign compiler "private_parse_parse_insert_line";
 parse_procedure_type_parameters :: (args: *u8, output: *u8, capacity: usize, span: IR.ZirSourceSpan) #foreign compiler "private_parse_parse_procedure_type_parameters";
 parse_symbol_before_colons :: (s: *u8, out: *u8, out_size: usize) -> s32 #foreign compiler "private_parse_parse_symbol_before_colons";
@@ -336,6 +336,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
     program_export_line: s32 = 0
     scope_public: s32 = 1
     scope_file: s32 = 0
+    scope_package: s32 = 0
     foreign_library_count: s32 = 0
     load_depth: s32 = 0
     module_parameters_line: s32 = 0
@@ -437,6 +438,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                     next: *DeferredLine = cast(*DeferredLine)(cast(usize)((tables.deferred).items) + cast(usize)(ParserPost0(*(deferred_next))) * size_of(DeferredLine))
                     scope_public = (next).scope_public
                     scope_file = (next).scope_file
+                    scope_package = (next).scope_package
                     line_no = (next).line_no
                     copy_text(cast(*u8)(*(((buffers).rel).items)), cast(usize)size_of(ParserArray1024_u8), cast(*u8)(*(((next).rel).items)))
                     prepend_logical_line(cast(*ParserArray32768_u8)(*(((buffers).onelineq).items)), *(onelineq_count), (next).line, Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1))
@@ -463,6 +465,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                 have_look = (frame).have_look
                 scope_public = (frame).scope_public
                 scope_file = (frame).scope_file
+                scope_package = (frame).scope_package
                 in_block_comment = (frame).in_block_comment
                 inserting = (frame).inserting
                 continue loop_96
@@ -744,7 +747,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
             }
             if ((cast(u32)(mode) == cast(u32)(2)) && (local_depth > 0)) {
                 rename_local_procedures(t, logical_room(buffers, t), local_names, local_count, Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1))
-                defer_line(*(tables.deferred), t, cast(*u8)(*(((buffers).rel).items)), line_no, 0, 1)
+                defer_line(*(tables.deferred), t, cast(*u8)(*(((buffers).rel).items)), line_no, 0, 1, 0)
                 local_depth += net_block_braces(t)
                 if (local_depth < 0) {
                     local_depth = 0
@@ -771,7 +774,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                 }
                 ParserPost0(*(local_count))
                 rename_local_procedures(t, logical_room(buffers, t), local_names, local_count, Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1))
-                defer_line(*(tables.deferred), t, cast(*u8)(*(((buffers).rel).items)), line_no, 0, 1)
+                defer_line(*(tables.deferred), t, cast(*u8)(*(((buffers).rel).items)), line_no, 0, 1, 0)
                 local_depth = net_block_braces(t)
                 if (local_depth < 0) {
                     local_depth = 0
@@ -815,7 +818,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                 if (contains_source_directive(t, ParserCString("#symmetric")) != 0) {
                     wrapper: *u8 = cast(*u8)(AllocateOrExit(cast(usize)(16384)))
                     if (symmetric_operator_wrapper(t, wrapper, cast(usize)(16384), Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1)) != 0) {
-                        defer_line(*(tables.deferred), wrapper, cast(*u8)(*(((buffers).rel).items)), line_no, scope_public, scope_file)
+                        defer_line(*(tables.deferred), wrapper, cast(*u8)(*(((buffers).rel).items)), line_no, scope_public, scope_file, scope_package)
                     }
                     CompilerFree(cast(*void)(wrapper))
                 }
@@ -956,9 +959,10 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                 if ((cast(u32)(mode) == cast(u32)(0)) && (parse_compile_check(module, cast(*u8)(*(((buffers).rel).items)), line_no, t, *(tables.consts)) != 0)) {
                     continue loop_96
                 } else {
-                    if ((cast(u32)(mode) == cast(u32)(0)) && (((strcmp(t, ParserCString("#scope_file")) == 0) || (strcmp(t, ParserCString("#scope_module")) == 0)) || (strcmp(t, ParserCString("#scope_export")) == 0))) {
-                        scope_public = cast(s32)(strcmp(t, ParserCString("#scope_export")) == 0)
+                    if ((cast(u32)(mode) == cast(u32)(0)) && (((strcmp(t, ParserCString("#scope_file")) == 0) || (strcmp(t, ParserCString("#scope_module")) == 0)) || ((strcmp(t, ParserCString("#scope_export")) == 0) || (strcmp(t, ParserCString("#scope_package")) == 0)))) {
+                        scope_public = cast(s32)((strcmp(t, ParserCString("#scope_export")) == 0) && (strcmp(t, ParserCString("#scope_package")) != 0))
                         scope_file = cast(s32)(strcmp(t, ParserCString("#scope_file")) == 0)
+                        scope_package = cast(s32)(strcmp(t, ParserCString("#scope_package")) == 0)
                         continue loop_96
                     } else {
                         if ((cast(u32)(mode) == cast(u32)(0)) && (strcmp(t, ParserCString("#checks")) == 0)) {
@@ -980,7 +984,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                                     (filter_storage_28[0]).items[0] = cast(u8)(0)
                                     parse_using_modifiers(*(path), cast(*u8)(*((filter_storage_28[0]).items)), cast(usize)size_of(ParserArray160_u8), cast(*u8)(*(((buffers).rel).items)), line_no)
                                     if (strchr(path, 58) != cast(*u8)((null))) {
-                                        parse_file_global(module, path, Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), scope_public, scope_file, cast(*u8)(*((name_storage_27[0]).items)), cast(usize)size_of(ParserArray128_u8))
+                                        parse_file_global(module, path, Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), scope_public, scope_file, scope_package, cast(*u8)(*((name_storage_27[0]).items)), cast(usize)size_of(ParserArray128_u8))
                                     } else {
                                         length: usize = strlen(path)
                                         if (((length < cast(usize)(2)) || (cast(s32)(cast(s8)((path)[(length - cast(usize)(1))])) != 59)) || (length >= cast(usize)size_of(ParserArray128_u8))) {
@@ -1062,6 +1066,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                                         (frame).have_look = have_look
                                         (frame).scope_public = scope_public
                                         (frame).scope_file = scope_file
+                                        (frame).scope_package = scope_package
                                         (frame).in_block_comment = in_block_comment
                                         (frame).conditional_depth = tframe_count
                                         (frame).inserting = inserting
@@ -1077,6 +1082,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                                         ((buffers).lookahead).items[0] = cast(u8)(0)
                                         scope_public = 1
                                         scope_file = 0
+                                        scope_package = 0
                                         in_block_comment = 0
                                         continue loop_96
                                     } else {
@@ -1208,6 +1214,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                                                 (frame).have_look = have_look
                                                 (frame).scope_public = scope_public
                                                 (frame).scope_file = scope_file
+                                                (frame).scope_package = scope_package
                                                 (frame).in_block_comment = in_block_comment
                                                 (frame).conditional_depth = tframe_count
                                                 (frame).inserting = inserting
@@ -1238,7 +1245,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                                                             (tables.foreign_library_file_private).items[(foreign_library_count - 1)] = scope_file
                                                             continue loop_96
                                                         } else {
-                                                            if ((cast(u32)(mode) == cast(u32)(0)) && (record_count(*(type_count_before), (module).type_count) && record_count(*(import_count_before), (module).import_count) && ((parse_import_line(module, cast(*u8)(*(((buffers).rel).items)), line_no, t, scope_public) != 0) || (parse_foreign_line(module, cast(*u8)(*(((buffers).rel).items)), line_no, t, scope_public, cast(*ParserArray128_u8)(*(((buffers).foreign_library_names).items)), cast(*ParserArray1024_u8)(*(((buffers).foreign_library_targets).items)), cast(*ParserArray1024_u8)(*(((buffers).foreign_library_paths).items)), cast(*s32)(*((tables.foreign_library_file_private).items)), foreign_library_count) != 0)))) {
+                                                            if ((cast(u32)(mode) == cast(u32)(0)) && (record_count(*(type_count_before), (module).type_count) && record_count(*(import_count_before), (module).import_count) && ((parse_import_line(module, cast(*u8)(*(((buffers).rel).items)), line_no, t, scope_public, scope_package) != 0) || (parse_foreign_line(module, cast(*u8)(*(((buffers).rel).items)), line_no, t, scope_public, scope_package, cast(*ParserArray128_u8)(*(((buffers).foreign_library_names).items)), cast(*ParserArray1024_u8)(*(((buffers).foreign_library_targets).items)), cast(*ParserArray1024_u8)(*(((buffers).foreign_library_paths).items)), cast(*s32)(*((tables.foreign_library_file_private).items)), foreign_library_count) != 0)))) {
                                                                 program_export = 0
                                                                 if ((module).type_count > type_count_before) {
                                                                     (((module).types)[((module).type_count - 1)]).is_file_private = scope_file
@@ -1311,6 +1318,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                                                                         (slot).reads_arguments = reads_arguments
                                                                         (slot).is_public = scope_public
                                                                         (slot).is_file_private = scope_file
+                                                                        (slot).is_package_private = scope_package
                                                                         copy_text(cast(*u8)(*((slot).procedure_return_type)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((ret_storage_33[0]).items)))
                                                                         parse_procedure_type_parameters(cast(*u8)(*(((buffers).args).items)), cast(*u8)(*((slot).body)), cast(usize)size_of(ParserArray8192_u8), (slot).span)
                                                                         continue loop_96
@@ -1487,7 +1495,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                                                                                     }
                                                                                     (fn).is_template = 1
                                                                                 }
-                                                                                results_count = declare_multiple_results(module, cast(*u8)(*((name_storage_34[0]).items)), cast(*u8)(*((ret_storage_35[0]).items)), cast(usize)size_of(ParserArray128_u8), scope_public, scope_file, cast(*u8)(*((fn).template_param)), (fn).span)
+                                                                                results_count = declare_multiple_results(module, cast(*u8)(*((name_storage_34[0]).items)), cast(*u8)(*((ret_storage_35[0]).items)), cast(usize)size_of(ParserArray128_u8), scope_public, scope_file, scope_package, cast(*u8)(*((fn).template_param)), (fn).span)
                                                                                 copy_text(cast(*u8)(*((fn).return_type)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((ret_storage_35[0]).items)))
                                                                                 copy_text(cast(*u8)(*(((buffers).results_record).items)), cast(usize)size_of(ParserArray128_u8), (ifx ((results_count != 0) && !((fn).is_template != 0)) then cast(*u8)(*((ret_storage_35[0]).items)) else ParserCString("")))
                                                                                 (fn).exported = program_export
@@ -1496,6 +1504,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                                                                                 (tables.program_export_symbol).items[0] = cast(u8)(0)
                                                                                 (fn).is_public = scope_public
                                                                                 (fn).is_file_private = scope_file
+                                                                                (fn).is_package_private = scope_package
                                                                                 SymbolLookupsChanged()
                                                                                 mode = 2
                                                                                 depth = 1
@@ -1506,7 +1515,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                                                                                 unreachable
                                                                             } else {
                                                                                 if ((((cast(u32)(mode) == cast(u32)(0)) && ((isalpha(cast(s32)(((cast(u8)((t)[0]))))) != 0) || (cast(s32)(cast(s8)((t)[0])) == 95))) && (strchr(t, 58) != cast(*u8)((null)))) && (code_colons(t) == cast(*u8)((null)))) {
-                                                                                    parse_file_global(module, t, Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), scope_public, scope_file, null, cast(usize)(0))
+                                                                                    parse_file_global(module, t, Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), scope_public, scope_file, scope_package, null, cast(usize)(0))
                                                                                 } else {
                                                                                     if (((cast(u32)(mode) == cast(u32)(0)) && (code_colons(t) != cast(*u8)((null)))) && (contains_source_directive(t, ParserCString("#type")) != 0)) {
                                                                                         die_at(Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), ParserCString("C declarator #type is not Jai syntax; use Name :: #type (arguments) -> Result;"))
@@ -1517,7 +1526,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                                                                                             unreachable
                                                                                         } else {
                                                                                             if ((((((((cast(u32)(mode) == cast(u32)(0)) && (code_colons(t) != cast(*u8)((null)))) && !(starts_word(skip_ws(cast(*u8)(cast(usize)(code_colons(t)) + cast(usize)(2) * size_of(u8))), ParserCString("struct")) != 0)) && !(starts_word(skip_ws(cast(*u8)(cast(usize)(code_colons(t)) + cast(usize)(2) * size_of(u8))), ParserCString("union")) != 0)) && !(starts_word(skip_ws(cast(*u8)(cast(usize)(code_colons(t)) + cast(usize)(2) * size_of(u8))), ParserCString("enum")) != 0)) && !(starts_word(skip_ws(cast(*u8)(cast(usize)(code_colons(t)) + cast(usize)(2) * size_of(u8))), ParserCString("enum_flags")) != 0)) && !(starts_word(skip_ws(cast(*u8)(cast(usize)(code_colons(t)) + cast(usize)(2) * size_of(u8))), ParserCString("variant")) != 0)) && !(looks_like_function_header(t) != 0)) {
-                                                                                                parse_file_constant(t, path, line_no, module, buffers, *tables.consts, *tables.future_constants, *tables.compile_context, scope_public, scope_file)
+                                                                                                parse_file_constant(t, path, line_no, module, buffers, *tables.consts, *tables.future_constants, *tables.compile_context, scope_public, scope_file, scope_package)
                                                                                             } else {
                                                                                                 if ((cast(u32)(mode) == cast(u32)(0)) && (code_colons(t) != cast(*u8)((null)))) {
                                                                                                     colons: *u8 = code_colons(t)
@@ -1561,6 +1570,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                                                                                                         if (ty != cast(*IR.ZirType)((null))) {
                                                                                                             (ty).is_public = scope_public
                                                                                                             (ty).is_file_private = scope_file
+                                                                                                            (ty).is_package_private = scope_package
                                                                                                             (ty).is_enum = named_enum
                                                                                                             (ty).is_union = named_union
                                                                                                             (ty).is_enum_flags = enum_flags
@@ -2095,7 +2105,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
 // Record source constants for later conditional evaluation and for emitted interfaces.
 #scope_file
 parse_file_constant :: (t: *u8, path: *u8, line_no: s32, module: *IR.ZirModule, buffers: *ParseSourceBuffers,
-    constants: *ZirConsts, future_constants: *ZirConsts, context: *CompileParseContext, scope_public: s32, scope_file: s32) {
+    constants: *ZirConsts, future_constants: *ZirConsts, context: *CompileParseContext, scope_public: s32, scope_file: s32, scope_package: s32) {
     span := Span(cast(*u8)*buffers.rel.items[0], line_no, 1)
     colons: *u8 = code_colons(t)
     expr: *u8 = cast(*u8)(cast(usize)(cast(*u8)(colons)) + cast(usize)(2) * size_of(u8))
@@ -2234,11 +2244,28 @@ parse_file_constant :: (t: *u8, path: *u8, line_no: s32, module: *IR.ZirModule, 
                 }
             }
             using_alias: s32 = cast(s32)(((((((module).using_count > 0) && (is_identifier_text(expr) != 0)) && !(known_alias != 0)) && (strcmp(expr, ParserCString("true")) != 0)) && (strcmp(expr, ParserCString("false")) != 0)) && (strcmp(expr, ParserCString("null")) != 0))
-            if ((find_unquoted(expr, ParserCString("#defined"), cast(bool)(0)) == cast(*u8)((null))) && ((!(is_identifier_text(expr) != 0) || (known_alias != 0)) || (using_alias != 0))) {
-                def = ModuleAddDefine(module, cast(*u8)(*((cname_storage_37[0]).items)), expr, span)
+            recorded_expr := expr
+            if find_unquoted(expr, ParserCString("#defined"), false) != null {
+                // Parser constants include the selected command-line defines.
+                // Retain their checked value before that scope goes away, so
+                // dependent constants and saved IR keep the selected profile.
+                expand_compile_expr(cast(*u8)*buffers.expanded.items[0], size_of(ParserArray4096_u8), *constants[0], expr, SpanPath(span))
+                value := cast(*CompileValue)AllocateOrExit(size_of(CompileValue))
+                defer CompilerFree(cast(*void)value)
+                memset(cast(*void)value, 0, size_of(CompileValue))
+                fuel: s32 = 10000
+                if evaluate_typed_expression(module, *constants[0], cast(*u8)*buffers.expanded.items[0], span, 0, *fuel, value) != 0 && value.kind == 1 {
+                    if strcmp(cast(*u8)*value.type.items[0], ParserCString("bool")) == 0 {
+                        recorded_expr = ifx value.integer != 0 then ParserCString("true") else ParserCString("false")
+                    } else { recorded_expr = KeepText(compile_literal(value)) }
+                } else { recorded_expr = null }
+            }
+            if recorded_expr != null && ((!(is_identifier_text(expr) != 0) || (known_alias != 0)) || (using_alias != 0)) {
+                def = ModuleAddDefine(module, cast(*u8)(*((cname_storage_37[0]).items)), recorded_expr, span)
                 if (def != cast(*IR.ZirDefine)((null))) {
                     (def).is_public = scope_public
                     (def).is_file_private = scope_file
+                    (def).is_package_private = scope_package
                     (def).requires_open_enum = using_alias
                 }
             }
@@ -2328,7 +2355,7 @@ ensure_source_import :: (module: *IR.ZirModule, path: *u8, target: *u8, short_na
         current := cast(*u8)*module.imports[i].target[0]
         if strcmp(current, target) == 0 || strcmp(current, short_name) == 0 { return }
     }
-    parse_import_line(module, path, 1, declaration, 0)
+                                                                                    parse_import_line(module, path, 1, declaration, 0, 0)
 }
 
 #scope_file

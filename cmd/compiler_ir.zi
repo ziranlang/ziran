@@ -100,6 +100,7 @@ ZirImport :: struct {
     extern_kind: ZirExternKind
     is_public: s32
     is_file_private: s32
+    is_package_private: s32  // `#scope_package`: visible to modules of one package
     name: [ZIR_NAME_MAX]u8 #c "char"
     target: [ZIR_PATH_MAX]u8 #c "char"
     extern_symbol: [ZIR_NAME_MAX]u8 #c "char"
@@ -195,6 +196,7 @@ ZirFunction :: struct {
     extern_kind: ZirExternKind
     is_public: s32  // function emitted in generated interfaces
     is_file_private: s32
+    is_package_private: s32  // `#scope_package`: visible to modules of one package
     is_template: s32  // Jai $T procedure declaration; no native body
     is_specialization: s32  // checked instance generated from a template
     is_global_initializer: s32  // private startup body generated from a global
@@ -246,6 +248,7 @@ ZirDefine :: struct {
     value: *u8 #c "const char *"
     is_public: s32  // visible to importing modules
     is_file_private: s32
+    is_package_private: s32  // `#scope_package`: visible to modules of one package
     requires_open_enum: s32  // unresolved source alias, cleared by checking
     native_name_collision: s32  // in-memory: another constant maps to this native name
     span: ZirSourceSpan
@@ -350,6 +353,7 @@ ZirType :: struct {
     procedure_return_type: [ZIR_NAME_MAX]u8 #c "char"
     is_public: s32  // visible to importing modules
     is_file_private: s32
+    is_package_private: s32  // `#scope_package`: visible to modules of one package
     is_enum: s32  // 'Name :: enum': emit typedef enum, not struct
     is_union: s32  // fields share storage
     is_go_anonymous: s32  // Go aliases the record's unnamed struct identity
@@ -390,6 +394,9 @@ ZirModule :: struct {
     // NAME when this module is the standard library's std/NAME, under any
     // identity (NAME, std_NAME or a scoped package's); never serialized.
     standard_name: [ZIR_NAME_MAX]u8 #c "char"
+    // Package owner identity from the loaded package map ("root", "std",
+    // a dependency name, or empty outside a package); derived at load.
+    package: [ZIR_NAME_MAX]u8 #c "char"
     span: ZirSourceSpan
     globals: *ZirGlobal
     global_count: s32
@@ -509,6 +516,24 @@ CopyText :: (output: []u8, text: string) -> bool {
 HostProviderVisible :: (function: *ZirFunction) -> bool {
     return function.is_extern == 0 && function.is_template == 0 &&
         (function.exported != 0 || (function.is_public != 0 && function.is_file_private == 0))
+}
+
+// Two modules share a package when both carry the same package-map owner
+// identity; modules loaded outside a package map share the implicit empty one.
+SamePackage :: (viewer: *ZirModule, owner: *ZirModule) -> bool {
+    if viewer == null || owner == null { return false }
+    return CText(*viewer.package[0]) == CText(*owner.package[0])
+}
+
+// Cross-module visibility of one declaration. Public names are always
+// visible; `#scope_package` names only inside their declaring package;
+// `#scope_file` names never cross modules (call sites compare file spans
+// for same-module file privacy).
+PackageVisible :: (viewer: *ZirModule, owner: *ZirModule, is_public: s32,
+                   is_package_private: s32, is_file_private: s32) -> bool {
+    if is_file_private != 0 { return false }
+    if is_public != 0 { return true }
+    return is_package_private != 0 && SamePackage(viewer, owner)
 }
 
 // Only generated owned invokes may give erased state a typed, invocation-local

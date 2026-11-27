@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- Add checked native record initialization with `nativeInit<T>` and explicit
+  borrowed slice types with `NativeSlice<T>`. Lower TSX `BuilderPrint` through
+  the shared native formatting rules, preserving explicit integer widths and
+  authored diagnostics through source and saved-IR execution.
+
+- Add `#scope_package` for native implementation boundaries. Preserve the
+  package owner and declaration visibility in checked IR format 71, and
+  project editor declarations for the requesting package without exposing
+  another package's private names. Rebuild saved IR with the current compiler.
+
 - Generate TypeScript editor declarations from the real checked native module
   graph with `ziran api --typescript --out build/.ziran/types --project`.
   Preserve resolved import spellings, generic records, native scalar boundaries,
@@ -51,8 +61,8 @@
 - Add checked stack-borrowed `Scoped<Signature>` native callbacks and defer JSX
   children according to their declared props type. Keep aggregate child values,
   nested container ordering and authored source locations through saved IR.
-  TS interfaces require all declared fields; native pointer extensions borrow
-  addresses with `&place` and dereference with `*pointer`.
+  TS interfaces require all declared fields; native references use the checked
+  `nativeRef` and `nativeDeref` intrinsics.
 
 - Keep owned callable ABIs tied to their checked signature declarations across
   import aliases and linked builds. Preserve nominal generic arguments and

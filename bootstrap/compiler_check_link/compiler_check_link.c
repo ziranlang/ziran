@@ -575,10 +575,11 @@ private_check_type_application_hash(ZirModule* owner, ZirType* generic, uint8_t*
 }
 
 void
-TypeApplicationScope(ZirModule* module, uint8_t* arguments, int32_t template_public, int32_t template_file_private, ZirType* instance)
+TypeApplicationScope(ZirModule* module, uint8_t* arguments, int32_t template_public, int32_t template_file_private, int32_t template_package_private, ZirType* instance)
 {
     int32_t is_public = template_public;
     int32_t is_file_private = template_file_private;
+    int32_t is_package_private = template_package_private;
     uint8_t* cursor = arguments;
     while (true) {
         {
@@ -628,6 +629,9 @@ TypeApplicationScope(ZirModule* module, uint8_t* arguments, int32_t template_pub
                     if (type->is_file_private != 0) {
                         is_file_private = 1;
                     }
+                    if (type->is_package_private != 0) {
+                        is_package_private = 1;
+                    }
                 }
                 zir_foreign_compiler_check_link__CompilerFree((void*)(name_storage_0));
                 goto zir_loop_continue_1;
@@ -637,10 +641,15 @@ TypeApplicationScope(ZirModule* module, uint8_t* arguments, int32_t template_pub
         zir_loop_continue_1: ;
     }
     zir_loop_break_1: ;
+    if (is_package_private != 0) {
+        is_public = 0;
+    }
     int32_t* value_11 = &(instance->is_public);
     (*value_11) = is_public;
     int32_t* value_12 = &(instance->is_file_private);
     (*value_12) = is_file_private;
+    int32_t* value_13 = &(instance->is_package_private);
+    (*value_13) = is_package_private;
 }
 
 static int32_t
@@ -886,7 +895,7 @@ compiler_check_link_rewrite_type_applications_with_buffers(ZirModule* module, ui
                                 zir_foreign_compiler_check_link__CompilerFree((void*)(base_storage_0));
                                 return cleanup_return_6;
                             }
-                            TypeApplicationScope(module, (uint8_t*)(&(buffers->canonical.items)), generic_public, generic_file_private, instance);
+                            TypeApplicationScope(module, (uint8_t*)(&(buffers->canonical.items)), generic_public, generic_file_private, generic->is_package_private, instance);
                             int32_t* value_54 = &(instance->is_type_instance);
                             (*value_54) = 1;
                             int32_t* value_55 = &(instance->is_synthetic_application);

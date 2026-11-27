@@ -1356,7 +1356,7 @@ compiler_parse_declaration_canonical_parameters(String list)
 }
 
 int32_t
-private_parse_parse_import_line(ZirModule* module, uint8_t* path, int32_t line_no, uint8_t* line, int32_t scope_public)
+private_parse_parse_import_line(ZirModule* module, uint8_t* path, int32_t line_no, uint8_t* line, int32_t scope_public, int32_t scope_package)
 {
     ModuleImport declaration = compiler_declaration_ImportDeclaration(compiler_parse_declaration_declaration_text(line), 128LL, 1024LL);
     if (!(declaration.present != false)) {
@@ -1426,16 +1426,18 @@ private_parse_parse_import_line(ZirModule* module, uint8_t* path, int32_t line_n
     if (imported != (ZirImport*)(((void *)0))) {
         int32_t* value_20 = &(imported->is_public);
         (*value_20) = scope_public;
-        int32_t* value_21 = &(imported->is_using);
-        int32_t value_22 = 0;
+        int32_t* value_21 = &(imported->is_package_private);
+        (*value_21) = scope_package;
+        int32_t* value_22 = &(imported->is_using);
+        int32_t value_23 = 0;
         if (declaration.using_import) {
-            value_22 = 1;
+            value_23 = 1;
         }
-        (*value_21) = value_22;
+        (*value_22) = value_23;
         if (declaration.parameterized != false) {
-            const char ** value_23 = &(imported->parameters);
-            uint8_t* value_24 = compiler_parse_declaration_canonical_parameters(declaration.parameters);
-            (*value_23) = (const char *)(value_24);
+            const char ** value_24 = &(imported->parameters);
+            uint8_t* value_25 = compiler_parse_declaration_canonical_parameters(declaration.parameters);
+            (*value_24) = (const char *)(value_25);
         }
     }
     int32_t cleanup_return_0 = 1;
@@ -2017,7 +2019,7 @@ private_parse_parse_foreign_library_line(uint8_t* path, int32_t line_no, uint8_t
 }
 
 int32_t
-private_parse_parse_foreign_line(ZirModule* module, uint8_t* path, int32_t line_no, uint8_t* line, int32_t scope_public, ParserArray128_u8* names, ParserArray1024_u8* targets, ParserArray1024_u8* paths, int32_t* file_private, int32_t count)
+private_parse_parse_foreign_line(ZirModule* module, uint8_t* path, int32_t line_no, uint8_t* line, int32_t scope_public, int32_t scope_package, ParserArray128_u8* names, ParserArray1024_u8* targets, ParserArray1024_u8* paths, int32_t* file_private, int32_t count)
 {
     ZirSourceSpan span = zir_foreign_compiler_parse_declaration__Span(path, line_no, 1);
     ForeignDeclaration declaration = compiler_declaration_ParseForeign(compiler_parse_declaration_declaration_text(line), 128LL);
@@ -2110,6 +2112,8 @@ private_parse_parse_foreign_line(ZirModule* module, uint8_t* path, int32_t line_
         (*value_25) = 1;
         int32_t* value_26 = &(type->is_public);
         (*value_26) = scope_public;
+        int32_t* value_27 = &(type->is_package_private);
+        (*value_27) = scope_package;
         zir_foreign_compiler_parse_declaration__copy_text((uint8_t*)(&(type->foreign_target)), (size_t)(sizeof(ParserArray1024_u8)), (uint8_t*)(&((target_storage_0[0]).items)));
         int32_t cleanup_return_0 = 1;
         zir_foreign_compiler_parse_declaration__CompilerFree((void*)(symbol_storage_2));
@@ -2117,73 +2121,75 @@ private_parse_parse_foreign_line(ZirModule* module, uint8_t* path, int32_t line_
         zir_foreign_compiler_parse_declaration__CompilerFree((void*)(target_storage_0));
         return cleanup_return_0;
     }
-    uint8_t* value_27 = (void *)0;
+    uint8_t* value_28 = (void *)0;
     if (((target_storage_0[0]).items)[0] != 0) {
-        value_27 = (uint8_t*)(&((target_storage_0[0]).items));
+        value_28 = (uint8_t*)(&((target_storage_0[0]).items));
     } else {
-        value_27 = (uint8_t*)(&((name_storage_1[0]).items));
+        value_28 = (uint8_t*)(&((name_storage_1[0]).items));
     }
-    ZirImport* imp = zir_foreign_compiler_parse_declaration__ModuleAddImport(module, (ZirImportKind)(3), (uint8_t*)(&((name_storage_1[0]).items)), value_27, line, 1, span);
+    ZirImport* imp = zir_foreign_compiler_parse_declaration__ModuleAddImport(module, (ZirImportKind)(3), (uint8_t*)(&((name_storage_1[0]).items)), value_28, line, 1, span);
     if (imp != (ZirImport*)(((void *)0))) {
-        void* value_28 = zir_foreign_compiler_parse_declaration__AllocateOrExit(sizeof(ParserArray128_u8));
-        ParserArray128_u8* parsed_name_storage_3 = (ParserArray128_u8*)(value_28);
+        void* value_29 = zir_foreign_compiler_parse_declaration__AllocateOrExit(sizeof(ParserArray128_u8));
+        ParserArray128_u8* parsed_name_storage_3 = (ParserArray128_u8*)(value_29);
         zir_foreign_compiler_parse_declaration__memset((void*)(parsed_name_storage_3), 0, sizeof(ParserArray128_u8));
-        int32_t* value_29 = &(imp->is_public);
-        (*value_29) = scope_public;
+        int32_t* value_30 = &(imp->is_public);
+        (*value_30) = scope_public;
+        int32_t* value_31 = &(imp->is_package_private);
+        (*value_31) = scope_package;
         private_parse_parse_function_header((uint8_t*)(&((parsed_name_storage_3[0]).items)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)(&(imp->args)), (size_t)(sizeof(ParserArray4096_u8)), (uint8_t*)(&(imp->return_type)), (size_t)(sizeof(ParserArray128_u8)), line);
-        int32_t* value_30 = &(imp->must_use);
-        int32_t value_31 = private_parse_function_must_use(line, (uint8_t*)(&(imp->return_type)), imp->span);
-        (*value_30) = value_31;
+        int32_t* value_32 = &(imp->must_use);
+        int32_t value_33 = private_parse_function_must_use(line, (uint8_t*)(&(imp->return_type)), imp->span);
+        (*value_32) = value_33;
         if (private_parse_function_target(line, imp->span) != 0) {
-            ZirSourceSpan value_32 = imp->span;
-            zir_foreign_compiler_parse_declaration__die_at(value_32, compiler_parse_types_ParserCString(StringLiteral("#target needs a procedure body")));
+            ZirSourceSpan value_34 = imp->span;
+            zir_foreign_compiler_parse_declaration__die_at(value_34, compiler_parse_types_ParserCString(StringLiteral("#target needs a procedure body")));
             abort();
         }
         if (private_parse_function_inlining(line, imp->span) != 0) {
-            ZirSourceSpan value_33 = imp->span;
-            zir_foreign_compiler_parse_declaration__die_at(value_33, compiler_parse_types_ParserCString(StringLiteral("#inline and #cold need a procedure body")));
+            ZirSourceSpan value_35 = imp->span;
+            zir_foreign_compiler_parse_declaration__die_at(value_35, compiler_parse_types_ParserCString(StringLiteral("#inline and #cold need a procedure body")));
             abort();
         }
-        ZirExternKind* value_34 = &(imp->extern_kind);
-        (*value_34) = extern_kind;
-        int32_t* value_35 = &(imp->go_results);
-        int32_t value_36 = 0;
-        if (declaration.go_results) {
-            value_36 = 1;
-        }
-        (*value_35) = value_36;
-        int32_t* value_37 = &(imp->go_field);
+        ZirExternKind* value_36 = &(imp->extern_kind);
+        (*value_36) = extern_kind;
+        int32_t* value_37 = &(imp->go_results);
         int32_t value_38 = 0;
-        if (declaration.go_field) {
+        if (declaration.go_results) {
             value_38 = 1;
         }
         (*value_37) = value_38;
-        int32_t* value_39 = &(imp->go_defer);
+        int32_t* value_39 = &(imp->go_field);
         int32_t value_40 = 0;
-        if (declaration.go_defer) {
+        if (declaration.go_field) {
             value_40 = 1;
         }
         (*value_39) = value_40;
-        int32_t* value_41 = &(imp->go_variadic);
+        int32_t* value_41 = &(imp->go_defer);
         int32_t value_42 = 0;
-        if (declaration.go_variadic) {
+        if (declaration.go_defer) {
             value_42 = 1;
         }
         (*value_41) = value_42;
-        int32_t* value_43 = &(imp->reads_arguments);
+        int32_t* value_43 = &(imp->go_variadic);
         int32_t value_44 = 0;
-        if (declaration.reads) {
+        if (declaration.go_variadic) {
             value_44 = 1;
         }
         (*value_43) = value_44;
-        zir_foreign_compiler_parse_declaration__copy_text((uint8_t*)(&(imp->extern_symbol)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)(&((symbol_storage_2[0]).items)));
-        int32_t* value_45 = &(imp->is_varargs);
-        bool value_46 = compiler_declaration_ForeignVarargs(compiler_parse_declaration_declaration_text((uint8_t*)(&(imp->args))));
-        int32_t value_47 = 0;
-        if (value_46) {
-            value_47 = 1;
+        int32_t* value_45 = &(imp->reads_arguments);
+        int32_t value_46 = 0;
+        if (declaration.reads) {
+            value_46 = 1;
         }
-        (*value_45) = value_47;
+        (*value_45) = value_46;
+        zir_foreign_compiler_parse_declaration__copy_text((uint8_t*)(&(imp->extern_symbol)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)(&((symbol_storage_2[0]).items)));
+        int32_t* value_47 = &(imp->is_varargs);
+        bool value_48 = compiler_declaration_ForeignVarargs(compiler_parse_declaration_declaration_text((uint8_t*)(&(imp->args))));
+        int32_t value_49 = 0;
+        if (value_48) {
+            value_49 = 1;
+        }
+        (*value_47) = value_49;
         zir_foreign_compiler_parse_declaration__CompilerFree((void*)(parsed_name_storage_3));
     }
     int32_t cleanup_return_1 = 1;
@@ -2310,7 +2316,7 @@ private_parse_symmetric_operator_wrapper(uint8_t* header, uint8_t* wrapper, size
 }
 
 void
-private_parse_defer_line(DeferredLines* lines, uint8_t* line, uint8_t* rel, int32_t line_no, int32_t scope_public, int32_t scope_file)
+private_parse_defer_line(DeferredLines* lines, uint8_t* line, uint8_t* rel, int32_t line_no, int32_t scope_public, int32_t scope_file, int32_t scope_package)
 {
     void* value_0 = zir_foreign_compiler_parse_declaration__CompilerRealloc((void*)(lines->items), (size_t)(((int32_t)((uint32_t)(lines->count) + 1u))) * (size_t)(sizeof(DeferredLine)));
     DeferredLine* grown = (DeferredLine*)(value_0);
@@ -2337,6 +2343,8 @@ private_parse_defer_line(DeferredLines* lines, uint8_t* line, uint8_t* rel, int3
     (*value_7) = scope_public;
     int32_t* value_8 = &(added->scope_file);
     (*value_8) = scope_file;
+    int32_t* value_9 = &(added->scope_package);
+    (*value_9) = scope_package;
 }
 
 void
@@ -2492,7 +2500,7 @@ private_parse_line_starts_compile_condition(uint8_t* line)
 }
 
 int32_t
-private_parse_declare_multiple_results(ZirModule* module, uint8_t* name, uint8_t* ret, size_t ret_size, int32_t is_public, int32_t is_file_private, uint8_t* template_parameters, ZirSourceSpan span)
+private_parse_declare_multiple_results(ZirModule* module, uint8_t* name, uint8_t* ret, size_t ret_size, int32_t is_public, int32_t is_file_private, int32_t is_package_private, uint8_t* template_parameters, ZirSourceSpan span)
 {
     String value_0 = compiler_parse_declaration_declaration_text(ret);
     ResultDeclaration results = compiler_declaration_ParseResults(value_0, compiler_parse_declaration_declaration_text(template_parameters));
@@ -2540,6 +2548,7 @@ private_parse_declare_multiple_results(ZirModule* module, uint8_t* name, uint8_t
     (*value_15) = 0;
     (void)(void)(is_public);
     (void)(void)(is_file_private);
+    (void)(void)(is_package_private);
     ZirType* type = (void *)0;
     {
         int32_t i = 0;
@@ -2573,42 +2582,48 @@ private_parse_declare_multiple_results(ZirModule* module, uint8_t* name, uint8_t
             abort();
         }
         int32_t* value_19 = &(type->is_public);
-        (*value_19) = 1;
-        int32_t* value_20 = &(type->is_file_private);
-        (*value_20) = 0;
-        int32_t* value_21 = &(type->is_results);
-        (*value_21) = 1;
-        int32_t* value_22 = &(type->is_record_template);
-        int32_t value_23 = 0;
-        if ((int32_t)((int8_t)(((parameters_storage_1[0]).items)[0])) != 0) {
-            value_23 = 1;
+        int32_t value_20 = 0;
+        if (is_package_private == 0) {
+            value_20 = 1;
         }
-        (*value_22) = value_23;
+        (*value_19) = value_20;
+        int32_t* value_21 = &(type->is_file_private);
+        (*value_21) = 0;
+        int32_t* value_22 = &(type->is_package_private);
+        (*value_22) = is_package_private;
+        int32_t* value_23 = &(type->is_results);
+        (*value_23) = 1;
+        int32_t* value_24 = &(type->is_record_template);
+        int32_t value_25 = 0;
+        if ((int32_t)((int8_t)(((parameters_storage_1[0]).items)[0])) != 0) {
+            value_25 = 1;
+        }
+        (*value_24) = value_25;
         zir_foreign_compiler_parse_declaration__copy_text((uint8_t*)(&(type->template_params)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)(&((parameters_storage_1[0]).items)));
         if ((size_t)(used) >= (size_t)(sizeof(ParserArray8192_u8))) {
-            ZirSourceSpan value_24 = span;
-            zir_foreign_compiler_parse_declaration__die_at(value_24, compiler_parse_types_ParserCString(StringLiteral("multiple results exceed the size limit")));
+            ZirSourceSpan value_26 = span;
+            zir_foreign_compiler_parse_declaration__die_at(value_26, compiler_parse_types_ParserCString(StringLiteral("multiple results exceed the size limit")));
             abort();
         }
         zir_foreign_compiler_parse_declaration__copy_text((uint8_t*)(&(type->body)), (size_t)(sizeof(ParserArray8192_u8)), body);
     }
-    int32_t value_25 = 0;
+    int32_t value_27 = 0;
     if (((parameters_storage_1[0]).items)[0] != 0) {
-        uint8_t* value_26 = ret;
-        size_t value_27 = ret_size;
-        int32_t value_28 = zir_foreign_compiler_parse_declaration__snprintf(value_26, value_27, compiler_parse_types_ParserCString(StringLiteral("%s(%s)")), (uint8_t*)(&((record_storage_0[0]).items)), (uint8_t*)(&((parameters_storage_1[0]).items)));
-        value_25 = value_28;
+        uint8_t* value_28 = ret;
+        size_t value_29 = ret_size;
+        int32_t value_30 = zir_foreign_compiler_parse_declaration__snprintf(value_28, value_29, compiler_parse_types_ParserCString(StringLiteral("%s(%s)")), (uint8_t*)(&((record_storage_0[0]).items)), (uint8_t*)(&((parameters_storage_1[0]).items)));
+        value_27 = value_30;
     } else {
-        uint8_t* value_29 = ret;
-        size_t value_30 = ret_size;
-        int32_t value_31 = zir_foreign_compiler_parse_declaration__snprintf(value_29, value_30, compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&((record_storage_0[0]).items)));
-        value_25 = value_31;
+        uint8_t* value_31 = ret;
+        size_t value_32 = ret_size;
+        int32_t value_33 = zir_foreign_compiler_parse_declaration__snprintf(value_31, value_32, compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&((record_storage_0[0]).items)));
+        value_27 = value_33;
     }
-    int32_t result_length = value_25;
+    int32_t result_length = value_27;
     if (result_length < 0 || (size_t)(result_length) >= ret_size) {
-        ZirSourceSpan value_32 = span;
-        uint8_t* value_33 = compiler_parse_types_ParserCString(StringLiteral("the result types of %s are too long to combine"));
-        zir_foreign_compiler_parse_declaration__die_at(value_32, value_33, name);
+        ZirSourceSpan value_34 = span;
+        uint8_t* value_35 = compiler_parse_types_ParserCString(StringLiteral("the result types of %s are too long to combine"));
+        zir_foreign_compiler_parse_declaration__die_at(value_34, value_35, name);
         abort();
     }
     zir_foreign_compiler_parse_declaration__CompilerFree((void*)(body));

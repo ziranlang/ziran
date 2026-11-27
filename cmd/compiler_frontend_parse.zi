@@ -294,7 +294,7 @@ trim_declaration_end :: (text: *u8, length: usize) -> usize {
 #scope_export
 #program_export "private_parse_parse_file_global"
 parse_file_global :: (module: *IR.ZirModule, declaration: *u8, span: IR.ZirSourceSpan,
-                      scope_public: s32, scope_file: s32, name_out: *u8, name_size: usize) {
+                      scope_public: s32, scope_file: s32, scope_package: s32, name_out: *u8, name_size: usize) {
     length := strlen(declaration)
     colon := strchr(declaration, #char ":")
     if colon == null || length == 0 || declaration[length - 1] != #char ";" {
@@ -357,7 +357,9 @@ parse_file_global :: (module: *IR.ZirModule, declaration: *u8, span: IR.ZirSourc
         trimmed[value_length] = 0
         init = trimmed
     }
-    if scope_public != 0 { ModuleAddGlobal(module, name_text, type_text, init, span) }
+    // Package-private globals follow `#scope_file` routing: module-internal
+    // statics, never exported and never opened into other modules.
+    if scope_public != 0 && scope_package == 0 { ModuleAddGlobal(module, name_text, type_text, init, span) }
     else { ModuleAddStatic(module, name_text, type_text, init, span) }
     CompilerFree(cast(*void)trimmed)
     if module.global_count > 0 { module.globals[module.global_count - 1].is_file_private = scope_file }

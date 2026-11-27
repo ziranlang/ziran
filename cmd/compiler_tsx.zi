@@ -3,6 +3,7 @@
 IR :: #import "compiler_ir"
 Scan :: #import "compiler_scan"
 Services :: #import "compiler_services"
+Declaration :: #import "compiler_declaration"
 using Vectors :: #import "std/vec"
 
 #scope_file
@@ -30,6 +31,7 @@ Parser :: struct {
     module: *IR.ZirModule
     fn: *IR.ZirFunction
     failed: bool
+    format_import: bool
     depth: s32
     loop_serial: s32
     loop: s32
@@ -109,7 +111,7 @@ Identifier :: (p: *Parser) -> string {
 }
 BindingIdentifier :: (p: *Parser) -> string {
     name := Identifier(p)
-    if name == "NativeRef" || name == "nativeRef" || name == "nativeDeref" ||
+    if name == "NativeRef" || name == "NativeSlice" || name == "nativeInit" || name == "nativeRef" || name == "nativeDeref" ||
        name == "nativeSlice" || name == "nativeAt" || name == "nativeSet" || name == "nativeCallerLocation" {
         Fail(p, "this identifier is reserved for a native TypeScript intrinsic")
     }
@@ -243,9 +245,10 @@ TypePrimary :: (p: *Parser) -> string {
     }
     name := Identifier(p)
     if name == "any" || name == "unknown" || name == "never" { Fail(p, "this type has no native checked representation"); return "" }
-    if name == "NativeRef" {
+    if name == "NativeRef" || name == "NativeSlice" {
+        prefix := ifx name == "NativeRef" then "*" else "[]"
         Expect(p, "<")
-        name = Join("*", TypeName(p))
+        name = Join(prefix, TypeName(p))
         TypeClose(p)
         while Take(p, "[") { Expect(p, "]"); name = Join("[]", name) }
         return name
@@ -277,6 +280,77 @@ Node :: (p: *Parser, kind: IR.ZirExprKind, text: string, span: IR.ZirSourceSpan,
     node.left = left
     node.right = right
     return p.fn.expr_count - 1
+}
+// BuilderPrint is intrinsic-spelled only as a direct call statement.
+CallAhead :: (p: *Parser) -> bool {
+    next := Scan.NextCodeToken(p.source, p.token.end, p.token.after_line, p.token.after_column)
+    if next.kind == .Eof { return false }
+    return p.source[next.begin:next.end] == "("
+}
+// BuilderPrint lowers to std/format Append calls without requiring an
+// authored import. The reserved __tsx_ alias cannot collide with a binding.
+EnsureFormatImport :: (p: *Parser, span: IR.ZirSourceSpan) {
+    if p.format_import { return }
+    if Services.AddImport(p.module, .MODULE, "__tsx_format", "std/format", "", span) == null {
+        Fail(p, "cannot allocate the BuilderPrint format import")
+        return
+    }
+    p.format_import = true
+}
+// A BuilderPrint(builder, "format", values...) statement is a frontend
+// intrinsic, like the Ziran source spelling. The shared declaration scanner
+// owns literal escapes, bare % argument order and %% escapes; this builds
+// ordinary typed Append calls into std/format directly in IR, never from
+// generated Ziran text and without any duplicate format runtime.
+BuilderPrintStatement :: (p: *Parser, span: IR.ZirSourceSpan) {
+    unused Take(p, "BuilderPrint")
+    Expect(p, "(")
+    builder := Expression(p)
+    if p.failed { return }
+    if !Take(p, ",") { Fail(p, Declaration.ErrorText(.BuilderFormat)); return }
+    if p.token.kind != .String && p.token.kind != .Char { Fail(p, Declaration.ErrorText(.BuilderFormat)); return }
+    format := Quoted(p)
+    values: Vec(s32)
+    while Take(p, ",") {
+        if Token(p) == ")" { break }
+        value := Expression(p)
+        if !VecPush(values, value) { Fail(p, "cannot allocate a BuilderPrint argument"); return }
+    }
+    Expect(p, ")")
+    if p.failed { return }
+    scan := Declaration.ScanPrintFormat(format[1:format.count - 1], cast(s32)values.count)
+    if scan.error != .None { Fail(p, Declaration.ErrorText(scan.error)); return }
+    EnsureFormatImport(p, span)
+    for index: 0..scan.count - 1 {
+        piece := scan.pieces[index]
+        value: s32 = -1
+        if piece.literal {
+            length: s64 = 0
+            absent: []u8
+            Declaration.BuilderPrintLiteral(absent, *length, piece.text)
+            bytes: Vec(u8)
+            if !VecResize(bytes, length) { Fail(p, "cannot allocate a BuilderPrint literal"); return }
+            used: s64 = 0
+            Declaration.BuilderPrintLiteral(bytes[:], *used, piece.text)
+            literal := IR.CText(Services.Keep(TextView(bytes[:])))
+            value = Node(p, .STRING, Join("\"", literal, "\""), span)
+        }
+        else if cast(s64)piece.argument < values.count { value = values[piece.argument] }
+        if value < 0 { Fail(p, "BuilderPrint argument is missing"); return }
+        callee := NameNode(p, "__tsx_format.Append", span)
+        text := Join("__tsx_format.Append(", TextOf(p, builder), Join(", ", TextOf(p, value), ")"))
+        call := Node(p, .CALL, text, span, callee)
+        if call >= 0 {
+            receiver := builder
+            if index > 0 { receiver = CloneExpr(p, builder) }
+            if p.failed { return }
+            p.fn.exprs[call].first_child = receiver
+            p.fn.exprs[receiver].next_sibling = value
+        }
+        st := Statement(p, .EXPR, text, span)
+        if st != null { st.expr_root = call }
+    }
+    unused Take(p, ";")
 }
 // Named imports are aliases of ordinary checked module exports. Resolve
 // their spelling into member nodes; there is no duplicate type catalogue.
@@ -325,6 +399,38 @@ TextOf :: (p: *Parser, expr: s32) -> string {
 Link :: (p: *Parser, head: *s32, tail: *s32, node: s32) {
     if <<tail >= 0 { p.fn.exprs[<<tail].next_sibling = node } else { <<head = node }
     <<tail = node
+}
+// Several Append calls need one receiver per call: sibling chains are per-call
+// argument lists, so later pieces clone the parsed receiver subtree instead of
+// sharing one node.
+CloneExpr :: (p: *Parser, index: s32, depth: s32 = 0) -> s32 {
+    if index < 0 { return -1 }
+    if depth > 128 { Fail(p, "BuilderPrint expression nesting exceeds 128"); return -1 }
+    value := p.fn.exprs[index]
+    left := CloneExpr(p, value.left, depth + 1)
+    if p.failed { return -1 }
+    right := CloneExpr(p, value.right, depth + 1)
+    if p.failed { return -1 }
+    third := CloneExpr(p, value.third, depth + 1)
+    if p.failed { return -1 }
+    head: s32 = -1
+    tail: s32 = -1
+    child := value.first_child
+    while child >= 0 && !p.failed {
+        copied := CloneExpr(p, child, depth + 1)
+        Link(p, *head, *tail, copied)
+        child = p.fn.exprs[child].next_sibling
+    }
+    if p.failed { return -1 }
+    result := Node(p, value.kind, IR.CText(value.text), value.span, left, right)
+    if result < 0 { return -1 }
+    value.left = left
+    value.right = right
+    value.third = third
+    value.first_child = head
+    value.next_sibling = -1
+    p.fn.exprs[result] = value
+    return result
 }
 Precedence :: (op: string) -> s32 {
     if op == "||" { return 1 }
@@ -548,6 +654,19 @@ Prefix :: (p: *Parser) -> s32 {
         result = Record(p, span, false)
     } else if Take(p, "[") {
         result = Record(p, span, true)
+    } else if Take(p, "nativeInit") {
+        if !Take(p, "<") { Fail(p, "nativeInit requires an explicit native record type: nativeInit<T>({...})"); return -1 }
+        type := TypeName(p)
+        TypeClose(p)
+        Expect(p, "(")
+        if p.failed { return -1 }
+        if !Take(p, "{") { Fail(p, "nativeInit requires one record initializer"); return -1 }
+        result = Record(p, span, false)
+        Expect(p, ")")
+        if result >= 0 {
+            p.fn.exprs[result].name = Services.KeepName(type)
+            p.fn.exprs[result].text = Services.Keep(Join(type, TextOf(p, result)))
+        }
     } else if p.token.kind == .Ident {
         Advance(p)
         if text == "undefined" || text == "null" { Fail(p, "use a checked native optional value"); return -1 }
@@ -1159,6 +1278,7 @@ ParseStatement :: (p: *Parser) {
         unused Statement(p, .BLOCK_CLOSE, "}", Location(p))
         return
     } else {
+        if Token(p) == "BuilderPrint" && CallAhead(p) { BuilderPrintStatement(p, span); return }
         left := Expression(p)
         op := Token(p)
         if op == "=" || op == "+=" || op == "-=" || op == "*=" || op == "/=" {

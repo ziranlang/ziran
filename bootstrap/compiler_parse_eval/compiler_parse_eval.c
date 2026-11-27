@@ -671,8 +671,8 @@ compiler_parse_eval_find_imported_define(ZirModule* module, uint8_t* lookup_path
                     break;
                 }
                 ZirDefine* candidate = (ZirDefine*)(((size_t)(owner->defines) + ((size_t)(i) * sizeof(ZirDefine))));
-                bool value_16 = !(candidate->is_public != 0) || candidate->is_file_private != 0;
-                bool value_17 = value_16;
+                bool value_16 = compiler_ir_PackageVisible(module, owner, candidate->is_public, candidate->is_package_private, candidate->is_file_private);
+                bool value_17 = !value_16;
                 if (!value_17) {
                     size_t value_18 = zir_foreign_compiler_parse_eval__strlen((uint8_t*)(&(candidate->name)));
                     value_17 = (value_18 != member_length);
@@ -1862,8 +1862,8 @@ compiler_parse_eval_find_open_imported_define(ZirModule* module, uint8_t* path, 
                                 break;
                             }
                             ZirDefine* candidate = (ZirDefine*)(((size_t)(owner->defines) + ((size_t)(j) * sizeof(ZirDefine))));
-                            bool value_7 = !(candidate->is_public != 0) || candidate->is_file_private != 0;
-                            if (value_7 || zir_foreign_compiler_parse_eval__strcmp((uint8_t*)(&(candidate->name)), name) != 0) {
+                            bool value_7 = compiler_ir_PackageVisible(module, owner, candidate->is_public, candidate->is_package_private, candidate->is_file_private);
+                            if (!value_7 || zir_foreign_compiler_parse_eval__strcmp((uint8_t*)(&(candidate->name)), name) != 0) {
                                 compiler_parse_s14_types_S14ParserPost1(&(j));
                                 goto zir_loop_continue_2;
                             }

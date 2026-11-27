@@ -34,7 +34,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     library := CheckPath(test.work, "kryon")
     app := CheckPath(test.work, "app")
     if !FixtureInit(*test, library) { return 1 }
-    manifest := "[package]\nname = \"kryon\"\nmodule_roots = [\"src\"]\n[exports]\n\"host/desktop\" = \"src/desktop.zi\"\n\"host/web\" = \"src/web.zi\"\n\"host/android\" = \"src/android.zi\"\n\"host/terminal\" = \"src/terminal.zi\"\n"
+    manifest := "[package]\nname = \"kryon\"\nmodule_roots = [\"src\"]\n[exports]\n\"host/desktop\" = \"src/desktop.zi\"\n\"host/widget\" = \"src/widget.zi\"\n\"host/web\" = \"src/web.zi\"\n\"host/android\" = \"src/android.zi\"\n\"host/terminal\" = \"src/terminal.zi\"\n"
     names := string.["desktop", "web", "android", "terminal"]
     values := s64.[1, 2, 3, 4]
     if !NativeWrite(*test, CheckPath(library, "ziran.toml"), manifest) { return 1 }
@@ -42,8 +42,12 @@ main :: (argc: s32, argv: **u8) -> s32 {
         source := CheckConcat("Value :: () -> s32 { return ", CheckConcat(CheckNumber(values[index]), " }\n"))
         if !NativeWrite(*test, CheckPath(library, CheckConcat("src/", CheckConcat(names[index], ".zi"))), source) { return 1 }
     }
+    desktop_source := "Value :: () -> s32 { return 1 }\nAccent :: 42\n#scope_package\nDraw :: () -> s32 { return 41 }\nSecret :: 7\n#scope_export\nRender :: () -> s32 { return Draw() }\n"
+    widget_source := "using Desktop :: #import \"desktop\"\n"
+    if !NativeWrite(*test, CheckPath(library, "src/desktop.zi"), desktop_source) { return 1 }
+    if !NativeWrite(*test, CheckPath(library, "src/widget.zi"), widget_source) { return 1 }
     app_manifest := string.["[package]\nname = \"NestedConsumer\"\nentry = \"src/app.zi\"\nmodule_roots = [\"src\"]\n[toolchain]\ngit = \"https://github.com/ziranlang/ziran.git\"\n[dependencies.kryon]\ngit = ", FixtureQuote(FixtureUri(library)), "\n"]
-    source := "#import \"kryon/host/desktop\";\nWeb :: #import \"kryon/host/web\";\nAndroid :: #import \"kryon/host/android\";\nTerminal :: #import \"kryon/host/terminal\";\n#program_export\nmain :: () -> s32 {\n    return Value() + Web.Value() + Android.Value() + Terminal.Value() - 10\n}\n"
+    source := "#import \"kryon/host/desktop\";\nDesktop :: #import \"kryon/host/desktop\";\nWidget :: #import \"kryon/host/widget\";\nWeb :: #import \"kryon/host/web\";\nAndroid :: #import \"kryon/host/android\";\nTerminal :: #import \"kryon/host/terminal\";\n#program_export\nmain :: () -> s32 {\n    return Value() + Accent + Desktop.Accent + Desktop.Render() + Widget.Value() + Widget.Accent + Web.Value() + Android.Value() + Terminal.Value() - 178\n}\n"
     if !NativeWrite(*test, CheckPath(app, "ziran.toml"), TextJoin(app_manifest[:], "")) ||
        !NativeWrite(*test, CheckPath(app, "src/app.zi"), source) { return 1 }
     aliases := string.["ziran", "kryon"]
@@ -59,11 +63,31 @@ main :: (argc: s32, argv: **u8) -> s32 {
     }
     check := string.["check", "--project", "--offline", "src/app.zi"]
     unused PackageCommand(*test, app, check[:])
+    bad_direct := "Desktop :: #import \"kryon/host/desktop\";\n#program_export\nmain :: () -> s32 { return Desktop.Draw() }\n"
+    bad_define := "Desktop :: #import \"kryon/host/desktop\";\n#program_export\nmain :: () -> s32 { return Desktop.Secret }\n"
+    bad_hop := "Widget :: #import \"kryon/host/widget\";\n#program_export\nmain :: () -> s32 { return Widget.Draw() }\n"
+    bad_define_hop := "Widget :: #import \"kryon/host/widget\";\n#program_export\nmain :: () -> s32 { return Widget.Secret }\n"
+    if !NativeWrite(*test, CheckPath(app, "src/bad_direct.zi"), bad_direct) { return 1 }
+    if !NativeWrite(*test, CheckPath(app, "src/bad_define.zi"), bad_define) { return 1 }
+    if !NativeWrite(*test, CheckPath(app, "src/bad_hop.zi"), bad_hop) { return 1 }
+    if !NativeWrite(*test, CheckPath(app, "src/bad_define_hop.zi"), bad_define_hop) { return 1 }
+    denied_arguments := string.["check", "--project", "--offline", "src/bad_direct.zi"]
+    denied := PackageCommand(*test, app, denied_arguments[:], false)
+    if !NativeAssert(*test, TextContains(denied, "package-private in"), "direct package-private Draw must name the declaring module") { return 1 }
+    define_arguments := string.["check", "--project", "--offline", "src/bad_define.zi"]
+    define_denied := PackageCommand(*test, app, define_arguments[:], false)
+    if !NativeAssert(*test, TextContains(define_denied, "package-private in"), "direct package-private constant must name the declaring module") { return 1 }
+    hop_arguments := string.["check", "--project", "--offline", "src/bad_hop.zi"]
+    hop := PackageCommand(*test, app, hop_arguments[:], false)
+    if !NativeAssert(*test, TextContains(hop, "unresolved"), "reexport hop must not expose package-private Draw") { return 1 }
+    define_hop_arguments := string.["check", "--project", "--offline", "src/bad_define_hop.zi"]
+    define_hop := PackageCommand(*test, app, define_hop_arguments[:], false)
+    if !NativeAssert(*test, TextContains(define_hop, "unresolved"), "reexport hop must not expose package-private constant") { return 1 }
     if !NestedCompile(*test, app, CheckPath(app, "build/source"), CheckPath(app, "src/app.zi"), true) { return 1 }
     ir := CheckPath(app, "build/ir")
     save := string.["ir", "--project", "--offline", "--entry", "app:main", "-o", ir, "src/app.zi"]
     unused PackageCommand(*test, app, save[:])
     if !NestedCompile(*test, app, CheckPath(app, "build/saved"), CheckPath(ir, "app.zir"), false) { return 1 }
-    print("Nested package export namespaces resolved in project source and saved IR\n")
+    print("Nested package exports, package-private boundary and saved IR replay resolved\n")
     return 0
 }

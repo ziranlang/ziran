@@ -286,7 +286,7 @@ find_imported_define :: (module: *IR.ZirModule, lookup_path: *u8, name: *u8, len
         i: s32 = 0
         while loop_44 := (i < (owner).define_count) {
             candidate: *IR.ZirDefine = cast(*IR.ZirDefine)(cast(usize)((owner).defines) + cast(usize)(i) * size_of(IR.ZirDefine))
-            if (((!((candidate).is_public != 0) || ((candidate).is_file_private != 0)) || (strlen(cast(*u8)(*((candidate).name))) != member_length)) || (strncmp(cast(*u8)(*((candidate).name)), cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8)), member_length) != 0)) {
+            if (((!IR.PackageVisible(module, owner, (candidate).is_public, (candidate).is_package_private, (candidate).is_file_private)) || (strlen(cast(*u8)(*((candidate).name))) != member_length)) || (strncmp(cast(*u8)(*((candidate).name)), cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8)), member_length) != 0)) {
                 S14ParserPost1(*(i))
                 continue loop_44
             }
@@ -861,7 +861,7 @@ find_open_imported_define :: (module: *IR.ZirModule, path: *u8, name: *u8, owner
                 j: s32 = 0
                 while loop_60 := (j < (owner).define_count) {
                     candidate: *IR.ZirDefine = cast(*IR.ZirDefine)(cast(usize)((owner).defines) + cast(usize)(j) * size_of(IR.ZirDefine))
-                    if ((!((candidate).is_public != 0) || ((candidate).is_file_private != 0)) || (strcmp(cast(*u8)(*((candidate).name)), name) != 0)) {
+                    if ((!IR.PackageVisible(module, owner, (candidate).is_public, (candidate).is_package_private, (candidate).is_file_private)) || (strcmp(cast(*u8)(*((candidate).name)), name) != 0)) {
                         S14ParserPost1(*(j))
                         continue loop_60
                     }

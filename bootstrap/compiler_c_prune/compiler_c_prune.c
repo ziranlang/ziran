@@ -40,10 +40,10 @@ static bool compiler_c_prune_ChunkStamped(Prune* prune, Chunk chunk) ZIRAN_MAYBE
 static void compiler_c_prune_KeepChunk(Prune* prune, String header, Chunk* chunk) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_prune_StampHeader(Prune* prune, String header, Chunks* chunks) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_prune_HeaderNeeded(Prune* prune, Slice all, int64_t b) ZIRAN_MAYBE_UNUSED;
-static bool compiler_c_prune_WriteIncludes(__type_838711075b90279a* out, Prune* prune, ZirCPruneModule* modules, Slice all, int64_t self, int32_t* scope, int32_t count) ZIRAN_MAYBE_UNUSED;
-static bool compiler_c_prune_WriteText(__type_838711075b90279a* out, String text, int64_t begin, int64_t end) ZIRAN_MAYBE_UNUSED;
-static bool compiler_c_prune_InlineSection(__type_838711075b90279a* out, Prune* prune, ZirCPruneModule* module, String header, Chunks* chunks) ZIRAN_MAYBE_UNUSED;
-static uint8_t* compiler_c_prune_Finish(__type_838711075b90279a out, bool ok) ZIRAN_MAYBE_UNUSED;
+static bool compiler_c_prune_WriteIncludes(__type_131eebaaeb761e42* out, Prune* prune, ZirCPruneModule* modules, Slice all, int64_t self, int32_t* scope, int32_t count) ZIRAN_MAYBE_UNUSED;
+static bool compiler_c_prune_WriteText(__type_131eebaaeb761e42* out, String text, int64_t begin, int64_t end) ZIRAN_MAYBE_UNUSED;
+static bool compiler_c_prune_InlineSection(__type_131eebaaeb761e42* out, Prune* prune, ZirCPruneModule* module, String header, Chunks* chunks) ZIRAN_MAYBE_UNUSED;
+static uint8_t* compiler_c_prune_Finish(__type_131eebaaeb761e42 out, bool ok) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_c_prune_ComposeHeader(Prune* prune, ZirCPruneModule* modules, Slice all, int64_t self, String header) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_c_prune_ComposeSource(Prune* prune, ZirCPruneModule* modules, Slice all, int64_t self, String header, String source) ZIRAN_MAYBE_UNUSED;
 static String compiler_c_prune_CText(uint8_t* value) ZIRAN_MAYBE_UNUSED;
@@ -56,12 +56,12 @@ compiler_c_prune_PruneProgram(ZirCPruneModule* modules, int32_t count, void* sim
     void** value_0 = &(prune.simd);
     (*value_0) = simd;
     int64_t n = (int64_t)(count);
-    __type_93edd547deb23a5d all = {0};
-    __type_93edd547deb23a5d* value_1 = &all;
-    __type_c53c2d7c4913dc02 headers = {0};
-    __type_c53c2d7c4913dc02* value_2 = &headers;
-    __type_c53c2d7c4913dc02 sources = {0};
-    __type_c53c2d7c4913dc02* value_3 = &sources;
+    __type_76ce7479f672fb46 all = {0};
+    __type_76ce7479f672fb46* value_1 = &all;
+    __type_9f828aa1372cb21a headers = {0};
+    __type_9f828aa1372cb21a* value_2 = &headers;
+    __type_9f828aa1372cb21a sources = {0};
+    __type_9f828aa1372cb21a* value_3 = &sources;
     {
         int64_t range_first_6 = 0LL;
         int64_t range_last_6 = (int64_t)((uint64_t)n - UINT64_C(1));
@@ -885,7 +885,7 @@ compiler_c_prune_HeaderNeeded(Prune* prune, Slice all, int64_t b)
 }
 
 static bool
-compiler_c_prune_WriteIncludes(__type_838711075b90279a* out, Prune* prune, ZirCPruneModule* modules, Slice all, int64_t self, int32_t* scope, int32_t count)
+compiler_c_prune_WriteIncludes(__type_131eebaaeb761e42* out, Prune* prune, ZirCPruneModule* modules, Slice all, int64_t self, int32_t* scope, int32_t count)
 {
     bool ok = true;
     {
@@ -956,7 +956,7 @@ compiler_c_prune_WriteIncludes(__type_838711075b90279a* out, Prune* prune, ZirCP
 }
 
 static bool
-compiler_c_prune_WriteText(__type_838711075b90279a* out, String text, int64_t begin, int64_t end)
+compiler_c_prune_WriteText(__type_131eebaaeb761e42* out, String text, int64_t begin, int64_t end)
 {
     int64_t at = begin;
     while (at < end) {
@@ -993,12 +993,12 @@ compiler_c_prune_WriteText(__type_838711075b90279a* out, String text, int64_t be
 }
 
 static bool
-compiler_c_prune_InlineSection(__type_838711075b90279a* out, Prune* prune, ZirCPruneModule* module, String header, Chunks* chunks)
+compiler_c_prune_InlineSection(__type_131eebaaeb761e42* out, Prune* prune, ZirCPruneModule* module, String header, Chunks* chunks)
 {
-    __type_838711075b90279a declarations = {0};
-    __type_838711075b90279a* value_0 = &declarations;
-    __type_838711075b90279a bodies = {0};
-    __type_838711075b90279a* value_1 = &bodies;
+    __type_131eebaaeb761e42 declarations = {0};
+    __type_131eebaaeb761e42* value_0 = &declarations;
+    __type_131eebaaeb761e42 bodies = {0};
+    __type_131eebaaeb761e42* value_1 = &bodies;
     {
         int64_t range_first_2 = 0LL;
         int64_t range_last_2 = (int64_t)((uint64_t)(chunks->items.count) - UINT64_C(1));
@@ -1118,9 +1118,9 @@ compiler_c_prune_InlineSection(__type_838711075b90279a* out, Prune* prune, ZirCP
 }
 
 static uint8_t*
-compiler_c_prune_Finish(__type_838711075b90279a out, bool ok)
+compiler_c_prune_Finish(__type_131eebaaeb761e42 out, bool ok)
 {
-    __type_838711075b90279a* value_0 = &out;
+    __type_131eebaaeb761e42* value_0 = &out;
     bool value_1 = !ok;
     if (!value_1) {
         uint8_t value_2 = 0;
@@ -1171,8 +1171,8 @@ compiler_c_prune_ComposeHeader(Prune* prune, ZirCPruneModule* modules, Slice all
 {
     ZirCPruneModule* module = &(modules[self]);
     Chunks* chunks = &(((Chunks *)all.data)[self]);
-    __type_838711075b90279a out = {0};
-    __type_838711075b90279a* value_0 = &out;
+    __type_131eebaaeb761e42 out = {0};
+    __type_131eebaaeb761e42* value_0 = &out;
     bool value_1 = false;
     if ((StringRangeAt(header, (int64_t)0LL, (int64_t)chunks->top)).length == 0) {
         value_1 = true;
@@ -1209,7 +1209,7 @@ compiler_c_prune_ComposeHeader(Prune* prune, ZirCPruneModule* modules, Slice all
             i = (int64_t)((uint64_t)i + UINT64_C(1));
         }
     }
-    __type_838711075b90279a value_3 = out;
+    __type_131eebaaeb761e42 value_3 = out;
     out.data = NULL;
     out.capacity = 0;
     out.count = 0;
@@ -1275,8 +1275,8 @@ compiler_c_prune_ComposeSource(Prune* prune, ZirCPruneModule* modules, Slice all
             i = (int64_t)((uint64_t)i + UINT64_C(1));
         }
     }
-    __type_838711075b90279a out = {0};
-    __type_838711075b90279a* value_8 = &out;
+    __type_131eebaaeb761e42 out = {0};
+    __type_131eebaaeb761e42* value_8 = &out;
     int64_t rest = 0LL;
     bool ok = true;
     if (define >= 0LL) {
@@ -1445,7 +1445,7 @@ compiler_c_prune_ComposeSource(Prune* prune, ZirCPruneModule* modules, Slice all
         value_35 = value_37;
     }
     ok = value_35;
-    __type_838711075b90279a value_39 = out;
+    __type_131eebaaeb761e42 value_39 = out;
     out.data = NULL;
     out.capacity = 0;
     out.count = 0;

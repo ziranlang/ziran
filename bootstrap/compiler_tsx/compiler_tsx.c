@@ -101,8 +101,8 @@ static void compiler_tsx_Import(Parser* p, bool collect) ZIRAN_MAYBE_UNUSED;
 static String
 compiler_tsx_Join(String a, String b, String c)
 {
-    __type_838711075b90279a bytes = {0};
-    __type_838711075b90279a* value_0 = &bytes;
+    __type_131eebaaeb761e42 bytes = {0};
+    __type_131eebaaeb761e42* value_0 = &bytes;
     for (int64_t it_index = 0LL; it_index < (int64_t)(a).length; it_index++) {
         uint8_t v = (uint8_t)a.data[it_index];
         uint8_t value_1 = v;
@@ -140,7 +140,7 @@ compiler_tsx_Join(String a, String b, String c)
         (void)value_8;
     }
     Text value_10 = {0};
-    __type_838711075b90279a value_11 = bytes;
+    __type_131eebaaeb761e42 value_11 = bytes;
     bytes.data = NULL;
     bytes.capacity = 0;
     bytes.count = 0;
@@ -2143,8 +2143,8 @@ compiler_tsx_Quoted(Parser* p)
         }
         return StringLiteral("\"\"");
     }
-    __type_838711075b90279a bytes = {0};
-    __type_838711075b90279a* value_8 = &bytes;
+    __type_131eebaaeb761e42 bytes = {0};
+    __type_131eebaaeb761e42* value_8 = &bytes;
     uint8_t value_9 = 34;
     bool value_10 = false;
     void *value_11 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
@@ -2238,7 +2238,7 @@ compiler_tsx_Quoted(Parser* p)
     }
     (void)value_32;
     Text value_34 = {0};
-    __type_838711075b90279a value_35 = bytes;
+    __type_131eebaaeb761e42 value_35 = bytes;
     bytes.data = NULL;
     bytes.capacity = 0;
     bytes.count = 0;
@@ -3779,8 +3779,8 @@ compiler_tsx_Seek(Parser* p, int64_t at)
 static String
 compiler_tsx_QuoteText(String text)
 {
-    __type_838711075b90279a bytes = {0};
-    __type_838711075b90279a* value_0 = &bytes;
+    __type_131eebaaeb761e42 bytes = {0};
+    __type_131eebaaeb761e42* value_0 = &bytes;
     uint8_t value_1 = 34;
     bool value_2 = false;
     void *value_3 = ZirVecGrow((void *)(bytes).data, &(bytes).capacity, (bytes).count, sizeof(*(bytes).data));
@@ -3882,7 +3882,7 @@ compiler_tsx_QuoteText(String text)
     }
     (void)value_29;
     Text value_31 = {0};
-    __type_838711075b90279a value_32 = bytes;
+    __type_131eebaaeb761e42 value_32 = bytes;
     bytes.data = NULL;
     bytes.capacity = 0;
     bytes.count = 0;
@@ -3905,8 +3905,8 @@ compiler_tsx_QuoteText(String text)
 static String
 compiler_tsx_JSXText(String raw)
 {
-    __type_c53c2d7c4913dc02 lines = {0};
-    __type_c53c2d7c4913dc02* value_0 = &lines;
+    __type_9f828aa1372cb21a lines = {0};
+    __type_9f828aa1372cb21a* value_0 = &lines;
     int64_t begin = 0LL;
     int64_t at = 0LL;
     while (at < (int64_t)(raw).length) {
@@ -3963,8 +3963,8 @@ compiler_tsx_JSXText(String raw)
             i = (int64_t)((uint64_t)i + UINT64_C(1));
         }
     }
-    __type_838711075b90279a out = {0};
-    __type_838711075b90279a* value_8 = &out;
+    __type_131eebaaeb761e42 out = {0};
+    __type_131eebaaeb761e42* value_8 = &out;
     {
         int64_t range_first_24 = 0LL;
         int64_t range_last_24 = (int64_t)((uint64_t)(lines.count) - UINT64_C(1));
@@ -4040,7 +4040,7 @@ compiler_tsx_JSXText(String raw)
         }
     }
     Text value_18 = {0};
-    __type_838711075b90279a value_19 = out;
+    __type_131eebaaeb761e42 value_19 = out;
     out.data = NULL;
     out.capacity = 0;
     out.count = 0;
@@ -4838,8 +4838,8 @@ compiler_tsx_JSX(Parser* p)
     int32_t head = -1;
     int32_t tail = -1;
     String props = StringLiteral(".{");
-    __type_c53c2d7c4913dc02 names = {0};
-    __type_c53c2d7c4913dc02* value_69 = &names;
+    __type_9f828aa1372cb21a names = {0};
+    __type_9f828aa1372cb21a* value_69 = &names;
     while (true) {
         bool value_70 = !p->failed;
         bool value_71 = value_70;
@@ -8508,8 +8508,8 @@ compiler_tsx_Import(Parser* p, bool collect)
 {
     ZirSourceSpan span = compiler_tsx_Location(p);
     String name = StringLiteral("");
-    __type_a0b5f48c67108554 mappings = {0};
-    __type_a0b5f48c67108554* value_0 = &mappings;
+    __type_804c5db6ec38ec61 mappings = {0};
+    __type_804c5db6ec38ec61* value_0 = &mappings;
     Parser* value_1 = p;
     String value_2 = StringLiteral("*");
     bool value_3 = false;

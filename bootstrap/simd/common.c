@@ -33,14 +33,14 @@ static inline int32_t ZiRemS32(int32_t a, int32_t b) {
 #include "text_tools.h"
 
 void
-common_LaneArrays(__type_838711075b90279a* output)
+common_LaneArrays(__type_131eebaaeb761e42* output)
 {
     model_AppendLine(output, StringLiteral("#if ZI_VEC || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__) || \\"));
     model_AppendLine(output, StringLiteral("    defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86) || defined(_M_ARM64)"));
     model_AppendLine(output, StringLiteral("#define ZI_LE 1\n#else\n#define ZI_LE 0\n#endif\n#if !ZI_VEC\n#if !ZI_LE"));
     model_AppendLine(output, StringLiteral("/* Big-endian hosts view lanes as little-endian bytes one at a time. */"));
-    __type_de2f10dbf3e6d44c types = model_Types();
-    __type_de2f10dbf3e6d44c* value_0 = &types;
+    __type_a304a0dc8230c4a1 types = model_Types();
+    __type_a304a0dc8230c4a1* value_0 = &types;
     for (int64_t it_index = 0LL; it_index < types.count; it_index++) {
         VectorType t = (types).data[it_index];
         int32_t size = t.bits / 8;
@@ -101,8 +101,8 @@ common_LaneArrays(__type_838711075b90279a* output)
     model_AppendLine(output, StringLiteral("/* Shuffle picks lanes of each 128-bit block. */"));
     for (int64_t it_index = 0LL; it_index < types.count; it_index++) {
         VectorType t = (types).data[it_index];
-        __type_838711075b90279a parameters = {0};
-        __type_838711075b90279a* value_23 = &parameters;
+        __type_131eebaaeb761e42 parameters = {0};
+        __type_131eebaaeb761e42* value_23 = &parameters;
         {
             int32_t range_first_31 = 0;
             int32_t range_last_31 = (int32_t)((uint32_t)(model_Block(t)) - 1u);
@@ -144,8 +144,8 @@ common_LaneArrays(__type_838711075b90279a* output)
                 i = (int32_t)((uint32_t)i + 1u);
             }
         }
-        __type_838711075b90279a body = {0};
-        __type_838711075b90279a* value_30 = &body;
+        __type_131eebaaeb761e42 body = {0};
+        __type_131eebaaeb761e42* value_30 = &body;
         String value_31 = model_Render(StringLiteral("@0 r_;"), t.c, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
         bool value_32 = false;
         if ((value_31).length == 0) {
@@ -204,12 +204,12 @@ common_LaneArrays(__type_838711075b90279a* output)
             }
         }
         (void)value_43;
-        __type_838711075b90279a value_45 = parameters;
+        __type_131eebaaeb761e42 value_45 = parameters;
         parameters.data = NULL;
         parameters.capacity = 0;
         parameters.count = 0;
         Text text_scope_1 = vec_TextFromBuilder(value_45);
-        __type_838711075b90279a value_46 = body;
+        __type_131eebaaeb761e42 value_46 = body;
         body.data = NULL;
         body.capacity = 0;
         body.count = 0;
@@ -243,19 +243,19 @@ common_LaneArrays(__type_838711075b90279a* output)
 }
 
 void
-common_ConstantMacros(__type_838711075b90279a* output)
+common_ConstantMacros(__type_131eebaaeb761e42* output)
 {
     String value_0 = StringLiteral("/* Byte shifts, AlignBytes and Shuffle take constants; they are macros so\n * the constants reach the instructions in every build. */");
     model_AppendLine(output, value_0);
-    __type_de2f10dbf3e6d44c types = model_Types();
-    __type_de2f10dbf3e6d44c* value_1 = &types;
+    __type_a304a0dc8230c4a1 types = model_Types();
+    __type_a304a0dc8230c4a1* value_1 = &types;
     for (int64_t it_index = 0LL; it_index < types.count; it_index++) {
         VectorType t = (types).data[it_index];
         if (t.is_float) {
             continue;
         }
-        __type_838711075b90279a indices = {0};
-        __type_838711075b90279a* value_2 = &indices;
+        __type_131eebaaeb761e42 indices = {0};
+        __type_131eebaaeb761e42* value_2 = &indices;
         {
             int64_t range_first_7 = 0LL;
             int64_t value_3 = 0;
@@ -338,12 +338,12 @@ common_ConstantMacros(__type_838711075b90279a* output)
     }
     for (int64_t it_index = 0LL; it_index < types.count; it_index++) {
         VectorType t = (types).data[it_index];
-        __type_838711075b90279a parameters = {0};
-        __type_838711075b90279a* value_21 = &parameters;
-        __type_838711075b90279a arguments = {0};
-        __type_838711075b90279a* value_22 = &arguments;
-        __type_838711075b90279a indices = {0};
-        __type_838711075b90279a* value_23 = &indices;
+        __type_131eebaaeb761e42 parameters = {0};
+        __type_131eebaaeb761e42* value_21 = &parameters;
+        __type_131eebaaeb761e42 arguments = {0};
+        __type_131eebaaeb761e42* value_22 = &arguments;
+        __type_131eebaaeb761e42 indices = {0};
+        __type_131eebaaeb761e42* value_23 = &indices;
         {
             int32_t range_first_29 = 0;
             int32_t range_last_29 = (int32_t)((uint32_t)(model_Block(t)) - 1u);
@@ -471,13 +471,13 @@ common_ConstantMacros(__type_838711075b90279a* output)
                 }
             }
         }
-        __type_838711075b90279a value_48 = parameters;
+        __type_131eebaaeb761e42 value_48 = parameters;
         parameters.data = NULL;
         parameters.capacity = 0;
         parameters.count = 0;
         Text parameters_text = vec_TextFromBuilder(value_48);
         model_AppendLine(output, StringLiteral("#if ZI_VEC"));
-        __type_838711075b90279a value_49 = indices;
+        __type_131eebaaeb761e42 value_49 = indices;
         indices.data = NULL;
         indices.capacity = 0;
         indices.count = 0;
@@ -487,7 +487,7 @@ common_ConstantMacros(__type_838711075b90279a* output)
         String value_52 = model_Render(StringLiteral("#define zi_shuffle_@0(a, @1) ((@2)__builtin_shufflevector(a, (@2){0}, @3))"), t.name, value_50, t.c, value_51, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
         model_AppendLine(output, value_52);
         model_AppendLine(output, StringLiteral("#else"));
-        __type_838711075b90279a value_53 = arguments;
+        __type_131eebaaeb761e42 value_53 = arguments;
         arguments.data = NULL;
         arguments.capacity = 0;
         arguments.count = 0;
@@ -529,11 +529,11 @@ common_ConstantMacros(__type_838711075b90279a* output)
 }
 
 void
-common_Common(__type_838711075b90279a* output)
+common_Common(__type_131eebaaeb761e42* output)
 {
     model_AppendLine(output, StringLiteral("#ifndef ZIRAN_SIMD_OPS_COMMON_H\n#define ZIRAN_SIMD_OPS_COMMON_H\n#if ZI_VEC"));
-    __type_de2f10dbf3e6d44c types = model_Types();
-    __type_de2f10dbf3e6d44c* value_0 = &types;
+    __type_a304a0dc8230c4a1 types = model_Types();
+    __type_a304a0dc8230c4a1* value_0 = &types;
     for (int64_t it_index = 0LL; it_index < types.count; it_index++) {
         VectorType t = (types).data[it_index];
         if (t.is_float || t.bits == 8) {

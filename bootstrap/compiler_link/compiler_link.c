@@ -704,8 +704,8 @@ compiler_link_Taken(ZirModule* module, Slice renames, String name)
 static bool
 compiler_link_NameKind(ZirModule* module, Kind kind)
 {
-    __type_2906b320536adc4d renames = {0};
-    __type_2906b320536adc4d* value_0 = &renames;
+    __type_a41e6f41ab808f06 renames = {0};
+    __type_a41e6f41ab808f06* value_0 = &renames;
     ZirModule* value_1 = module;
     Kind value_2 = (Kind)(kind);
     int32_t value_3 = 0;

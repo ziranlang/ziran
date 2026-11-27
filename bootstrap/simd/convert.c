@@ -34,8 +34,8 @@ convert_ConvertLimit(VectorType r)
 String
 convert_ConvertScalar(VectorType t, VectorType r)
 {
-    __type_838711075b90279a output = {0};
-    __type_838711075b90279a* value_0 = &output;
+    __type_131eebaaeb761e42 output = {0};
+    __type_131eebaaeb761e42* value_0 = &output;
     String value_1 = model_Render(StringLiteral("@0 r_;"), r.c, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
     bool value_2 = false;
     if ((value_1).length == 0) {
@@ -160,7 +160,7 @@ convert_ConvertScalar(VectorType t, VectorType r)
         }
     }
     (void)value_29;
-    __type_838711075b90279a value_31 = output;
+    __type_131eebaaeb761e42 value_31 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
@@ -219,8 +219,8 @@ convert_ConvertGeneric(VectorType t, VectorType r)
     String value_8 = value_7;
     String value_9 = model_Decimal((int64_t)(r.bits));
     String top = model_Render(StringLiteral("@0@1_MAX"), value_8, value_9, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
-    __type_838711075b90279a output = {0};
-    __type_838711075b90279a* value_10 = &output;
+    __type_131eebaaeb761e42 output = {0};
+    __type_131eebaaeb761e42* value_10 = &output;
     VectorType value_11 = model_Unsigned(t);
     String m = value_11.c;
     String value_12 = StringLiteral("@0 big_ = (@0)(a >= (@1){0} + (@2)@3), small_ = (@0)(a <= (@1){0} + (@2)@4), nan_ = (@0)(a != a);");
@@ -294,7 +294,7 @@ convert_ConvertGeneric(VectorType t, VectorType r)
         }
     }
     (void)value_31;
-    __type_838711075b90279a value_33 = output;
+    __type_131eebaaeb761e42 value_33 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;

@@ -18,9 +18,9 @@ extern "C" {
 typedef struct RuntimeHeader RuntimeHeader;
 typedef struct SimdNames SimdNames;
 typedef struct ZirSimdUses ZirSimdUses;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-typedef struct __type_c53c2d7c4913dc02 __type_c53c2d7c4913dc02;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
 #endif
 typedef struct GeneratedPathStore GeneratedPathStore;
 #ifdef ZIRAN_COMPILER_RUNTIME_EMIT_H_PRIVATE
@@ -33,23 +33,23 @@ typedef struct ByteDescriptor ByteDescriptor;
 typedef struct Segment Segment;
 #endif
 typedef struct compiler_runtime_emit_Results__string__bool compiler_runtime_emit_Results__string__bool;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-#define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-typedef struct __type_838711075b90279a __type_838711075b90279a;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_9626e91dad9499a3
-#define ZIRAN_CONCRETE_FORWARD___type_9626e91dad9499a3
-typedef struct __type_9626e91dad9499a3 __type_9626e91dad9499a3;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_0b8b94a6b7d2072b
+#define ZIRAN_CONCRETE_FORWARD___type_0b8b94a6b7d2072b
+typedef struct __type_0b8b94a6b7d2072b __type_0b8b94a6b7d2072b;
 #endif
 #ifdef ZIRAN_COMPILER_RUNTIME_EMIT_H_PRIVATE
-#ifndef ZIRAN_CONCRETE_FORWARD___type_2f893a38d978b828
-#define ZIRAN_CONCRETE_FORWARD___type_2f893a38d978b828
-typedef struct __type_2f893a38d978b828 __type_2f893a38d978b828;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_6d6e28b0bceaff19
+#define ZIRAN_CONCRETE_FORWARD___type_6d6e28b0bceaff19
+typedef struct __type_6d6e28b0bceaff19 __type_6d6e28b0bceaff19;
 #endif
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_1f00ef809eed7c2e
-#define ZIRAN_CONCRETE_FORWARD___type_1f00ef809eed7c2e
-typedef struct __type_1f00ef809eed7c2e __type_1f00ef809eed7c2e;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_03c9bb6e22816916
+#define ZIRAN_CONCRETE_FORWARD___type_03c9bb6e22816916
+typedef struct __type_03c9bb6e22816916 __type_03c9bb6e22816916;
 #endif
 
 struct RuntimeHeader {
@@ -71,10 +71,10 @@ struct ZirSimdUses {
     SimdNames names;
     int32_t header;
 };
-#ifndef ZIRAN_CONCRETE___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE___type_c53c2d7c4913dc02
+#ifndef ZIRAN_CONCRETE___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE___type_9f828aa1372cb21a
 
-struct __type_c53c2d7c4913dc02 {
+struct __type_9f828aa1372cb21a {
     String* data;
     int64_t count;
     int64_t capacity;
@@ -82,7 +82,7 @@ struct __type_c53c2d7c4913dc02 {
 #endif
 
 struct GeneratedPathStore {
-    __type_c53c2d7c4913dc02 paths;
+    __type_9f828aa1372cb21a paths;
 };
 #ifdef ZIRAN_COMPILER_RUNTIME_EMIT_H_PRIVATE
 
@@ -112,39 +112,39 @@ struct compiler_runtime_emit_Results__string__bool {
     String value_0;
     bool value_1;
 };
-#ifndef ZIRAN_CONCRETE___type_838711075b90279a
-#define ZIRAN_CONCRETE___type_838711075b90279a
+#ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE___type_131eebaaeb761e42
 
-struct __type_838711075b90279a {
+struct __type_131eebaaeb761e42 {
     uint8_t* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_9626e91dad9499a3
-#define ZIRAN_CONCRETE___type_9626e91dad9499a3
+#ifndef ZIRAN_CONCRETE___type_0b8b94a6b7d2072b
+#define ZIRAN_CONCRETE___type_0b8b94a6b7d2072b
 
-struct __type_9626e91dad9499a3 {
+struct __type_0b8b94a6b7d2072b {
     bool* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
 #ifdef ZIRAN_COMPILER_RUNTIME_EMIT_H_PRIVATE
-#ifndef ZIRAN_CONCRETE___type_2f893a38d978b828
-#define ZIRAN_CONCRETE___type_2f893a38d978b828
+#ifndef ZIRAN_CONCRETE___type_6d6e28b0bceaff19
+#define ZIRAN_CONCRETE___type_6d6e28b0bceaff19
 
-struct __type_2f893a38d978b828 {
+struct __type_6d6e28b0bceaff19 {
     Segment* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
 #endif
-#ifndef ZIRAN_CONCRETE___type_1f00ef809eed7c2e
-#define ZIRAN_CONCRETE___type_1f00ef809eed7c2e
+#ifndef ZIRAN_CONCRETE___type_03c9bb6e22816916
+#define ZIRAN_CONCRETE___type_03c9bb6e22816916
 
-struct __type_1f00ef809eed7c2e {
+struct __type_03c9bb6e22816916 {
     int64_t* data;
     int64_t count;
     int64_t capacity;

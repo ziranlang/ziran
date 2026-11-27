@@ -45,9 +45,9 @@ typedef struct Unfolds Unfolds;
 #ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
 typedef struct Context Context;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-#define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-typedef struct __type_838711075b90279a __type_838711075b90279a;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
 #ifdef ZIRAN_COMPILER_PROOF_H_PRIVATE
 
@@ -114,10 +114,10 @@ struct Context {
     String reason;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_838711075b90279a
-#define ZIRAN_CONCRETE___type_838711075b90279a
+#ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE___type_131eebaaeb761e42
 
-struct __type_838711075b90279a {
+struct __type_131eebaaeb761e42 {
     uint8_t* data;
     int64_t count;
     int64_t capacity;

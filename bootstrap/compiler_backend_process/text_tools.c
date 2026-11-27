@@ -131,11 +131,11 @@ text_tools_TextTrimEnd(String text)
     return StringRangeAt(text, (int64_t)0LL, (int64_t)end);
 }
 
-__type_c53c2d7c4913dc02
+__type_9f828aa1372cb21a
 text_tools_TextSplit(String text, String separator)
 {
-    __type_c53c2d7c4913dc02 pieces = {0};
-    __type_c53c2d7c4913dc02* value_0 = &pieces;
+    __type_9f828aa1372cb21a pieces = {0};
+    __type_9f828aa1372cb21a* value_0 = &pieces;
     if ((int64_t)(separator).length == 0LL) {
         String value_1 = text;
         bool value_2 = false;
@@ -146,11 +146,11 @@ text_tools_TextSplit(String text, String separator)
             value_2 = true;
         }
         (void)value_2;
-        __type_c53c2d7c4913dc02 value_4 = pieces;
+        __type_9f828aa1372cb21a value_4 = pieces;
         pieces.data = NULL;
         pieces.capacity = 0;
         pieces.count = 0;
-        __type_c53c2d7c4913dc02 value_5 = value_4;
+        __type_9f828aa1372cb21a value_5 = value_4;
         free((*value_0).data);
         (*value_0).data = NULL;
         (*value_0).capacity = 0;
@@ -181,11 +181,11 @@ text_tools_TextSplit(String text, String separator)
         value_10 = true;
     }
     (void)value_10;
-    __type_c53c2d7c4913dc02 value_12 = pieces;
+    __type_9f828aa1372cb21a value_12 = pieces;
     pieces.data = NULL;
     pieces.capacity = 0;
     pieces.count = 0;
-    __type_c53c2d7c4913dc02 value_13 = value_12;
+    __type_9f828aa1372cb21a value_13 = value_12;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;
@@ -193,11 +193,11 @@ text_tools_TextSplit(String text, String separator)
     return value_13;
 }
 
-__type_c53c2d7c4913dc02
+__type_9f828aa1372cb21a
 text_tools_TextLines(String text)
 {
-    __type_c53c2d7c4913dc02 lines = {0};
-    __type_c53c2d7c4913dc02* value_0 = &lines;
+    __type_9f828aa1372cb21a lines = {0};
+    __type_9f828aa1372cb21a* value_0 = &lines;
     int64_t start = 0LL;
     int64_t at = 0LL;
     while (at < (int64_t)(text).length) {
@@ -230,11 +230,11 @@ text_tools_TextLines(String text)
         }
         (void)value_5;
     }
-    __type_c53c2d7c4913dc02 value_7 = lines;
+    __type_9f828aa1372cb21a value_7 = lines;
     lines.data = NULL;
     lines.capacity = 0;
     lines.count = 0;
-    __type_c53c2d7c4913dc02 value_8 = value_7;
+    __type_9f828aa1372cb21a value_8 = value_7;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;
@@ -252,8 +252,8 @@ text_tools_TextReplace(String text, String old, String new)
     if (at < 0LL) {
         return vec_TextCopy(text);
     }
-    __type_838711075b90279a result = {0};
-    __type_838711075b90279a* value_0 = &result;
+    __type_131eebaaeb761e42 result = {0};
+    __type_131eebaaeb761e42* value_0 = &result;
     int64_t start = 0LL;
     while (at >= 0LL) {
         bool value_1 = false;
@@ -298,7 +298,7 @@ text_tools_TextReplace(String text, String old, String new)
         }
     }
     (void)value_5;
-    __type_838711075b90279a value_7 = result;
+    __type_131eebaaeb761e42 value_7 = result;
     result.data = NULL;
     result.capacity = 0;
     result.count = 0;
@@ -313,8 +313,8 @@ text_tools_TextReplace(String text, String old, String new)
 Text
 text_tools_TextJoin(Slice parts, String separator)
 {
-    __type_838711075b90279a result = {0};
-    __type_838711075b90279a* value_0 = &result;
+    __type_131eebaaeb761e42 result = {0};
+    __type_131eebaaeb761e42* value_0 = &result;
     int64_t index = 0LL;
     while (index < (int64_t)(parts).length) {
         if (index > 0LL) {
@@ -347,7 +347,7 @@ text_tools_TextJoin(Slice parts, String separator)
         (void)value_3;
         index = (int64_t)((uint64_t)index + UINT64_C(1));
     }
-    __type_838711075b90279a value_5 = result;
+    __type_131eebaaeb761e42 value_5 = result;
     result.data = NULL;
     result.capacity = 0;
     result.count = 0;
@@ -362,8 +362,8 @@ text_tools_TextJoin(Slice parts, String separator)
 Text
 text_tools_TextLower(String text)
 {
-    __type_838711075b90279a result = {0};
-    __type_838711075b90279a* value_0 = &result;
+    __type_131eebaaeb761e42 result = {0};
+    __type_131eebaaeb761e42* value_0 = &result;
     for (int64_t it_index = 0LL; it_index < (int64_t)(text).length; it_index++) {
         uint8_t it = (uint8_t)text.data[it_index];
         uint8_t byte = it;
@@ -380,7 +380,7 @@ text_tools_TextLower(String text)
         }
         (void)value_2;
     }
-    __type_838711075b90279a value_4 = result;
+    __type_131eebaaeb761e42 value_4 = result;
     result.data = NULL;
     result.capacity = 0;
     result.count = 0;
@@ -495,7 +495,7 @@ text_tools_TextHexDigit(uint8_t byte)
 }
 
 bool
-text_tools_TextHexDecodeInto(String value, __type_838711075b90279a* output, int64_t max_bytes)
+text_tools_TextHexDecodeInto(String value, __type_131eebaaeb761e42* output, int64_t max_bytes)
 {
     bool value_0 = max_bytes < 0LL;
     if (!value_0) {
@@ -509,8 +509,8 @@ text_tools_TextHexDecodeInto(String value, __type_838711075b90279a* output, int6
     if (decoded_count > max_bytes) {
         return false;
     }
-    __type_838711075b90279a decoded = {0};
-    __type_838711075b90279a* value_2 = &decoded;
+    __type_131eebaaeb761e42 decoded = {0};
+    __type_131eebaaeb761e42* value_2 = &decoded;
     int64_t at = 0LL;
     while (at < (int64_t)(value).length) {
         uint8_t value_3 = (uint8_t)value.data[at];
@@ -610,8 +610,8 @@ Text
 text_tools_TextHex(Slice bytes)
 {
     String digits = StringLiteral("0123456789abcdef");
-    __type_838711075b90279a result = {0};
-    __type_838711075b90279a* value_0 = &result;
+    __type_131eebaaeb761e42 result = {0};
+    __type_131eebaaeb761e42* value_0 = &result;
     for (int64_t it_index = 0LL; it_index < (int64_t)(bytes).length; it_index++) {
         uint8_t it = ((uint8_t *)bytes.data)[it_index];
         uint8_t value_1 = (uint8_t)digits.data[((uint8_t)(it >> 4))];
@@ -633,7 +633,7 @@ text_tools_TextHex(Slice bytes)
         }
         (void)value_5;
     }
-    __type_838711075b90279a value_7 = result;
+    __type_131eebaaeb761e42 value_7 = result;
     result.data = NULL;
     result.capacity = 0;
     result.count = 0;

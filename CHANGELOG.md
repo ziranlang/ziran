@@ -12,6 +12,12 @@
   Native generic record types share Ziran's checked specializations. Collection
   `for...of` evaluates its source once, borrows named storage and releases a
   fresh owned collection on exit through the ordinary checked IR.
+  Generic applications preserve declaring module and private file identity,
+  including nominal arguments, while aliases of one declaration agree.
+
+- Generate a checked C process entry with `--emit-main --entry module:function`
+  without invoking a C compiler, for native hosts and browser build systems
+  consuming ordinary source or saved IR.
 
 - Keep small loaded records in scalar registers through member updates,
   stores and block transfers on native targets, avoiding temporary record

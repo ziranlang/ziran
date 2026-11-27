@@ -26,8 +26,8 @@ reduce_FirstLane(String isa, VectorType t, String expression)
 String
 reduce_FoldTree(VectorType t, String op, String variable, bool x86)
 {
-    __type_838711075b90279a output = {0};
-    __type_838711075b90279a* value_0 = &output;
+    __type_131eebaaeb761e42 output = {0};
+    __type_131eebaaeb761e42* value_0 = &output;
     int32_t step = t.lanes / 2;
     while (step > 0) {
         String other = StringView(NULL, 0);
@@ -46,8 +46,8 @@ reduce_FoldTree(VectorType t, String op, String variable, bool x86)
             }
             other = model_Render(StringLiteral("(@0)@1"), t.c, swap, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
         } else {
-            __type_838711075b90279a permutation = {0};
-            __type_838711075b90279a* value_1 = &permutation;
+            __type_131eebaaeb761e42 permutation = {0};
+            __type_131eebaaeb761e42* value_1 = &permutation;
             {
                 int32_t range_first_24 = 0;
                 int32_t range_last_24 = (int32_t)((uint32_t)(t.lanes) - 1u);
@@ -88,7 +88,7 @@ reduce_FoldTree(VectorType t, String op, String variable, bool x86)
                     i = (int32_t)((uint32_t)i + 1u);
                 }
             }
-            __type_838711075b90279a value_7 = permutation;
+            __type_131eebaaeb761e42 value_7 = permutation;
             permutation.data = NULL;
             permutation.capacity = 0;
             permutation.count = 0;
@@ -120,7 +120,7 @@ reduce_FoldTree(VectorType t, String op, String variable, bool x86)
         (void)value_10;
         step = step / 2;
     }
-    __type_838711075b90279a value_12 = output;
+    __type_131eebaaeb761e42 value_12 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
@@ -193,7 +193,7 @@ reduce_ReduceGeneric(String op, VectorType t)
 }
 
 void
-reduce_X86TreeReduce(__type_a48ccc373f318f67* output, String op, VectorType t)
+reduce_X86TreeReduce(__type_e265f79c93ee1c4a* output, String op, VectorType t)
 {
     if (t.bits == 64) {
         return;
@@ -266,11 +266,11 @@ reduce_X86TreeReduce(__type_a48ccc373f318f67* output, String op, VectorType t)
     }
 }
 
-__type_a48ccc373f318f67
+__type_e265f79c93ee1c4a
 reduce_ReduceSpecials(String op, VectorType t)
 {
-    __type_a48ccc373f318f67 output = {0};
-    __type_a48ccc373f318f67* value_0 = &output;
+    __type_e265f79c93ee1c4a output = {0};
+    __type_e265f79c93ee1c4a* value_0 = &output;
     bool index = StringEqual(op, StringLiteral("reduce_max_index"));
     String value_1 = StringView(NULL, 0);
     if (StringEqual(op, StringLiteral("reduce_min"))) {
@@ -378,8 +378,8 @@ reduce_ReduceSpecials(String op, VectorType t)
             arithmetic_AddBranch(&(output), StringLiteral("ZI_NEON && ZI_A64"), value_32);
         }
         if (t.bits < 64 && !index && !StringEqual(op, StringLiteral("reduce_add"))) {
-            __type_838711075b90279a body = {0};
-            __type_838711075b90279a* value_33 = &body;
+            __type_131eebaaeb761e42 body = {0};
+            __type_131eebaaeb761e42* value_33 = &body;
             String value_34 = model_NeonType(t);
             String value_35 = StringView(NULL, 0);
             if (t.is_signed) {
@@ -462,7 +462,7 @@ reduce_ReduceSpecials(String op, VectorType t)
                 }
             }
             (void)value_54;
-            __type_838711075b90279a value_56 = body;
+            __type_131eebaaeb761e42 value_56 = body;
             body.data = NULL;
             body.capacity = 0;
             body.count = 0;
@@ -503,11 +503,11 @@ reduce_ReduceSpecials(String op, VectorType t)
             }
         }
     }
-    __type_a48ccc373f318f67 value_65 = output;
+    __type_e265f79c93ee1c4a value_65 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
-    __type_a48ccc373f318f67 value_66 = value_65;
+    __type_e265f79c93ee1c4a value_66 = value_65;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;

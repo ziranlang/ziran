@@ -31,8 +31,8 @@ String
 model_Render(String text, String a, String b, String c, String d, String e, String f, String g, String h)
 {
     String values[8] = {a, b, c, d, e, f, g, h};
-    __type_838711075b90279a output = {0};
-    __type_838711075b90279a* value_0 = &output;
+    __type_131eebaaeb761e42 output = {0};
+    __type_131eebaaeb761e42* value_0 = &output;
     int64_t at = 0LL;
     while (at < (int64_t)(text).length) {
         bool value_1 = (int64_t)((uint64_t)at + UINT64_C(1)) < (int64_t)(text).length && (uint8_t)text.data[at] == 64 && (uint8_t)text.data[((int64_t)((uint64_t)at + UINT64_C(1)))] >= 48;
@@ -65,7 +65,7 @@ model_Render(String text, String a, String b, String c, String d, String e, Stri
             at = (int64_t)((uint64_t)at + UINT64_C(1));
         }
     }
-    __type_838711075b90279a value_8 = output;
+    __type_131eebaaeb761e42 value_8 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
@@ -117,11 +117,11 @@ model_Type(int32_t lane, bool wide)
     return result;
 }
 
-__type_de2f10dbf3e6d44c
+__type_a304a0dc8230c4a1
 model_Types(void)
 {
-    __type_de2f10dbf3e6d44c result = {0};
-    __type_de2f10dbf3e6d44c* value_0 = &result;
+    __type_a304a0dc8230c4a1 result = {0};
+    __type_a304a0dc8230c4a1* value_0 = &result;
     for (int64_t width = 0LL; width <= 1LL; width++) {
         for (int64_t lane = 0LL; lane <= 9LL; lane++) {
             VectorType value_1 = model_Type((int32_t)(lane), width == 1LL);
@@ -136,11 +136,11 @@ model_Types(void)
             (void)value_3;
         }
     }
-    __type_de2f10dbf3e6d44c value_5 = result;
+    __type_a304a0dc8230c4a1 value_5 = result;
     result.data = NULL;
     result.capacity = 0;
     result.count = 0;
-    __type_de2f10dbf3e6d44c value_6 = value_5;
+    __type_a304a0dc8230c4a1 value_6 = value_5;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;
@@ -350,8 +350,8 @@ model_LaneName(VectorType type)
 VectorType
 model_ByName(String name)
 {
-    __type_de2f10dbf3e6d44c types = model_Types();
-    __type_de2f10dbf3e6d44c* value_0 = &types;
+    __type_a304a0dc8230c4a1 types = model_Types();
+    __type_a304a0dc8230c4a1* value_0 = &types;
     for (int64_t it_index = 0LL; it_index < types.count; it_index++) {
         VectorType type = (types).data[it_index];
         if (StringEqual(type.name, name)) {
@@ -399,8 +399,8 @@ model_WideParameters(Slice parameters)
 String
 model_ParameterList(Slice parameters, bool pointers)
 {
-    __type_838711075b90279a output = {0};
-    __type_838711075b90279a* value_0 = &output;
+    __type_131eebaaeb761e42 output = {0};
+    __type_131eebaaeb761e42* value_0 = &output;
     {
         int64_t range_first_1 = 0LL;
         int64_t range_last_1 = (int64_t)((uint64_t)((int64_t)(parameters).length) - UINT64_C(1));
@@ -474,7 +474,7 @@ model_ParameterList(Slice parameters, bool pointers)
         }
         (void)value_9;
     }
-    __type_838711075b90279a value_11 = output;
+    __type_131eebaaeb761e42 value_11 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
@@ -487,7 +487,7 @@ model_ParameterList(Slice parameters, bool pointers)
 }
 
 void
-model_AppendLine(__type_838711075b90279a* output, String text)
+model_AppendLine(__type_131eebaaeb761e42* output, String text)
 {
     bool value_0 = false;
     if ((text).length == 0) {

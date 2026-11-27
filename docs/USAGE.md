@@ -1517,6 +1517,12 @@ that procedure and exits with its integer result; the entry takes nothing or
 optimizes across modules. Each link then generates code for the whole program
 again, so one-file edits rebuild many times slower. `CFLAGS` still wins.
 
+Use `--emit-main --entry module:function` to emit the same checked C process
+entry without invoking a C compiler. This is useful when a native host, browser
+toolchain or other build system compiles and links the generated C itself.
+It accepts source and saved checked IR from every native frontend; no source
+wrapper or entry-signature scan is needed. `--exe` includes this emission step.
+
 Small public procedures are inlinable across modules in every C build: the
 module's header carries a `static inline` copy that other modules' calls use,
 while the module's own `.c` keeps the one external definition, so a
@@ -1531,7 +1537,8 @@ including that module's header, so the header leaves out its copies.
 reach the external definitions; a test that interposes procedures at link
 time, as with `ld --wrap`, builds with it.
 
-A closed program, one linked with `--entry` that builds with `--exe` or has
+A closed program, one linked with `--entry` that builds with `--emit-main`,
+`--exe` or has
 its own C `main`, carries only the code it uses. Its generated files are the
 only ones that include its headers, so each header declares just the types,
 procedures, constants, variables and foreign bindings that another generated
@@ -1539,7 +1546,7 @@ file names. The module's own `.c` keeps whatever only it reads, a header copy
 stays only for a procedure another module calls, and a module whose header
 would declare nothing has no header. Runtime headers such as `zir_bounds.h`
 keep only the helpers some generated file calls. A library build, without
-`--exe` or a C `main`, keeps each header's whole public interface for the C
+`--emit-main`, `--exe` or a C `main`, keeps each header's whole public interface for the C
 code that hosts it.
 
 Closed native entry links also remove branches guarded by callbacks that are

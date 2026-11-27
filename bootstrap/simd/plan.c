@@ -14,7 +14,7 @@
 #include "text_tools.h"
 #include "sort.h"
 
-__type_a48ccc373f318f67
+__type_e265f79c93ee1c4a
 plan_Specials(String op, VectorType t)
 {
     if (StringEqual(op, StringLiteral("all_zero")) || StringEqual(op, StringLiteral("byte_shuffle"))) {
@@ -59,8 +59,8 @@ plan_FloatArithmetic(String op, VectorType t)
 String
 plan_ReferenceBody(String op, VectorType t)
 {
-    __type_838711075b90279a name = {0};
-    __type_838711075b90279a* value_0 = &name;
+    __type_131eebaaeb761e42 name = {0};
+    __type_131eebaaeb761e42* value_0 = &name;
     bool value_1 = false;
     if ((StringLiteral("ZI_OP_")).length == 0) {
         value_1 = true;
@@ -93,7 +93,7 @@ plan_ReferenceBody(String op, VectorType t)
         (void)value_5;
     }
     VectorType r = operations_ResultType(op, t);
-    __type_838711075b90279a value_7 = name;
+    __type_131eebaaeb761e42 value_7 = name;
     name.data = NULL;
     name.capacity = 0;
     name.count = 0;
@@ -117,8 +117,8 @@ plan_ReferenceBody(String op, VectorType t)
 String
 plan_HalfArguments(Slice parameters, bool high)
 {
-    __type_838711075b90279a result = {0};
-    __type_838711075b90279a* value_0 = &result;
+    __type_131eebaaeb761e42 result = {0};
+    __type_131eebaaeb761e42* value_0 = &result;
     {
         int64_t range_first_1 = 0LL;
         int64_t range_last_1 = (int64_t)((uint64_t)((int64_t)(parameters).length) - UINT64_C(1));
@@ -183,7 +183,7 @@ plan_HalfArguments(Slice parameters, bool high)
             i = (int64_t)((uint64_t)i + UINT64_C(1));
         }
     }
-    __type_838711075b90279a value_10 = result;
+    __type_131eebaaeb761e42 value_10 = result;
     result.data = NULL;
     result.capacity = 0;
     result.count = 0;
@@ -204,10 +204,10 @@ plan_SplitCondition(String op, VectorType t, String generic, String portable)
     if ((StringEqual(generic, StringLiteral("")) && (StringEqual(portable, StringLiteral("")) || text_tools_TextContains(portable, StringLiteral("for("))))) {
         return StringLiteral("ZI_VEC");
     }
-    __type_c53c2d7c4913dc02 conditions = {0};
-    __type_c53c2d7c4913dc02* value_0 = &conditions;
-    __type_a48ccc373f318f67 half = plan_Specials(op, model_Half(t));
-    __type_a48ccc373f318f67* value_1 = &half;
+    __type_9f828aa1372cb21a conditions = {0};
+    __type_9f828aa1372cb21a* value_0 = &conditions;
+    __type_e265f79c93ee1c4a half = plan_Specials(op, model_Half(t));
+    __type_e265f79c93ee1c4a* value_1 = &half;
     {
         Slice value_2 = {(half).data, (half).count};
         Slice loop_view_8 = SliceRangeAt(value_2, 0LL, half.count, sizeof(*(half).data));
@@ -240,8 +240,8 @@ plan_SplitCondition(String op, VectorType t, String generic, String portable)
     }
     Slice value_6 = {(conditions).data, (conditions).count};
     sort_SortText(SliceRangeAt(value_6, 0LL, conditions.count, sizeof(*(conditions).data)));
-    __type_838711075b90279a result = {0};
-    __type_838711075b90279a* value_7 = &result;
+    __type_131eebaaeb761e42 result = {0};
+    __type_131eebaaeb761e42* value_7 = &result;
     bool value_8 = StringEqual(op, StringLiteral("eq")) || StringEqual(op, StringLiteral("lt")) || StringEqual(op, StringLiteral("gt"));
     String value_9 = StringView(NULL, 0);
     if (value_8 || StringEqual(op, StringLiteral("shr_round"))) {
@@ -324,7 +324,7 @@ plan_SplitCondition(String op, VectorType t, String generic, String portable)
         }
     }
     (void)value_27;
-    __type_838711075b90279a value_29 = result;
+    __type_131eebaaeb761e42 value_29 = result;
     result.data = NULL;
     result.capacity = 0;
     result.count = 0;
@@ -348,8 +348,8 @@ Helper
 plan_Build(String op, VectorType t)
 {
     Helper helper = operations_Signature(op, t);
-    __type_a48ccc373f318f67 special = plan_Specials(op, t);
-    __type_a48ccc373f318f67* value_0 = &special;
+    __type_e265f79c93ee1c4a special = plan_Specials(op, t);
+    __type_e265f79c93ee1c4a* value_0 = &special;
     String generic = operations_Generic(op, t);
     if (StringEqual(op, StringLiteral("madd")) || StringEqual(op, StringLiteral("add_pairs"))) {
         generic = pairs_PairGeneric(op, t);

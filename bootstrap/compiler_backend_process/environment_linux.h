@@ -15,17 +15,17 @@ extern "C" {
 #endif
 typedef int64_t EnvironmentFailure;
 typedef int64_t ArgumentFailure;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_6c5c09809af9b2be
-#define ZIRAN_CONCRETE_FORWARD___type_6c5c09809af9b2be
-typedef struct __type_6c5c09809af9b2be __type_6c5c09809af9b2be;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_1da6ca1b906259e1
+#define ZIRAN_CONCRETE_FORWARD___type_1da6ca1b906259e1
+typedef struct __type_1da6ca1b906259e1 __type_1da6ca1b906259e1;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_2327be0556361c2c
-#define ZIRAN_CONCRETE_FORWARD___type_2327be0556361c2c
-typedef struct __type_2327be0556361c2c __type_2327be0556361c2c;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_4b8e91f1fe7720dd
+#define ZIRAN_CONCRETE_FORWARD___type_4b8e91f1fe7720dd
+typedef struct __type_4b8e91f1fe7720dd __type_4b8e91f1fe7720dd;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_4289a23f77d76d0a
-#define ZIRAN_CONCRETE_FORWARD___type_4289a23f77d76d0a
-typedef struct __type_4289a23f77d76d0a __type_4289a23f77d76d0a;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_9f5455d017f855f3
+#define ZIRAN_CONCRETE_FORWARD___type_9f5455d017f855f3
+typedef struct __type_9f5455d017f855f3 __type_9f5455d017f855f3;
 #endif
 
 enum {
@@ -44,28 +44,28 @@ enum {
     ArgumentFailure_NullArgument = 2,
     ArgumentFailure_TooLong = 3,
 };
-#ifndef ZIRAN_CONCRETE___type_6c5c09809af9b2be
-#define ZIRAN_CONCRETE___type_6c5c09809af9b2be
+#ifndef ZIRAN_CONCRETE___type_1da6ca1b906259e1
+#define ZIRAN_CONCRETE___type_1da6ca1b906259e1
 
-struct __type_6c5c09809af9b2be {
+struct __type_1da6ca1b906259e1 {
     bool is_ok;
     String value;
     EnvironmentFailure error;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_2327be0556361c2c
-#define ZIRAN_CONCRETE___type_2327be0556361c2c
+#ifndef ZIRAN_CONCRETE___type_4b8e91f1fe7720dd
+#define ZIRAN_CONCRETE___type_4b8e91f1fe7720dd
 
-struct __type_2327be0556361c2c {
+struct __type_4b8e91f1fe7720dd {
     bool is_ok;
     int64_t value;
     EnvironmentFailure error;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_4289a23f77d76d0a
-#define ZIRAN_CONCRETE___type_4289a23f77d76d0a
+#ifndef ZIRAN_CONCRETE___type_9f5455d017f855f3
+#define ZIRAN_CONCRETE___type_9f5455d017f855f3
 
-struct __type_4289a23f77d76d0a {
+struct __type_9f5455d017f855f3 {
     bool is_ok;
     String value;
     ArgumentFailure error;
@@ -76,10 +76,10 @@ uint8_t* zir_foreign_environment_linux__EnvironmentValueRaw(uint8_t* name) __asm
 #else
 uint8_t* zir_foreign_environment_linux__EnvironmentValueRaw(uint8_t* name) __asm__("getenv");
 #endif
-__type_6c5c09809af9b2be environment_linux_BoundedHostText(uint8_t* value, Slice output);
-__type_6c5c09809af9b2be EnvironmentRead(String name, Slice output);
-__type_2327be0556361c2c EnvironmentRange(String name, int64_t minimum, int64_t maximum, Slice input);
-__type_4289a23f77d76d0a ArgumentRead(int32_t argc, uint8_t** argv, int32_t index, Slice output);
+__type_1da6ca1b906259e1 environment_linux_BoundedHostText(uint8_t* value, Slice output);
+__type_1da6ca1b906259e1 EnvironmentRead(String name, Slice output);
+__type_4b8e91f1fe7720dd EnvironmentRange(String name, int64_t minimum, int64_t maximum, Slice input);
+__type_9f5455d017f855f3 ArgumentRead(int32_t argc, uint8_t** argv, int32_t index, Slice output);
 String environment_linux_EnvironmentText(String name);
 int64_t environment_linux_EnvironmentNumber(String name, int64_t fallback);
 

@@ -25,18 +25,18 @@ extern "C" {
 #endif
 typedef struct ProcessArgumentSlot ProcessArgumentSlot;
 typedef struct ProcessOptions ProcessOptions;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-#define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-typedef struct __type_838711075b90279a __type_838711075b90279a;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
 typedef struct ProcessRun ProcessRun;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_01e5ac0505e23acf
-#define ZIRAN_CONCRETE_FORWARD___type_01e5ac0505e23acf
-typedef struct __type_01e5ac0505e23acf __type_01e5ac0505e23acf;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_063f9895eff4d34b
+#define ZIRAN_CONCRETE_FORWARD___type_063f9895eff4d34b
+typedef struct __type_063f9895eff4d34b __type_063f9895eff4d34b;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_1f00ef809eed7c2e
-#define ZIRAN_CONCRETE_FORWARD___type_1f00ef809eed7c2e
-typedef struct __type_1f00ef809eed7c2e __type_1f00ef809eed7c2e;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_03c9bb6e22816916
+#define ZIRAN_CONCRETE_FORWARD___type_03c9bb6e22816916
+typedef struct __type_03c9bb6e22816916 __type_03c9bb6e22816916;
 #endif
 #ifdef ZIRAN_PROCESS_RUN_LINUX_H_PRIVATE
 typedef struct Prepared Prepared;
@@ -61,10 +61,10 @@ struct ProcessOptions {
     bool capture_output;
     bool new_session;
 };
-#ifndef ZIRAN_CONCRETE___type_838711075b90279a
-#define ZIRAN_CONCRETE___type_838711075b90279a
+#ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE___type_131eebaaeb761e42
 
-struct __type_838711075b90279a {
+struct __type_131eebaaeb761e42 {
     uint8_t* data;
     int64_t count;
     int64_t capacity;
@@ -76,21 +76,21 @@ struct ProcessRun {
     int32_t code;
     bool started;
     bool finished;
-    __type_838711075b90279a output;
+    __type_131eebaaeb761e42 output;
 };
-#ifndef ZIRAN_CONCRETE___type_01e5ac0505e23acf
-#define ZIRAN_CONCRETE___type_01e5ac0505e23acf
+#ifndef ZIRAN_CONCRETE___type_063f9895eff4d34b
+#define ZIRAN_CONCRETE___type_063f9895eff4d34b
 
-struct __type_01e5ac0505e23acf {
+struct __type_063f9895eff4d34b {
     ProcessArgumentSlot* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_1f00ef809eed7c2e
-#define ZIRAN_CONCRETE___type_1f00ef809eed7c2e
+#ifndef ZIRAN_CONCRETE___type_03c9bb6e22816916
+#define ZIRAN_CONCRETE___type_03c9bb6e22816916
 
-struct __type_1f00ef809eed7c2e {
+struct __type_03c9bb6e22816916 {
     int64_t* data;
     int64_t count;
     int64_t capacity;
@@ -99,11 +99,11 @@ struct __type_1f00ef809eed7c2e {
 #ifdef ZIRAN_PROCESS_RUN_LINUX_H_PRIVATE
 
 struct Prepared {
-    __type_838711075b90279a bytes;
-    __type_01e5ac0505e23acf arguments;
-    __type_1f00ef809eed7c2e argument_offsets;
-    __type_1f00ef809eed7c2e names;
-    __type_1f00ef809eed7c2e values;
+    __type_131eebaaeb761e42 bytes;
+    __type_063f9895eff4d34b arguments;
+    __type_03c9bb6e22816916 argument_offsets;
+    __type_03c9bb6e22816916 names;
+    __type_03c9bb6e22816916 values;
     int64_t directory;
     int64_t input;
     int64_t output;

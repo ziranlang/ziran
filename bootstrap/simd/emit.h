@@ -12,23 +12,23 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-#define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-typedef struct __type_838711075b90279a __type_838711075b90279a;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
-#ifndef ZIRAN_CONCRETE___type_838711075b90279a
-#define ZIRAN_CONCRETE___type_838711075b90279a
+#ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE___type_131eebaaeb761e42
 
-struct __type_838711075b90279a {
+struct __type_131eebaaeb761e42 {
     uint8_t* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-void emit_Marker(__type_838711075b90279a* output, String* current, String name);
-void emit_Prototype(__type_838711075b90279a* output, Helper* helper);
-void emit_Function(__type_838711075b90279a* output, Helper* helper, bool split);
-void emit_SplitMacros(__type_838711075b90279a* output, Slice helpers, String* marker);
+void emit_Marker(__type_131eebaaeb761e42* output, String* current, String name);
+void emit_Prototype(__type_131eebaaeb761e42* output, Helper* helper);
+void emit_Function(__type_131eebaaeb761e42* output, Helper* helper, bool split);
+void emit_SplitMacros(__type_131eebaaeb761e42* output, Slice helpers, String* marker);
 
 #ifdef __cplusplus
 }

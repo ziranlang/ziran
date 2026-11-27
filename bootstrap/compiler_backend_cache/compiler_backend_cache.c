@@ -39,7 +39,7 @@ static inline uint64_t ZiShrU64(uint64_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-__type_c53c2d7c4913dc02 ProfileNames = {0};
+__type_9f828aa1372cb21a ProfileNames = {0};
 
 HashState
 compiler_backend_cache_HashNew(void)
@@ -213,8 +213,8 @@ compiler_backend_cache_TextName(String value)
 String
 compiler_backend_cache_JoinTemporary(String left, String right)
 {
-    __type_838711075b90279a builder = {0};
-    __type_838711075b90279a* value_0 = &builder;
+    __type_131eebaaeb761e42 builder = {0};
+    __type_131eebaaeb761e42* value_0 = &builder;
     bool value_1 = false;
     if ((left).length == 0) {
         value_1 = true;
@@ -268,8 +268,8 @@ compiler_backend_cache_JoinTemporary(String left, String right)
 String
 compiler_backend_cache_JoinPath(String left, String right)
 {
-    __type_838711075b90279a builder = {0};
-    __type_838711075b90279a* value_0 = &builder;
+    __type_131eebaaeb761e42 builder = {0};
+    __type_131eebaaeb761e42* value_0 = &builder;
     bool value_1 = false;
     if ((left).length == 0) {
         value_1 = true;
@@ -351,7 +351,7 @@ compiler_backend_cache_JoinPath(String left, String right)
 }
 
 bool
-compiler_backend_cache_AppendOwned(__type_c53c2d7c4913dc02* values, String value)
+compiler_backend_cache_AppendOwned(__type_9f828aa1372cb21a* values, String value)
 {
     String owned = compiler_backend_cache_Owned(value);
     if ((int64_t)(owned).length == 0LL && (int64_t)(value).length != 0LL) {
@@ -373,18 +373,18 @@ compiler_backend_cache_AppendOwned(__type_c53c2d7c4913dc02* values, String value
 }
 
 void
-compiler_backend_cache_ClearNames(__type_c53c2d7c4913dc02* values)
+compiler_backend_cache_ClearNames(__type_9f828aa1372cb21a* values)
 {
-    __type_c53c2d7c4913dc02 owned = {0};
-    __type_c53c2d7c4913dc02* value_0 = &owned;
-    __type_c53c2d7c4913dc02 value_1 = owned;
+    __type_9f828aa1372cb21a owned = {0};
+    __type_9f828aa1372cb21a* value_0 = &owned;
+    __type_9f828aa1372cb21a value_1 = owned;
     owned = (*(values));
     (*(values)) = value_1;
     for (int64_t it_index = 0LL; it_index < owned.count; it_index++) {
         String value = (owned).data[it_index];
         compiler_backend_cache_Release(value);
     }
-    __type_c53c2d7c4913dc02 value_2 = owned;
+    __type_9f828aa1372cb21a value_2 = owned;
     owned = (*(values));
     (*(values)) = value_2;
     free(((*(values))).data);
@@ -418,8 +418,8 @@ compiler_backend_cache_Executable(String command)
         value_3 = search;
     }
     String paths = value_3;
-    __type_c53c2d7c4913dc02 pieces = text_tools_TextSplit(paths, StringLiteral(":"));
-    __type_c53c2d7c4913dc02* value_4 = &pieces;
+    __type_9f828aa1372cb21a pieces = text_tools_TextSplit(paths, StringLiteral(":"));
+    __type_9f828aa1372cb21a* value_4 = &pieces;
     String result = StringLiteral("");
     for (int64_t it_index = 0LL; it_index < pieces.count; it_index++) {
         String piece = (pieces).data[it_index];
@@ -487,8 +487,8 @@ compiler_backend_cache_Resolved(String path)
 bool
 compiler_backend_cache_NativeImage(String path)
 {
-    __type_838711075b90279a bytes = {0};
-    __type_838711075b90279a* value_0 = &bytes;
+    __type_131eebaaeb761e42 bytes = {0};
+    __type_131eebaaeb761e42* value_0 = &bytes;
     bool value_1 = file_ReadFileInto(path, &(bytes));
     if (!value_1 || bytes.count < 4LL) {
         free((bytes).data);
@@ -1144,7 +1144,7 @@ compiler_backend_cache_UnsafeText(String text)
 }
 
 bool
-compiler_backend_cache_ProbeNames(String text, __type_c53c2d7c4913dc02* names)
+compiler_backend_cache_ProbeNames(String text, __type_9f828aa1372cb21a* names)
 {
     int64_t at = text_tools_TextFind(text, StringLiteral("__has_include"), 0LL);
     while (at >= 0LL) {
@@ -1177,8 +1177,8 @@ compiler_backend_cache_FileDigest(BuildCache* cache, String path)
     if (value_0 && file_tree_linux_SameFileSnapshot(((cache->files).data[found]).info, before)) {
         return found;
     }
-    __type_838711075b90279a bytes = {0};
-    __type_838711075b90279a* value_1 = &bytes;
+    __type_131eebaaeb761e42 bytes = {0};
+    __type_131eebaaeb761e42* value_1 = &bytes;
     bool value_2 = file_ReadFileInto(path, &(bytes));
     if (!value_2) {
         free((bytes).data);
@@ -1208,8 +1208,8 @@ compiler_backend_cache_FileDigest(BuildCache* cache, String path)
     if (!unsafe) {
         unsafe = compiler_backend_cache_UnsafeText(text);
     }
-    __type_c53c2d7c4913dc02 probes = {0};
-    __type_c53c2d7c4913dc02* value_6 = &probes;
+    __type_9f828aa1372cb21a probes = {0};
+    __type_9f828aa1372cb21a* value_6 = &probes;
     String value_7 = StringLiteral("__has_include");
     bool value_8 = false;
     {
@@ -1277,7 +1277,7 @@ compiler_backend_cache_FileDigest(BuildCache* cache, String path)
     } else {
         compiler_backend_cache_ClearNames(&((ZIRAN_VEC_INDEX((cache->files).data, (cache->files).count, found)).probes));
     }
-    __type_c53c2d7c4913dc02 value_17 = probes;
+    __type_9f828aa1372cb21a value_17 = probes;
     probes = (ZIRAN_VEC_INDEX((cache->files).data, (cache->files).count, found)).probes;
     (ZIRAN_VEC_INDEX((cache->files).data, (cache->files).count, found)).probes = value_17;
     PathInfo* value_18 = &((ZIRAN_VEC_INDEX((cache->files).data, (cache->files).count, found)).info);
@@ -1481,7 +1481,7 @@ compiler_backend_cache_SpellingDigest(BuildCache* cache, String spelling, String
 }
 
 bool
-compiler_backend_cache_EnvironmentEntries(Slice bytes, __type_c53c2d7c4913dc02* entries)
+compiler_backend_cache_EnvironmentEntries(Slice bytes, __type_9f828aa1372cb21a* entries)
 {
     int64_t start = 0LL;
     {
@@ -1588,8 +1588,8 @@ compiler_backend_cache_CompilerEnvironment(String entry)
 bool
 compiler_backend_cache_HashEnvironment(HashState* hash)
 {
-    __type_838711075b90279a bytes = {0};
-    __type_838711075b90279a* value_0 = &bytes;
+    __type_131eebaaeb761e42 bytes = {0};
+    __type_131eebaaeb761e42* value_0 = &bytes;
     bool value_1 = file_ReadFileInto(StringLiteral("/proc/self/environ"), &(bytes));
     if (!value_1) {
         free((bytes).data);
@@ -1603,8 +1603,8 @@ compiler_backend_cache_HashEnvironment(HashState* hash)
         (*value_0).count = 0;
         return value_2;
     }
-    __type_c53c2d7c4913dc02 entries = {0};
-    __type_c53c2d7c4913dc02* value_3 = &entries;
+    __type_9f828aa1372cb21a entries = {0};
+    __type_9f828aa1372cb21a* value_3 = &entries;
     Slice value_4 = {(bytes).data, (bytes).count};
     bool ok = compiler_backend_cache_EnvironmentEntries(SliceRangeAt(value_4, 0LL, bytes.count, sizeof(*(bytes).data)), &(entries));
     if (ok) {
@@ -1646,11 +1646,11 @@ compiler_backend_cache_HashEnvironment(HashState* hash)
     return value_8;
 }
 
-__type_838711075b90279a
+__type_131eebaaeb761e42
 compiler_backend_cache_Probe(Slice arguments, bool piped)
 {
-    __type_c53c2d7c4913dc02 command = {0};
-    __type_c53c2d7c4913dc02* value_0 = &command;
+    __type_9f828aa1372cb21a command = {0};
+    __type_9f828aa1372cb21a* value_0 = &command;
     for (int64_t it_index = 0LL; it_index < (int64_t)(arguments).length; it_index++) {
         String value = ((String *)arguments.data)[it_index];
         String value_1 = value;
@@ -1742,8 +1742,8 @@ compiler_backend_cache_Probe(Slice arguments, bool piped)
         value_28 = true;
     }
     (void)value_28;
-    __type_838711075b90279a result = {0};
-    __type_838711075b90279a* value_30 = &result;
+    __type_131eebaaeb761e42 result = {0};
+    __type_131eebaaeb761e42* value_30 = &result;
     ProcessOptions value_31 = {0};
     Slice value_32 = {(command).data, (command).count};
     value_31.arguments = SliceRangeAt(value_32, 0LL, command.count, sizeof(*(command).data));
@@ -1794,7 +1794,7 @@ compiler_backend_cache_Probe(Slice arguments, bool piped)
         (result).data = NULL;
         result.capacity = 0;
         result.count = 0;
-        __type_838711075b90279a value_39 = (__type_838711075b90279a){0};
+        __type_131eebaaeb761e42 value_39 = (__type_131eebaaeb761e42){0};
         free((run).output.data);
         (run).output.data = NULL;
         (run).output.capacity = 0;
@@ -1816,7 +1816,7 @@ compiler_backend_cache_Probe(Slice arguments, bool piped)
             (result).data = NULL;
             result.capacity = 0;
             result.count = 0;
-            __type_838711075b90279a value_40 = (__type_838711075b90279a){0};
+            __type_131eebaaeb761e42 value_40 = (__type_131eebaaeb761e42){0};
             free((run).output.data);
             (run).output.data = NULL;
             (run).output.capacity = 0;
@@ -1832,11 +1832,11 @@ compiler_backend_cache_Probe(Slice arguments, bool piped)
             return value_40;
         }
     }
-    __type_838711075b90279a value_41 = result;
+    __type_131eebaaeb761e42 value_41 = result;
     result.data = NULL;
     result.capacity = 0;
     result.count = 0;
-    __type_838711075b90279a value_42 = value_41;
+    __type_131eebaaeb761e42 value_42 = value_41;
     free((run).output.data);
     (run).output.data = NULL;
     (run).output.capacity = 0;
@@ -1855,8 +1855,8 @@ compiler_backend_cache_Probe(Slice arguments, bool piped)
 bool
 compiler_backend_cache_HashProbeOutput(HashState* hash, String text)
 {
-    __type_c53c2d7c4913dc02 lines = text_tools_TextLines(text);
-    __type_c53c2d7c4913dc02* value_0 = &lines;
+    __type_9f828aa1372cb21a lines = text_tools_TextLines(text);
+    __type_9f828aa1372cb21a* value_0 = &lines;
     if (lines.count == 0LL || lines.count > 16384LL) {
         free((lines).data);
         (lines).data = NULL;
@@ -1911,7 +1911,7 @@ compiler_backend_cache_HashProbeOutput(HashState* hash, String text)
 }
 
 bool
-compiler_backend_cache_JoinProbeVersions(__type_c53c2d7c4913dc02* lines)
+compiler_backend_cache_JoinProbeVersions(__type_9f828aa1372cb21a* lines)
 {
     String prefix = StringLiteral("\tcompiled by GNU C version ");
     String checksum_label = StringLiteral("Compiler executable checksum: ");
@@ -2051,8 +2051,8 @@ compiler_backend_cache_JoinProbeVersions(__type_c53c2d7c4913dc02* lines)
                 }
             }
             (void)value_9;
-            __type_c53c2d7c4913dc02 merged = {0};
-            __type_c53c2d7c4913dc02* value_11 = &merged;
+            __type_9f828aa1372cb21a merged = {0};
+            __type_9f828aa1372cb21a* value_11 = &merged;
             Text value_12 = rebuilt;
             (rebuilt).bytes.data = NULL;
             (rebuilt).bytes.capacity = 0;
@@ -2081,13 +2081,13 @@ compiler_backend_cache_JoinProbeVersions(__type_c53c2d7c4913dc02* lines)
                 value_20 = true;
             }
             (void)value_20;
-            __type_c53c2d7c4913dc02 tail = {0};
-            __type_c53c2d7c4913dc02* value_22 = &tail;
-            __type_c53c2d7c4913dc02 value_23 = merged;
+            __type_9f828aa1372cb21a tail = {0};
+            __type_9f828aa1372cb21a* value_22 = &tail;
+            __type_9f828aa1372cb21a value_23 = merged;
             merged = tail;
             tail = value_23;
-            __type_c53c2d7c4913dc02 head = {0};
-            __type_c53c2d7c4913dc02* value_24 = &head;
+            __type_9f828aa1372cb21a head = {0};
+            __type_9f828aa1372cb21a* value_24 = &head;
             {
                 int64_t range_first_66 = 0LL;
                 int64_t range_last_66 = (int64_t)((uint64_t)index - UINT64_C(1));
@@ -2146,7 +2146,7 @@ compiler_backend_cache_JoinProbeVersions(__type_c53c2d7c4913dc02* lines)
                     at = (int64_t)((uint64_t)at + UINT64_C(1));
                 }
             }
-            __type_c53c2d7c4913dc02 value_37 = head;
+            __type_9f828aa1372cb21a value_37 = head;
             head = (*(lines));
             (*(lines)) = value_37;
             free((head).data);
@@ -2345,8 +2345,8 @@ compiler_backend_cache_Open(Slice arguments, String output, String executable)
         compiler_backend_cache_HashInteger(hash, (uint64_t)(info.changed_nanoseconds));
     }
     compiler_backend_cache_Release(compiler);
-    __type_838711075b90279a probe = compiler_backend_cache_Probe(arguments, piped);
-    __type_838711075b90279a* value_27 = &probe;
+    __type_131eebaaeb761e42 probe = compiler_backend_cache_Probe(arguments, piped);
+    __type_131eebaaeb761e42* value_27 = &probe;
     Slice value_28 = {(probe).data, (probe).count};
     Slice value_29 = SliceRangeAt(value_28, 0LL, probe.count, sizeof(*(probe).data));
     String probe_text = StringView((const char *)(value_29).data, (size_t)(value_29).length);
@@ -2455,14 +2455,14 @@ compiler_backend_cache_ToolFromLine(String line)
 bool
 compiler_backend_cache_ParseProbe(BuildCache* cache, HashState* hash, String text, bool piped)
 {
-    __type_c53c2d7c4913dc02 programs = {0};
-    __type_c53c2d7c4913dc02* value_0 = &programs;
+    __type_9f828aa1372cb21a programs = {0};
+    __type_9f828aa1372cb21a* value_0 = &programs;
     bool searching = false;
     bool ended = false;
     int64_t tools = 0LL;
     bool ok = true;
-    __type_c53c2d7c4913dc02 lines = text_tools_TextLines(text);
-    __type_c53c2d7c4913dc02* value_1 = &lines;
+    __type_9f828aa1372cb21a lines = text_tools_TextLines(text);
+    __type_9f828aa1372cb21a* value_1 = &lines;
     for (int64_t it_index = 0LL; it_index < lines.count; it_index++) {
         String line = (lines).data[it_index];
         if (!ok) {
@@ -2738,8 +2738,8 @@ compiler_backend_cache_ParseProbe(BuildCache* cache, HashState* hash, String tex
         }
     }
     compiler_backend_cache_ClearNames(&(programs));
-    __type_c53c2d7c4913dc02 resolved_roots = {0};
-    __type_c53c2d7c4913dc02* value_50 = &resolved_roots;
+    __type_9f828aa1372cb21a resolved_roots = {0};
+    __type_9f828aa1372cb21a* value_50 = &resolved_roots;
     {
         Slice value_51 = {(cache->roots).data, (cache->roots).count};
         Slice value_52 = SliceRangeAt(value_51, 0LL, cache->roots.count, sizeof(*(cache->roots).data));
@@ -2794,7 +2794,7 @@ compiler_backend_cache_ParseProbe(BuildCache* cache, HashState* hash, String tex
             loop_cursor_123 = (int64_t)((uint64_t)loop_cursor_123 + UINT64_C(1));
         }
     }
-    __type_c53c2d7c4913dc02 value_57 = resolved_roots;
+    __type_9f828aa1372cb21a value_57 = resolved_roots;
     resolved_roots = cache->roots;
     cache->roots = value_57;
     free((resolved_roots).data);
@@ -2818,7 +2818,7 @@ compiler_backend_cache_ParseProbe(BuildCache* cache, HashState* hash, String tex
 }
 
 bool
-compiler_backend_cache_SpellingKey(BuildCache* cache, HashState* hash, String spelling, __type_c53c2d7c4913dc02* parents, bool* recordable)
+compiler_backend_cache_SpellingKey(BuildCache* cache, HashState* hash, String spelling, __type_9f828aa1372cb21a* parents, bool* recordable)
 {
     int64_t item = compiler_backend_cache_SpellingDigest(cache, spelling, StringLiteral(""));
     if (item < 0LL) {
@@ -2832,16 +2832,16 @@ compiler_backend_cache_SpellingKey(BuildCache* cache, HashState* hash, String sp
         bool* value_3 = &((*(recordable)));
         (*value_3) = false;
     }
-    __type_c53c2d7c4913dc02 parent_values = {0};
-    __type_c53c2d7c4913dc02* value_4 = &parent_values;
-    __type_c53c2d7c4913dc02 value_5 = parent_values;
+    __type_9f828aa1372cb21a parent_values = {0};
+    __type_9f828aa1372cb21a* value_4 = &parent_values;
+    __type_9f828aa1372cb21a value_5 = parent_values;
     parent_values = (*(parents));
     (*(parents)) = value_5;
     for (int64_t it_index = 0LL; it_index < parent_values.count; it_index++) {
         String parent = (parent_values).data[it_index];
         int64_t item = compiler_backend_cache_SpellingDigest(cache, spelling, parent);
         if (item < 0LL) {
-            __type_c53c2d7c4913dc02 value_6 = parent_values;
+            __type_9f828aa1372cb21a value_6 = parent_values;
             parent_values = (*(parents));
             (*(parents)) = value_6;
             bool value_7 = false;
@@ -2860,7 +2860,7 @@ compiler_backend_cache_SpellingKey(BuildCache* cache, HashState* hash, String sp
             (*value_11) = false;
         }
     }
-    __type_c53c2d7c4913dc02 value_12 = parent_values;
+    __type_9f828aa1372cb21a value_12 = parent_values;
     parent_values = (*(parents));
     (*(parents)) = value_12;
     bool value_13 = true;
@@ -2872,13 +2872,13 @@ compiler_backend_cache_SpellingKey(BuildCache* cache, HashState* hash, String sp
 }
 
 bool
-compiler_backend_cache_LookupDigest(BuildCache* cache, __type_c53c2d7c4913dc02* dependencies, Digest* output, bool recording)
+compiler_backend_cache_LookupDigest(BuildCache* cache, __type_9f828aa1372cb21a* dependencies, Digest* output, bool recording)
 {
-    __type_c53c2d7c4913dc02 parents = {0};
-    __type_c53c2d7c4913dc02* value_0 = &parents;
-    __type_c53c2d7c4913dc02 pending = {0};
-    __type_c53c2d7c4913dc02* value_1 = &pending;
-    __type_c53c2d7c4913dc02 value_2 = pending;
+    __type_9f828aa1372cb21a parents = {0};
+    __type_9f828aa1372cb21a* value_0 = &parents;
+    __type_9f828aa1372cb21a pending = {0};
+    __type_9f828aa1372cb21a* value_1 = &pending;
+    __type_9f828aa1372cb21a value_2 = pending;
     pending = (*(dependencies));
     (*(dependencies)) = value_2;
     HashState hash = compiler_backend_cache_HashNew();
@@ -2960,7 +2960,7 @@ compiler_backend_cache_LookupDigest(BuildCache* cache, __type_c53c2d7c4913dc02* 
             }
         }
     }
-    __type_c53c2d7c4913dc02 value_16 = pending;
+    __type_9f828aa1372cb21a value_16 = pending;
     pending = (*(dependencies));
     (*(dependencies)) = value_16;
     compiler_backend_cache_ClearNames(&(parents));
@@ -2980,14 +2980,14 @@ compiler_backend_cache_LookupDigest(BuildCache* cache, __type_c53c2d7c4913dc02* 
 }
 
 bool
-compiler_backend_cache_ReadDependencies(String object, __type_c53c2d7c4913dc02* dependencies)
+compiler_backend_cache_ReadDependencies(String object, __type_9f828aa1372cb21a* dependencies)
 {
     String path = compiler_backend_cache_JoinTemporary(object, StringLiteral(".d"));
     if ((int64_t)(path).length == 0LL) {
         return false;
     }
-    __type_838711075b90279a bytes = {0};
-    __type_838711075b90279a* value_0 = &bytes;
+    __type_131eebaaeb761e42 bytes = {0};
+    __type_131eebaaeb761e42* value_0 = &bytes;
     bool value_1 = file_ReadFileInto(path, &(bytes));
     if (!value_1) {
         free((bytes).data);
@@ -3026,8 +3026,8 @@ compiler_backend_cache_ReadDependencies(String object, __type_c53c2d7c4913dc02* 
         return value_5;
     }
     int64_t at = (int64_t)((uint64_t)colon + UINT64_C(1));
-    __type_838711075b90279a word = {0};
-    __type_838711075b90279a* value_6 = &word;
+    __type_131eebaaeb761e42 word = {0};
+    __type_131eebaaeb761e42* value_6 = &word;
     bool ok = true;
     while (at <= (int64_t)(text).length) {
         uint8_t value_7 = 0;
@@ -3217,8 +3217,8 @@ compiler_backend_cache_Hit(BuildCache* cache, String object)
     if ((int64_t)(path).length == 0LL) {
         return false;
     }
-    __type_838711075b90279a bytes = {0};
-    __type_838711075b90279a* value_0 = &bytes;
+    __type_131eebaaeb761e42 bytes = {0};
+    __type_131eebaaeb761e42* value_0 = &bytes;
     bool value_1 = file_ReadFileInto(path, &(bytes));
     if (!value_1) {
         free((bytes).data);
@@ -3285,8 +3285,8 @@ compiler_backend_cache_Hit(BuildCache* cache, String object)
     if (ok) {
         ok = compiler_backend_cache_SameDigest(identity, cache->identity);
     }
-    __type_c53c2d7c4913dc02 dependencies = {0};
-    __type_c53c2d7c4913dc02* value_17 = &dependencies;
+    __type_9f828aa1372cb21a dependencies = {0};
+    __type_9f828aa1372cb21a* value_17 = &dependencies;
     if (ok) {
         int64_t compiled = compiler_backend_cache_FileDigest(cache, object);
         bool value_18 = compiled < 0LL;
@@ -3385,7 +3385,7 @@ compiler_backend_cache_Hit(BuildCache* cache, String object)
 }
 
 bool
-compiler_backend_cache_AppendBytes(__type_838711075b90279a* output, Slice bytes)
+compiler_backend_cache_AppendBytes(__type_131eebaaeb761e42* output, Slice bytes)
 {
     for (int64_t it_index = 0LL; it_index < (int64_t)(bytes).length; it_index++) {
         uint8_t byte = ((uint8_t *)bytes.data)[it_index];
@@ -3405,7 +3405,7 @@ compiler_backend_cache_AppendBytes(__type_838711075b90279a* output, Slice bytes)
 }
 
 bool
-compiler_backend_cache_AppendText(__type_838711075b90279a* output, String value)
+compiler_backend_cache_AppendText(__type_131eebaaeb761e42* output, String value)
 {
     for (int64_t it_index = 0LL; it_index < (int64_t)(value).length; it_index++) {
         uint8_t byte = (uint8_t)value.data[it_index];
@@ -3425,14 +3425,14 @@ compiler_backend_cache_AppendText(__type_838711075b90279a* output, String value)
 }
 
 bool
-compiler_backend_cache_AppendDigest(__type_838711075b90279a* output, Digest value)
+compiler_backend_cache_AppendDigest(__type_131eebaaeb761e42* output, Digest value)
 {
     Slice value_0 = {value.bytes, 32};
     return compiler_backend_cache_AppendBytes(output, value_0);
 }
 
 bool
-compiler_backend_cache_AppendCount(__type_838711075b90279a* output, uint32_t value)
+compiler_backend_cache_AppendCount(__type_131eebaaeb761e42* output, uint32_t value)
 {
     uint8_t bytes[4];
     for (int64_t index = 0LL; index <= 3LL; index++) {
@@ -3445,7 +3445,7 @@ compiler_backend_cache_AppendCount(__type_838711075b90279a* output, uint32_t val
 }
 
 bool
-compiler_backend_cache_AppendNumber(__type_838711075b90279a* output, int64_t value)
+compiler_backend_cache_AppendNumber(__type_131eebaaeb761e42* output, int64_t value)
 {
     if (value == 0LL) {
         uint8_t value_0 = 48;
@@ -3474,8 +3474,8 @@ compiler_backend_cache_AppendNumber(__type_838711075b90279a* output, int64_t val
 String
 compiler_backend_cache_TemporaryInputPath(String object, int64_t attempt)
 {
-    __type_838711075b90279a bytes = {0};
-    __type_838711075b90279a* value_0 = &bytes;
+    __type_131eebaaeb761e42 bytes = {0};
+    __type_131eebaaeb761e42* value_0 = &bytes;
     bool value_1 = compiler_backend_cache_AppendText(&(bytes), object);
     bool value_2 = !value_1;
     if (!value_2) {
@@ -3516,8 +3516,8 @@ compiler_backend_cache_Record(BuildCache* cache, String object, String source)
     if (value_0 || (int64_t)(source).length >= 4096LL) {
         return;
     }
-    __type_c53c2d7c4913dc02 dependencies = {0};
-    __type_c53c2d7c4913dc02* value_1 = &dependencies;
+    __type_9f828aa1372cb21a dependencies = {0};
+    __type_9f828aa1372cb21a* value_1 = &dependencies;
     bool value_2 = compiler_backend_cache_ReadDependencies(object, &(dependencies));
     if (!value_2) {
         compiler_backend_cache_ClearNames(&(dependencies));
@@ -3660,8 +3660,8 @@ compiler_backend_cache_Record(BuildCache* cache, String object, String source)
         (*value_1).count = 0;
         return;
     }
-    __type_838711075b90279a bytes = {0};
-    __type_838711075b90279a* value_32 = &bytes;
+    __type_131eebaaeb761e42 bytes = {0};
+    __type_131eebaaeb761e42* value_32 = &bytes;
     bool value_33 = compiler_backend_cache_AppendText(&(bytes), StringLiteral("Ziran C cache 1\n"));
     bool value_34 = !value_33;
     if (!value_34) {
@@ -3861,11 +3861,11 @@ compiler_backend_cache_Record(BuildCache* cache, String object, String source)
 }
 
 void
-compiler_backend_cache_ReleaseFingerprints(__type_d5737c4838766181* values)
+compiler_backend_cache_ReleaseFingerprints(__type_c555612ad40905fa* values)
 {
-    __type_d5737c4838766181 owned = {0};
-    __type_d5737c4838766181* value_0 = &owned;
-    __type_d5737c4838766181 value_1 = owned;
+    __type_c555612ad40905fa owned = {0};
+    __type_c555612ad40905fa* value_0 = &owned;
+    __type_c555612ad40905fa value_1 = owned;
     owned = (*(values));
     (*(values)) = value_1;
     {
@@ -3878,7 +3878,7 @@ compiler_backend_cache_ReleaseFingerprints(__type_d5737c4838766181* values)
             it_index = (int64_t)((uint64_t)it_index + UINT64_C(1));
         }
     }
-    __type_d5737c4838766181 value_2 = owned;
+    __type_c555612ad40905fa value_2 = owned;
     owned = (*(values));
     (*(values)) = value_2;
     for (int64_t value_3 = 0; value_3 < ((*(values))).count; ++value_3) {

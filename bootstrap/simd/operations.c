@@ -6,12 +6,12 @@
 #include "model.h"
 #include "text_tools.h"
 
-__type_c53c2d7c4913dc02
+__type_9f828aa1372cb21a
 operations_Operations(void)
 {
     String names[62] = {StringLiteral("add"), StringLiteral("sub"), StringLiteral("mul"), StringLiteral("div"), StringLiteral("add_sat"), StringLiteral("sub_sat"), StringLiteral("min"), StringLiteral("max"), StringLiteral("avg"), StringLiteral("mul_high"), StringLiteral("mul_high_round"), StringLiteral("and"), StringLiteral("or"), StringLiteral("xor"), StringLiteral("and_not"), StringLiteral("not"), StringLiteral("abs"), StringLiteral("neg"), StringLiteral("sign"), StringLiteral("abs_diff"), StringLiteral("eq"), StringLiteral("lt"), StringLiteral("gt"), StringLiteral("select"), StringLiteral("shl"), StringLiteral("shr"), StringLiteral("shr_round"), StringLiteral("shl_lanes"), StringLiteral("shr_lanes"), StringLiteral("make"), StringLiteral("splat"), StringLiteral("zero"), StringLiteral("lane"), StringLiteral("with_lane"), StringLiteral("load"), StringLiteral("load_low"), StringLiteral("store"), StringLiteral("store_low"), StringLiteral("gather"), StringLiteral("widen_low"), StringLiteral("widen_high"), StringLiteral("widen"), StringLiteral("narrow"), StringLiteral("mul_wide_low"), StringLiteral("mul_wide_high"), StringLiteral("madd"), StringLiteral("madd_sat"), StringLiteral("add_pairs"), StringLiteral("sad"), StringLiteral("reduce_add"), StringLiteral("reduce_min"), StringLiteral("reduce_max"), StringLiteral("reduce_max_index"), StringLiteral("all_zero"), StringLiteral("byte_shuffle"), StringLiteral("reinterpret"), StringLiteral("convert"), StringLiteral("low"), StringLiteral("high"), StringLiteral("combine"), StringLiteral("interleave_low"), StringLiteral("interleave_high")};
-    __type_c53c2d7c4913dc02 result = {0};
-    __type_c53c2d7c4913dc02* value_0 = &result;
+    __type_9f828aa1372cb21a result = {0};
+    __type_9f828aa1372cb21a* value_0 = &result;
     for (int64_t it_index = 0LL; it_index < 62; it_index++) {
         String name = (names)[it_index];
         String value_1 = name;
@@ -24,11 +24,11 @@ operations_Operations(void)
         }
         (void)value_2;
     }
-    __type_c53c2d7c4913dc02 value_4 = result;
+    __type_9f828aa1372cb21a value_4 = result;
     result.data = NULL;
     result.capacity = 0;
     result.count = 0;
-    __type_c53c2d7c4913dc02 value_5 = value_4;
+    __type_9f828aa1372cb21a value_5 = value_4;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;
@@ -357,8 +357,8 @@ operations_SelectBits(VectorType t, String mask, String yes, String no)
 String
 operations_EvenOdd(VectorType t, String name, bool odd)
 {
-    __type_838711075b90279a indices = {0};
-    __type_838711075b90279a* value_0 = &indices;
+    __type_131eebaaeb761e42 indices = {0};
+    __type_131eebaaeb761e42* value_0 = &indices;
     {
         int32_t range_first_1 = 0;
         int32_t range_last_1 = (int32_t)((uint32_t)((t.lanes / 2)) - 1u);
@@ -405,7 +405,7 @@ operations_EvenOdd(VectorType t, String name, bool odd)
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    __type_838711075b90279a value_7 = indices;
+    __type_131eebaaeb761e42 value_7 = indices;
     indices.data = NULL;
     indices.capacity = 0;
     indices.count = 0;
@@ -564,8 +564,8 @@ operations_Generic(String op, VectorType t)
         return operations_GenericShift(op, t);
     }
     if (StringEqual(op, StringLiteral("make")) || StringEqual(op, StringLiteral("splat"))) {
-        __type_838711075b90279a lanes = {0};
-        __type_838711075b90279a* value_17 = &lanes;
+        __type_131eebaaeb761e42 lanes = {0};
+        __type_131eebaaeb761e42* value_17 = &lanes;
         {
             int32_t range_first_59 = 0;
             int32_t range_last_59 = (int32_t)((uint32_t)(t.lanes) - 1u);
@@ -613,7 +613,7 @@ operations_Generic(String op, VectorType t)
                 i = (int32_t)((uint32_t)i + 1u);
             }
         }
-        __type_838711075b90279a value_25 = lanes;
+        __type_131eebaaeb761e42 value_25 = lanes;
         lanes.data = NULL;
         lanes.capacity = 0;
         lanes.count = 0;
@@ -646,8 +646,8 @@ operations_Generic(String op, VectorType t)
     }
     bool value_30 = StringEqual(op, StringLiteral("interleave_low")) || StringEqual(op, StringLiteral("interleave_high"));
     if (value_30 || StringEqual(op, StringLiteral("widen_low")) || StringEqual(op, StringLiteral("widen_high"))) {
-        __type_838711075b90279a indices = {0};
-        __type_838711075b90279a* value_31 = &indices;
+        __type_131eebaaeb761e42 indices = {0};
+        __type_131eebaaeb761e42* value_31 = &indices;
         {
             int64_t range_first_81 = 0LL;
             int64_t value_32 = 0;
@@ -732,7 +732,7 @@ operations_Generic(String op, VectorType t)
                 block = (int64_t)((uint64_t)block + UINT64_C(1));
             }
         }
-        __type_838711075b90279a value_46 = indices;
+        __type_131eebaaeb761e42 value_46 = indices;
         indices.data = NULL;
         indices.capacity = 0;
         indices.count = 0;

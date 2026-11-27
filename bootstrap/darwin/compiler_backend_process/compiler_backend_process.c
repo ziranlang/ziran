@@ -15,7 +15,7 @@ static inline int32_t ZiShrS32(int32_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-__type_c53c2d7c4913dc02 zir_g_ebee27c61794d0ae = {0};
+__type_9f828aa1372cb21a zir_g_ebee27c61794d0ae = {0};
 
 int32_t
 compiler_backend_process_WorkerLimit(void)
@@ -116,11 +116,11 @@ compiler_backend_process_BuildLock(String directory)
 }
 
 void
-compiler_backend_process_ReleasePointerVector(__type_21092c8252d3dcaa* values)
+compiler_backend_process_ReleasePointerVector(__type_6897586eed124d12* values)
 {
-    __type_21092c8252d3dcaa owned = {0};
-    __type_21092c8252d3dcaa* value_0 = &owned;
-    __type_21092c8252d3dcaa value_1 = owned;
+    __type_6897586eed124d12 owned = {0};
+    __type_6897586eed124d12* value_0 = &owned;
+    __type_6897586eed124d12 value_1 = owned;
     owned = (*(values));
     (*(values)) = value_1;
     for (int64_t it_index = 0LL; it_index < owned.count; it_index++) {
@@ -145,15 +145,15 @@ compiler_backend_process_StartJob(Slice commands, bool capture, bool report_erro
     (*value_0) = -1;
     int32_t* value_1 = &(result.descriptor);
     (*value_1) = -1;
-    __type_21092c8252d3dcaa pointers = {0};
-    __type_21092c8252d3dcaa* value_2 = &pointers;
+    __type_6897586eed124d12 pointers = {0};
+    __type_6897586eed124d12* value_2 = &pointers;
     bool value_3 = (int64_t)(commands).length == 0LL || (int64_t)(commands).length > 1023LL;
     if (!value_3) {
         bool value_4 = compiler_backend_process_PrepareArguments(commands, &(pointers));
         value_3 = !value_4;
     }
     if (value_3) {
-        __type_21092c8252d3dcaa value_5 = pointers;
+        __type_6897586eed124d12 value_5 = pointers;
         pointers.data = NULL;
         pointers.capacity = 0;
         pointers.count = 0;
@@ -175,7 +175,7 @@ compiler_backend_process_StartJob(Slice commands, bool capture, bool report_erro
     }
     int32_t pipes[2] = {-1, -1};
     if (capture && zir_foreign_compiler_backend_process__PipeRaw(&(pipes[0])) != 0) {
-        __type_21092c8252d3dcaa value_8 = pointers;
+        __type_6897586eed124d12 value_8 = pointers;
         pointers.data = NULL;
         pointers.capacity = 0;
         pointers.count = 0;
@@ -234,7 +234,7 @@ compiler_backend_process_StartJob(Slice commands, bool capture, bool report_erro
     if (capture) {
         zir_foreign_compiler_backend_process__CloseDescriptor((pipes)[1]);
     }
-    __type_21092c8252d3dcaa value_13 = pointers;
+    __type_6897586eed124d12 value_13 = pointers;
     pointers.data = NULL;
     pointers.capacity = 0;
     pointers.count = 0;
@@ -381,8 +381,8 @@ compiler_backend_process_PathName(String value)
 compiler_backend_process_Results__string__bool
 compiler_backend_process_PathJoin(String left, String right)
 {
-    __type_838711075b90279a bytes = {0};
-    __type_838711075b90279a* value_2 = &bytes;
+    __type_131eebaaeb761e42 bytes = {0};
+    __type_131eebaaeb761e42* value_2 = &bytes;
     bool value_3 = false;
     if ((left).length == 0) {
         value_3 = true;
@@ -471,8 +471,8 @@ compiler_backend_process_PathJoin(String left, String right)
 compiler_backend_process_Results__string__bool
 compiler_backend_process_PathSuffix(String value, String suffix)
 {
-    __type_838711075b90279a bytes = {0};
-    __type_838711075b90279a* value_2 = &bytes;
+    __type_131eebaaeb761e42 bytes = {0};
+    __type_131eebaaeb761e42* value_2 = &bytes;
     bool value_3 = false;
     if ((value).length == 0) {
         value_3 = true;
@@ -584,9 +584,9 @@ compiler_backend_process_CText(uint8_t* value)
 }
 
 void
-compiler_backend_process_FreePointers(__type_21092c8252d3dcaa values)
+compiler_backend_process_FreePointers(__type_6897586eed124d12 values)
 {
-    __type_21092c8252d3dcaa* value_0 = &values;
+    __type_6897586eed124d12* value_0 = &values;
     {
         Slice value_1 = {(values).data, (values).count};
         Slice value_2 = SliceRangeAt(value_1, 0LL, values.count, sizeof(*(values).data));
@@ -611,7 +611,7 @@ compiler_backend_process_FreePointers(__type_21092c8252d3dcaa values)
 }
 
 bool
-compiler_backend_process_PrepareArguments(Slice arguments, __type_21092c8252d3dcaa* pointers)
+compiler_backend_process_PrepareArguments(Slice arguments, __type_6897586eed124d12* pointers)
 {
     for (int64_t it_index = 0LL; it_index < (int64_t)(arguments).length; it_index++) {
         String argument = ((String *)arguments.data)[it_index];
@@ -645,7 +645,7 @@ compiler_backend_process_PrepareArguments(Slice arguments, __type_21092c8252d3dc
 }
 
 bool
-compiler_backend_process_WordsInto(String value, __type_21092c8252d3dcaa* output)
+compiler_backend_process_WordsInto(String value, __type_6897586eed124d12* output)
 {
     int64_t start = -1LL;
     int64_t at = 0LL;
@@ -680,7 +680,7 @@ compiler_backend_process_WordsInto(String value, __type_21092c8252d3dcaa* output
 }
 
 bool
-compiler_backend_process_EnvironmentWords(String name, __type_21092c8252d3dcaa* output)
+compiler_backend_process_EnvironmentWords(String name, __type_6897586eed124d12* output)
 {
     String value = environment_linux_EnvironmentText(name);
     return compiler_backend_process_WordsInto(value, output);
@@ -794,7 +794,7 @@ compiler_backend_process_ReadMapBytes(uint8_t* path, int64_t* length)
 }
 
 bool
-compiler_backend_process_AppendIncludedLinks(__type_21092c8252d3dcaa* files, __type_21092c8252d3dcaa* tail)
+compiler_backend_process_AppendIncludedLinks(__type_6897586eed124d12* files, __type_6897586eed124d12* tail)
 {
     String path = environment_linux_EnvironmentText(StringLiteral("ZIRAN_PACKAGE_LINKS"));
     if ((int64_t)(path).length == 0LL) {
@@ -829,10 +829,10 @@ compiler_backend_process_AppendIncludedLinks(__type_21092c8252d3dcaa* files, __t
     value_2: ;
     }
     String map = value_1;
-    __type_977f1aa2b1338c92 owners = {0};
-    __type_977f1aa2b1338c92* value_5 = &owners;
-    __type_ed1e6fa4811ab16b links = {0};
-    __type_ed1e6fa4811ab16b* value_6 = &links;
+    __type_791f4dbda1b77cfe owners = {0};
+    __type_791f4dbda1b77cfe* value_5 = &owners;
+    __type_32a8006a7b472f5f links = {0};
+    __type_32a8006a7b472f5f* value_6 = &links;
     int64_t at = 0LL;
     while (at < (int64_t)(map).length) {
         int64_t end = at;
@@ -1028,7 +1028,7 @@ compiler_backend_process_AppendIncludedLinks(__type_21092c8252d3dcaa* files, __t
 }
 
 bool
-compiler_backend_process_AddCArgument(__type_21092c8252d3dcaa* output, String flag, String value)
+compiler_backend_process_AddCArgument(__type_6897586eed124d12* output, String flag, String value)
 {
     uint8_t* left = compiler_backend_process_AllocateText(flag);
     bool value_0 = left == ((void *)0);
@@ -1068,7 +1068,7 @@ compiler_backend_process_AddCArgument(__type_21092c8252d3dcaa* output, String fl
 }
 
 bool
-compiler_backend_process_AddSource(__type_21092c8252d3dcaa* files, String path)
+compiler_backend_process_AddSource(__type_6897586eed124d12* files, String path)
 {
     String value_0 = StringLiteral(".c");
     bool value_1 = false;
@@ -1114,16 +1114,16 @@ compiler_backend_process_AddSource(__type_21092c8252d3dcaa* files, String path)
 bool
 compiler_backend_process_CompileExecutable(String out, String name, bool threads, bool release)
 {
-    __type_21092c8252d3dcaa files = {0};
-    __type_21092c8252d3dcaa* value_0 = &files;
-    __type_21092c8252d3dcaa objects = {0};
-    __type_21092c8252d3dcaa* value_1 = &objects;
-    __type_21092c8252d3dcaa base = {0};
-    __type_21092c8252d3dcaa* value_2 = &base;
-    __type_21092c8252d3dcaa tail = {0};
-    __type_21092c8252d3dcaa* value_3 = &tail;
-    __type_838711075b90279a log = {0};
-    __type_838711075b90279a* value_4 = &log;
+    __type_6897586eed124d12 files = {0};
+    __type_6897586eed124d12* value_0 = &files;
+    __type_6897586eed124d12 objects = {0};
+    __type_6897586eed124d12* value_1 = &objects;
+    __type_6897586eed124d12 base = {0};
+    __type_6897586eed124d12* value_2 = &base;
+    __type_6897586eed124d12 tail = {0};
+    __type_6897586eed124d12* value_3 = &tail;
+    __type_131eebaaeb761e42 log = {0};
+    __type_131eebaaeb761e42* value_4 = &log;
     bool ok = false;
     (void)ok;
     String compiler_name = environment_linux_EnvironmentText(StringLiteral("CC"));
@@ -1226,22 +1226,22 @@ compiler_backend_process_CompileExecutable(String out, String name, bool threads
         }
     }
     String value_19 = StringLiteral("LDFLAGS");
-    __type_21092c8252d3dcaa* value_20 = &(tail);
+    __type_6897586eed124d12* value_20 = &(tail);
     bool value_21 = false;
     {
         String name = value_19;
-        __type_21092c8252d3dcaa* output = value_20;
+        __type_6897586eed124d12* output = value_20;
         String value = environment_linux_EnvironmentText(name);
         value_21 = compiler_backend_process_WordsInto(value, output);
     }
     bool value_23 = !value_21;
     if (!value_23) {
         String value_24 = StringLiteral("LDLIBS");
-        __type_21092c8252d3dcaa* value_25 = &(tail);
+        __type_6897586eed124d12* value_25 = &(tail);
         bool value_26 = false;
         {
             String name = value_24;
-            __type_21092c8252d3dcaa* output = value_25;
+            __type_6897586eed124d12* output = value_25;
             String value = environment_linux_EnvironmentText(name);
             value_26 = compiler_backend_process_WordsInto(value, output);
         }
@@ -1386,7 +1386,7 @@ compiler_backend_process_CompileExecutable(String out, String name, bool threads
 }
 
 bool
-compiler_backend_process_FinishCompile(String out, String name, bool forced_language, __type_21092c8252d3dcaa* base, __type_21092c8252d3dcaa* tail, __type_21092c8252d3dcaa* files, __type_21092c8252d3dcaa* objects, __type_838711075b90279a* log)
+compiler_backend_process_FinishCompile(String out, String name, bool forced_language, __type_6897586eed124d12* base, __type_6897586eed124d12* tail, __type_6897586eed124d12* files, __type_6897586eed124d12* objects, __type_131eebaaeb761e42* log)
 {
     int64_t index = 0LL;
     bool added = false;
@@ -1572,7 +1572,7 @@ compiler_backend_process_ObjectPath(String out, String relative)
 }
 
 void
-compiler_backend_process_SortPaths(__type_21092c8252d3dcaa* values)
+compiler_backend_process_SortPaths(__type_6897586eed124d12* values)
 {
     {
         int64_t range_first_0 = 1LL;
@@ -1669,7 +1669,7 @@ compiler_backend_process_StoreJob(Job* target, Job value)
     (*value_2) = value.finished;
     bool* value_3 = &(target->ok);
     (*value_3) = value.ok;
-    __type_838711075b90279a value_4 = target->output;
+    __type_131eebaaeb761e42 value_4 = target->output;
     target->output = value.output;
     value.output = value_4;
     free((value).output.data);
@@ -1766,10 +1766,10 @@ compiler_backend_process_PollSlots(Slice jobs, Slice slots, bool* failed)
 }
 
 bool
-compiler_backend_process_CompileAndLink(String out, String name, bool forced_language, __type_21092c8252d3dcaa* base, __type_21092c8252d3dcaa* tail, __type_21092c8252d3dcaa* files, __type_21092c8252d3dcaa* objects, __type_838711075b90279a* log)
+compiler_backend_process_CompileAndLink(String out, String name, bool forced_language, __type_6897586eed124d12* base, __type_6897586eed124d12* tail, __type_6897586eed124d12* files, __type_6897586eed124d12* objects, __type_131eebaaeb761e42* log)
 {
-    __type_c53c2d7c4913dc02 base_text = compiler_backend_process_PointerTexts(base);
-    __type_c53c2d7c4913dc02* value_2 = &base_text;
+    __type_9f828aa1372cb21a base_text = compiler_backend_process_PointerTexts(base);
+    __type_9f828aa1372cb21a* value_2 = &base_text;
     Slice value_3 = {(base_text).data, (base_text).count};
     bool requested_pipe = compiler_backend_cache_RequestedPipe(SliceRangeAt(value_3, 0LL, base_text.count, sizeof(*(base_text).data)));
     Slice value_4 = {(base_text).data, (base_text).count};
@@ -1799,8 +1799,8 @@ compiler_backend_process_CompileAndLink(String out, String name, bool forced_lan
     uint64_t identity_started = zir_foreign_compiler_backend_process__ProfileStart();
     compiler_backend_process_ProfileEnd(StringLiteral("native.toolchain"), identity_started);
     uint64_t objects_started = zir_foreign_compiler_backend_process__ProfileStart();
-    __type_6f55d821d15c8cbf outputs = {0};
-    __type_6f55d821d15c8cbf* value_7 = &outputs;
+    __type_a62c3df80303f6fb outputs = {0};
+    __type_a62c3df80303f6fb* value_7 = &outputs;
     bool outputs_ready = true;
     bool capture = zir_foreign_compiler_backend_process__DiagnosticJsonEnabled() != 0;
     bool compile_ok = true;
@@ -1899,8 +1899,8 @@ compiler_backend_process_CompileAndLink(String out, String name, bool forced_lan
                 int64_t index = next_file;
                 next_file = (int64_t)((uint64_t)next_file + UINT64_C(1));
                 compiler_backend_process_ProfileCount(StringLiteral("native_object_compile"));
-                __type_c53c2d7c4913dc02 arguments = compiler_backend_process_CloneTexts(base);
-                __type_c53c2d7c4913dc02* value_27 = &arguments;
+                __type_9f828aa1372cb21a arguments = compiler_backend_process_CloneTexts(base);
+                __type_9f828aa1372cb21a* value_27 = &arguments;
                 bool value_28 = compiler_backend_cache_Piped(cache);
                 bool piped = value_28 && !requested_pipe;
                 bool added = false;
@@ -1920,11 +1920,11 @@ compiler_backend_process_CompileAndLink(String out, String name, bool forced_lan
                 if (dependency_ok) {
                     RemoveFile(dependency);
                     if (cache != ((void *)0)) {
-                        __type_c53c2d7c4913dc02* value_29 = &(arguments);
+                        __type_9f828aa1372cb21a* value_29 = &(arguments);
                         String value_30 = dependency;
                         bool value_31 = false;
                         {
-                            __type_c53c2d7c4913dc02* arguments = value_29;
+                            __type_9f828aa1372cb21a* arguments = value_29;
                             String dependency = value_30;
                             bool value_33 = compiler_backend_process_AddTextArgument(arguments, StringLiteral("-MD"), StringLiteral(""));
                             if (!value_33) {
@@ -1946,12 +1946,12 @@ compiler_backend_process_CompileAndLink(String out, String name, bool forced_lan
                     }
                 }
                 if (added) {
-                    __type_c53c2d7c4913dc02* value_35 = &(arguments);
+                    __type_9f828aa1372cb21a* value_35 = &(arguments);
                     String value_36 = compiler_backend_process_CText((*(files)).data[index]);
                     String value_37 = object;
                     bool value_38 = false;
                     {
-                        __type_c53c2d7c4913dc02* arguments = value_35;
+                        __type_9f828aa1372cb21a* arguments = value_35;
                         String source = value_36;
                         String object = value_37;
                         bool value_40 = compiler_backend_process_AddTextArgument(arguments, StringLiteral("-c"), StringLiteral(""));
@@ -2074,7 +2074,7 @@ compiler_backend_process_CompileAndLink(String out, String name, bool forced_lan
                 if (finished) {
                     if (capture && outputs_ready) {
                         PendingOutput* saved = &(ZIRAN_VEC_INDEX((outputs).data, (outputs).count, (slots[slot]).file));
-                        __type_838711075b90279a value_50 = saved->output;
+                        __type_131eebaaeb761e42 value_50 = saved->output;
                         saved->output = (jobs[slot]).output;
                         (jobs[slot]).output = value_50;
                     }
@@ -2198,16 +2198,16 @@ compiler_backend_process_CompileAndLink(String out, String name, bool forced_lan
     return value_62;
 }
 
-__type_c53c2d7c4913dc02
-compiler_backend_process_PointerTexts(__type_21092c8252d3dcaa* source)
+__type_9f828aa1372cb21a
+compiler_backend_process_PointerTexts(__type_6897586eed124d12* source)
 {
-    __type_21092c8252d3dcaa values = {0};
-    __type_21092c8252d3dcaa* value_0 = &values;
-    __type_21092c8252d3dcaa value_1 = values;
+    __type_6897586eed124d12 values = {0};
+    __type_6897586eed124d12* value_0 = &values;
+    __type_6897586eed124d12 value_1 = values;
     values = (*(source));
     (*(source)) = value_1;
-    __type_c53c2d7c4913dc02 result = {0};
-    __type_c53c2d7c4913dc02* value_2 = &result;
+    __type_9f828aa1372cb21a result = {0};
+    __type_9f828aa1372cb21a* value_2 = &result;
     for (int64_t it_index = 0LL; it_index < values.count; it_index++) {
         uint8_t* value = (values).data[it_index];
         String value_3 = compiler_backend_process_CText(value);
@@ -2221,14 +2221,14 @@ compiler_backend_process_PointerTexts(__type_21092c8252d3dcaa* source)
         }
         (void)value_5;
     }
-    __type_21092c8252d3dcaa value_7 = values;
+    __type_6897586eed124d12 value_7 = values;
     values = (*(source));
     (*(source)) = value_7;
-    __type_c53c2d7c4913dc02 value_8 = result;
+    __type_9f828aa1372cb21a value_8 = result;
     result.data = NULL;
     result.capacity = 0;
     result.count = 0;
-    __type_c53c2d7c4913dc02 value_9 = value_8;
+    __type_9f828aa1372cb21a value_9 = value_8;
     free((*value_2).data);
     (*value_2).data = NULL;
     (*value_2).capacity = 0;
@@ -2240,16 +2240,16 @@ compiler_backend_process_PointerTexts(__type_21092c8252d3dcaa* source)
     return value_9;
 }
 
-__type_c53c2d7c4913dc02
-compiler_backend_process_CloneTexts(__type_21092c8252d3dcaa* source)
+__type_9f828aa1372cb21a
+compiler_backend_process_CloneTexts(__type_6897586eed124d12* source)
 {
-    __type_21092c8252d3dcaa values = {0};
-    __type_21092c8252d3dcaa* value_0 = &values;
-    __type_21092c8252d3dcaa value_1 = values;
+    __type_6897586eed124d12 values = {0};
+    __type_6897586eed124d12* value_0 = &values;
+    __type_6897586eed124d12 value_1 = values;
     values = (*(source));
     (*(source)) = value_1;
-    __type_c53c2d7c4913dc02 result = {0};
-    __type_c53c2d7c4913dc02* value_2 = &result;
+    __type_9f828aa1372cb21a result = {0};
+    __type_9f828aa1372cb21a* value_2 = &result;
     for (int64_t it_index = 0LL; it_index < values.count; it_index++) {
         uint8_t* value = (values).data[it_index];
         uint8_t* owned_text = compiler_backend_process_AllocateText(compiler_backend_process_CText(value));
@@ -2272,7 +2272,7 @@ compiler_backend_process_CloneTexts(__type_21092c8252d3dcaa* source)
                 zir_foreign_compiler_backend_process__FreeRaw((void*)(owned_text));
             }
             compiler_backend_process_FreeArguments(&(result));
-            __type_c53c2d7c4913dc02 value_9 = (__type_c53c2d7c4913dc02){0};
+            __type_9f828aa1372cb21a value_9 = (__type_9f828aa1372cb21a){0};
             free((*value_2).data);
             (*value_2).data = NULL;
             (*value_2).capacity = 0;
@@ -2284,14 +2284,14 @@ compiler_backend_process_CloneTexts(__type_21092c8252d3dcaa* source)
             return value_9;
         }
     }
-    __type_21092c8252d3dcaa value_10 = values;
+    __type_6897586eed124d12 value_10 = values;
     values = (*(source));
     (*(source)) = value_10;
-    __type_c53c2d7c4913dc02 value_11 = result;
+    __type_9f828aa1372cb21a value_11 = result;
     result.data = NULL;
     result.capacity = 0;
     result.count = 0;
-    __type_c53c2d7c4913dc02 value_12 = value_11;
+    __type_9f828aa1372cb21a value_12 = value_11;
     free((*value_2).data);
     (*value_2).data = NULL;
     (*value_2).capacity = 0;
@@ -2304,11 +2304,11 @@ compiler_backend_process_CloneTexts(__type_21092c8252d3dcaa* source)
 }
 
 void
-compiler_backend_process_FreeArguments(__type_c53c2d7c4913dc02* values)
+compiler_backend_process_FreeArguments(__type_9f828aa1372cb21a* values)
 {
-    __type_c53c2d7c4913dc02 owned = {0};
-    __type_c53c2d7c4913dc02* value_0 = &owned;
-    __type_c53c2d7c4913dc02 value_1 = owned;
+    __type_9f828aa1372cb21a owned = {0};
+    __type_9f828aa1372cb21a* value_0 = &owned;
+    __type_9f828aa1372cb21a value_1 = owned;
     owned = (*(values));
     (*(values)) = value_1;
     for (int64_t it_index = 0LL; it_index < owned.count; it_index++) {
@@ -2326,7 +2326,7 @@ compiler_backend_process_FreeArguments(__type_c53c2d7c4913dc02* values)
 }
 
 bool
-compiler_backend_process_AddDependencyArguments(__type_c53c2d7c4913dc02* arguments, String dependency)
+compiler_backend_process_AddDependencyArguments(__type_9f828aa1372cb21a* arguments, String dependency)
 {
     bool value_0 = compiler_backend_process_AddTextArgument(arguments, StringLiteral("-MD"), StringLiteral(""));
     if (!value_0) {
@@ -2340,7 +2340,7 @@ compiler_backend_process_AddDependencyArguments(__type_c53c2d7c4913dc02* argumen
 }
 
 bool
-compiler_backend_process_AddObjectArguments(__type_c53c2d7c4913dc02* arguments, String source, String object)
+compiler_backend_process_AddObjectArguments(__type_9f828aa1372cb21a* arguments, String source, String object)
 {
     bool value_0 = compiler_backend_process_AddTextArgument(arguments, StringLiteral("-c"), StringLiteral(""));
     if (!value_0) {
@@ -2358,7 +2358,7 @@ compiler_backend_process_AddObjectArguments(__type_c53c2d7c4913dc02* arguments, 
 }
 
 bool
-compiler_backend_process_AddTextArgument(__type_c53c2d7c4913dc02* output, String flag, String value)
+compiler_backend_process_AddTextArgument(__type_9f828aa1372cb21a* output, String flag, String value)
 {
     uint8_t* left = compiler_backend_process_AllocateText(flag);
     if (left == ((void *)0)) {
@@ -2397,7 +2397,7 @@ compiler_backend_process_AddTextArgument(__type_c53c2d7c4913dc02* output, String
 }
 
 bool
-compiler_backend_process_AppendLog(__type_838711075b90279a* log, Slice output)
+compiler_backend_process_AppendLog(__type_131eebaaeb761e42* log, Slice output)
 {
     bool value_0 = (int64_t)(output).length == 0LL;
     if (!value_0) {
@@ -2457,7 +2457,7 @@ compiler_backend_process_AppendLog(__type_838711075b90279a* log, Slice output)
 }
 
 bool
-compiler_backend_process_LinkOwnedObjects(String out, String name, bool forced_language, __type_21092c8252d3dcaa* base, __type_21092c8252d3dcaa* tail, __type_21092c8252d3dcaa* files, __type_21092c8252d3dcaa* objects, __type_838711075b90279a* log, BuildCache* cache)
+compiler_backend_process_LinkOwnedObjects(String out, String name, bool forced_language, __type_6897586eed124d12* base, __type_6897586eed124d12* tail, __type_6897586eed124d12* files, __type_6897586eed124d12* objects, __type_131eebaaeb761e42* log, BuildCache* cache)
 {
     String link_directory = vec_TextDetach(file_tree_linux_CreateTemporaryDirectory(out, name));
     if ((int64_t)(link_directory).length == 0LL) {
@@ -2480,11 +2480,11 @@ compiler_backend_process_LinkOwnedObjects(String out, String name, bool forced_l
         }
         return cleanup_return_0;
     }
-    __type_c53c2d7c4913dc02 arguments = compiler_backend_process_CloneTexts(base);
-    __type_c53c2d7c4913dc02* value_2 = &arguments;
-    __type_21092c8252d3dcaa tail_values = {0};
-    __type_21092c8252d3dcaa* value_3 = &tail_values;
-    __type_21092c8252d3dcaa value_4 = tail_values;
+    __type_9f828aa1372cb21a arguments = compiler_backend_process_CloneTexts(base);
+    __type_9f828aa1372cb21a* value_2 = &arguments;
+    __type_6897586eed124d12 tail_values = {0};
+    __type_6897586eed124d12* value_3 = &tail_values;
+    __type_6897586eed124d12 value_4 = tail_values;
     tail_values = (*(tail));
     (*(tail)) = value_4;
     bool ok = true;
@@ -2528,7 +2528,7 @@ compiler_backend_process_LinkOwnedObjects(String out, String name, bool forced_l
             loop_cursor_40 = (int64_t)((uint64_t)loop_cursor_40 + UINT64_C(1));
         }
     }
-    __type_21092c8252d3dcaa value_7 = tail_values;
+    __type_6897586eed124d12 value_7 = tail_values;
     tail_values = (*(tail));
     (*(tail)) = value_7;
     if (ok) {
@@ -2566,7 +2566,7 @@ compiler_backend_process_LinkOwnedObjects(String out, String name, bool forced_l
     compiler_backend_process_FreeArguments(&(arguments));
     bool value_11 = job.process >= 0;
     bool linked = value_11 && compiler_backend_process_WaitJob(&(job));
-    __type_838711075b90279a* value_12 = log;
+    __type_131eebaaeb761e42* value_12 = log;
     Slice value_13 = {(job.output).data, (job.output).count};
     compiler_backend_process_AppendLog(value_12, SliceRangeAt(value_13, 0LL, job.output.count, sizeof(*(job.output).data)));
     compiler_backend_process_FreeJob(&(job));
@@ -2608,7 +2608,7 @@ compiler_backend_process_LinkOwnedObjects(String out, String name, bool forced_l
 }
 
 void
-compiler_backend_process_ReleaseBuildValues(__type_21092c8252d3dcaa* base, __type_21092c8252d3dcaa* tail, __type_21092c8252d3dcaa* files, __type_21092c8252d3dcaa* objects, __type_838711075b90279a* log)
+compiler_backend_process_ReleaseBuildValues(__type_6897586eed124d12* base, __type_6897586eed124d12* tail, __type_6897586eed124d12* files, __type_6897586eed124d12* objects, __type_131eebaaeb761e42* log)
 {
     compiler_backend_process_ReleasePointerVector(base);
     compiler_backend_process_ReleasePointerVector(tail);
@@ -2714,7 +2714,7 @@ compiler_backend_process_MoveLinkOutput(String directory, String out, String nam
 }
 
 void
-compiler_backend_process_ReportToolchain(String out, __type_838711075b90279a* log, bool ok)
+compiler_backend_process_ReportToolchain(String out, __type_131eebaaeb761e42* log, bool ok)
 {
     bool value_0 = ok;
     if (value_0) {
@@ -2737,8 +2737,8 @@ compiler_backend_process_ReportToolchain(String out, __type_838711075b90279a* lo
         value_3 = log->count;
     }
     int64_t kept = value_3;
-    __type_838711075b90279a text = {0};
-    __type_838711075b90279a* value_4 = &text;
+    __type_131eebaaeb761e42 text = {0};
+    __type_131eebaaeb761e42* value_4 = &text;
     if (!ok) {
         compiler_backend_cache_AppendText(&(text), StringLiteral("compiling "));
         compiler_backend_cache_AppendText(&(text), out);

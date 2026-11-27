@@ -367,7 +367,7 @@ uint8_t* zi2c_CStr(String s);
 ZirSourceSpan zi2c_NoSpan(void);
 void zi2c_Usage(void);
 int32_t zi2c_LockOutput(uint8_t* directory);
-ZirFunction* zi2c_InPlaceMain(ZirProgram* program, ZirModule* entry_owner, ZirFunction* entry_fn, int32_t exe);
+ZirFunction* zi2c_InPlaceMain(ZirProgram* program, ZirModule* entry_owner, ZirFunction* entry_fn, int32_t emit_main);
 int32_t zi2c_WriteEntryMain(ZirModule* module, ZirFunction* function, uint8_t* path);
 int32_t zi2c_ReadWorkerOutputs(int32_t descriptor);
 int32_t zi2c_FinishSimdHelpers(uint8_t* out_dir);
@@ -412,7 +412,7 @@ zi2c_Usage(void)
         String s = value_2;
         value_3 = ((zi2c_StaticText*)(&(s)))->data;
     }
-    String value_5 = StringLiteral("usage: zi2c [--no-main] [--prune-stale] [--checks] [--thorough|--quickest] [--entry module:function [--exe [--release]] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] [--diagnostics=text|json] [--module-path DIR] [--define NAME] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.ts|file.tsx|file.zir ...\n");
+    String value_5 = StringLiteral("usage: zi2c [--no-main] [--prune-stale] [--checks] [--thorough|--quickest] [--entry module:function [--emit-main|--exe [--release]] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] [--diagnostics=text|json] [--module-path DIR] [--define NAME] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.ts|file.tsx|file.zir ...\n");
     uint8_t* value_6 = (void *)0;
     {
         String s = value_5;
@@ -449,11 +449,11 @@ zi2c_LockOutput(uint8_t* directory)
 }
 
 ZirFunction*
-zi2c_InPlaceMain(ZirProgram* program, ZirModule* entry_owner, ZirFunction* entry_fn, int32_t exe)
+zi2c_InPlaceMain(ZirProgram* program, ZirModule* entry_owner, ZirFunction* entry_fn, int32_t emit_main)
 {
     ZirModule* owner = entry_owner;
     ZirFunction* function = entry_fn;
-    if (exe == 0) {
+    if (emit_main == 0) {
         owner = (void *)0;
         function = (void *)0;
     }
@@ -582,7 +582,7 @@ zi2c_WriteEntryMain(ZirModule* module, ZirFunction* function, uint8_t* path)
         return 0;
     }
     void* value_40 = out;
-    String value_41 = StringLiteral("/* zi2c --exe: runs %s:%s as the program. */\n");
+    String value_41 = StringLiteral("/* zi2c: runs %s:%s as the program. */\n");
     uint8_t* value_42 = (void *)0;
     {
         String s = value_41;
@@ -1069,6 +1069,7 @@ main(int argc, char **arguments)
     uint8_t entry_module[128] = {0};
     uint8_t entry_function[128] = {0};
     int32_t no_main = 0;
+    int32_t emit_main = 0;
     int32_t exe = 0;
     int32_t release = 0;
     int32_t checks = 0;
@@ -1146,7 +1147,7 @@ main(int argc, char **arguments)
     int32_t target_os = 0;
     zir_foreign_zi2c__SetFormatArguments(argc, argv);
     compiler_cli_CommandLowerPriority();
-    CommandOption value_9[16] = {0};
+    CommandOption value_9[17] = {0};
     CommandOption value_10 = {0};
     String value_11 = StringLiteral("--root");
     uint8_t* value_12 = (void *)0;
@@ -1267,58 +1268,71 @@ main(int argc, char **arguments)
     value_50.flag = &(no_main);
     value_9[10] = value_50;
     CommandOption value_54 = {0};
-    String value_55 = StringLiteral("--exe");
+    String value_55 = StringLiteral("--emit-main");
     uint8_t* value_56 = (void *)0;
     {
         String s = value_55;
         value_56 = ((zi2c_StaticText*)(&(s)))->data;
     }
     value_54.name = value_56;
-    value_54.flag = &(exe);
+    value_54.flag = &(emit_main);
     value_9[11] = value_54;
     CommandOption value_58 = {0};
-    String value_59 = StringLiteral("--release");
+    String value_59 = StringLiteral("--exe");
     uint8_t* value_60 = (void *)0;
     {
         String s = value_59;
         value_60 = ((zi2c_StaticText*)(&(s)))->data;
     }
     value_58.name = value_60;
-    value_58.flag = &(release);
+    value_58.flag = &(exe);
     value_9[12] = value_58;
     CommandOption value_62 = {0};
-    String value_63 = StringLiteral("--checks");
+    String value_63 = StringLiteral("--release");
     uint8_t* value_64 = (void *)0;
     {
         String s = value_63;
         value_64 = ((zi2c_StaticText*)(&(s)))->data;
     }
     value_62.name = value_64;
-    value_62.flag = &(checks);
+    value_62.flag = &(release);
     value_9[13] = value_62;
     CommandOption value_66 = {0};
-    String value_67 = StringLiteral("--thorough");
+    String value_67 = StringLiteral("--checks");
     uint8_t* value_68 = (void *)0;
     {
         String s = value_67;
         value_68 = ((zi2c_StaticText*)(&(s)))->data;
     }
     value_66.name = value_68;
-    value_66.flag = &(thorough);
+    value_66.flag = &(checks);
     value_9[14] = value_66;
     CommandOption value_70 = {0};
-    String value_71 = StringLiteral("--quickest");
+    String value_71 = StringLiteral("--thorough");
     uint8_t* value_72 = (void *)0;
     {
         String s = value_71;
         value_72 = ((zi2c_StaticText*)(&(s)))->data;
     }
     value_70.name = value_72;
-    value_70.flag = &(quickest);
+    value_70.flag = &(thorough);
     value_9[15] = value_70;
-    CommandOption options[16] = {0};
+    CommandOption value_74 = {0};
+    String value_75 = StringLiteral("--quickest");
+    uint8_t* value_76 = (void *)0;
+    {
+        String s = value_75;
+        value_76 = ((zi2c_StaticText*)(&(s)))->data;
+    }
+    value_74.name = value_76;
+    value_74.flag = &(quickest);
+    value_9[16] = value_74;
+    CommandOption options[17] = {0};
     memmove(options, value_9, sizeof(options));
-    first_file = compiler_cli_ReadCommandOptions(argc, argv, &(options[0]), (size_t)(16));
+    first_file = compiler_cli_ReadCommandOptions(argc, argv, &(options[0]), (size_t)(17));
+    if (exe != 0) {
+        emit_main = 1;
+    }
     if (thorough != 0) {
         checks = 1;
     }
@@ -1347,50 +1361,50 @@ main(int argc, char **arguments)
         }
         {
             zir_foreign_zi2c__CompilerContextSelect(previous_context);
-            bool value_74 = command_context != ((void *)0);
-            if (value_74 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                ZirSourceSpan value_75 = {0};
+            bool value_78 = command_context != ((void *)0);
+            if (value_78 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                ZirSourceSpan value_79 = {0};
                 {
                     ZirSourceSpan span = {0};
-                    value_75 = span;
+                    value_79 = span;
                 }
-                String value_77 = StringLiteral("compiler.context");
-                uint8_t* value_78 = (void *)0;
+                String value_81 = StringLiteral("compiler.context");
+                uint8_t* value_82 = (void *)0;
                 {
-                    String s = value_77;
-                    value_78 = ((zi2c_StaticText*)(&(s)))->data;
+                    String s = value_81;
+                    value_82 = ((zi2c_StaticText*)(&(s)))->data;
                 }
-                String value_80 = StringLiteral("compiler operation retained live programs");
-                uint8_t* value_81 = (void *)0;
+                String value_84 = StringLiteral("compiler operation retained live programs");
+                uint8_t* value_85 = (void *)0;
                 {
-                    String s = value_80;
-                    value_81 = ((zi2c_StaticText*)(&(s)))->data;
+                    String s = value_84;
+                    value_85 = ((zi2c_StaticText*)(&(s)))->data;
                 }
-                zir_foreign_zi2c__Diagnostic(value_75, value_78, value_81);
+                zir_foreign_zi2c__Diagnostic(value_79, value_82, value_85);
                 result = 1;
             }
         }
         return cleanup_return_1;
     }
     if (release != 0 && exe == 0) {
-        ZirSourceSpan value_83 = {0};
+        ZirSourceSpan value_87 = {0};
         {
             ZirSourceSpan span = {0};
-            value_83 = span;
+            value_87 = span;
         }
-        String value_85 = StringLiteral("command.arguments");
-        uint8_t* value_86 = (void *)0;
+        String value_89 = StringLiteral("command.arguments");
+        uint8_t* value_90 = (void *)0;
         {
-            String s = value_85;
-            value_86 = ((zi2c_StaticText*)(&(s)))->data;
+            String s = value_89;
+            value_90 = ((zi2c_StaticText*)(&(s)))->data;
         }
-        String value_88 = StringLiteral("--release needs --exe");
-        uint8_t* value_89 = (void *)0;
+        String value_92 = StringLiteral("--release needs --exe");
+        uint8_t* value_93 = (void *)0;
         {
-            String s = value_88;
-            value_89 = ((zi2c_StaticText*)(&(s)))->data;
+            String s = value_92;
+            value_93 = ((zi2c_StaticText*)(&(s)))->data;
         }
-        zir_foreign_zi2c__Diagnostic(value_83, value_86, value_89);
+        zir_foreign_zi2c__Diagnostic(value_87, value_90, value_93);
         int32_t cleanup_return_2 = 1;
         {
             zir_foreign_zi2c__ProgramsFree(&(set));
@@ -1414,58 +1428,58 @@ main(int argc, char **arguments)
         }
         {
             zir_foreign_zi2c__CompilerContextSelect(previous_context);
-            bool value_91 = command_context != ((void *)0);
-            if (value_91 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                ZirSourceSpan value_92 = {0};
+            bool value_95 = command_context != ((void *)0);
+            if (value_95 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                ZirSourceSpan value_96 = {0};
                 {
                     ZirSourceSpan span = {0};
-                    value_92 = span;
+                    value_96 = span;
                 }
-                String value_94 = StringLiteral("compiler.context");
-                uint8_t* value_95 = (void *)0;
+                String value_98 = StringLiteral("compiler.context");
+                uint8_t* value_99 = (void *)0;
                 {
-                    String s = value_94;
-                    value_95 = ((zi2c_StaticText*)(&(s)))->data;
+                    String s = value_98;
+                    value_99 = ((zi2c_StaticText*)(&(s)))->data;
                 }
-                String value_97 = StringLiteral("compiler operation retained live programs");
-                uint8_t* value_98 = (void *)0;
+                String value_101 = StringLiteral("compiler operation retained live programs");
+                uint8_t* value_102 = (void *)0;
                 {
-                    String s = value_97;
-                    value_98 = ((zi2c_StaticText*)(&(s)))->data;
+                    String s = value_101;
+                    value_102 = ((zi2c_StaticText*)(&(s)))->data;
                 }
-                zir_foreign_zi2c__Diagnostic(value_92, value_95, value_98);
+                zir_foreign_zi2c__Diagnostic(value_96, value_99, value_102);
                 result = 1;
             }
         }
         return cleanup_return_2;
     }
-    bool value_100 = root == ((void *)0) || out_dir == ((void *)0) || first_file == 0;
-    bool value_101 = value_100;
-    if (!value_101) {
-        bool value_102 = entry != ((void *)0);
-        bool value_103 = value_102 && compiler_cli_SplitEntry(entry, &(entry_module[0]), &(entry_function[0])) == 0;
-        value_101 = value_103;
+    bool value_104 = root == ((void *)0) || out_dir == ((void *)0) || first_file == 0;
+    bool value_105 = value_104;
+    if (!value_105) {
+        bool value_106 = entry != ((void *)0);
+        bool value_107 = value_106 && compiler_cli_SplitEntry(entry, &(entry_module[0]), &(entry_function[0])) == 0;
+        value_105 = value_107;
     }
-    if (value_101 || ((binding_count > 0 || host_module_count > 0) && entry == ((void *)0)) || (exe != 0 && entry == ((void *)0))) {
-        if (exe != 0 && entry == ((void *)0)) {
-            ZirSourceSpan value_104 = {0};
+    if (value_105 || ((binding_count > 0 || host_module_count > 0) && entry == ((void *)0)) || (emit_main != 0 && entry == ((void *)0))) {
+        if (emit_main != 0 && entry == ((void *)0)) {
+            ZirSourceSpan value_108 = {0};
             {
                 ZirSourceSpan span = {0};
-                value_104 = span;
+                value_108 = span;
             }
-            String value_106 = StringLiteral("command.arguments");
-            uint8_t* value_107 = (void *)0;
+            String value_110 = StringLiteral("command.arguments");
+            uint8_t* value_111 = (void *)0;
             {
-                String s = value_106;
-                value_107 = ((zi2c_StaticText*)(&(s)))->data;
+                String s = value_110;
+                value_111 = ((zi2c_StaticText*)(&(s)))->data;
             }
-            String value_109 = StringLiteral("--exe needs --entry module:function");
-            uint8_t* value_110 = (void *)0;
+            String value_113 = StringLiteral("--emit-main or --exe needs --entry module:function");
+            uint8_t* value_114 = (void *)0;
             {
-                String s = value_109;
-                value_110 = ((zi2c_StaticText*)(&(s)))->data;
+                String s = value_113;
+                value_114 = ((zi2c_StaticText*)(&(s)))->data;
             }
-            zir_foreign_zi2c__Diagnostic(value_104, value_107, value_110);
+            zir_foreign_zi2c__Diagnostic(value_108, value_111, value_114);
             int32_t cleanup_return_3 = 1;
             {
                 zir_foreign_zi2c__ProgramsFree(&(set));
@@ -1489,26 +1503,26 @@ main(int argc, char **arguments)
             }
             {
                 zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                bool value_112 = command_context != ((void *)0);
-                if (value_112 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                    ZirSourceSpan value_113 = {0};
+                bool value_116 = command_context != ((void *)0);
+                if (value_116 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                    ZirSourceSpan value_117 = {0};
                     {
                         ZirSourceSpan span = {0};
-                        value_113 = span;
+                        value_117 = span;
                     }
-                    String value_115 = StringLiteral("compiler.context");
-                    uint8_t* value_116 = (void *)0;
+                    String value_119 = StringLiteral("compiler.context");
+                    uint8_t* value_120 = (void *)0;
                     {
-                        String s = value_115;
-                        value_116 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_119;
+                        value_120 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    String value_118 = StringLiteral("compiler operation retained live programs");
-                    uint8_t* value_119 = (void *)0;
+                    String value_122 = StringLiteral("compiler operation retained live programs");
+                    uint8_t* value_123 = (void *)0;
                     {
-                        String s = value_118;
-                        value_119 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_122;
+                        value_123 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    zir_foreign_zi2c__Diagnostic(value_113, value_116, value_119);
+                    zir_foreign_zi2c__Diagnostic(value_117, value_120, value_123);
                     result = 1;
                 }
             }
@@ -1538,26 +1552,26 @@ main(int argc, char **arguments)
         }
         {
             zir_foreign_zi2c__CompilerContextSelect(previous_context);
-            bool value_121 = command_context != ((void *)0);
-            if (value_121 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                ZirSourceSpan value_122 = {0};
+            bool value_125 = command_context != ((void *)0);
+            if (value_125 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                ZirSourceSpan value_126 = {0};
                 {
                     ZirSourceSpan span = {0};
-                    value_122 = span;
+                    value_126 = span;
                 }
-                String value_124 = StringLiteral("compiler.context");
-                uint8_t* value_125 = (void *)0;
+                String value_128 = StringLiteral("compiler.context");
+                uint8_t* value_129 = (void *)0;
                 {
-                    String s = value_124;
-                    value_125 = ((zi2c_StaticText*)(&(s)))->data;
+                    String s = value_128;
+                    value_129 = ((zi2c_StaticText*)(&(s)))->data;
                 }
-                String value_127 = StringLiteral("compiler operation retained live programs");
-                uint8_t* value_128 = (void *)0;
+                String value_131 = StringLiteral("compiler operation retained live programs");
+                uint8_t* value_132 = (void *)0;
                 {
-                    String s = value_127;
-                    value_128 = ((zi2c_StaticText*)(&(s)))->data;
+                    String s = value_131;
+                    value_132 = ((zi2c_StaticText*)(&(s)))->data;
                 }
-                zir_foreign_zi2c__Diagnostic(value_122, value_125, value_128);
+                zir_foreign_zi2c__Diagnostic(value_126, value_129, value_132);
                 result = 1;
             }
         }
@@ -1588,26 +1602,26 @@ main(int argc, char **arguments)
         }
         {
             zir_foreign_zi2c__CompilerContextSelect(previous_context);
-            bool value_130 = command_context != ((void *)0);
-            if (value_130 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                ZirSourceSpan value_131 = {0};
+            bool value_134 = command_context != ((void *)0);
+            if (value_134 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                ZirSourceSpan value_135 = {0};
                 {
                     ZirSourceSpan span = {0};
-                    value_131 = span;
+                    value_135 = span;
                 }
-                String value_133 = StringLiteral("compiler.context");
-                uint8_t* value_134 = (void *)0;
+                String value_137 = StringLiteral("compiler.context");
+                uint8_t* value_138 = (void *)0;
                 {
-                    String s = value_133;
-                    value_134 = ((zi2c_StaticText*)(&(s)))->data;
+                    String s = value_137;
+                    value_138 = ((zi2c_StaticText*)(&(s)))->data;
                 }
-                String value_136 = StringLiteral("compiler operation retained live programs");
-                uint8_t* value_137 = (void *)0;
+                String value_140 = StringLiteral("compiler operation retained live programs");
+                uint8_t* value_141 = (void *)0;
                 {
-                    String s = value_136;
-                    value_137 = ((zi2c_StaticText*)(&(s)))->data;
+                    String s = value_140;
+                    value_141 = ((zi2c_StaticText*)(&(s)))->data;
                 }
-                zir_foreign_zi2c__Diagnostic(value_131, value_134, value_137);
+                zir_foreign_zi2c__Diagnostic(value_135, value_138, value_141);
                 result = 1;
             }
         }
@@ -1617,42 +1631,42 @@ main(int argc, char **arguments)
     int32_t threads_defined = 0;
     int32_t d = 0;
     while (d < define_count) {
-        int32_t value_139 = threads_defined;
-        uint8_t* value_140 = (defines)[(size_t)(d)];
-        String value_141 = StringLiteral("POSIX_THREADS");
-        uint8_t* value_142 = (void *)0;
+        int32_t value_143 = threads_defined;
+        uint8_t* value_144 = (defines)[(size_t)(d)];
+        String value_145 = StringLiteral("POSIX_THREADS");
+        uint8_t* value_146 = (void *)0;
         {
-            String s = value_141;
-            value_142 = ((zi2c_StaticText*)(&(s)))->data;
+            String s = value_145;
+            value_146 = ((zi2c_StaticText*)(&(s)))->data;
         }
-        bool value_144 = zir_foreign_zi2c__strcmp(value_140, value_142) == 0;
-        int32_t value_145 = 0;
-        if (value_144) {
-            value_145 = 1;
+        bool value_148 = zir_foreign_zi2c__strcmp(value_144, value_146) == 0;
+        int32_t value_149 = 0;
+        if (value_148) {
+            value_149 = 1;
         }
-        threads_defined = (int32_t)((uint32_t)value_139 | (uint32_t)value_145);
+        threads_defined = (int32_t)((uint32_t)value_143 | (uint32_t)value_149);
         d = (int32_t)((uint32_t)d + 1u);
     }
     if (posix_threads && threads_defined == 0) {
         if (define_count == 64) {
-            ZirSourceSpan value_146 = {0};
+            ZirSourceSpan value_150 = {0};
             {
                 ZirSourceSpan span = {0};
-                value_146 = span;
+                value_150 = span;
             }
-            String value_148 = StringLiteral("command.arguments");
-            uint8_t* value_149 = (void *)0;
+            String value_152 = StringLiteral("command.arguments");
+            uint8_t* value_153 = (void *)0;
             {
-                String s = value_148;
-                value_149 = ((zi2c_StaticText*)(&(s)))->data;
+                String s = value_152;
+                value_153 = ((zi2c_StaticText*)(&(s)))->data;
             }
-            String value_151 = StringLiteral("no define slot left for native thread capability");
-            uint8_t* value_152 = (void *)0;
+            String value_155 = StringLiteral("no define slot left for native thread capability");
+            uint8_t* value_156 = (void *)0;
             {
-                String s = value_151;
-                value_152 = ((zi2c_StaticText*)(&(s)))->data;
+                String s = value_155;
+                value_156 = ((zi2c_StaticText*)(&(s)))->data;
             }
-            zir_foreign_zi2c__Diagnostic(value_146, value_149, value_152);
+            zir_foreign_zi2c__Diagnostic(value_150, value_153, value_156);
             int32_t cleanup_return_6 = 1;
             {
                 zir_foreign_zi2c__ProgramsFree(&(set));
@@ -1676,39 +1690,39 @@ main(int argc, char **arguments)
             }
             {
                 zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                bool value_154 = command_context != ((void *)0);
-                if (value_154 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                    ZirSourceSpan value_155 = {0};
+                bool value_158 = command_context != ((void *)0);
+                if (value_158 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                    ZirSourceSpan value_159 = {0};
                     {
                         ZirSourceSpan span = {0};
-                        value_155 = span;
+                        value_159 = span;
                     }
-                    String value_157 = StringLiteral("compiler.context");
-                    uint8_t* value_158 = (void *)0;
+                    String value_161 = StringLiteral("compiler.context");
+                    uint8_t* value_162 = (void *)0;
                     {
-                        String s = value_157;
-                        value_158 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_161;
+                        value_162 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    String value_160 = StringLiteral("compiler operation retained live programs");
-                    uint8_t* value_161 = (void *)0;
+                    String value_164 = StringLiteral("compiler operation retained live programs");
+                    uint8_t* value_165 = (void *)0;
                     {
-                        String s = value_160;
-                        value_161 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_164;
+                        value_165 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    zir_foreign_zi2c__Diagnostic(value_155, value_158, value_161);
+                    zir_foreign_zi2c__Diagnostic(value_159, value_162, value_165);
                     result = 1;
                 }
             }
             return cleanup_return_6;
         }
-        uint8_t** value_163 = &(defines[(size_t)(define_count)]);
-        String value_164 = StringLiteral("POSIX_THREADS");
-        uint8_t* value_165 = (void *)0;
+        uint8_t** value_167 = &(defines[(size_t)(define_count)]);
+        String value_168 = StringLiteral("POSIX_THREADS");
+        uint8_t* value_169 = (void *)0;
         {
-            String s = value_164;
-            value_165 = ((zi2c_StaticText*)(&(s)))->data;
+            String s = value_168;
+            value_169 = ((zi2c_StaticText*)(&(s)))->data;
         }
-        (*value_163) = value_165;
+        (*value_167) = value_169;
         define_count = (int32_t)((uint32_t)define_count + 1u);
     }
     command_context = zir_foreign_zi2c__CompilerContextOpen();
@@ -1737,26 +1751,26 @@ main(int argc, char **arguments)
         }
         {
             zir_foreign_zi2c__CompilerContextSelect(previous_context);
-            bool value_167 = command_context != ((void *)0);
-            if (value_167 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                ZirSourceSpan value_168 = {0};
+            bool value_171 = command_context != ((void *)0);
+            if (value_171 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                ZirSourceSpan value_172 = {0};
                 {
                     ZirSourceSpan span = {0};
-                    value_168 = span;
+                    value_172 = span;
                 }
-                String value_170 = StringLiteral("compiler.context");
-                uint8_t* value_171 = (void *)0;
+                String value_174 = StringLiteral("compiler.context");
+                uint8_t* value_175 = (void *)0;
                 {
-                    String s = value_170;
-                    value_171 = ((zi2c_StaticText*)(&(s)))->data;
+                    String s = value_174;
+                    value_175 = ((zi2c_StaticText*)(&(s)))->data;
                 }
-                String value_173 = StringLiteral("compiler operation retained live programs");
-                uint8_t* value_174 = (void *)0;
+                String value_177 = StringLiteral("compiler operation retained live programs");
+                uint8_t* value_178 = (void *)0;
                 {
-                    String s = value_173;
-                    value_174 = ((zi2c_StaticText*)(&(s)))->data;
+                    String s = value_177;
+                    value_178 = ((zi2c_StaticText*)(&(s)))->data;
                 }
-                zir_foreign_zi2c__Diagnostic(value_168, value_171, value_174);
+                zir_foreign_zi2c__Diagnostic(value_172, value_175, value_178);
                 result = 1;
             }
         }
@@ -1788,26 +1802,26 @@ main(int argc, char **arguments)
         }
         {
             zir_foreign_zi2c__CompilerContextSelect(previous_context);
-            bool value_176 = command_context != ((void *)0);
-            if (value_176 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                ZirSourceSpan value_177 = {0};
+            bool value_180 = command_context != ((void *)0);
+            if (value_180 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                ZirSourceSpan value_181 = {0};
                 {
                     ZirSourceSpan span = {0};
-                    value_177 = span;
+                    value_181 = span;
                 }
-                String value_179 = StringLiteral("compiler.context");
-                uint8_t* value_180 = (void *)0;
+                String value_183 = StringLiteral("compiler.context");
+                uint8_t* value_184 = (void *)0;
                 {
-                    String s = value_179;
-                    value_180 = ((zi2c_StaticText*)(&(s)))->data;
+                    String s = value_183;
+                    value_184 = ((zi2c_StaticText*)(&(s)))->data;
                 }
-                String value_182 = StringLiteral("compiler operation retained live programs");
-                uint8_t* value_183 = (void *)0;
+                String value_186 = StringLiteral("compiler operation retained live programs");
+                uint8_t* value_187 = (void *)0;
                 {
-                    String s = value_182;
-                    value_183 = ((zi2c_StaticText*)(&(s)))->data;
+                    String s = value_186;
+                    value_187 = ((zi2c_StaticText*)(&(s)))->data;
                 }
-                zir_foreign_zi2c__Diagnostic(value_177, value_180, value_183);
+                zir_foreign_zi2c__Diagnostic(value_181, value_184, value_187);
                 result = 1;
             }
         }
@@ -1842,26 +1856,26 @@ main(int argc, char **arguments)
         }
         {
             zir_foreign_zi2c__CompilerContextSelect(previous_context);
-            bool value_185 = command_context != ((void *)0);
-            if (value_185 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                ZirSourceSpan value_186 = {0};
+            bool value_189 = command_context != ((void *)0);
+            if (value_189 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                ZirSourceSpan value_190 = {0};
                 {
                     ZirSourceSpan span = {0};
-                    value_186 = span;
+                    value_190 = span;
                 }
-                String value_188 = StringLiteral("compiler.context");
-                uint8_t* value_189 = (void *)0;
+                String value_192 = StringLiteral("compiler.context");
+                uint8_t* value_193 = (void *)0;
                 {
-                    String s = value_188;
-                    value_189 = ((zi2c_StaticText*)(&(s)))->data;
+                    String s = value_192;
+                    value_193 = ((zi2c_StaticText*)(&(s)))->data;
                 }
-                String value_191 = StringLiteral("compiler operation retained live programs");
-                uint8_t* value_192 = (void *)0;
+                String value_195 = StringLiteral("compiler operation retained live programs");
+                uint8_t* value_196 = (void *)0;
                 {
-                    String s = value_191;
-                    value_192 = ((zi2c_StaticText*)(&(s)))->data;
+                    String s = value_195;
+                    value_196 = ((zi2c_StaticText*)(&(s)))->data;
                 }
-                zir_foreign_zi2c__Diagnostic(value_186, value_189, value_192);
+                zir_foreign_zi2c__Diagnostic(value_190, value_193, value_196);
                 result = 1;
             }
         }
@@ -1870,14 +1884,14 @@ main(int argc, char **arguments)
     if (entry == ((void *)0)) {
         int32_t i = 0;
         while (i < file_count) {
-            ZirProgram* value_194 = progs[(size_t)(i)];
-            String value_195 = StringLiteral("c");
-            uint8_t* value_196 = (void *)0;
+            ZirProgram* value_198 = progs[(size_t)(i)];
+            String value_199 = StringLiteral("c");
+            uint8_t* value_200 = (void *)0;
             {
-                String s = value_195;
-                value_196 = ((zi2c_StaticText*)(&(s)))->data;
+                String s = value_199;
+                value_200 = ((zi2c_StaticText*)(&(s)))->data;
             }
-            if (zir_foreign_zi2c__CheckTargetCapabilities(value_194, value_196) == 0) {
+            if (zir_foreign_zi2c__CheckTargetCapabilities(value_198, value_200) == 0) {
                 int32_t cleanup_return_10 = result;
                 {
                     zir_foreign_zi2c__ProgramsFree(&(set));
@@ -1901,26 +1915,26 @@ main(int argc, char **arguments)
                 }
                 {
                     zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                    bool value_198 = command_context != ((void *)0);
-                    if (value_198 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                        ZirSourceSpan value_199 = {0};
+                    bool value_202 = command_context != ((void *)0);
+                    if (value_202 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                        ZirSourceSpan value_203 = {0};
                         {
                             ZirSourceSpan span = {0};
-                            value_199 = span;
+                            value_203 = span;
                         }
-                        String value_201 = StringLiteral("compiler.context");
-                        uint8_t* value_202 = (void *)0;
+                        String value_205 = StringLiteral("compiler.context");
+                        uint8_t* value_206 = (void *)0;
                         {
-                            String s = value_201;
-                            value_202 = ((zi2c_StaticText*)(&(s)))->data;
+                            String s = value_205;
+                            value_206 = ((zi2c_StaticText*)(&(s)))->data;
                         }
-                        String value_204 = StringLiteral("compiler operation retained live programs");
-                        uint8_t* value_205 = (void *)0;
+                        String value_208 = StringLiteral("compiler operation retained live programs");
+                        uint8_t* value_209 = (void *)0;
                         {
-                            String s = value_204;
-                            value_205 = ((zi2c_StaticText*)(&(s)))->data;
+                            String s = value_208;
+                            value_209 = ((zi2c_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_zi2c__Diagnostic(value_199, value_202, value_205);
+                        zir_foreign_zi2c__Diagnostic(value_203, value_206, value_209);
                         result = 1;
                     }
                 }
@@ -1954,26 +1968,26 @@ main(int argc, char **arguments)
             }
             {
                 zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                bool value_207 = command_context != ((void *)0);
-                if (value_207 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                    ZirSourceSpan value_208 = {0};
+                bool value_211 = command_context != ((void *)0);
+                if (value_211 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                    ZirSourceSpan value_212 = {0};
                     {
                         ZirSourceSpan span = {0};
-                        value_208 = span;
+                        value_212 = span;
                     }
-                    String value_210 = StringLiteral("compiler.context");
-                    uint8_t* value_211 = (void *)0;
+                    String value_214 = StringLiteral("compiler.context");
+                    uint8_t* value_215 = (void *)0;
                     {
-                        String s = value_210;
-                        value_211 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_214;
+                        value_215 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    String value_213 = StringLiteral("compiler operation retained live programs");
-                    uint8_t* value_214 = (void *)0;
+                    String value_217 = StringLiteral("compiler operation retained live programs");
+                    uint8_t* value_218 = (void *)0;
                     {
-                        String s = value_213;
-                        value_214 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_217;
+                        value_218 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    zir_foreign_zi2c__Diagnostic(value_208, value_211, value_214);
+                    zir_foreign_zi2c__Diagnostic(value_212, value_215, value_218);
                     result = 1;
                 }
             }
@@ -2004,26 +2018,26 @@ main(int argc, char **arguments)
             }
             {
                 zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                bool value_216 = command_context != ((void *)0);
-                if (value_216 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                    ZirSourceSpan value_217 = {0};
+                bool value_220 = command_context != ((void *)0);
+                if (value_220 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                    ZirSourceSpan value_221 = {0};
                     {
                         ZirSourceSpan span = {0};
-                        value_217 = span;
+                        value_221 = span;
                     }
-                    String value_219 = StringLiteral("compiler.context");
-                    uint8_t* value_220 = (void *)0;
+                    String value_223 = StringLiteral("compiler.context");
+                    uint8_t* value_224 = (void *)0;
                     {
-                        String s = value_219;
-                        value_220 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_223;
+                        value_224 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    String value_222 = StringLiteral("compiler operation retained live programs");
-                    uint8_t* value_223 = (void *)0;
+                    String value_226 = StringLiteral("compiler operation retained live programs");
+                    uint8_t* value_227 = (void *)0;
                     {
-                        String s = value_222;
-                        value_223 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_226;
+                        value_227 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    zir_foreign_zi2c__Diagnostic(value_217, value_220, value_223);
+                    zir_foreign_zi2c__Diagnostic(value_221, value_224, value_227);
                     result = 1;
                 }
             }
@@ -2055,26 +2069,26 @@ main(int argc, char **arguments)
                 }
                 {
                     zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                    bool value_225 = command_context != ((void *)0);
-                    if (value_225 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                        ZirSourceSpan value_226 = {0};
+                    bool value_229 = command_context != ((void *)0);
+                    if (value_229 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                        ZirSourceSpan value_230 = {0};
                         {
                             ZirSourceSpan span = {0};
-                            value_226 = span;
+                            value_230 = span;
                         }
-                        String value_228 = StringLiteral("compiler.context");
-                        uint8_t* value_229 = (void *)0;
+                        String value_232 = StringLiteral("compiler.context");
+                        uint8_t* value_233 = (void *)0;
                         {
-                            String s = value_228;
-                            value_229 = ((zi2c_StaticText*)(&(s)))->data;
+                            String s = value_232;
+                            value_233 = ((zi2c_StaticText*)(&(s)))->data;
                         }
-                        String value_231 = StringLiteral("compiler operation retained live programs");
-                        uint8_t* value_232 = (void *)0;
+                        String value_235 = StringLiteral("compiler operation retained live programs");
+                        uint8_t* value_236 = (void *)0;
                         {
-                            String s = value_231;
-                            value_232 = ((zi2c_StaticText*)(&(s)))->data;
+                            String s = value_235;
+                            value_236 = ((zi2c_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_zi2c__Diagnostic(value_226, value_229, value_232);
+                        zir_foreign_zi2c__Diagnostic(value_230, value_233, value_236);
                         result = 1;
                     }
                 }
@@ -2108,26 +2122,26 @@ main(int argc, char **arguments)
                 }
                 {
                     zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                    bool value_234 = command_context != ((void *)0);
-                    if (value_234 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                        ZirSourceSpan value_235 = {0};
+                    bool value_238 = command_context != ((void *)0);
+                    if (value_238 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                        ZirSourceSpan value_239 = {0};
                         {
                             ZirSourceSpan span = {0};
-                            value_235 = span;
+                            value_239 = span;
                         }
-                        String value_237 = StringLiteral("compiler.context");
-                        uint8_t* value_238 = (void *)0;
+                        String value_241 = StringLiteral("compiler.context");
+                        uint8_t* value_242 = (void *)0;
                         {
-                            String s = value_237;
-                            value_238 = ((zi2c_StaticText*)(&(s)))->data;
+                            String s = value_241;
+                            value_242 = ((zi2c_StaticText*)(&(s)))->data;
                         }
-                        String value_240 = StringLiteral("compiler operation retained live programs");
-                        uint8_t* value_241 = (void *)0;
+                        String value_244 = StringLiteral("compiler operation retained live programs");
+                        uint8_t* value_245 = (void *)0;
                         {
-                            String s = value_240;
-                            value_241 = ((zi2c_StaticText*)(&(s)))->data;
+                            String s = value_244;
+                            value_245 = ((zi2c_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_zi2c__Diagnostic(value_235, value_238, value_241);
+                        zir_foreign_zi2c__Diagnostic(value_239, value_242, value_245);
                         result = 1;
                     }
                 }
@@ -2160,40 +2174,40 @@ main(int argc, char **arguments)
             }
             {
                 zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                bool value_243 = command_context != ((void *)0);
-                if (value_243 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                    ZirSourceSpan value_244 = {0};
+                bool value_247 = command_context != ((void *)0);
+                if (value_247 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                    ZirSourceSpan value_248 = {0};
                     {
                         ZirSourceSpan span = {0};
-                        value_244 = span;
+                        value_248 = span;
                     }
-                    String value_246 = StringLiteral("compiler.context");
-                    uint8_t* value_247 = (void *)0;
+                    String value_250 = StringLiteral("compiler.context");
+                    uint8_t* value_251 = (void *)0;
                     {
-                        String s = value_246;
-                        value_247 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_250;
+                        value_251 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    String value_249 = StringLiteral("compiler operation retained live programs");
-                    uint8_t* value_250 = (void *)0;
+                    String value_253 = StringLiteral("compiler operation retained live programs");
+                    uint8_t* value_254 = (void *)0;
                     {
-                        String s = value_249;
-                        value_250 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_253;
+                        value_254 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    zir_foreign_zi2c__Diagnostic(value_244, value_247, value_250);
+                    zir_foreign_zi2c__Diagnostic(value_248, value_251, value_254);
                     result = 1;
                 }
             }
             return cleanup_return_15;
         }
-        ZirProgram* value_252 = linked;
-        String value_253 = StringLiteral("c");
-        uint8_t* value_254 = (void *)0;
+        ZirProgram* value_256 = linked;
+        String value_257 = StringLiteral("c");
+        uint8_t* value_258 = (void *)0;
         {
-            String s = value_253;
-            value_254 = ((zi2c_StaticText*)(&(s)))->data;
+            String s = value_257;
+            value_258 = ((zi2c_StaticText*)(&(s)))->data;
         }
-        bool value_256 = zir_foreign_zi2c__CheckTargetCapabilities(value_252, value_254) == 0;
-        if (value_256 || zir_foreign_zi2c__NativeExportsUnique(linked) == 0) {
+        bool value_260 = zir_foreign_zi2c__CheckTargetCapabilities(value_256, value_258) == 0;
+        if (value_260 || zir_foreign_zi2c__NativeExportsUnique(linked) == 0) {
             int32_t cleanup_return_16 = result;
             {
                 zir_foreign_zi2c__ProgramsFree(&(set));
@@ -2217,26 +2231,26 @@ main(int argc, char **arguments)
             }
             {
                 zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                bool value_257 = command_context != ((void *)0);
-                if (value_257 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                    ZirSourceSpan value_258 = {0};
+                bool value_261 = command_context != ((void *)0);
+                if (value_261 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                    ZirSourceSpan value_262 = {0};
                     {
                         ZirSourceSpan span = {0};
-                        value_258 = span;
+                        value_262 = span;
                     }
-                    String value_260 = StringLiteral("compiler.context");
-                    uint8_t* value_261 = (void *)0;
+                    String value_264 = StringLiteral("compiler.context");
+                    uint8_t* value_265 = (void *)0;
                     {
-                        String s = value_260;
-                        value_261 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_264;
+                        value_265 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    String value_263 = StringLiteral("compiler operation retained live programs");
-                    uint8_t* value_264 = (void *)0;
+                    String value_267 = StringLiteral("compiler operation retained live programs");
+                    uint8_t* value_268 = (void *)0;
                     {
-                        String s = value_263;
-                        value_264 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_267;
+                        value_268 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    zir_foreign_zi2c__Diagnostic(value_258, value_261, value_264);
+                    zir_foreign_zi2c__Diagnostic(value_262, value_265, value_268);
                     result = 1;
                 }
             }
@@ -2267,33 +2281,33 @@ main(int argc, char **arguments)
             }
             {
                 zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                bool value_266 = command_context != ((void *)0);
-                if (value_266 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                    ZirSourceSpan value_267 = {0};
+                bool value_270 = command_context != ((void *)0);
+                if (value_270 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                    ZirSourceSpan value_271 = {0};
                     {
                         ZirSourceSpan span = {0};
-                        value_267 = span;
+                        value_271 = span;
                     }
-                    String value_269 = StringLiteral("compiler.context");
-                    uint8_t* value_270 = (void *)0;
+                    String value_273 = StringLiteral("compiler.context");
+                    uint8_t* value_274 = (void *)0;
                     {
-                        String s = value_269;
-                        value_270 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_273;
+                        value_274 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    String value_272 = StringLiteral("compiler operation retained live programs");
-                    uint8_t* value_273 = (void *)0;
+                    String value_276 = StringLiteral("compiler operation retained live programs");
+                    uint8_t* value_277 = (void *)0;
                     {
-                        String s = value_272;
-                        value_273 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_276;
+                        value_277 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    zir_foreign_zi2c__Diagnostic(value_267, value_270, value_273);
+                    zir_foreign_zi2c__Diagnostic(value_271, value_274, value_277);
                     result = 1;
                 }
             }
             return cleanup_return_17;
         }
-        void* value_275 = zir_foreign_zi2c__calloc((size_t)(linked->module_count), sizeof(ZirCModuleSyms));
-        syms = (ZirCModuleSyms*)(value_275);
+        void* value_279 = zir_foreign_zi2c__calloc((size_t)(linked->module_count), sizeof(ZirCModuleSyms));
+        syms = (ZirCModuleSyms*)(value_279);
         if (syms == ((void *)0)) {
             int32_t cleanup_return_18 = result;
             {
@@ -2318,26 +2332,26 @@ main(int argc, char **arguments)
             }
             {
                 zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                bool value_276 = command_context != ((void *)0);
-                if (value_276 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                    ZirSourceSpan value_277 = {0};
+                bool value_280 = command_context != ((void *)0);
+                if (value_280 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                    ZirSourceSpan value_281 = {0};
                     {
                         ZirSourceSpan span = {0};
-                        value_277 = span;
+                        value_281 = span;
                     }
-                    String value_279 = StringLiteral("compiler.context");
-                    uint8_t* value_280 = (void *)0;
+                    String value_283 = StringLiteral("compiler.context");
+                    uint8_t* value_284 = (void *)0;
                     {
-                        String s = value_279;
-                        value_280 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_283;
+                        value_284 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    String value_282 = StringLiteral("compiler operation retained live programs");
-                    uint8_t* value_283 = (void *)0;
+                    String value_286 = StringLiteral("compiler operation retained live programs");
+                    uint8_t* value_287 = (void *)0;
                     {
-                        String s = value_282;
-                        value_283 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_286;
+                        value_287 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    zir_foreign_zi2c__Diagnostic(value_277, value_280, value_283);
+                    zir_foreign_zi2c__Diagnostic(value_281, value_284, value_287);
                     result = 1;
                 }
             }
@@ -2371,26 +2385,26 @@ main(int argc, char **arguments)
                 }
                 {
                     zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                    bool value_285 = command_context != ((void *)0);
-                    if (value_285 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                        ZirSourceSpan value_286 = {0};
+                    bool value_289 = command_context != ((void *)0);
+                    if (value_289 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                        ZirSourceSpan value_290 = {0};
                         {
                             ZirSourceSpan span = {0};
-                            value_286 = span;
+                            value_290 = span;
                         }
-                        String value_288 = StringLiteral("compiler.context");
-                        uint8_t* value_289 = (void *)0;
+                        String value_292 = StringLiteral("compiler.context");
+                        uint8_t* value_293 = (void *)0;
                         {
-                            String s = value_288;
-                            value_289 = ((zi2c_StaticText*)(&(s)))->data;
+                            String s = value_292;
+                            value_293 = ((zi2c_StaticText*)(&(s)))->data;
                         }
-                        String value_291 = StringLiteral("compiler operation retained live programs");
-                        uint8_t* value_292 = (void *)0;
+                        String value_295 = StringLiteral("compiler operation retained live programs");
+                        uint8_t* value_296 = (void *)0;
                         {
-                            String s = value_291;
-                            value_292 = ((zi2c_StaticText*)(&(s)))->data;
+                            String s = value_295;
+                            value_296 = ((zi2c_StaticText*)(&(s)))->data;
                         }
-                        zir_foreign_zi2c__Diagnostic(value_286, value_289, value_292);
+                        zir_foreign_zi2c__Diagnostic(value_290, value_293, value_296);
                         result = 1;
                     }
                 }
@@ -2417,7 +2431,7 @@ main(int argc, char **arguments)
             }
             i = (int32_t)((uint32_t)i + 1u);
         }
-        int32_t closed = exe;
+        int32_t closed = emit_main;
         if (closed == 0) {
             int32_t m = 0;
             while (closed == 0 && m < linked->module_count) {
@@ -2425,49 +2439,49 @@ main(int argc, char **arguments)
                 int32_t f = 0;
                 while (closed == 0 && f < module->function_count) {
                     ZirFunction* function = &(module->functions[(size_t)(f)]);
-                    bool value_294 = function->is_template == 0;
-                    bool value_295 = value_294 && zir_foreign_zi2c__NativeProgramMain(module, function) != 0;
-                    int32_t value_296 = 0;
-                    if (value_295) {
-                        value_296 = 1;
+                    bool value_298 = function->is_template == 0;
+                    bool value_299 = value_298 && zir_foreign_zi2c__NativeProgramMain(module, function) != 0;
+                    int32_t value_300 = 0;
+                    if (value_299) {
+                        value_300 = 1;
                     }
-                    closed = value_296;
+                    closed = value_300;
                     f = (int32_t)((uint32_t)f + 1u);
                 }
                 m = (int32_t)((uint32_t)m + 1u);
             }
         }
-        if (exe != 0 && entry_fn == ((void *)0)) {
-            ZirSourceSpan value_297 = {0};
+        if (emit_main != 0 && entry_fn == ((void *)0)) {
+            ZirSourceSpan value_301 = {0};
             {
                 ZirSourceSpan span = {0};
-                value_297 = span;
+                value_301 = span;
             }
-            String value_299 = StringLiteral("zir_c.entry");
-            uint8_t* value_300 = (void *)0;
+            String value_303 = StringLiteral("zir_c.entry");
+            uint8_t* value_304 = (void *)0;
             {
-                String s = value_299;
-                value_300 = ((zi2c_StaticText*)(&(s)))->data;
+                String s = value_303;
+                value_304 = ((zi2c_StaticText*)(&(s)))->data;
             }
-            String value_302 = StringLiteral("c");
-            uint8_t* value_303 = (void *)0;
+            String value_306 = StringLiteral("c");
+            uint8_t* value_307 = (void *)0;
             {
-                String s = value_302;
-                value_303 = ((zi2c_StaticText*)(&(s)))->data;
+                String s = value_306;
+                value_307 = ((zi2c_StaticText*)(&(s)))->data;
             }
-            String value_305 = StringLiteral("entry.signature");
-            uint8_t* value_306 = (void *)0;
+            String value_309 = StringLiteral("entry.signature");
+            uint8_t* value_310 = (void *)0;
             {
-                String s = value_305;
-                value_306 = ((zi2c_StaticText*)(&(s)))->data;
+                String s = value_309;
+                value_310 = ((zi2c_StaticText*)(&(s)))->data;
             }
-            String value_308 = StringLiteral("--exe cannot find %s");
-            uint8_t* value_309 = (void *)0;
+            String value_312 = StringLiteral("cannot emit C main for missing entry %s");
+            uint8_t* value_313 = (void *)0;
             {
-                String s = value_308;
-                value_309 = ((zi2c_StaticText*)(&(s)))->data;
+                String s = value_312;
+                value_313 = ((zi2c_StaticText*)(&(s)))->data;
             }
-            zir_foreign_zi2c__DiagnosticTarget(value_297, value_300, value_303, value_306, value_309, entry);
+            zir_foreign_zi2c__DiagnosticTarget(value_301, value_304, value_307, value_310, value_313, entry);
             int32_t cleanup_return_20 = result;
             {
                 zir_foreign_zi2c__ProgramsFree(&(set));
@@ -2491,45 +2505,45 @@ main(int argc, char **arguments)
             }
             {
                 zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                bool value_311 = command_context != ((void *)0);
-                if (value_311 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                    ZirSourceSpan value_312 = {0};
+                bool value_315 = command_context != ((void *)0);
+                if (value_315 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                    ZirSourceSpan value_316 = {0};
                     {
                         ZirSourceSpan span = {0};
-                        value_312 = span;
+                        value_316 = span;
                     }
-                    String value_314 = StringLiteral("compiler.context");
-                    uint8_t* value_315 = (void *)0;
+                    String value_318 = StringLiteral("compiler.context");
+                    uint8_t* value_319 = (void *)0;
                     {
-                        String s = value_314;
-                        value_315 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_318;
+                        value_319 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    String value_317 = StringLiteral("compiler operation retained live programs");
-                    uint8_t* value_318 = (void *)0;
+                    String value_321 = StringLiteral("compiler operation retained live programs");
+                    uint8_t* value_322 = (void *)0;
                     {
-                        String s = value_317;
-                        value_318 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_321;
+                        value_322 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    zir_foreign_zi2c__Diagnostic(value_312, value_315, value_318);
+                    zir_foreign_zi2c__Diagnostic(value_316, value_319, value_322);
                     result = 1;
                 }
             }
             return cleanup_return_20;
         }
-        bool value_320 = exe != 0;
-        bool value_321 = value_320;
-        if (value_321) {
-            ZirFunction* value_322 = entry_fn;
-            String value_323 = StringLiteral("c");
-            uint8_t* value_324 = (void *)0;
+        bool value_324 = emit_main != 0;
+        bool value_325 = value_324;
+        if (value_325) {
+            ZirFunction* value_326 = entry_fn;
+            String value_327 = StringLiteral("c");
+            uint8_t* value_328 = (void *)0;
             {
-                String s = value_323;
-                value_324 = ((zi2c_StaticText*)(&(s)))->data;
+                String s = value_327;
+                value_328 = ((zi2c_StaticText*)(&(s)))->data;
             }
-            bool value_326 = zir_foreign_zi2c__CheckNativeEntry(value_322, value_324) == 0;
-            value_321 = value_326;
+            bool value_330 = zir_foreign_zi2c__CheckNativeEntry(value_326, value_328) == 0;
+            value_325 = value_330;
         }
-        if (value_321) {
+        if (value_325) {
             int32_t cleanup_return_21 = result;
             {
                 zir_foreign_zi2c__ProgramsFree(&(set));
@@ -2553,26 +2567,26 @@ main(int argc, char **arguments)
             }
             {
                 zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                bool value_327 = command_context != ((void *)0);
-                if (value_327 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                    ZirSourceSpan value_328 = {0};
+                bool value_331 = command_context != ((void *)0);
+                if (value_331 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                    ZirSourceSpan value_332 = {0};
                     {
                         ZirSourceSpan span = {0};
-                        value_328 = span;
+                        value_332 = span;
                     }
-                    String value_330 = StringLiteral("compiler.context");
-                    uint8_t* value_331 = (void *)0;
+                    String value_334 = StringLiteral("compiler.context");
+                    uint8_t* value_335 = (void *)0;
                     {
-                        String s = value_330;
-                        value_331 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_334;
+                        value_335 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    String value_333 = StringLiteral("compiler operation retained live programs");
-                    uint8_t* value_334 = (void *)0;
+                    String value_337 = StringLiteral("compiler operation retained live programs");
+                    uint8_t* value_338 = (void *)0;
                     {
-                        String s = value_333;
-                        value_334 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_337;
+                        value_338 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    zir_foreign_zi2c__Diagnostic(value_328, value_331, value_334);
+                    zir_foreign_zi2c__Diagnostic(value_332, value_335, value_338);
                     result = 1;
                 }
             }
@@ -2580,7 +2594,7 @@ main(int argc, char **arguments)
         }
         ZirFunction* main_fn = (void *)0;
         if (closed != 0 && no_main == 0) {
-            main_fn = zi2c_InPlaceMain(linked, entry_owner, entry_fn, exe);
+            main_fn = zi2c_InPlaceMain(linked, entry_owner, entry_fn, emit_main);
         }
         ZirFunction* entry_argument = (void *)0;
         if (closed != 0) {
@@ -2610,43 +2624,43 @@ main(int argc, char **arguments)
             }
             {
                 zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                bool value_336 = command_context != ((void *)0);
-                if (value_336 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                    ZirSourceSpan value_337 = {0};
+                bool value_340 = command_context != ((void *)0);
+                if (value_340 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                    ZirSourceSpan value_341 = {0};
                     {
                         ZirSourceSpan span = {0};
-                        value_337 = span;
+                        value_341 = span;
                     }
-                    String value_339 = StringLiteral("compiler.context");
-                    uint8_t* value_340 = (void *)0;
+                    String value_343 = StringLiteral("compiler.context");
+                    uint8_t* value_344 = (void *)0;
                     {
-                        String s = value_339;
-                        value_340 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_343;
+                        value_344 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    String value_342 = StringLiteral("compiler operation retained live programs");
-                    uint8_t* value_343 = (void *)0;
+                    String value_346 = StringLiteral("compiler operation retained live programs");
+                    uint8_t* value_347 = (void *)0;
                     {
-                        String s = value_342;
-                        value_343 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_346;
+                        value_347 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    zir_foreign_zi2c__Diagnostic(value_337, value_340, value_343);
+                    zir_foreign_zi2c__Diagnostic(value_341, value_344, value_347);
                     result = 1;
                 }
             }
             return cleanup_return_22;
         }
         uint8_t wrapper[1024] = {0};
-        size_t value_345 = (size_t)(1024);
-        String value_346 = StringLiteral("%s/ziran_exe_main.c");
-        uint8_t* value_347 = (void *)0;
+        size_t value_349 = (size_t)(1024);
+        String value_350 = StringLiteral("%s/ziran_exe_main.c");
+        uint8_t* value_351 = (void *)0;
         {
-            String s = value_346;
-            value_347 = ((zi2c_StaticText*)(&(s)))->data;
+            String s = value_350;
+            value_351 = ((zi2c_StaticText*)(&(s)))->data;
         }
-        zir_foreign_zi2c__snprintf(&(wrapper[0]), value_345, value_347, out_dir);
+        zir_foreign_zi2c__snprintf(&(wrapper[0]), value_349, value_351, out_dir);
         zir_foreign_zi2c__remove(&(wrapper[0]));
-        bool value_349 = exe != 0 && entry_fn != main_fn;
-        if (value_349 && zi2c_WriteEntryMain(entry_owner, entry_fn, &(wrapper[0])) == 0) {
+        bool value_353 = emit_main != 0 && entry_fn != main_fn;
+        if (value_353 && zi2c_WriteEntryMain(entry_owner, entry_fn, &(wrapper[0])) == 0) {
             int32_t cleanup_return_23 = result;
             {
                 zir_foreign_zi2c__ProgramsFree(&(set));
@@ -2670,26 +2684,26 @@ main(int argc, char **arguments)
             }
             {
                 zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                bool value_350 = command_context != ((void *)0);
-                if (value_350 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                    ZirSourceSpan value_351 = {0};
+                bool value_354 = command_context != ((void *)0);
+                if (value_354 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                    ZirSourceSpan value_355 = {0};
                     {
                         ZirSourceSpan span = {0};
-                        value_351 = span;
+                        value_355 = span;
                     }
-                    String value_353 = StringLiteral("compiler.context");
-                    uint8_t* value_354 = (void *)0;
+                    String value_357 = StringLiteral("compiler.context");
+                    uint8_t* value_358 = (void *)0;
                     {
-                        String s = value_353;
-                        value_354 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_357;
+                        value_358 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    String value_356 = StringLiteral("compiler operation retained live programs");
-                    uint8_t* value_357 = (void *)0;
+                    String value_360 = StringLiteral("compiler operation retained live programs");
+                    uint8_t* value_361 = (void *)0;
                     {
-                        String s = value_356;
-                        value_357 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_360;
+                        value_361 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    zir_foreign_zi2c__Diagnostic(value_351, value_354, value_357);
+                    zir_foreign_zi2c__Diagnostic(value_355, value_358, value_361);
                     result = 1;
                 }
             }
@@ -2722,26 +2736,26 @@ main(int argc, char **arguments)
             }
             {
                 zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                bool value_359 = command_context != ((void *)0);
-                if (value_359 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                    ZirSourceSpan value_360 = {0};
+                bool value_363 = command_context != ((void *)0);
+                if (value_363 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                    ZirSourceSpan value_364 = {0};
                     {
                         ZirSourceSpan span = {0};
-                        value_360 = span;
+                        value_364 = span;
                     }
-                    String value_362 = StringLiteral("compiler.context");
-                    uint8_t* value_363 = (void *)0;
+                    String value_366 = StringLiteral("compiler.context");
+                    uint8_t* value_367 = (void *)0;
                     {
-                        String s = value_362;
-                        value_363 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_366;
+                        value_367 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    String value_365 = StringLiteral("compiler operation retained live programs");
-                    uint8_t* value_366 = (void *)0;
+                    String value_369 = StringLiteral("compiler operation retained live programs");
+                    uint8_t* value_370 = (void *)0;
                     {
-                        String s = value_365;
-                        value_366 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_369;
+                        value_370 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    zir_foreign_zi2c__Diagnostic(value_360, value_363, value_366);
+                    zir_foreign_zi2c__Diagnostic(value_364, value_367, value_370);
                     result = 1;
                 }
             }
@@ -2753,8 +2767,8 @@ main(int argc, char **arguments)
             symbol_count = (int32_t)((uint32_t)symbol_count + (uint32_t)((progs[(size_t)(i)])->module_count));
             i = (int32_t)((uint32_t)i + 1u);
         }
-        void* value_368 = zir_foreign_zi2c__calloc((size_t)(symbol_count), sizeof(ZirCModuleSyms));
-        syms = (ZirCModuleSyms*)(value_368);
+        void* value_372 = zir_foreign_zi2c__calloc((size_t)(symbol_count), sizeof(ZirCModuleSyms));
+        syms = (ZirCModuleSyms*)(value_372);
         if (syms == ((void *)0)) {
             int32_t cleanup_return_25 = result;
             {
@@ -2779,26 +2793,26 @@ main(int argc, char **arguments)
             }
             {
                 zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                bool value_369 = command_context != ((void *)0);
-                if (value_369 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                    ZirSourceSpan value_370 = {0};
+                bool value_373 = command_context != ((void *)0);
+                if (value_373 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                    ZirSourceSpan value_374 = {0};
                     {
                         ZirSourceSpan span = {0};
-                        value_370 = span;
+                        value_374 = span;
                     }
-                    String value_372 = StringLiteral("compiler.context");
-                    uint8_t* value_373 = (void *)0;
+                    String value_376 = StringLiteral("compiler.context");
+                    uint8_t* value_377 = (void *)0;
                     {
-                        String s = value_372;
-                        value_373 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_376;
+                        value_377 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    String value_375 = StringLiteral("compiler operation retained live programs");
-                    uint8_t* value_376 = (void *)0;
+                    String value_379 = StringLiteral("compiler operation retained live programs");
+                    uint8_t* value_380 = (void *)0;
                     {
-                        String s = value_375;
-                        value_376 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_379;
+                        value_380 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    zir_foreign_zi2c__Diagnostic(value_370, value_373, value_376);
+                    zir_foreign_zi2c__Diagnostic(value_374, value_377, value_380);
                     result = 1;
                 }
             }
@@ -2835,26 +2849,26 @@ main(int argc, char **arguments)
                     }
                     {
                         zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                        bool value_378 = command_context != ((void *)0);
-                        if (value_378 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                            ZirSourceSpan value_379 = {0};
+                        bool value_382 = command_context != ((void *)0);
+                        if (value_382 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                            ZirSourceSpan value_383 = {0};
                             {
                                 ZirSourceSpan span = {0};
-                                value_379 = span;
+                                value_383 = span;
                             }
-                            String value_381 = StringLiteral("compiler.context");
-                            uint8_t* value_382 = (void *)0;
+                            String value_385 = StringLiteral("compiler.context");
+                            uint8_t* value_386 = (void *)0;
                             {
-                                String s = value_381;
-                                value_382 = ((zi2c_StaticText*)(&(s)))->data;
+                                String s = value_385;
+                                value_386 = ((zi2c_StaticText*)(&(s)))->data;
                             }
-                            String value_384 = StringLiteral("compiler operation retained live programs");
-                            uint8_t* value_385 = (void *)0;
+                            String value_388 = StringLiteral("compiler operation retained live programs");
+                            uint8_t* value_389 = (void *)0;
                             {
-                                String s = value_384;
-                                value_385 = ((zi2c_StaticText*)(&(s)))->data;
+                                String s = value_388;
+                                value_389 = ((zi2c_StaticText*)(&(s)))->data;
                             }
-                            zir_foreign_zi2c__Diagnostic(value_379, value_382, value_385);
+                            zir_foreign_zi2c__Diagnostic(value_383, value_386, value_389);
                             result = 1;
                         }
                     }
@@ -2889,26 +2903,26 @@ main(int argc, char **arguments)
             }
             {
                 zir_foreign_zi2c__CompilerContextSelect(previous_context);
-                bool value_387 = command_context != ((void *)0);
-                if (value_387 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-                    ZirSourceSpan value_388 = {0};
+                bool value_391 = command_context != ((void *)0);
+                if (value_391 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+                    ZirSourceSpan value_392 = {0};
                     {
                         ZirSourceSpan span = {0};
-                        value_388 = span;
+                        value_392 = span;
                     }
-                    String value_390 = StringLiteral("compiler.context");
-                    uint8_t* value_391 = (void *)0;
+                    String value_394 = StringLiteral("compiler.context");
+                    uint8_t* value_395 = (void *)0;
                     {
-                        String s = value_390;
-                        value_391 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_394;
+                        value_395 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    String value_393 = StringLiteral("compiler operation retained live programs");
-                    uint8_t* value_394 = (void *)0;
+                    String value_397 = StringLiteral("compiler operation retained live programs");
+                    uint8_t* value_398 = (void *)0;
                     {
-                        String s = value_393;
-                        value_394 = ((zi2c_StaticText*)(&(s)))->data;
+                        String s = value_397;
+                        value_398 = ((zi2c_StaticText*)(&(s)))->data;
                     }
-                    zir_foreign_zi2c__Diagnostic(value_388, value_391, value_394);
+                    zir_foreign_zi2c__Diagnostic(value_392, value_395, value_398);
                     result = 1;
                 }
             }
@@ -2916,38 +2930,38 @@ main(int argc, char **arguments)
         }
         result = 0;
     }
-    bool value_396 = result == 0 && (prune_stale != 0 || entry != ((void *)0));
-    bool value_397 = value_396;
-    if (value_397) {
-        uint8_t* value_398 = out_dir;
-        String value_399 = StringLiteral("/* Generated by zi2c from ");
-        uint8_t* value_400 = (void *)0;
+    bool value_400 = result == 0 && (prune_stale != 0 || entry != ((void *)0));
+    bool value_401 = value_400;
+    if (value_401) {
+        uint8_t* value_402 = out_dir;
+        String value_403 = StringLiteral("/* Generated by zi2c from ");
+        uint8_t* value_404 = (void *)0;
         {
-            String s = value_399;
-            value_400 = ((zi2c_StaticText*)(&(s)))->data;
+            String s = value_403;
+            value_404 = ((zi2c_StaticText*)(&(s)))->data;
         }
-        bool value_402 = zir_foreign_zi2c__GeneratedOutputPrune(value_398, value_400) != 0;
-        value_397 = value_402;
+        bool value_406 = zir_foreign_zi2c__GeneratedOutputPrune(value_402, value_404) != 0;
+        value_401 = value_406;
     }
-    if (value_397) {
-        ZirSourceSpan value_403 = {0};
+    if (value_401) {
+        ZirSourceSpan value_407 = {0};
         {
             ZirSourceSpan span = {0};
-            value_403 = span;
+            value_407 = span;
         }
-        String value_405 = StringLiteral("zir.output");
-        uint8_t* value_406 = (void *)0;
+        String value_409 = StringLiteral("zir.output");
+        uint8_t* value_410 = (void *)0;
         {
-            String s = value_405;
-            value_406 = ((zi2c_StaticText*)(&(s)))->data;
+            String s = value_409;
+            value_410 = ((zi2c_StaticText*)(&(s)))->data;
         }
-        String value_408 = StringLiteral("cannot remove stale generated files in %s");
-        uint8_t* value_409 = (void *)0;
+        String value_412 = StringLiteral("cannot remove stale generated files in %s");
+        uint8_t* value_413 = (void *)0;
         {
-            String s = value_408;
-            value_409 = ((zi2c_StaticText*)(&(s)))->data;
+            String s = value_412;
+            value_413 = ((zi2c_StaticText*)(&(s)))->data;
         }
-        zir_foreign_zi2c__Diagnostic(value_403, value_406, value_409, out_dir);
+        zir_foreign_zi2c__Diagnostic(value_407, value_410, value_413, out_dir);
         result = 1;
     }
     if (exe != 0) {
@@ -2956,25 +2970,25 @@ main(int argc, char **arguments)
         if (name != ((void *)0)) {
             leaf = (uint8_t*)(((size_t)(name) + 1));
         }
-        String value_411 = compiler_ir_CText(out_dir);
-        String value_412 = compiler_ir_CText(leaf);
-        int32_t value_413 = 0;
+        String value_415 = compiler_ir_CText(out_dir);
+        String value_416 = compiler_ir_CText(leaf);
+        int32_t value_417 = 0;
         if (posix_threads) {
-            value_413 = 1;
+            value_417 = 1;
         }
-        bool value_414 = zir_foreign_zi2c__CompileExecutable(value_411, value_412, value_413, release);
-        if (!value_414) {
+        bool value_418 = zir_foreign_zi2c__CompileExecutable(value_415, value_416, value_417, release);
+        if (!value_418) {
             result = 1;
         }
     }
-    int32_t value_415 = result;
-    String value_416 = StringLiteral("zi2c");
-    uint8_t* value_417 = (void *)0;
+    int32_t value_419 = result;
+    String value_420 = StringLiteral("zi2c");
+    uint8_t* value_421 = (void *)0;
     {
-        String s = value_416;
-        value_417 = ((zi2c_StaticText*)(&(s)))->data;
+        String s = value_420;
+        value_421 = ((zi2c_StaticText*)(&(s)))->data;
     }
-    int32_t cleanup_return_28 = zir_foreign_zi2c__DiagnosticEnsureFailureReported(value_415, value_417);
+    int32_t cleanup_return_28 = zir_foreign_zi2c__DiagnosticEnsureFailureReported(value_419, value_421);
     {
         zir_foreign_zi2c__ProgramsFree(&(set));
     }
@@ -2997,26 +3011,26 @@ main(int argc, char **arguments)
     }
     {
         zir_foreign_zi2c__CompilerContextSelect(previous_context);
-        bool value_419 = command_context != ((void *)0);
-        if (value_419 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
-            ZirSourceSpan value_420 = {0};
+        bool value_423 = command_context != ((void *)0);
+        if (value_423 && zir_foreign_zi2c__CompilerContextClose(command_context) == 0) {
+            ZirSourceSpan value_424 = {0};
             {
                 ZirSourceSpan span = {0};
-                value_420 = span;
+                value_424 = span;
             }
-            String value_422 = StringLiteral("compiler.context");
-            uint8_t* value_423 = (void *)0;
+            String value_426 = StringLiteral("compiler.context");
+            uint8_t* value_427 = (void *)0;
             {
-                String s = value_422;
-                value_423 = ((zi2c_StaticText*)(&(s)))->data;
+                String s = value_426;
+                value_427 = ((zi2c_StaticText*)(&(s)))->data;
             }
-            String value_425 = StringLiteral("compiler operation retained live programs");
-            uint8_t* value_426 = (void *)0;
+            String value_429 = StringLiteral("compiler operation retained live programs");
+            uint8_t* value_430 = (void *)0;
             {
-                String s = value_425;
-                value_426 = ((zi2c_StaticText*)(&(s)))->data;
+                String s = value_429;
+                value_430 = ((zi2c_StaticText*)(&(s)))->data;
             }
-            zir_foreign_zi2c__Diagnostic(value_420, value_423, value_426);
+            zir_foreign_zi2c__Diagnostic(value_424, value_427, value_430);
             result = 1;
         }
     }

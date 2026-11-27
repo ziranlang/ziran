@@ -79,11 +79,11 @@ static bool compiler_runtime_emit_SameBytes(String left, String right) ZIRAN_MAY
 static bool compiler_runtime_emit_WriteGenerated(String path, String text) ZIRAN_MAYBE_UNUSED;
 static Slice compiler_runtime_emit_BytesFromText(String value) ZIRAN_MAYBE_UNUSED;
 static bool compiler_runtime_emit_WordByte(uint8_t value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_runtime_emit_KeptSegments(String text, SimdNames* used, __type_838711075b90279a* output) ZIRAN_MAYBE_UNUSED;
+static bool compiler_runtime_emit_KeptSegments(String text, SimdNames* used, __type_131eebaaeb761e42* output) ZIRAN_MAYBE_UNUSED;
 static bool compiler_runtime_emit_SegmentNamed(String names, SimdNames* used) ZIRAN_MAYBE_UNUSED;
-static void compiler_runtime_emit_NeedHelper(int64_t helper, __type_1f00ef809eed7c2e* needed, __type_1f00ef809eed7c2e* work) ZIRAN_MAYBE_UNUSED;
-static void compiler_runtime_emit_NeedCalls(SimdNames* helpers, Segment segment, String full, __type_1f00ef809eed7c2e* needed, __type_1f00ef809eed7c2e* work) ZIRAN_MAYBE_UNUSED;
-static bool compiler_runtime_emit_Cleanup(SimdNames* helpers, __type_2f893a38d978b828* segments, __type_1f00ef809eed7c2e* last, __type_1f00ef809eed7c2e* first, __type_1f00ef809eed7c2e* needed, __type_1f00ef809eed7c2e* work, __type_838711075b90279a* output, bool result) ZIRAN_MAYBE_UNUSED;
+static void compiler_runtime_emit_NeedHelper(int64_t helper, __type_03c9bb6e22816916* needed, __type_03c9bb6e22816916* work) ZIRAN_MAYBE_UNUSED;
+static void compiler_runtime_emit_NeedCalls(SimdNames* helpers, Segment segment, String full, __type_03c9bb6e22816916* needed, __type_03c9bb6e22816916* work) ZIRAN_MAYBE_UNUSED;
+static bool compiler_runtime_emit_Cleanup(SimdNames* helpers, __type_6d6e28b0bceaff19* segments, __type_03c9bb6e22816916* last, __type_03c9bb6e22816916* first, __type_03c9bb6e22816916* needed, __type_03c9bb6e22816916* work, __type_131eebaaeb761e42* output, bool result) ZIRAN_MAYBE_UNUSED;
 GeneratedPathStore GeneratedPaths = {0};
 
 bool
@@ -107,8 +107,8 @@ compiler_runtime_emit_RecordPath(String path)
             loop_cursor_3 = (int64_t)((uint64_t)loop_cursor_3 + UINT64_C(1));
         }
     }
-    __type_838711075b90279a bytes = {0};
-    __type_838711075b90279a* value_2 = &bytes;
+    __type_131eebaaeb761e42 bytes = {0};
+    __type_131eebaaeb761e42* value_2 = &bytes;
     bool value_3 = false;
     if ((path).length == 0) {
         value_3 = true;
@@ -237,8 +237,8 @@ compiler_runtime_emit_IsRuntimeHeader(String name)
 bool
 compiler_runtime_emit_EmitRuntimeHeaders(String out_dir, String generated_path, ZirSimdUses* simd, SimdNames* used)
 {
-    __type_838711075b90279a generated_bytes = {0};
-    __type_838711075b90279a* value_2 = &generated_bytes;
+    __type_131eebaaeb761e42 generated_bytes = {0};
+    __type_131eebaaeb761e42* value_2 = &generated_bytes;
     bool readable = file_ReadFileInto(generated_path, &(generated_bytes));
     if (!readable) {
         free((generated_bytes).data);
@@ -256,8 +256,8 @@ compiler_runtime_emit_EmitRuntimeHeaders(String out_dir, String generated_path, 
     Slice value_5 = SliceRangeAt(value_4, 0LL, generated_bytes.count, sizeof(*(generated_bytes).data));
     String generated = StringView((const char *)(value_5).data, (size_t)(value_5).length);
     int64_t count = zir_foreign_compiler_runtime_emit__RuntimeHeaderCountForeign();
-    __type_9626e91dad9499a3 needed = {0};
-    __type_9626e91dad9499a3* value_6 = &needed;
+    __type_0b8b94a6b7d2072b needed = {0};
+    __type_0b8b94a6b7d2072b* value_6 = &needed;
     int64_t value_8 = count;
     bool value_9 = false;
     if (value_8 >= 0) {
@@ -411,8 +411,8 @@ compiler_runtime_emit_EmitRuntimeHeaders(String out_dir, String generated_path, 
                 index = (int64_t)((uint64_t)index + UINT64_C(1));
                 continue;
             }
-            __type_838711075b90279a kept = {0};
-            __type_838711075b90279a* value_30 = &kept;
+            __type_131eebaaeb761e42 kept = {0};
+            __type_131eebaaeb761e42* value_30 = &kept;
             String text = compiler_runtime_emit_CText((uint8_t*)header->text);
             bool built = false;
             if (StringEqual(header_name, StringLiteral("ziran_simd_ops.h"))) {
@@ -513,18 +513,18 @@ compiler_runtime_emit_EmitSimdOps(String out_dir, ZirSimdUses* uses)
     }
     String full = compiler_runtime_emit_CText((uint8_t*)full_header->text);
     SimdNames helpers = {0};
-    __type_2f893a38d978b828 segments = {0};
-    __type_2f893a38d978b828* value_2 = &segments;
-    __type_1f00ef809eed7c2e last = {0};
-    __type_1f00ef809eed7c2e* value_3 = &last;
-    __type_1f00ef809eed7c2e first = {0};
-    __type_1f00ef809eed7c2e* value_4 = &first;
-    __type_1f00ef809eed7c2e needed = {0};
-    __type_1f00ef809eed7c2e* value_5 = &needed;
-    __type_1f00ef809eed7c2e work = {0};
-    __type_1f00ef809eed7c2e* value_6 = &work;
-    __type_838711075b90279a output = {0};
-    __type_838711075b90279a* value_7 = &output;
+    __type_6d6e28b0bceaff19 segments = {0};
+    __type_6d6e28b0bceaff19* value_2 = &segments;
+    __type_03c9bb6e22816916 last = {0};
+    __type_03c9bb6e22816916* value_3 = &last;
+    __type_03c9bb6e22816916 first = {0};
+    __type_03c9bb6e22816916* value_4 = &first;
+    __type_03c9bb6e22816916 needed = {0};
+    __type_03c9bb6e22816916* value_5 = &needed;
+    __type_03c9bb6e22816916 work = {0};
+    __type_03c9bb6e22816916* value_6 = &work;
+    __type_131eebaaeb761e42 output = {0};
+    __type_131eebaaeb761e42* value_7 = &output;
     int64_t common_end = -1LL;
     int64_t at = 0LL;
     while (at < (int64_t)(full).length) {
@@ -950,8 +950,8 @@ compiler_runtime_emit_TextHasPrefix(String value, String prefix)
 static compiler_runtime_emit_Results__string__bool
 compiler_runtime_emit_JoinPath(String directory, String name)
 {
-    __type_838711075b90279a bytes = {0};
-    __type_838711075b90279a* value_2 = &bytes;
+    __type_131eebaaeb761e42 bytes = {0};
+    __type_131eebaaeb761e42* value_2 = &bytes;
     bool value_3 = false;
     if ((directory).length == 0) {
         value_3 = true;
@@ -1047,8 +1047,8 @@ static compiler_runtime_emit_Results__string__bool
 compiler_runtime_emit_JoinTemporary(String path, int32_t process_id)
 {
     int64_t digits = compiler_runtime_emit_DecimalCount((int64_t)(process_id));
-    __type_838711075b90279a bytes = {0};
-    __type_838711075b90279a* value_2 = &bytes;
+    __type_131eebaaeb761e42 bytes = {0};
+    __type_131eebaaeb761e42* value_2 = &bytes;
     bool value_3 = false;
     if ((path).length == 0) {
         value_3 = true;
@@ -1174,8 +1174,8 @@ compiler_runtime_emit_WriteGenerated(String path, String text)
     if (!value_2) {
         return false;
     }
-    __type_838711075b90279a current = {0};
-    __type_838711075b90279a* value_3 = &current;
+    __type_131eebaaeb761e42 current = {0};
+    __type_131eebaaeb761e42* value_3 = &current;
     bool readable = file_ReadFileInto(path, &(current));
     bool value_4 = readable;
     if (value_4) {
@@ -1279,7 +1279,7 @@ compiler_runtime_emit_WordByte(uint8_t value)
 }
 
 static bool
-compiler_runtime_emit_KeptSegments(String text, SimdNames* used, __type_838711075b90279a* output)
+compiler_runtime_emit_KeptSegments(String text, SimdNames* used, __type_131eebaaeb761e42* output)
 {
     bool keep = true;
     int64_t at = 0LL;
@@ -1368,7 +1368,7 @@ compiler_runtime_emit_SegmentNamed(String names, SimdNames* used)
 }
 
 static void
-compiler_runtime_emit_NeedHelper(int64_t helper, __type_1f00ef809eed7c2e* needed, __type_1f00ef809eed7c2e* work)
+compiler_runtime_emit_NeedHelper(int64_t helper, __type_03c9bb6e22816916* needed, __type_03c9bb6e22816916* work)
 {
     bool value_0 = helper < 0LL;
     if (!value_0) {
@@ -1392,7 +1392,7 @@ compiler_runtime_emit_NeedHelper(int64_t helper, __type_1f00ef809eed7c2e* needed
 }
 
 static void
-compiler_runtime_emit_NeedCalls(SimdNames* helpers, Segment segment, String full, __type_1f00ef809eed7c2e* needed, __type_1f00ef809eed7c2e* work)
+compiler_runtime_emit_NeedCalls(SimdNames* helpers, Segment segment, String full, __type_03c9bb6e22816916* needed, __type_03c9bb6e22816916* work)
 {
     int64_t start = segment.start;
     while (start < (int64_t)((uint64_t)(segment.start) + (uint64_t)(segment.length))) {
@@ -1489,7 +1489,7 @@ compiler_runtime_emit_NeedCalls(SimdNames* helpers, Segment segment, String full
 }
 
 static bool
-compiler_runtime_emit_Cleanup(SimdNames* helpers, __type_2f893a38d978b828* segments, __type_1f00ef809eed7c2e* last, __type_1f00ef809eed7c2e* first, __type_1f00ef809eed7c2e* needed, __type_1f00ef809eed7c2e* work, __type_838711075b90279a* output, bool result)
+compiler_runtime_emit_Cleanup(SimdNames* helpers, __type_6d6e28b0bceaff19* segments, __type_03c9bb6e22816916* last, __type_03c9bb6e22816916* first, __type_03c9bb6e22816916* needed, __type_03c9bb6e22816916* work, __type_131eebaaeb761e42* output, bool result)
 {
     zir_foreign_compiler_runtime_emit__SimdNamesFree(helpers);
     free(((*(segments))).data);

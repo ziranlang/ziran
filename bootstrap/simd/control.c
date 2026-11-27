@@ -7,11 +7,11 @@
 #include "arithmetic.h"
 #include "text_tools.h"
 
-__type_a48ccc373f318f67
+__type_e265f79c93ee1c4a
 control_ShiftSpecials(String op, VectorType t)
 {
-    __type_a48ccc373f318f67 output = {0};
-    __type_a48ccc373f318f67* value_0 = &output;
+    __type_e265f79c93ee1c4a output = {0};
+    __type_e265f79c93ee1c4a* value_0 = &output;
     if (StringEqual(op, StringLiteral("shl")) || StringEqual(op, StringLiteral("shr"))) {
         String name = StringView(NULL, 0);
         if (t.bits != 8) {
@@ -55,8 +55,8 @@ control_ShiftSpecials(String op, VectorType t)
         String prefix = value_10;
         String ziran_keyword_register_0 = model_X86Type(t);
         if (t.bits == 16) {
-            __type_838711075b90279a body = {0};
-            __type_838711075b90279a* value_11 = &body;
+            __type_131eebaaeb761e42 body = {0};
+            __type_131eebaaeb761e42* value_11 = &body;
             String value_12 = StringLiteral("@0 x_ = (@0)a, c_ = (@0)b, lo_ = @1set1_epi32(0xffff);\n    @0 ce_ = @1and_si@2(c_, lo_), co_ = @1srli_epi32(c_, 16);\n    ");
             String value_13 = model_Decimal((int64_t)(((int32_t)((uint32_t)(t.bytes) * 8u))));
             String value_14 = model_Render(value_12, ziran_keyword_register_0, prefix, value_13, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
@@ -136,7 +136,7 @@ control_ShiftSpecials(String op, VectorType t)
                 }
             }
             (void)value_30;
-            __type_838711075b90279a value_32 = body;
+            __type_131eebaaeb761e42 value_32 = body;
             body.data = NULL;
             body.capacity = 0;
             body.count = 0;
@@ -167,11 +167,11 @@ control_ShiftSpecials(String op, VectorType t)
             }
         }
     }
-    __type_a48ccc373f318f67 value_36 = output;
+    __type_e265f79c93ee1c4a value_36 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
-    __type_a48ccc373f318f67 value_37 = value_36;
+    __type_e265f79c93ee1c4a value_37 = value_36;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;
@@ -179,11 +179,11 @@ control_ShiftSpecials(String op, VectorType t)
     return value_37;
 }
 
-__type_a48ccc373f318f67
+__type_e265f79c93ee1c4a
 control_MemorySpecials(String op, VectorType t)
 {
-    __type_a48ccc373f318f67 output = {0};
-    __type_a48ccc373f318f67* value_0 = &output;
+    __type_e265f79c93ee1c4a output = {0};
+    __type_e265f79c93ee1c4a* value_0 = &output;
     bool store = text_tools_TextHasPrefix(op, StringLiteral("store"));
     bool low = text_tools_TextHasSuffix(op, StringLiteral("_low"));
     if (t.wide) {
@@ -220,11 +220,11 @@ control_MemorySpecials(String op, VectorType t)
         String value_8 = model_Render(StringLiteral("return (@0)wasm_v128_load(p);"), t.c, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
         arithmetic_AddBranch(&(output), StringLiteral("ZI_WASM"), value_8);
     }
-    __type_a48ccc373f318f67 value_9 = output;
+    __type_e265f79c93ee1c4a value_9 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
-    __type_a48ccc373f318f67 value_10 = value_9;
+    __type_e265f79c93ee1c4a value_10 = value_9;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;
@@ -241,8 +241,8 @@ control_Portable(String op, VectorType t)
         return model_Render(value_0, t.c, value_1, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
     }
     if (StringEqual(op, StringLiteral("make"))) {
-        __type_838711075b90279a lanes = {0};
-        __type_838711075b90279a* value_2 = &lanes;
+        __type_131eebaaeb761e42 lanes = {0};
+        __type_131eebaaeb761e42* value_2 = &lanes;
         {
             int32_t range_first_5 = 0;
             int32_t range_last_5 = (int32_t)((uint32_t)(t.lanes) - 1u);
@@ -284,7 +284,7 @@ control_Portable(String op, VectorType t)
                 i = (int32_t)((uint32_t)i + 1u);
             }
         }
-        __type_838711075b90279a value_9 = lanes;
+        __type_131eebaaeb761e42 value_9 = lanes;
         lanes.data = NULL;
         lanes.capacity = 0;
         lanes.count = 0;
@@ -355,11 +355,11 @@ control_Portable(String op, VectorType t)
     return StringLiteral("");
 }
 
-__type_a48ccc373f318f67
+__type_e265f79c93ee1c4a
 control_MaskSpecials(String op, VectorType t)
 {
-    __type_a48ccc373f318f67 output = {0};
-    __type_a48ccc373f318f67* value_0 = &output;
+    __type_e265f79c93ee1c4a output = {0};
+    __type_e265f79c93ee1c4a* value_0 = &output;
     if (StringEqual(op, StringLiteral("all_zero"))) {
         if (t.wide) {
             arithmetic_AddBranch(&(output), StringLiteral("ZI_X86 && ZI_TIER >= 4"), StringLiteral("return _mm256_testz_si256((__m256i)a, (__m256i)a);"));
@@ -404,11 +404,11 @@ control_MaskSpecials(String op, VectorType t)
             arithmetic_AddBranch(&(output), StringLiteral("ZI_WASM"), value_9);
         }
     }
-    __type_a48ccc373f318f67 value_10 = output;
+    __type_e265f79c93ee1c4a value_10 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
-    __type_a48ccc373f318f67 value_11 = value_10;
+    __type_e265f79c93ee1c4a value_11 = value_10;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;

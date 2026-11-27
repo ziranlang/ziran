@@ -56,7 +56,7 @@ hash_map_HashKey__overload_4(uint32_t key)
 }
 
 bool
-hash_map_hash_map_HashMapGet_for_string_s64(__type_85ffe259200e6bb1* map, String key, int64_t* value)
+hash_map_hash_map_HashMapGet_for_string_s64(__type_7a2629767503dccc* map, String key, int64_t* value)
 {
     int64_t slot = hash_map_hash_map_HashMapFind_for_string_s64(map, key);
     if (slot < 0LL) {
@@ -68,14 +68,14 @@ hash_map_hash_map_HashMapGet_for_string_s64(__type_85ffe259200e6bb1* map, String
 }
 
 void
-hash_map_hash_map_HashMapSet_for_string_s64(__type_85ffe259200e6bb1* map, String key, int64_t value)
+hash_map_hash_map_HashMapSet_for_string_s64(__type_7a2629767503dccc* map, String key, int64_t value)
 {
     int64_t value_0 = (int64_t)(((uint64_t)(map->count) + UINT64_C(1)) * UINT64_C(2));
     int64_t value_1 = map->states.count;
     if (value_0 > value_1) {
-        __type_85ffe259200e6bb1* value_2 = map;
+        __type_7a2629767503dccc* value_2 = map;
         {
-            __type_85ffe259200e6bb1* map = value_2;
+            __type_7a2629767503dccc* map = value_2;
             int64_t capacity = (int64_t)((uint64_t)(map->states.count) * UINT64_C(2));
             if (capacity < 8LL) {
                 capacity = 8LL;
@@ -134,7 +134,7 @@ hash_map_hash_map_HashMapSet_for_string_s64(__type_85ffe259200e6bb1* map, String
 }
 
 int64_t
-hash_map_hash_map_HashMapFind_for_string_s64(__type_85ffe259200e6bb1* map, String key)
+hash_map_hash_map_HashMapFind_for_string_s64(__type_7a2629767503dccc* map, String key)
 {
     int64_t value_0 = map->states.count;
     if (value_0 == 0LL) {
@@ -161,7 +161,7 @@ hash_map_hash_map_HashMapFind_for_string_s64(__type_85ffe259200e6bb1* map, Strin
 }
 
 void
-hash_map_hash_map_HashMapGrow_for_string_s64(__type_85ffe259200e6bb1* map)
+hash_map_hash_map_HashMapGrow_for_string_s64(__type_7a2629767503dccc* map)
 {
     int64_t capacity = (int64_t)((uint64_t)(map->states.count) * UINT64_C(2));
     if (capacity < 8LL) {
@@ -171,21 +171,21 @@ hash_map_hash_map_HashMapGrow_for_string_s64(__type_85ffe259200e6bb1* map)
 }
 
 void
-hash_map_hash_map_HashMapRehash_for_string_s64(__type_85ffe259200e6bb1* map, int64_t capacity)
+hash_map_hash_map_HashMapRehash_for_string_s64(__type_7a2629767503dccc* map, int64_t capacity)
 {
-    __type_c53c2d7c4913dc02 old_keys = {0};
-    __type_c53c2d7c4913dc02* value_0 = &old_keys;
-    __type_1f00ef809eed7c2e old_values = {0};
-    __type_1f00ef809eed7c2e* value_1 = &old_values;
-    __type_838711075b90279a old_states = {0};
-    __type_838711075b90279a* value_2 = &old_states;
-    __type_c53c2d7c4913dc02 value_3 = old_keys;
+    __type_9f828aa1372cb21a old_keys = {0};
+    __type_9f828aa1372cb21a* value_0 = &old_keys;
+    __type_03c9bb6e22816916 old_values = {0};
+    __type_03c9bb6e22816916* value_1 = &old_values;
+    __type_131eebaaeb761e42 old_states = {0};
+    __type_131eebaaeb761e42* value_2 = &old_states;
+    __type_9f828aa1372cb21a value_3 = old_keys;
     old_keys = map->keys;
     map->keys = value_3;
-    __type_1f00ef809eed7c2e value_4 = old_values;
+    __type_03c9bb6e22816916 value_4 = old_values;
     old_values = map->values;
     map->values = value_4;
-    __type_838711075b90279a value_5 = old_states;
+    __type_131eebaaeb761e42 value_5 = old_states;
     old_states = map->states;
     map->states = value_5;
     String empty_key = StringView(NULL, 0);

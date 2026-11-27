@@ -432,7 +432,6 @@ private_check_type_application_identity(ZirModule* module, uint8_t* canonical, u
         }
         if (value_1) {
             size_t start = at;
-            bool dotted = false;
             while (true) {
                 bool value_3 = zir_foreign_compiler_check_link__isalnum((int32_t)(canonical[at])) != 0;
                 bool value_4 = value_3 || canonical[at] == 95;
@@ -447,26 +446,46 @@ private_check_type_application_identity(ZirModule* module, uint8_t* canonical, u
                     value_5 = value_7;
                 }
                 if (!value_5) { break; }
-                if (canonical[at] == 46) {
-                    dotted = true;
-                }
                 at = at + 1;
             }
             uint8_t* token = (uint8_t*)(((size_t)(canonical) + start));
             size_t length = at - start;
-            if (dotted && length < 256) {
+            if (length < 256) {
                 uint8_t path[256] = {0};
                 zir_foreign_compiler_check_link__memcpy((void*)(&(path[0])), (void*)(token), length);
                 uint8_t* value_9 = &(path[length]);
                 (*value_9) = 0;
                 ZirModule* owner = (void *)0;
                 ZirType* type = zir_foreign_compiler_check_link__FindType(module, &(path[0]), &(owner));
-                if (type != ((void *)0) && owner != ((void *)0) && owner != module) {
-                    ZirType* local = zir_foreign_compiler_check_link__FindType(module, &(type->name[0]), (void *)0);
-                    if (local == ((void *)0) || local == type) {
-                        token = &(type->name[0]);
-                        length = zir_foreign_compiler_check_link__strlen(token);
+                if (type != ((void *)0) && owner != ((void *)0)) {
+                    if (type->is_synthetic_application == 0) {
+                        uint8_t* declaring = &(owner->name[0]);
+                        size_t declaring_length = zir_foreign_compiler_check_link__strlen(declaring);
+                        if ((used + declaring_length) + 1 >= capacity) {
+                            return 0;
+                        }
+                        zir_foreign_compiler_check_link__memcpy((void*)(((size_t)(output) + used)), (void*)(declaring), declaring_length);
+                        used = used + declaring_length;
+                        uint8_t* value_10 = &(output[used]);
+                        (*value_10) = 58;
+                        used = used + 1;
+                        if (type->is_file_private != 0) {
+                            uint8_t* declaring_file = zir_foreign_compiler_check_link__SpanPath(type->span);
+                            if (declaring_file != ((void *)0)) {
+                                size_t file_length = zir_foreign_compiler_check_link__strlen(declaring_file);
+                                if ((used + file_length) + 1 >= capacity) {
+                                    return 0;
+                                }
+                                zir_foreign_compiler_check_link__memcpy((void*)(((size_t)(output) + used)), (void*)(declaring_file), file_length);
+                                used = used + file_length;
+                            }
+                            uint8_t* value_11 = &(output[used]);
+                            (*value_11) = 58;
+                            used = used + 1;
+                        }
                     }
+                    token = &(type->name[0]);
+                    length = zir_foreign_compiler_check_link__strlen(token);
                 }
             }
             if (used + length >= capacity) {
@@ -479,16 +498,16 @@ private_check_type_application_identity(ZirModule* module, uint8_t* canonical, u
         if (used + 1 >= capacity) {
             return 0;
         }
-        uint8_t* value_10 = &(output[used]);
-        (*value_10) = byte;
+        uint8_t* value_12 = &(output[used]);
+        (*value_12) = byte;
         used = used + 1;
         if (quote != 0 && byte == 92 && canonical[(at + 1)] != 0) {
             at = at + 1;
             if (used + 1 >= capacity) {
                 return 0;
             }
-            uint8_t* value_11 = &(output[used]);
-            (*value_11) = canonical[at];
+            uint8_t* value_13 = &(output[used]);
+            (*value_13) = canonical[at];
             used = used + 1;
         } else if (quote != 0 && byte == quote) {
             quote = 0;
@@ -497,9 +516,53 @@ private_check_type_application_identity(ZirModule* module, uint8_t* canonical, u
         }
         at = at + 1;
     }
-    uint8_t* value_12 = &(output[used]);
-    (*value_12) = 0;
+    uint8_t* value_14 = &(output[used]);
+    (*value_14) = 0;
     return 1;
+}
+
+uint64_t
+private_check_type_application_hash(ZirModule* owner, ZirType* generic, uint8_t* identity)
+{
+    uint64_t hash = 14695981039346656037ULL;
+    uint8_t* declaring_name = &(owner->name[0]);
+    while (declaring_name[0] != 0) {
+        hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)(declaring_name[0])) * UINT64_C(1099511628211));
+        declaring_name = (uint8_t*)(((size_t)(declaring_name) + 1));
+    }
+    hash = (uint64_t)(((uint64_t)hash ^ UINT64_C(0)) * UINT64_C(1099511628211));
+    if (generic->is_file_private != 0) {
+        uint8_t* declaring_file = zir_foreign_compiler_check_link__SpanPath(generic->span);
+        while (declaring_file != ((void *)0) && declaring_file[0] != 0) {
+            hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)(declaring_file[0])) * UINT64_C(1099511628211));
+            declaring_file = (uint8_t*)(((size_t)(declaring_file) + 1));
+        }
+    }
+    hash = (uint64_t)(((uint64_t)hash ^ UINT64_C(0)) * UINT64_C(1099511628211));
+    {
+        uint8_t* p = (uint8_t*)((uint8_t*)(&(generic->name)));
+        while (true) {
+            bool check_loop_152 = p[0] != 0;
+            if (!check_loop_152) {
+                break;
+            }
+            hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)(p[0])) * UINT64_C(1099511628211));
+            compiler_check_s12_types_S12Post1(&(p));
+        }
+    }
+    hash = (uint64_t)(((uint64_t)hash ^ UINT64_C(40)) * UINT64_C(1099511628211));
+    {
+        uint8_t* p = identity;
+        while (true) {
+            bool check_loop_153 = p[0] != 0;
+            if (!check_loop_153) {
+                break;
+            }
+            hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)(p[0])) * UINT64_C(1099511628211));
+            compiler_check_s12_types_S12Post1(&(p));
+        }
+    }
+    return hash;
 }
 
 void
@@ -661,13 +724,14 @@ compiler_check_link_rewrite_type_applications_with_buffers(ZirModule* module, ui
                     S12Array128_u8* base_storage_0 = (S12Array128_u8*)(value_19);
                     zir_foreign_compiler_check_link__memset((void*)(base_storage_0), 0, sizeof(S12Array128_u8));
                     ZirType* generic = (void *)0;
+                    ZirModule* generic_owner = (void *)0;
                     uint64_t value_20 = (uint64_t)(length);
                     uint64_t value_21 = (uint64_t)(sizeof(S12Array128_u8));
                     if (value_20 < value_21 && (int32_t)((int8_t)(opening[0])) == 40) {
                         zir_foreign_compiler_check_link__memcpy((void*)((uint8_t*)(&((base_storage_0[0]).items))), (void*)(start), length);
                         uint8_t* value_22 = &(((base_storage_0[0]).items)[length]);
                         (*value_22) = 0;
-                        generic = zir_foreign_compiler_check_link__FindType(module, (uint8_t*)(&((base_storage_0[0]).items)), (void *)0);
+                        generic = zir_foreign_compiler_check_link__FindType(module, (uint8_t*)(&((base_storage_0[0]).items)), &(generic_owner));
                     }
                     if (generic != (ZirType*)(((void *)0)) && generic->is_record_template != 0) {
                         uint8_t* closing = (uint8_t*)(((size_t)(opening) + ((size_t)(1LL) * sizeof(uint8_t))));
@@ -733,30 +797,14 @@ compiler_check_link_rewrite_type_applications_with_buffers(ZirModule* module, ui
                             zir_foreign_compiler_check_link__CompilerFree((void*)(base_storage_0));
                             return cleanup_return_3;
                         }
-                        uint64_t hash = 14695981039346656037ULL;
-                        {
-                            uint8_t* p = (uint8_t*)((uint8_t*)(&(generic->name)));
-                            while (true) {
-                                bool check_loop_152 = p[0] != 0;
-                                if (!check_loop_152) {
-                                    break;
-                                }
-                                hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)(p[0])) * UINT64_C(1099511628211));
-                                compiler_check_s12_types_S12Post1(&(p));
-                            }
+                        generic = zir_foreign_compiler_check_link__FindType(module, (uint8_t*)(&((base_storage_0[0]).items)), &(generic_owner));
+                        if (generic == ((void *)0) || generic_owner == ((void *)0)) {
+                            int32_t cleanup_return_4 = 0;
+                            zir_foreign_compiler_check_link__CompilerFree((void*)(identity_storage));
+                            zir_foreign_compiler_check_link__CompilerFree((void*)(base_storage_0));
+                            return cleanup_return_4;
                         }
-                        hash = (uint64_t)(((uint64_t)hash ^ UINT64_C(40)) * UINT64_C(1099511628211));
-                        {
-                            uint8_t* p = (uint8_t*)((uint8_t*)(&((identity_storage[0]).items)));
-                            while (true) {
-                                bool check_loop_153 = p[0] != 0;
-                                if (!check_loop_153) {
-                                    break;
-                                }
-                                hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)(p[0])) * UINT64_C(1099511628211));
-                                compiler_check_s12_types_S12Post1(&(p));
-                            }
-                        }
+                        uint64_t hash = private_check_type_application_hash(generic_owner, generic, (uint8_t*)(&((identity_storage[0]).items)));
                         void* value_38 = zir_foreign_compiler_check_link__AllocateOrExit(sizeof(S12Array128_u8));
                         S12Array128_u8* name_storage_1 = (S12Array128_u8*)(value_38);
                         zir_foreign_compiler_check_link__memset((void*)(name_storage_1), 0, sizeof(S12Array128_u8));
@@ -773,13 +821,13 @@ compiler_check_link_rewrite_type_applications_with_buffers(ZirModule* module, ui
                                     }
                                     if (zir_foreign_compiler_check_link__strcmp((uint8_t*)(&((module->types[t]).name)), (uint8_t*)(&((name_storage_1[0]).items))) == 0) {
                                         instance = (ZirType*)(((size_t)(module->types) + ((size_t)(t) * sizeof(ZirType))));
-                                        goto zir_loop_break_7;
+                                        goto zir_loop_break_5;
                                     }
                                     compiler_check_s12_types_S12Post2(&(t));
                                 }
-                                zir_loop_continue_7: ;
+                                zir_loop_continue_5: ;
                             }
-                            zir_loop_break_7: ;
+                            zir_loop_break_5: ;
                         }
                         void* value_40 = zir_foreign_compiler_check_link__AllocateOrExit(sizeof(S12Array4096_u8));
                         S12Array4096_u8* existing_storage = (S12Array4096_u8*)(value_40);
@@ -810,24 +858,24 @@ compiler_check_link_rewrite_type_applications_with_buffers(ZirModule* module, ui
                             ZirSourceSpan value_52 = span;
                             uint8_t* value_53 = compiler_check_types_CheckCString(StringLiteral("check.type_application"));
                             zir_foreign_compiler_check_link__Diagnostic(value_52, value_53, compiler_check_types_CheckCString(StringLiteral("type application name collision: %s")), (uint8_t*)(&((base_storage_0[0]).items)));
-                            int32_t cleanup_return_4 = 0;
+                            int32_t cleanup_return_5 = 0;
                             zir_foreign_compiler_check_link__CompilerFree((void*)(existing_storage));
                             zir_foreign_compiler_check_link__CompilerFree((void*)(name_storage_1));
                             zir_foreign_compiler_check_link__CompilerFree((void*)(identity_storage));
                             zir_foreign_compiler_check_link__CompilerFree((void*)(base_storage_0));
-                            return cleanup_return_4;
+                            return cleanup_return_5;
                         }
                         if (instance == (ZirType*)(((void *)0))) {
                             int32_t generic_public = generic->is_public;
                             int32_t generic_file_private = generic->is_file_private;
                             instance = zir_foreign_compiler_check_link__ModuleAddType(module, (uint8_t*)(&((name_storage_1[0]).items)), span);
                             if (instance == (ZirType*)(((void *)0))) {
-                                int32_t cleanup_return_5 = 0;
+                                int32_t cleanup_return_6 = 0;
                                 zir_foreign_compiler_check_link__CompilerFree((void*)(existing_storage));
                                 zir_foreign_compiler_check_link__CompilerFree((void*)(name_storage_1));
                                 zir_foreign_compiler_check_link__CompilerFree((void*)(identity_storage));
                                 zir_foreign_compiler_check_link__CompilerFree((void*)(base_storage_0));
-                                return cleanup_return_5;
+                                return cleanup_return_6;
                             }
                             TypeApplicationScope(module, (uint8_t*)(&(buffers->canonical.items)), generic_public, generic_file_private, instance);
                             int32_t* value_54 = &(instance->is_type_instance);
@@ -840,12 +888,12 @@ compiler_check_link_rewrite_type_applications_with_buffers(ZirModule* module, ui
                         size_t value_56 = zir_foreign_compiler_check_link__strlen((uint8_t*)(&((name_storage_1[0]).items)));
                         size_t name_length = (size_t)((uint64_t)(value_56));
                         if (used + name_length >= capacity) {
-                            int32_t cleanup_return_6 = 0;
+                            int32_t cleanup_return_7 = 0;
                             zir_foreign_compiler_check_link__CompilerFree((void*)(existing_storage));
                             zir_foreign_compiler_check_link__CompilerFree((void*)(name_storage_1));
                             zir_foreign_compiler_check_link__CompilerFree((void*)(identity_storage));
                             zir_foreign_compiler_check_link__CompilerFree((void*)(base_storage_0));
-                            return cleanup_return_6;
+                            return cleanup_return_7;
                         }
                         zir_foreign_compiler_check_link__memcpy((void*)((uint8_t*)(((size_t)(output) + ((size_t)(used) * sizeof(uint8_t))))), (void*)((uint8_t*)(&((name_storage_1[0]).items))), name_length);
                         used = used + name_length;
@@ -857,9 +905,9 @@ compiler_check_link_rewrite_type_applications_with_buffers(ZirModule* module, ui
                         goto zir_loop_continue_1;
                     }
                     if (used + length >= capacity) {
-                        int32_t cleanup_return_7 = 0;
+                        int32_t cleanup_return_8 = 0;
                         zir_foreign_compiler_check_link__CompilerFree((void*)(base_storage_0));
-                        return cleanup_return_7;
+                        return cleanup_return_8;
                     }
                     zir_foreign_compiler_check_link__memcpy((void*)((uint8_t*)(((size_t)(output) + ((size_t)(used) * sizeof(uint8_t))))), (void*)(start), length);
                     used = used + length;
@@ -1093,7 +1141,8 @@ compiler_check_link_normalize_type_applications_with_buffers(ZirModule* module, 
                 }
             }
             if ((module->types[t]).is_procedure_type != 0) {
-                if (private_check_rewrite_type_applications(module, (uint8_t*)(&((module->types[t]).procedure_return_type)), (uint8_t*)(&(buffers->expanded.items)), sizeof(S12Array8192_u8), (module->types[t]).span, 0) == 0) {
+                zir_foreign_compiler_check_link__copy_text((uint8_t*)(&(buffers->body.items)), sizeof(S12Array8192_u8), (uint8_t*)(&((module->types[t]).procedure_return_type)));
+                if (private_check_rewrite_type_applications(module, (uint8_t*)(&(buffers->body.items)), (uint8_t*)(&(buffers->expanded.items)), sizeof(S12Array8192_u8), (module->types[t]).span, 0) == 0) {
                     return 0;
                 }
                 Slice value_3 = {(module->types[t]).procedure_return_type, 128};

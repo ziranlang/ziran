@@ -7,15 +7,15 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-#define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-typedef struct __type_838711075b90279a __type_838711075b90279a;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
 typedef struct Text Text;
-#ifndef ZIRAN_CONCRETE___type_838711075b90279a
-#define ZIRAN_CONCRETE___type_838711075b90279a
+#ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE___type_131eebaaeb761e42
 
-struct __type_838711075b90279a {
+struct __type_131eebaaeb761e42 {
     uint8_t* data;
     int64_t count;
     int64_t capacity;
@@ -23,10 +23,10 @@ struct __type_838711075b90279a {
 #endif
 
 struct Text {
-    __type_838711075b90279a bytes;
+    __type_131eebaaeb761e42 bytes;
 };
 Text vec_TextCopy(String value);
-Text vec_TextFromBuilder(__type_838711075b90279a bytes);
+Text vec_TextFromBuilder(__type_131eebaaeb761e42 bytes);
 String vec_TextDetach(Text text);
 
 #ifdef __cplusplus

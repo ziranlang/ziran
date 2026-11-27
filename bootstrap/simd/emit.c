@@ -7,7 +7,7 @@
 #include "text_tools.h"
 
 void
-emit_Marker(__type_838711075b90279a* output, String* current, String name)
+emit_Marker(__type_131eebaaeb761e42* output, String* current, String name)
 {
     if (StringEqual(*(current), name)) {
         return;
@@ -20,7 +20,7 @@ emit_Marker(__type_838711075b90279a* output, String* current, String name)
 }
 
 void
-emit_Prototype(__type_838711075b90279a* output, Helper* helper)
+emit_Prototype(__type_131eebaaeb761e42* output, Helper* helper)
 {
     Slice value_0 = {(helper->parameters).data, (helper->parameters).count};
     Slice value_1 = SliceRangeAt(value_0, 0LL, helper->parameters.count, sizeof(*(helper->parameters).data));
@@ -46,7 +46,7 @@ emit_Prototype(__type_838711075b90279a* output, Helper* helper)
 }
 
 void
-emit_Function(__type_838711075b90279a* output, Helper* helper, bool split)
+emit_Function(__type_131eebaaeb761e42* output, Helper* helper, bool split)
 {
     bool value_0 = split;
     if (value_0) {
@@ -133,7 +133,7 @@ emit_Function(__type_838711075b90279a* output, Helper* helper, bool split)
 }
 
 void
-emit_SplitMacros(__type_838711075b90279a* output, Slice helpers, String* marker)
+emit_SplitMacros(__type_131eebaaeb761e42* output, Slice helpers, String* marker)
 {
     emit_Marker(output, marker, StringLiteral(""));
     String value_0 = model_Render(StringLiteral("#if @0"), StringLiteral("ZI_VEC && ZI_X86 && ZI_TIER < 4"), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
@@ -167,12 +167,12 @@ emit_SplitMacros(__type_838711075b90279a* output, Slice helpers, String* marker)
                         continue;
                     }
                     emit_Marker(output, marker, helper->name);
-                    __type_838711075b90279a names = {0};
-                    __type_838711075b90279a* value_7 = &names;
-                    __type_838711075b90279a declarations = {0};
-                    __type_838711075b90279a* value_8 = &declarations;
-                    __type_838711075b90279a arguments = {0};
-                    __type_838711075b90279a* value_9 = &arguments;
+                    __type_131eebaaeb761e42 names = {0};
+                    __type_131eebaaeb761e42* value_7 = &names;
+                    __type_131eebaaeb761e42 declarations = {0};
+                    __type_131eebaaeb761e42* value_8 = &declarations;
+                    __type_131eebaaeb761e42 arguments = {0};
+                    __type_131eebaaeb761e42* value_9 = &arguments;
                     {
                         int64_t range_first_14 = 0LL;
                         int64_t range_last_14 = (int64_t)((uint64_t)(helper->parameters.count) - UINT64_C(1));

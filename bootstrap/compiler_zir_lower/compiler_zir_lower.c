@@ -302,29 +302,29 @@ static void compiler_zir_lower_ForeignCall(AssemblyProgram* program, uint8_t* na
 static int32_t compiler_zir_lower_Spend(AssemblyProgram* program, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
 static void* compiler_zir_lower_Allocate(AssemblyProgram* program, size_t count, size_t width) ZIRAN_MAYBE_UNUSED;
 static bool compiler_zir_lower_Push(AssemblyProgram* program, RawVector* vector, size_t width, void* value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushS32(AssemblyProgram* program, __type_0c8c2c2a7dfdc73a* vector, int32_t value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushString(AssemblyProgram* program, __type_5a6f11963c9bea0f* vector, String value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushLirType(AssemblyProgram* program, __type_ddeffb4af1d2a905* vector, LirType value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushLirConstant(AssemblyProgram* program, __type_df30cb38159eb83d* vector, LirConstant value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushLirOrigin(AssemblyProgram* program, __type_37ce17372029b897* vector, LirOrigin value) ZIRAN_MAYBE_UNUSED;
-static Slice compiler_zir_lower_SliceOf__overload_1(__type_a179548355995a8b vector) ZIRAN_MAYBE_UNUSED;
-static Slice compiler_zir_lower_SliceOf__overload_2(__type_0c8c2c2a7dfdc73a vector) ZIRAN_MAYBE_UNUSED;
-static Slice compiler_zir_lower_SliceOf__overload_3(__type_5a6f11963c9bea0f vector) ZIRAN_MAYBE_UNUSED;
-static Slice compiler_zir_lower_SliceOf__overload_4(__type_ddeffb4af1d2a905 vector) ZIRAN_MAYBE_UNUSED;
-static Slice compiler_zir_lower_SliceOf__overload_5(__type_df30cb38159eb83d vector) ZIRAN_MAYBE_UNUSED;
-static Slice compiler_zir_lower_SliceOf__overload_6(__type_37ce17372029b897 vector) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushS32(AssemblyProgram* program, __type_a268808db406c613* vector, int32_t value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushString(AssemblyProgram* program, __type_781c45d78de52aa8* vector, String value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushLirType(AssemblyProgram* program, __type_d46e199831b1046a* vector, LirType value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushLirConstant(AssemblyProgram* program, __type_05087b0903b6d41a* vector, LirConstant value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushLirOrigin(AssemblyProgram* program, __type_59c3ac6bb10569cc* vector, LirOrigin value) ZIRAN_MAYBE_UNUSED;
+static Slice compiler_zir_lower_SliceOf__overload_1(__type_e684a33bc3bac008 vector) ZIRAN_MAYBE_UNUSED;
+static Slice compiler_zir_lower_SliceOf__overload_2(__type_a268808db406c613 vector) ZIRAN_MAYBE_UNUSED;
+static Slice compiler_zir_lower_SliceOf__overload_3(__type_781c45d78de52aa8 vector) ZIRAN_MAYBE_UNUSED;
+static Slice compiler_zir_lower_SliceOf__overload_4(__type_d46e199831b1046a vector) ZIRAN_MAYBE_UNUSED;
+static Slice compiler_zir_lower_SliceOf__overload_5(__type_05087b0903b6d41a vector) ZIRAN_MAYBE_UNUSED;
+static Slice compiler_zir_lower_SliceOf__overload_6(__type_59c3ac6bb10569cc vector) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_zir_lower_Text(AssemblyProgram* program, uint8_t* text) ZIRAN_MAYBE_UNUSED;
-static int32_t compiler_zir_lower_Name(AssemblyProgram* program, __type_5a6f11963c9bea0f* names, uint8_t* name) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_zir_lower_Name(AssemblyProgram* program, __type_781c45d78de52aa8* names, uint8_t* name) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_Origin(AssemblyProgram* program, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_ScalarWidth(uint8_t* name) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushAssemblyType(AssemblyProgram* program, __type_ebdb196ca6e54c46* vector, AssemblyType value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushAssemblyGlobal(AssemblyProgram* program, __type_01190c4c4b9b9bf1* vector, AssemblyGlobal value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushFunctionPtr(AssemblyProgram* program, __type_4903477303ada8c0* vector, AssemblyFunction* value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushBlock(AssemblyProgram* program, __type_67ee5567ed548753* vector, AssemblyBlock value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushBinding(AssemblyProgram* program, __type_dd536e055506338b* vector, AssemblyBinding value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushZeroSlot(AssemblyProgram* program, __type_745e0b4796abfa08* vector, AssemblyZeroSlot value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushProbe(AssemblyProgram* program, __type_f12db627436ed32d* vector, ZirFunction* value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushInstruction(AssemblyProgram* program, __type_64f69ff50dc44167* vector, LirInstruction value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushAssemblyType(AssemblyProgram* program, __type_d77643bc17475164* vector, AssemblyType value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushAssemblyGlobal(AssemblyProgram* program, __type_501281b5d4ea2fa3* vector, AssemblyGlobal value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushFunctionPtr(AssemblyProgram* program, __type_67a48de9397a3f1c* vector, AssemblyFunction* value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushBlock(AssemblyProgram* program, __type_4848f083bd341f05* vector, AssemblyBlock value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushBinding(AssemblyProgram* program, __type_a86c8c04d298dd35* vector, AssemblyBinding value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushZeroSlot(AssemblyProgram* program, __type_4729534061a4e3aa* vector, AssemblyZeroSlot value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushProbe(AssemblyProgram* program, __type_84d45d230427ff25* vector, ZirFunction* value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushInstruction(AssemblyProgram* program, __type_90740861c75ea996* vector, LirInstruction value) ZIRAN_MAYBE_UNUSED;
 static Slice compiler_zir_lower_LirEdgeItems(LirEdge* data, int64_t count) ZIRAN_MAYBE_UNUSED;
 static Slice compiler_zir_lower_LirInstructionItems(LirInstruction* data, int64_t count) ZIRAN_MAYBE_UNUSED;
 static LirType* compiler_zir_lower_TypeAt(AssemblyProgram* program, int32_t identity) ZIRAN_MAYBE_UNUSED;
@@ -467,7 +467,7 @@ static int32_t compiler_zir_lower_CaseOrder(AssemblyCase* left, AssemblyCase* ri
 static void compiler_zir_lower_SortCases(AssemblyCase* cases, int32_t count) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_Close(AssemblyProgram* program, ZirFunction* source, int32_t begin, int32_t end) ZIRAN_MAYBE_UNUSED;
 static void compiler_zir_lower_Dispatch(AssemblyProgram* program, AssemblyFunction* function, int32_t subject, int32_t type, AssemblyCase* cases, int32_t low, int32_t high, int32_t otherwise, AssemblyBinding* before, int32_t count, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
-static int32_t compiler_zir_lower_CaseList(AssemblyProgram* program, AssemblyFunction* function, int32_t index, int32_t end, __type_965802081a090cda* arms, int32_t* otherwise, int32_t* next) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_zir_lower_CaseList(AssemblyProgram* program, AssemblyFunction* function, int32_t index, int32_t end, __type_b493536fa28f21e0* arms, int32_t* otherwise, int32_t* next) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_AssemblyIf(AssemblyProgram* program, AssemblyFunction* function, int32_t index, int32_t end, int32_t depth) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_BlockBarrier(AssemblyFunction* function, int32_t block, int32_t from) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_EmittedBarrier(AssemblyFunction* function, int32_t block, int32_t end, int32_t blocks) ZIRAN_MAYBE_UNUSED;
@@ -492,7 +492,7 @@ static void compiler_zir_lower_InterfaceField(InterfaceText* text, uint8_t* part
 static void compiler_zir_lower_InterfaceReject(InterfaceText* text, uint8_t* spelling) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_zir_lower_ClassText(int32_t class_id) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_zir_lower_InterfaceTypeName(AssemblyProgram* program, ZirModule* module, uint8_t* spelling, int32_t depth) ZIRAN_MAYBE_UNUSED;
-static int32_t compiler_zir_lower_DescribeNode(AssemblyProgram* program, InterfaceText* text, __type_5edaf1f9ada62dbd* nodes, ZirModule* module, uint8_t* spelling, int32_t depth) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_zir_lower_DescribeNode(AssemblyProgram* program, InterfaceText* text, __type_b1913ece2700738b* nodes, ZirModule* module, uint8_t* spelling, int32_t depth) ZIRAN_MAYBE_UNUSED;
 static void compiler_zir_lower_PrintString(void* output, String value) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_HexDigit(int32_t digit) ZIRAN_MAYBE_UNUSED;
 static void compiler_zir_lower_PrintHexByte(void* output, uint8_t value) ZIRAN_MAYBE_UNUSED;
@@ -968,67 +968,67 @@ compiler_zir_lower_Push(AssemblyProgram* program, RawVector* vector, size_t widt
 }
 
 static bool
-compiler_zir_lower_PushS32(AssemblyProgram* program, __type_0c8c2c2a7dfdc73a* vector, int32_t value)
+compiler_zir_lower_PushS32(AssemblyProgram* program, __type_a268808db406c613* vector, int32_t value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(int32_t), (void*)(&(value)));
 }
 
 static bool
-compiler_zir_lower_PushString(AssemblyProgram* program, __type_5a6f11963c9bea0f* vector, String value)
+compiler_zir_lower_PushString(AssemblyProgram* program, __type_781c45d78de52aa8* vector, String value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(String), (void*)(&(value)));
 }
 
 static bool
-compiler_zir_lower_PushLirType(AssemblyProgram* program, __type_ddeffb4af1d2a905* vector, LirType value)
+compiler_zir_lower_PushLirType(AssemblyProgram* program, __type_d46e199831b1046a* vector, LirType value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(LirType), (void*)(&(value)));
 }
 
 static bool
-compiler_zir_lower_PushLirConstant(AssemblyProgram* program, __type_df30cb38159eb83d* vector, LirConstant value)
+compiler_zir_lower_PushLirConstant(AssemblyProgram* program, __type_05087b0903b6d41a* vector, LirConstant value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(LirConstant), (void*)(&(value)));
 }
 
 static bool
-compiler_zir_lower_PushLirOrigin(AssemblyProgram* program, __type_37ce17372029b897* vector, LirOrigin value)
+compiler_zir_lower_PushLirOrigin(AssemblyProgram* program, __type_59c3ac6bb10569cc* vector, LirOrigin value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(LirOrigin), (void*)(&(value)));
 }
 
 static Slice
-compiler_zir_lower_SliceOf__overload_1(__type_a179548355995a8b vector)
+compiler_zir_lower_SliceOf__overload_1(__type_e684a33bc3bac008 vector)
 {
     return compiler_zir_lower_U8Items(vector.data, (int64_t)(vector.count));
 }
 
 static Slice
-compiler_zir_lower_SliceOf__overload_2(__type_0c8c2c2a7dfdc73a vector)
+compiler_zir_lower_SliceOf__overload_2(__type_a268808db406c613 vector)
 {
     return compiler_zir_lower_S32Items(vector.data, (int64_t)(vector.count));
 }
 
 static Slice
-compiler_zir_lower_SliceOf__overload_3(__type_5a6f11963c9bea0f vector)
+compiler_zir_lower_SliceOf__overload_3(__type_781c45d78de52aa8 vector)
 {
     return compiler_zir_lower_StringItems(vector.data, (int64_t)(vector.count));
 }
 
 static Slice
-compiler_zir_lower_SliceOf__overload_4(__type_ddeffb4af1d2a905 vector)
+compiler_zir_lower_SliceOf__overload_4(__type_d46e199831b1046a vector)
 {
     return compiler_zir_lower_LirTypeItems(vector.data, (int64_t)(vector.count));
 }
 
 static Slice
-compiler_zir_lower_SliceOf__overload_5(__type_df30cb38159eb83d vector)
+compiler_zir_lower_SliceOf__overload_5(__type_05087b0903b6d41a vector)
 {
     return compiler_zir_lower_LirConstantItems(vector.data, (int64_t)(vector.count));
 }
 
 static Slice
-compiler_zir_lower_SliceOf__overload_6(__type_37ce17372029b897 vector)
+compiler_zir_lower_SliceOf__overload_6(__type_59c3ac6bb10569cc vector)
 {
     return compiler_zir_lower_LirOriginItems(vector.data, (int64_t)(vector.count));
 }
@@ -1050,7 +1050,7 @@ compiler_zir_lower_Text(AssemblyProgram* program, uint8_t* text)
 }
 
 static int32_t
-compiler_zir_lower_Name(AssemblyProgram* program, __type_5a6f11963c9bea0f* names, uint8_t* name)
+compiler_zir_lower_Name(AssemblyProgram* program, __type_781c45d78de52aa8* names, uint8_t* name)
 {
     String* values = names->data;
     int32_t index = 0;
@@ -1072,7 +1072,7 @@ compiler_zir_lower_Name(AssemblyProgram* program, __type_5a6f11963c9bea0f* names
     bool value_5 = false;
     {
         AssemblyProgram* program = value_3;
-        __type_5a6f11963c9bea0f* vector = names;
+        __type_781c45d78de52aa8* vector = names;
         String value = value_4;
         value_5 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(String), (void*)(&(value)));
     }
@@ -1125,11 +1125,11 @@ compiler_zir_lower_Origin(AssemblyProgram* program, ZirSourceSpan span)
     }
     int32_t index = program->origins.count;
     AssemblyProgram* value_5 = program;
-    __type_37ce17372029b897* value_6 = &(program->origins);
+    __type_59c3ac6bb10569cc* value_6 = &(program->origins);
     bool value_7 = false;
     {
         AssemblyProgram* program = value_5;
-        __type_37ce17372029b897* vector = value_6;
+        __type_59c3ac6bb10569cc* vector = value_6;
         LirOrigin value = origin;
         value_7 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(LirOrigin), (void*)(&(value)));
     }
@@ -1170,49 +1170,49 @@ compiler_zir_lower_ScalarWidth(uint8_t* name)
 }
 
 static bool
-compiler_zir_lower_PushAssemblyType(AssemblyProgram* program, __type_ebdb196ca6e54c46* vector, AssemblyType value)
+compiler_zir_lower_PushAssemblyType(AssemblyProgram* program, __type_d77643bc17475164* vector, AssemblyType value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
 }
 
 static bool
-compiler_zir_lower_PushAssemblyGlobal(AssemblyProgram* program, __type_01190c4c4b9b9bf1* vector, AssemblyGlobal value)
+compiler_zir_lower_PushAssemblyGlobal(AssemblyProgram* program, __type_501281b5d4ea2fa3* vector, AssemblyGlobal value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyGlobal), (void*)(&(value)));
 }
 
 static bool
-compiler_zir_lower_PushFunctionPtr(AssemblyProgram* program, __type_4903477303ada8c0* vector, AssemblyFunction* value)
+compiler_zir_lower_PushFunctionPtr(AssemblyProgram* program, __type_67a48de9397a3f1c* vector, AssemblyFunction* value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(void *), (void*)(&(value)));
 }
 
 static bool
-compiler_zir_lower_PushBlock(AssemblyProgram* program, __type_67ee5567ed548753* vector, AssemblyBlock value)
+compiler_zir_lower_PushBlock(AssemblyProgram* program, __type_4848f083bd341f05* vector, AssemblyBlock value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBlock), (void*)(&(value)));
 }
 
 static bool
-compiler_zir_lower_PushBinding(AssemblyProgram* program, __type_dd536e055506338b* vector, AssemblyBinding value)
+compiler_zir_lower_PushBinding(AssemblyProgram* program, __type_a86c8c04d298dd35* vector, AssemblyBinding value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
 }
 
 static bool
-compiler_zir_lower_PushZeroSlot(AssemblyProgram* program, __type_745e0b4796abfa08* vector, AssemblyZeroSlot value)
+compiler_zir_lower_PushZeroSlot(AssemblyProgram* program, __type_4729534061a4e3aa* vector, AssemblyZeroSlot value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyZeroSlot), (void*)(&(value)));
 }
 
 static bool
-compiler_zir_lower_PushProbe(AssemblyProgram* program, __type_f12db627436ed32d* vector, ZirFunction* value)
+compiler_zir_lower_PushProbe(AssemblyProgram* program, __type_84d45d230427ff25* vector, ZirFunction* value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(void *), (void*)(&(value)));
 }
 
 static bool
-compiler_zir_lower_PushInstruction(AssemblyProgram* program, __type_64f69ff50dc44167* vector, LirInstruction value)
+compiler_zir_lower_PushInstruction(AssemblyProgram* program, __type_90740861c75ea996* vector, LirInstruction value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(LirInstruction), (void*)(&(value)));
 }
@@ -1639,11 +1639,11 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
             value_38.identity = (names[index]).identity;
             AssemblyType alias = value_38;
             AssemblyProgram* value_40 = program;
-            __type_ebdb196ca6e54c46* value_41 = &(program->type_names);
+            __type_d77643bc17475164* value_41 = &(program->type_names);
             bool value_42 = false;
             {
                 AssemblyProgram* program = value_40;
-                __type_ebdb196ca6e54c46* vector = value_41;
+                __type_d77643bc17475164* vector = value_41;
                 AssemblyType value = alias;
                 value_42 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
             }
@@ -1740,11 +1740,11 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
         value_62.identity = identity;
         AssemblyType binding = value_62;
         AssemblyProgram* value_64 = program;
-        __type_ebdb196ca6e54c46* value_65 = &(program->type_names);
+        __type_d77643bc17475164* value_65 = &(program->type_names);
         bool value_66 = false;
         {
             AssemblyProgram* program = value_64;
-            __type_ebdb196ca6e54c46* vector = value_65;
+            __type_d77643bc17475164* vector = value_65;
             AssemblyType value = binding;
             value_66 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
         }
@@ -1767,11 +1767,11 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
         value_68.identity = identity;
         AssemblyType binding = value_68;
         AssemblyProgram* value_70 = program;
-        __type_ebdb196ca6e54c46* value_71 = &(program->type_names);
+        __type_d77643bc17475164* value_71 = &(program->type_names);
         bool value_72 = false;
         {
             AssemblyProgram* program = value_70;
-            __type_ebdb196ca6e54c46* vector = value_71;
+            __type_d77643bc17475164* vector = value_71;
             AssemblyType value = binding;
             value_72 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
         }
@@ -1820,11 +1820,11 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
                 value_80.identity = (names[index]).identity;
                 AssemblyType alias = value_80;
                 AssemblyProgram* value_82 = program;
-                __type_ebdb196ca6e54c46* value_83 = &(program->type_names);
+                __type_d77643bc17475164* value_83 = &(program->type_names);
                 bool value_84 = false;
                 {
                     AssemblyProgram* program = value_82;
-                    __type_ebdb196ca6e54c46* vector = value_83;
+                    __type_d77643bc17475164* vector = value_83;
                     AssemblyType value = alias;
                     value_84 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
                 }
@@ -1862,11 +1862,11 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
             return -1;
         }
         AssemblyProgram* value_94 = program;
-        __type_ebdb196ca6e54c46* value_95 = &(program->type_names);
+        __type_d77643bc17475164* value_95 = &(program->type_names);
         bool value_96 = false;
         {
             AssemblyProgram* program = value_94;
-            __type_ebdb196ca6e54c46* vector = value_95;
+            __type_d77643bc17475164* vector = value_95;
             AssemblyType value = binding;
             value_96 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
         }
@@ -1919,11 +1919,11 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
         value_105.identity = identity;
         AssemblyType binding = value_105;
         AssemblyProgram* value_107 = program;
-        __type_ebdb196ca6e54c46* value_108 = &(program->type_names);
+        __type_d77643bc17475164* value_108 = &(program->type_names);
         bool value_109 = false;
         {
             AssemblyProgram* program = value_107;
-            __type_ebdb196ca6e54c46* vector = value_108;
+            __type_d77643bc17475164* vector = value_108;
             AssemblyType value = binding;
             value_109 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
         }
@@ -2029,11 +2029,11 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
         value_134.identity = identity;
         AssemblyType binding = value_134;
         AssemblyProgram* value_136 = program;
-        __type_ebdb196ca6e54c46* value_137 = &(program->type_names);
+        __type_d77643bc17475164* value_137 = &(program->type_names);
         bool value_138 = false;
         {
             AssemblyProgram* program = value_136;
-            __type_ebdb196ca6e54c46* vector = value_137;
+            __type_d77643bc17475164* vector = value_137;
             AssemblyType value = binding;
             value_138 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
         }
@@ -2123,11 +2123,11 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
                 value_161.identity = (names[index]).identity;
                 AssemblyType alias = value_161;
                 AssemblyProgram* value_163 = program;
-                __type_ebdb196ca6e54c46* value_164 = &(program->type_names);
+                __type_d77643bc17475164* value_164 = &(program->type_names);
                 bool value_165 = false;
                 {
                     AssemblyProgram* program = value_163;
-                    __type_ebdb196ca6e54c46* vector = value_164;
+                    __type_d77643bc17475164* vector = value_164;
                     AssemblyType value = alias;
                     value_165 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
                 }
@@ -2152,11 +2152,11 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
         return -1;
     }
     AssemblyProgram* value_170 = program;
-    __type_ebdb196ca6e54c46* value_171 = &(program->type_names);
+    __type_d77643bc17475164* value_171 = &(program->type_names);
     bool value_172 = false;
     {
         AssemblyProgram* program = value_170;
-        __type_ebdb196ca6e54c46* vector = value_171;
+        __type_d77643bc17475164* vector = value_171;
         AssemblyType value = binding;
         value_172 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
     }
@@ -2202,18 +2202,18 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
         int32_t* value_186 = &(saved->result);
         (*value_186) = returns;
     } else if (((LirTypeKind)(held.kind)) == ((LirTypeKind)(7))) {
-        __type_0c8c2c2a7dfdc73a fields = {0};
+        __type_a268808db406c613 fields = {0};
         size_t cursor = 0;
         ZirTypeField field = {0};
         int32_t status = compiler_services_NextField(record, &(cursor), &(field));
         while (status == 1 && program->failed == 0) {
             int32_t field_type = compiler_zir_lower_TypeIn(program, owner, &(field.type[0]), span, (int32_t)((uint32_t)depth + 1u));
             AssemblyProgram* value_187 = program;
-            __type_0c8c2c2a7dfdc73a* value_188 = &(fields);
+            __type_a268808db406c613* value_188 = &(fields);
             bool value_189 = false;
             {
                 AssemblyProgram* program = value_187;
-                __type_0c8c2c2a7dfdc73a* vector = value_188;
+                __type_a268808db406c613* vector = value_188;
                 int32_t value = field_type;
                 value_189 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(int32_t), (void*)(&(value)));
             }
@@ -2375,11 +2375,11 @@ compiler_zir_lower_Value(AssemblyProgram* program, AssemblyFunction* function, i
 {
     int32_t value = function->values.count;
     AssemblyProgram* value_0 = program;
-    __type_0c8c2c2a7dfdc73a* value_1 = &(function->values);
+    __type_a268808db406c613* value_1 = &(function->values);
     bool value_2 = false;
     {
         AssemblyProgram* program = value_0;
-        __type_0c8c2c2a7dfdc73a* vector = value_1;
+        __type_a268808db406c613* vector = value_1;
         int32_t value = type;
         value_2 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(int32_t), (void*)(&(value)));
     }
@@ -2417,11 +2417,11 @@ compiler_zir_lower_Block(AssemblyProgram* program, AssemblyFunction* function, A
             int32_t type = storage;
             int32_t value = function->values.count;
             AssemblyProgram* value_5 = program;
-            __type_0c8c2c2a7dfdc73a* value_6 = &(function->values);
+            __type_a268808db406c613* value_6 = &(function->values);
             bool value_7 = false;
             {
                 AssemblyProgram* program = value_5;
-                __type_0c8c2c2a7dfdc73a* vector = value_6;
+                __type_a268808db406c613* vector = value_6;
                 int32_t value = type;
                 value_7 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(int32_t), (void*)(&(value)));
             }
@@ -2434,12 +2434,12 @@ compiler_zir_lower_Block(AssemblyProgram* program, AssemblyFunction* function, A
         }
         int32_t value = value_3;
         AssemblyProgram* value_9 = program;
-        __type_0c8c2c2a7dfdc73a* value_10 = &(block.parameters);
+        __type_a268808db406c613* value_10 = &(block.parameters);
         int32_t value_11 = value;
         bool value_12 = false;
         {
             AssemblyProgram* program = value_9;
-            __type_0c8c2c2a7dfdc73a* vector = value_10;
+            __type_a268808db406c613* vector = value_10;
             int32_t value = value_11;
             value_12 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(int32_t), (void*)(&(value)));
         }
@@ -2448,11 +2448,11 @@ compiler_zir_lower_Block(AssemblyProgram* program, AssemblyFunction* function, A
     }
     int32_t at = function->blocks.count;
     AssemblyProgram* value_14 = program;
-    __type_67ee5567ed548753* value_15 = &(function->blocks);
+    __type_4848f083bd341f05* value_15 = &(function->blocks);
     bool value_16 = false;
     {
         AssemblyProgram* program = value_14;
-        __type_67ee5567ed548753* vector = value_15;
+        __type_4848f083bd341f05* vector = value_15;
         AssemblyBlock value = block;
         value_16 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBlock), (void*)(&(value)));
     }
@@ -2528,11 +2528,11 @@ compiler_zir_lower_Emit(AssemblyProgram* program, AssemblyFunction* function, Li
             int32_t type = value_5;
             int32_t value = function->values.count;
             AssemblyProgram* value_8 = program;
-            __type_0c8c2c2a7dfdc73a* value_9 = &(function->values);
+            __type_a268808db406c613* value_9 = &(function->values);
             bool value_10 = false;
             {
                 AssemblyProgram* program = value_8;
-                __type_0c8c2c2a7dfdc73a* vector = value_9;
+                __type_a268808db406c613* vector = value_9;
                 int32_t value = type;
                 value_10 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(int32_t), (void*)(&(value)));
             }
@@ -2711,11 +2711,11 @@ compiler_zir_lower_ConstantInitializer(AssemblyProgram* program, ZirModule* owne
     }
     int32_t root = zir_foreign_compiler_zir_lower__ParseExprTyped(probe, owner, (void*)(((uint8_t*)source->init)), source->span, (void*)(&(source->type[0])));
     AssemblyProgram* value_2 = program;
-    __type_f12db627436ed32d* value_3 = &(program->probes);
+    __type_84d45d230427ff25* value_3 = &(program->probes);
     bool value_4 = false;
     {
         AssemblyProgram* program = value_2;
-        __type_f12db627436ed32d* vector = value_3;
+        __type_84d45d230427ff25* vector = value_3;
         ZirFunction* value = probe;
         value_4 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(void *), (void*)(&(value)));
     }
@@ -2775,11 +2775,11 @@ compiler_zir_lower_ConstantInitializer(AssemblyProgram* program, ZirModule* owne
     (*value_24) = value_25;
     int32_t identity = program->functions.count;
     AssemblyProgram* value_26 = program;
-    __type_4903477303ada8c0* value_27 = &(program->functions);
+    __type_67a48de9397a3f1c* value_27 = &(program->functions);
     bool value_28 = false;
     {
         AssemblyProgram* program = value_26;
-        __type_4903477303ada8c0* vector = value_27;
+        __type_67a48de9397a3f1c* vector = value_27;
         AssemblyFunction* value = function;
         value_28 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(void *), (void*)(&(value)));
     }
@@ -2787,11 +2787,11 @@ compiler_zir_lower_ConstantInitializer(AssemblyProgram* program, ZirModule* owne
         return 0;
     }
     AssemblyProgram* value_30 = program;
-    __type_0c8c2c2a7dfdc73a* value_31 = &(program->constant_initializers);
+    __type_a268808db406c613* value_31 = &(program->constant_initializers);
     bool value_32 = false;
     {
         AssemblyProgram* program = value_30;
-        __type_0c8c2c2a7dfdc73a* vector = value_31;
+        __type_a268808db406c613* vector = value_31;
         int32_t value = identity;
         value_32 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(int32_t), (void*)(&(value)));
     }
@@ -2913,11 +2913,11 @@ compiler_zir_lower_GlobalSymbol(AssemblyProgram* program, ZirModule* owner, ZirG
         AssemblyGlobal global = {.module = owner, .source = source, .result = result};
         symbol = program->globals.count;
         AssemblyProgram* value_19 = program;
-        __type_01190c4c4b9b9bf1* value_20 = &(program->globals);
+        __type_501281b5d4ea2fa3* value_20 = &(program->globals);
         bool value_21 = false;
         {
             AssemblyProgram* program = value_19;
-            __type_01190c4c4b9b9bf1* vector = value_20;
+            __type_501281b5d4ea2fa3* vector = value_20;
             AssemblyGlobal value = global;
             value_21 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyGlobal), (void*)(&(value)));
         }
@@ -3798,11 +3798,11 @@ compiler_zir_lower_EntrySlot(AssemblyProgram* program, AssemblyFunction* functio
         int32_t type = pointer_type;
         int32_t value = function->values.count;
         AssemblyProgram* value_4 = program;
-        __type_0c8c2c2a7dfdc73a* value_5 = &(function->values);
+        __type_a268808db406c613* value_5 = &(function->values);
         bool value_6 = false;
         {
             AssemblyProgram* program = value_4;
-            __type_0c8c2c2a7dfdc73a* vector = value_5;
+            __type_a268808db406c613* vector = value_5;
             int32_t value = type;
             value_6 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(int32_t), (void*)(&(value)));
         }
@@ -3884,11 +3884,11 @@ compiler_zir_lower_ZeroSlot(AssemblyProgram* program, AssemblyFunction* function
             return -1;
         }
         AssemblyProgram* value_0 = program;
-        __type_745e0b4796abfa08* value_1 = &(function->zero_slots);
+        __type_4729534061a4e3aa* value_1 = &(function->zero_slots);
         bool value_2 = false;
         {
             AssemblyProgram* program = value_0;
-            __type_745e0b4796abfa08* vector = value_1;
+            __type_4729534061a4e3aa* vector = value_1;
             AssemblyZeroSlot value = slot;
             value_2 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyZeroSlot), (void*)(&(value)));
         }
@@ -4741,11 +4741,11 @@ compiler_zir_lower_StringGlobal(AssemblyProgram* program, ZirModule* module, uin
     AssemblyGlobal global = {.module = module, .source = (void *)0, .result = result};
     int32_t symbol = program->globals.count;
     AssemblyProgram* value_18 = program;
-    __type_01190c4c4b9b9bf1* value_19 = &(program->globals);
+    __type_501281b5d4ea2fa3* value_19 = &(program->globals);
     bool value_20 = false;
     {
         AssemblyProgram* program = value_18;
-        __type_01190c4c4b9b9bf1* vector = value_19;
+        __type_501281b5d4ea2fa3* vector = value_19;
         AssemblyGlobal value = global;
         value_20 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyGlobal), (void*)(&(value)));
     }
@@ -7430,11 +7430,11 @@ compiler_zir_lower_ConstantArray(AssemblyProgram* program, AssemblyFunction* fun
     value_42.storage_type = -1;
     AssemblyBinding cursor = value_42;
     AssemblyProgram* value_45 = program;
-    __type_dd536e055506338b* value_46 = &(function->bindings);
+    __type_a86c8c04d298dd35* value_46 = &(function->bindings);
     bool value_47 = false;
     {
         AssemblyProgram* program = value_45;
-        __type_dd536e055506338b* vector = value_46;
+        __type_a86c8c04d298dd35* vector = value_46;
         AssemblyBinding value = cursor;
         value_47 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
     }
@@ -9342,11 +9342,11 @@ compiler_zir_lower_PlatformFunction(AssemblyProgram* program, ZirModule* module,
     }
     int32_t identity = program->functions.count;
     AssemblyProgram* value_19 = program;
-    __type_4903477303ada8c0* value_20 = &(program->functions);
+    __type_67a48de9397a3f1c* value_20 = &(program->functions);
     bool value_21 = false;
     {
         AssemblyProgram* program = value_19;
-        __type_4903477303ada8c0* vector = value_20;
+        __type_67a48de9397a3f1c* vector = value_20;
         AssemblyFunction* value = function;
         value_21 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(void *), (void*)(&(value)));
     }
@@ -10250,11 +10250,11 @@ compiler_zir_lower_DropElements(AssemblyProgram* program, AssemblyFunction* func
     value_27.storage_type = -1;
     AssemblyBinding cursor = value_27;
     AssemblyProgram* value_30 = program;
-    __type_dd536e055506338b* value_31 = &(function->bindings);
+    __type_a86c8c04d298dd35* value_31 = &(function->bindings);
     bool value_32 = false;
     {
         AssemblyProgram* program = value_30;
-        __type_dd536e055506338b* vector = value_31;
+        __type_a86c8c04d298dd35* vector = value_31;
         AssemblyBinding value = cursor;
         value_32 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
     }
@@ -10681,11 +10681,11 @@ compiler_zir_lower_Carry(AssemblyProgram* program, AssemblyFunction* function, i
     AssemblyBinding binding = value_0;
     int32_t index = function->bindings.count;
     AssemblyProgram* value_2 = program;
-    __type_dd536e055506338b* value_3 = &(function->bindings);
+    __type_a86c8c04d298dd35* value_3 = &(function->bindings);
     bool value_4 = false;
     {
         AssemblyProgram* program = value_2;
-        __type_dd536e055506338b* vector = value_3;
+        __type_a86c8c04d298dd35* vector = value_3;
         AssemblyBinding value = binding;
         value_4 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
     }
@@ -11379,11 +11379,11 @@ compiler_zir_lower_VectorReserveCall(AssemblyProgram* program, AssemblyFunction*
         AssemblyBinding binding = value_35;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_37 = program;
-        __type_dd536e055506338b* value_38 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_38 = &(function->bindings);
         bool value_39 = false;
         {
             AssemblyProgram* program = value_37;
-            __type_dd536e055506338b* vector = value_38;
+            __type_a86c8c04d298dd35* vector = value_38;
             AssemblyBinding value = binding;
             value_39 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -11484,11 +11484,11 @@ compiler_zir_lower_VectorReserveCall(AssemblyProgram* program, AssemblyFunction*
         AssemblyBinding binding = value_72;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_74 = program;
-        __type_dd536e055506338b* value_75 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_75 = &(function->bindings);
         bool value_76 = false;
         {
             AssemblyProgram* program = value_74;
-            __type_dd536e055506338b* vector = value_75;
+            __type_a86c8c04d298dd35* vector = value_75;
             AssemblyBinding value = binding;
             value_76 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -11767,11 +11767,11 @@ compiler_zir_lower_VectorReserveCall(AssemblyProgram* program, AssemblyFunction*
         AssemblyBinding binding = value_173;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_175 = program;
-        __type_dd536e055506338b* value_176 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_176 = &(function->bindings);
         bool value_177 = false;
         {
             AssemblyProgram* program = value_175;
-            __type_dd536e055506338b* vector = value_176;
+            __type_a86c8c04d298dd35* vector = value_176;
             AssemblyBinding value = binding;
             value_177 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -11841,11 +11841,11 @@ compiler_zir_lower_VectorReserveCall(AssemblyProgram* program, AssemblyFunction*
         AssemblyBinding binding = value_199;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_201 = program;
-        __type_dd536e055506338b* value_202 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_202 = &(function->bindings);
         bool value_203 = false;
         {
             AssemblyProgram* program = value_201;
-            __type_dd536e055506338b* vector = value_202;
+            __type_a86c8c04d298dd35* vector = value_202;
             AssemblyBinding value = binding;
             value_203 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -12182,11 +12182,11 @@ compiler_zir_lower_AppendBuilder(AssemblyProgram* program, AssemblyFunction* fun
         AssemblyBinding binding = value_83;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_85 = program;
-        __type_dd536e055506338b* value_86 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_86 = &(function->bindings);
         bool value_87 = false;
         {
             AssemblyProgram* program = value_85;
-            __type_dd536e055506338b* vector = value_86;
+            __type_a86c8c04d298dd35* vector = value_86;
             AssemblyBinding value = binding;
             value_87 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -12246,11 +12246,11 @@ compiler_zir_lower_AppendBuilder(AssemblyProgram* program, AssemblyFunction* fun
         AssemblyBinding binding = value_97;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_99 = program;
-        __type_dd536e055506338b* value_100 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_100 = &(function->bindings);
         bool value_101 = false;
         {
             AssemblyProgram* program = value_99;
-            __type_dd536e055506338b* vector = value_100;
+            __type_a86c8c04d298dd35* vector = value_100;
             AssemblyBinding value = binding;
             value_101 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -12333,11 +12333,11 @@ compiler_zir_lower_AppendBuilder(AssemblyProgram* program, AssemblyFunction* fun
         AssemblyBinding binding = value_126;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_128 = program;
-        __type_dd536e055506338b* value_129 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_129 = &(function->bindings);
         bool value_130 = false;
         {
             AssemblyProgram* program = value_128;
-            __type_dd536e055506338b* vector = value_129;
+            __type_a86c8c04d298dd35* vector = value_129;
             AssemblyBinding value = binding;
             value_130 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -12447,11 +12447,11 @@ compiler_zir_lower_AppendBuilder(AssemblyProgram* program, AssemblyFunction* fun
         AssemblyBinding binding = value_166;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_168 = program;
-        __type_dd536e055506338b* value_169 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_169 = &(function->bindings);
         bool value_170 = false;
         {
             AssemblyProgram* program = value_168;
-            __type_dd536e055506338b* vector = value_169;
+            __type_a86c8c04d298dd35* vector = value_169;
             AssemblyBinding value = binding;
             value_170 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -12698,11 +12698,11 @@ compiler_zir_lower_AppendBuilder(AssemblyProgram* program, AssemblyFunction* fun
         AssemblyBinding binding = value_256;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_258 = program;
-        __type_dd536e055506338b* value_259 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_259 = &(function->bindings);
         bool value_260 = false;
         {
             AssemblyProgram* program = value_258;
-            __type_dd536e055506338b* vector = value_259;
+            __type_a86c8c04d298dd35* vector = value_259;
             AssemblyBinding value = binding;
             value_260 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -13083,11 +13083,11 @@ compiler_zir_lower_FinishBuilder(AssemblyProgram* program, AssemblyFunction* fun
         AssemblyBinding binding = value_85;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_87 = program;
-        __type_dd536e055506338b* value_88 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_88 = &(function->bindings);
         bool value_89 = false;
         {
             AssemblyProgram* program = value_87;
-            __type_dd536e055506338b* vector = value_88;
+            __type_a86c8c04d298dd35* vector = value_88;
             AssemblyBinding value = binding;
             value_89 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -13156,11 +13156,11 @@ compiler_zir_lower_FinishBuilder(AssemblyProgram* program, AssemblyFunction* fun
         AssemblyBinding binding = value_110;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_112 = program;
-        __type_dd536e055506338b* value_113 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_113 = &(function->bindings);
         bool value_114 = false;
         {
             AssemblyProgram* program = value_112;
-            __type_dd536e055506338b* vector = value_113;
+            __type_a86c8c04d298dd35* vector = value_113;
             AssemblyBinding value = binding;
             value_114 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -13479,11 +13479,11 @@ compiler_zir_lower_VecReset(AssemblyProgram* program, AssemblyFunction* function
     int32_t base = function->bindings.count;
     AssemblyBinding cursor = {.name = (void *)0, .type = 8, .value = from, .storage_type = -1};
     AssemblyProgram* value_0 = program;
-    __type_dd536e055506338b* value_1 = &(function->bindings);
+    __type_a86c8c04d298dd35* value_1 = &(function->bindings);
     bool value_2 = false;
     {
         AssemblyProgram* program = value_0;
-        __type_dd536e055506338b* vector = value_1;
+        __type_a86c8c04d298dd35* vector = value_1;
         AssemblyBinding value = cursor;
         value_2 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
     }
@@ -13923,11 +13923,11 @@ compiler_zir_lower_VecReserveCall(AssemblyProgram* program, AssemblyFunction* fu
         AssemblyBinding binding = value_78;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_80 = program;
-        __type_dd536e055506338b* value_81 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_81 = &(function->bindings);
         bool value_82 = false;
         {
             AssemblyProgram* program = value_80;
-            __type_dd536e055506338b* vector = value_81;
+            __type_a86c8c04d298dd35* vector = value_81;
             AssemblyBinding value = binding;
             value_82 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -14031,11 +14031,11 @@ compiler_zir_lower_VecReserveCall(AssemblyProgram* program, AssemblyFunction* fu
         AssemblyBinding binding = value_102;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_104 = program;
-        __type_dd536e055506338b* value_105 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_105 = &(function->bindings);
         bool value_106 = false;
         {
             AssemblyProgram* program = value_104;
-            __type_dd536e055506338b* vector = value_105;
+            __type_a86c8c04d298dd35* vector = value_105;
             AssemblyBinding value = binding;
             value_106 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -14117,11 +14117,11 @@ compiler_zir_lower_VecReserveCall(AssemblyProgram* program, AssemblyFunction* fu
         AssemblyBinding binding = value_131;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_133 = program;
-        __type_dd536e055506338b* value_134 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_134 = &(function->bindings);
         bool value_135 = false;
         {
             AssemblyProgram* program = value_133;
-            __type_dd536e055506338b* vector = value_134;
+            __type_a86c8c04d298dd35* vector = value_134;
             AssemblyBinding value = binding;
             value_135 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -14306,11 +14306,11 @@ compiler_zir_lower_VecReserveCall(AssemblyProgram* program, AssemblyFunction* fu
         AssemblyBinding binding = value_197;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_199 = program;
-        __type_dd536e055506338b* value_200 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_200 = &(function->bindings);
         bool value_201 = false;
         {
             AssemblyProgram* program = value_199;
-            __type_dd536e055506338b* vector = value_200;
+            __type_a86c8c04d298dd35* vector = value_200;
             AssemblyBinding value = binding;
             value_201 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -15667,11 +15667,11 @@ compiler_zir_lower_VectorClone(AssemblyProgram* program, AssemblyFunction* funct
         AssemblyBinding binding = value_78;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_80 = program;
-        __type_dd536e055506338b* value_81 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_81 = &(function->bindings);
         bool value_82 = false;
         {
             AssemblyProgram* program = value_80;
-            __type_dd536e055506338b* vector = value_81;
+            __type_a86c8c04d298dd35* vector = value_81;
             AssemblyBinding value = binding;
             value_82 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -15728,11 +15728,11 @@ compiler_zir_lower_VectorClone(AssemblyProgram* program, AssemblyFunction* funct
         AssemblyBinding binding = value_91;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_93 = program;
-        __type_dd536e055506338b* value_94 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_94 = &(function->bindings);
         bool value_95 = false;
         {
             AssemblyProgram* program = value_93;
-            __type_dd536e055506338b* vector = value_94;
+            __type_a86c8c04d298dd35* vector = value_94;
             AssemblyBinding value = binding;
             value_95 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -15826,11 +15826,11 @@ compiler_zir_lower_VectorClone(AssemblyProgram* program, AssemblyFunction* funct
         AssemblyBinding binding = value_124;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_126 = program;
-        __type_dd536e055506338b* value_127 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_127 = &(function->bindings);
         bool value_128 = false;
         {
             AssemblyProgram* program = value_126;
-            __type_dd536e055506338b* vector = value_127;
+            __type_a86c8c04d298dd35* vector = value_127;
             AssemblyBinding value = binding;
             value_128 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -15900,11 +15900,11 @@ compiler_zir_lower_VectorClone(AssemblyProgram* program, AssemblyFunction* funct
         AssemblyBinding binding = value_149;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_151 = program;
-        __type_dd536e055506338b* value_152 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_152 = &(function->bindings);
         bool value_153 = false;
         {
             AssemblyProgram* program = value_151;
-            __type_dd536e055506338b* vector = value_152;
+            __type_a86c8c04d298dd35* vector = value_152;
             AssemblyBinding value = binding;
             value_153 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -16009,11 +16009,11 @@ compiler_zir_lower_VectorClone(AssemblyProgram* program, AssemblyFunction* funct
         AssemblyBinding binding = value_188;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_190 = program;
-        __type_dd536e055506338b* value_191 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_191 = &(function->bindings);
         bool value_192 = false;
         {
             AssemblyProgram* program = value_190;
-            __type_dd536e055506338b* vector = value_191;
+            __type_a86c8c04d298dd35* vector = value_191;
             AssemblyBinding value = binding;
             value_192 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -16394,11 +16394,11 @@ compiler_zir_lower_VectorTake(AssemblyProgram* program, AssemblyFunction* functi
         AssemblyBinding binding = value_85;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_87 = program;
-        __type_dd536e055506338b* value_88 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_88 = &(function->bindings);
         bool value_89 = false;
         {
             AssemblyProgram* program = value_87;
-            __type_dd536e055506338b* vector = value_88;
+            __type_a86c8c04d298dd35* vector = value_88;
             AssemblyBinding value = binding;
             value_89 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -16546,11 +16546,11 @@ compiler_zir_lower_VectorTake(AssemblyProgram* program, AssemblyFunction* functi
         AssemblyBinding binding = value_131;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_133 = program;
-        __type_dd536e055506338b* value_134 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_134 = &(function->bindings);
         bool value_135 = false;
         {
             AssemblyProgram* program = value_133;
-            __type_dd536e055506338b* vector = value_134;
+            __type_a86c8c04d298dd35* vector = value_134;
             AssemblyBinding value = binding;
             value_135 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -16621,11 +16621,11 @@ compiler_zir_lower_VectorTake(AssemblyProgram* program, AssemblyFunction* functi
         AssemblyBinding binding = value_158;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_160 = program;
-        __type_dd536e055506338b* value_161 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_161 = &(function->bindings);
         bool value_162 = false;
         {
             AssemblyProgram* program = value_160;
-            __type_dd536e055506338b* vector = value_161;
+            __type_a86c8c04d298dd35* vector = value_161;
             AssemblyBinding value = binding;
             value_162 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -17694,11 +17694,11 @@ compiler_zir_lower_VectorCall(AssemblyProgram* program, AssemblyFunction* functi
         AssemblyBinding binding = value_121;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_123 = program;
-        __type_dd536e055506338b* value_124 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_124 = &(function->bindings);
         bool value_125 = false;
         {
             AssemblyProgram* program = value_123;
-            __type_dd536e055506338b* vector = value_124;
+            __type_a86c8c04d298dd35* vector = value_124;
             AssemblyBinding value = binding;
             value_125 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -17947,11 +17947,11 @@ compiler_zir_lower_VectorCall(AssemblyProgram* program, AssemblyFunction* functi
         AssemblyBinding binding = value_202;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_204 = program;
-        __type_dd536e055506338b* value_205 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_205 = &(function->bindings);
         bool value_206 = false;
         {
             AssemblyProgram* program = value_204;
-            __type_dd536e055506338b* vector = value_205;
+            __type_a86c8c04d298dd35* vector = value_205;
             AssemblyBinding value = binding;
             value_206 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -18163,11 +18163,11 @@ compiler_zir_lower_VectorCall(AssemblyProgram* program, AssemblyFunction* functi
         AssemblyBinding binding = value_278;
         int32_t index = function->bindings.count;
         AssemblyProgram* value_280 = program;
-        __type_dd536e055506338b* value_281 = &(function->bindings);
+        __type_a86c8c04d298dd35* value_281 = &(function->bindings);
         bool value_282 = false;
         {
             AssemblyProgram* program = value_280;
-            __type_dd536e055506338b* vector = value_281;
+            __type_a86c8c04d298dd35* vector = value_281;
             AssemblyBinding value = binding;
             value_282 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyBinding), (void*)(&(value)));
         }
@@ -33327,7 +33327,7 @@ compiler_zir_lower_Dispatch(AssemblyProgram* program, AssemblyFunction* function
 }
 
 static int32_t
-compiler_zir_lower_CaseList(AssemblyProgram* program, AssemblyFunction* function, int32_t index, int32_t end, __type_965802081a090cda* arms, int32_t* otherwise, int32_t* next)
+compiler_zir_lower_CaseList(AssemblyProgram* program, AssemblyFunction* function, int32_t index, int32_t end, __type_b493536fa28f21e0* arms, int32_t* otherwise, int32_t* next)
 {
     ZirFunction* source = function->source;
     uint8_t* subject = (void *)0;
@@ -33437,9 +33437,9 @@ compiler_zir_lower_AssemblyIf(AssemblyProgram* program, AssemblyFunction* functi
     ZirSourceSpan span = (function->source->stmts[index]).span;
     int32_t count = function->bindings.count;
     AssemblyBinding* before = compiler_zir_lower_Snapshot(program, function, count);
-    __type_a5e09f9d30b338f8 arms = {0};
+    __type_ffd365130c02c976 arms = {0};
     int32_t next = index;
-    __type_965802081a090cda listed = {0};
+    __type_b493536fa28f21e0 listed = {0};
     int32_t otherwise_at = -1;
     int32_t after = index;
     int32_t subject = -1;
@@ -35155,11 +35155,11 @@ compiler_zir_lower_LocalAssembly(AssemblyProgram* program, AssemblyFunction* fun
     int32_t portable = compiler_zir_lower_Zero(program, gate, result, span, 0);
     compiler_zir_lower_Emit(program, gate, (LirOp)(43), 0, &(portable), 1, -1, span);
     AssemblyProgram* value_50 = program;
-    __type_4903477303ada8c0* value_51 = &(program->functions);
+    __type_67a48de9397a3f1c* value_51 = &(program->functions);
     bool value_52 = false;
     {
         AssemblyProgram* program = value_50;
-        __type_4903477303ada8c0* vector = value_51;
+        __type_67a48de9397a3f1c* vector = value_51;
         AssemblyFunction* value = gate;
         value_52 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(void *), (void*)(&(value)));
     }
@@ -35855,11 +35855,11 @@ compiler_zir_lower_DispatchHost(AssemblyProgram* program, ZirModule* module, Zir
     }
     int32_t identity = program->functions.count;
     AssemblyProgram* value_13 = program;
-    __type_4903477303ada8c0* value_14 = &(program->functions);
+    __type_67a48de9397a3f1c* value_14 = &(program->functions);
     bool value_15 = false;
     {
         AssemblyProgram* program = value_13;
-        __type_4903477303ada8c0* vector = value_14;
+        __type_67a48de9397a3f1c* vector = value_14;
         AssemblyFunction* value = host;
         value_15 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(void *), (void*)(&(value)));
     }
@@ -35888,11 +35888,11 @@ compiler_zir_lower_BuildDispatch(AssemblyProgram* program, AssemblyExportRoot* r
     int32_t value_6 = compiler_zir_lower_Origin(program, span);
     (*value_5) = value_6;
     AssemblyProgram* value_7 = program;
-    __type_4903477303ada8c0* value_8 = &(program->functions);
+    __type_67a48de9397a3f1c* value_8 = &(program->functions);
     bool value_9 = false;
     {
         AssemblyProgram* program = value_7;
-        __type_4903477303ada8c0* vector = value_8;
+        __type_67a48de9397a3f1c* vector = value_8;
         AssemblyFunction* value = entry;
         value_9 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(void *), (void*)(&(value)));
     }
@@ -35961,11 +35961,11 @@ compiler_zir_lower_BuildDispatch(AssemblyProgram* program, AssemblyExportRoot* r
         }
         int32_t identity = program->functions.count;
         AssemblyProgram* value_34 = program;
-        __type_4903477303ada8c0* value_35 = &(program->functions);
+        __type_67a48de9397a3f1c* value_35 = &(program->functions);
         bool value_36 = false;
         {
             AssemblyProgram* program = value_34;
-            __type_4903477303ada8c0* vector = value_35;
+            __type_67a48de9397a3f1c* vector = value_35;
             AssemblyFunction* value = host;
             value_36 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(void *), (void*)(&(value)));
         }
@@ -36086,11 +36086,11 @@ compiler_zir_lower_BuildDispatch(AssemblyProgram* program, AssemblyExportRoot* r
                 }
                 int32_t identity = program->functions.count;
                 AssemblyProgram* value_68 = program;
-                __type_4903477303ada8c0* value_69 = &(program->functions);
+                __type_67a48de9397a3f1c* value_69 = &(program->functions);
                 bool value_70 = false;
                 {
                     AssemblyProgram* program = value_68;
-                    __type_4903477303ada8c0* vector = value_69;
+                    __type_67a48de9397a3f1c* vector = value_69;
                     AssemblyFunction* value = host;
                     value_70 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(void *), (void*)(&(value)));
                 }
@@ -36171,11 +36171,11 @@ compiler_zir_lower_BuildDispatch(AssemblyProgram* program, AssemblyExportRoot* r
             }
             int32_t identity = program->functions.count;
             AssemblyProgram* value_97 = program;
-            __type_4903477303ada8c0* value_98 = &(program->functions);
+            __type_67a48de9397a3f1c* value_98 = &(program->functions);
             bool value_99 = false;
             {
                 AssemblyProgram* program = value_97;
-                __type_4903477303ada8c0* vector = value_98;
+                __type_67a48de9397a3f1c* vector = value_98;
                 AssemblyFunction* value = host;
                 value_99 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(void *), (void*)(&(value)));
             }
@@ -36588,7 +36588,7 @@ compiler_zir_lower_LowerProgram(ZirProgram* source, uint8_t* module_name, uint8_
     LirFunction* functions = (LirFunction*)(value_46);
     void* value_47 = compiler_zir_lower_Allocate(program, (size_t)(program->globals.count), sizeof(LirGlobal));
     LirGlobal* globals = (LirGlobal*)(value_47);
-    __type_0c8c2c2a7dfdc73a initializers = {0};
+    __type_a268808db406c613 initializers = {0};
     index = 0;
     while (index < program->constant_initializers.count) {
         int32_t value = program->constant_initializers.data[index];
@@ -36928,7 +36928,7 @@ compiler_zir_lower_InterfaceTypeName(AssemblyProgram* program, ZirModule* module
 }
 
 static int32_t
-compiler_zir_lower_DescribeNode(AssemblyProgram* program, InterfaceText* text, __type_5edaf1f9ada62dbd* nodes, ZirModule* module, uint8_t* spelling, int32_t depth)
+compiler_zir_lower_DescribeNode(AssemblyProgram* program, InterfaceText* text, __type_b1913ece2700738b* nodes, ZirModule* module, uint8_t* spelling, int32_t depth)
 {
     if (text->failed != 0) {
         return -1;
@@ -37046,7 +37046,7 @@ compiler_zir_lower_DescribeNode(AssemblyProgram* program, InterfaceText* text, _
     if (record != ((void *)0) && record->is_procedure_type != 0) {
         record = (void *)0;
     }
-    __type_0c8c2c2a7dfdc73a fields = {0};
+    __type_a268808db406c613 fields = {0};
     if (record != ((void *)0)) {
         size_t cursor = 0;
         ZirTypeField field = {0};
@@ -37056,11 +37056,11 @@ compiler_zir_lower_DescribeNode(AssemblyProgram* program, InterfaceText* text, _
             if (status == 1) {
                 int32_t node = compiler_zir_lower_DescribeNode(program, text, nodes, owner, &(field.type[0]), (int32_t)((uint32_t)depth + 1u));
                 AssemblyProgram* value_13 = program;
-                __type_0c8c2c2a7dfdc73a* value_14 = &(fields);
+                __type_a268808db406c613* value_14 = &(fields);
                 bool value_15 = false;
                 {
                     AssemblyProgram* program = value_13;
-                    __type_0c8c2c2a7dfdc73a* vector = value_14;
+                    __type_a268808db406c613* vector = value_14;
                     int32_t value = node;
                     value_15 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(int32_t), (void*)(&(value)));
                 }
@@ -37160,7 +37160,7 @@ AssemblyHostInterface(AssemblyProgram* program, size_t* length)
         return program->interface;
     }
     InterfaceText text = {0};
-    __type_5edaf1f9ada62dbd nodes = {0};
+    __type_b1913ece2700738b nodes = {0};
     AssemblyFunction** functions = program->functions.data;
     InterfaceText hosts = {0};
     ZirSourceSpan span = {0};

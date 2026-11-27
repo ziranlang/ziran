@@ -16,24 +16,24 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-typedef struct __type_c53c2d7c4913dc02 __type_c53c2d7c4913dc02;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
 #endif
 typedef struct LaneFunctions LaneFunctions;
 typedef struct Entry Entry;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-#define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-typedef struct __type_838711075b90279a __type_838711075b90279a;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_73d8922a30726f91
-#define ZIRAN_CONCRETE_FORWARD___type_73d8922a30726f91
-typedef struct __type_73d8922a30726f91 __type_73d8922a30726f91;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_7fa229285bfd385d
+#define ZIRAN_CONCRETE_FORWARD___type_7fa229285bfd385d
+typedef struct __type_7fa229285bfd385d __type_7fa229285bfd385d;
 #endif
-#ifndef ZIRAN_CONCRETE___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE___type_c53c2d7c4913dc02
+#ifndef ZIRAN_CONCRETE___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE___type_9f828aa1372cb21a
 
-struct __type_c53c2d7c4913dc02 {
+struct __type_9f828aa1372cb21a {
     String* data;
     int64_t count;
     int64_t capacity;
@@ -41,27 +41,27 @@ struct __type_c53c2d7c4913dc02 {
 #endif
 
 struct LaneFunctions {
-    __type_c53c2d7c4913dc02 names;
-    __type_c53c2d7c4913dc02 texts;
+    __type_9f828aa1372cb21a names;
+    __type_9f828aa1372cb21a texts;
 };
 
 struct Entry {
     String name;
     String body;
 };
-#ifndef ZIRAN_CONCRETE___type_838711075b90279a
-#define ZIRAN_CONCRETE___type_838711075b90279a
+#ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE___type_131eebaaeb761e42
 
-struct __type_838711075b90279a {
+struct __type_131eebaaeb761e42 {
     uint8_t* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_73d8922a30726f91
-#define ZIRAN_CONCRETE___type_73d8922a30726f91
+#ifndef ZIRAN_CONCRETE___type_7fa229285bfd385d
+#define ZIRAN_CONCRETE___type_7fa229285bfd385d
 
-struct __type_73d8922a30726f91 {
+struct __type_7fa229285bfd385d {
     Entry* data;
     int64_t count;
     int64_t capacity;
@@ -93,11 +93,11 @@ String go_helpers_Reduce(LaneFunctions* functions, String op, VectorType t);
 String go_helpers_PickLane(LaneFunctions* functions, String op, VectorType t, VectorType r, int32_t j);
 String go_helpers_Picked(LaneFunctions* functions, String op, VectorType t, VectorType r);
 String go_helpers_Body(LaneFunctions* functions, String op, VectorType t, VectorType r);
-void go_helpers_AddEntry(__type_73d8922a30726f91* entries, LaneFunctions* functions, String op, VectorType t, VectorType r, String name);
-__type_73d8922a30726f91 go_helpers_GoEntries(LaneFunctions* functions);
+void go_helpers_AddEntry(__type_7fa229285bfd385d* entries, LaneFunctions* functions, String op, VectorType t, VectorType r, String name);
+__type_7fa229285bfd385d go_helpers_GoEntries(LaneFunctions* functions);
 String go_helpers_CString(String text);
-void go_helpers_Table(__type_838711075b90279a* output, String table, Slice names, Slice texts);
-bool go_helpers_GoHeader(__type_838711075b90279a* output);
+void go_helpers_Table(__type_131eebaaeb761e42* output, String table, Slice names, Slice texts);
+bool go_helpers_GoHeader(__type_131eebaaeb761e42* output);
 
 /* Small procedures other modules inline; go_helpers.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_GO_HELPERS_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)

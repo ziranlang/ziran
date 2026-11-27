@@ -23,32 +23,32 @@ extern "C" {
 #define CacheMagic "Ziran C cache 1\n"
 #define IdentitySeed "Ziran native object cache 4"
 typedef struct Digest Digest;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-typedef struct __type_c53c2d7c4913dc02 __type_c53c2d7c4913dc02;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
 #endif
 typedef struct Fingerprint Fingerprint;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_d5737c4838766181
-#define ZIRAN_CONCRETE_FORWARD___type_d5737c4838766181
-typedef struct __type_d5737c4838766181 __type_d5737c4838766181;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_c555612ad40905fa
+#define ZIRAN_CONCRETE_FORWARD___type_c555612ad40905fa
+typedef struct __type_c555612ad40905fa __type_c555612ad40905fa;
 #endif
 typedef struct BuildCache BuildCache;
 typedef struct ClockValue ClockValue;
 typedef struct HashState HashState;
 typedef struct ByteView ByteView;
 typedef struct View View;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-#define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-typedef struct __type_838711075b90279a __type_838711075b90279a;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
 
 struct Digest {
     uint8_t bytes[32];
 };
-#ifndef ZIRAN_CONCRETE___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE___type_c53c2d7c4913dc02
+#ifndef ZIRAN_CONCRETE___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE___type_9f828aa1372cb21a
 
-struct __type_c53c2d7c4913dc02 {
+struct __type_9f828aa1372cb21a {
     String* data;
     int64_t count;
     int64_t capacity;
@@ -61,14 +61,14 @@ struct Fingerprint {
     Digest digest;
     PathInfo info;
     bool unsafe;
-    __type_c53c2d7c4913dc02 probes;
+    __type_9f828aa1372cb21a probes;
     bool directory;
     bool recent;
 };
-#ifndef ZIRAN_CONCRETE___type_d5737c4838766181
-#define ZIRAN_CONCRETE___type_d5737c4838766181
+#ifndef ZIRAN_CONCRETE___type_c555612ad40905fa
+#define ZIRAN_CONCRETE___type_c555612ad40905fa
 
-struct __type_d5737c4838766181 {
+struct __type_c555612ad40905fa {
     Fingerprint* data;
     int64_t count;
     int64_t capacity;
@@ -77,13 +77,13 @@ struct __type_d5737c4838766181 {
 
 struct BuildCache {
     Digest identity;
-    __type_c53c2d7c4913dc02 roots;
+    __type_9f828aa1372cb21a roots;
     String output;
     String executable;
     int64_t started_seconds;
     int64_t started_nanoseconds;
-    __type_d5737c4838766181 files;
-    __type_d5737c4838766181 candidates;
+    __type_c555612ad40905fa files;
+    __type_c555612ad40905fa candidates;
     bool piped;
 };
 
@@ -105,16 +105,16 @@ struct View {
     uint8_t* data;
     size_t count;
 };
-#ifndef ZIRAN_CONCRETE___type_838711075b90279a
-#define ZIRAN_CONCRETE___type_838711075b90279a
+#ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE___type_131eebaaeb761e42
 
-struct __type_838711075b90279a {
+struct __type_131eebaaeb761e42 {
     uint8_t* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-extern __type_c53c2d7c4913dc02 ProfileNames;
+extern __type_9f828aa1372cb21a ProfileNames;
 #ifdef __APPLE__
 int32_t zir_foreign_compiler_backend_cache__ClockRaw(int32_t clock, ClockValue* value) __asm__("_clock_gettime");
 #else
@@ -178,8 +178,8 @@ bool compiler_backend_cache_Contains(String value, String piece);
 String compiler_backend_cache_TextName(String value);
 String compiler_backend_cache_JoinTemporary(String left, String right);
 String compiler_backend_cache_JoinPath(String left, String right);
-bool compiler_backend_cache_AppendOwned(__type_c53c2d7c4913dc02* values, String value);
-void compiler_backend_cache_ClearNames(__type_c53c2d7c4913dc02* values);
+bool compiler_backend_cache_AppendOwned(__type_9f828aa1372cb21a* values, String value);
+void compiler_backend_cache_ClearNames(__type_9f828aa1372cb21a* values);
 String compiler_backend_cache_Executable(String command);
 bool compiler_backend_cache_Runnable(String path);
 String compiler_backend_cache_Resolved(String path);
@@ -194,36 +194,36 @@ int64_t compiler_backend_cache_FileAdd(BuildCache* cache, String path, bool dire
 int64_t compiler_backend_cache_ProbeLiteral(String text, int64_t start, String* name);
 int64_t compiler_backend_cache_Minimum(int64_t left, int64_t right);
 bool compiler_backend_cache_UnsafeText(String text);
-bool compiler_backend_cache_ProbeNames(String text, __type_c53c2d7c4913dc02* names);
+bool compiler_backend_cache_ProbeNames(String text, __type_9f828aa1372cb21a* names);
 int64_t compiler_backend_cache_FileDigest(BuildCache* cache, String path);
 bool compiler_backend_cache_OlderThanBuild(BuildCache* cache, PathInfo info, bool changed);
 int64_t compiler_backend_cache_SpellingDigest(BuildCache* cache, String spelling, String root);
-bool compiler_backend_cache_EnvironmentEntries(Slice bytes, __type_c53c2d7c4913dc02* entries);
+bool compiler_backend_cache_EnvironmentEntries(Slice bytes, __type_9f828aa1372cb21a* entries);
 bool compiler_backend_cache_CompilerEnvironment(String entry);
 bool compiler_backend_cache_HashEnvironment(HashState* hash);
-__type_838711075b90279a compiler_backend_cache_Probe(Slice arguments, bool piped);
+__type_131eebaaeb761e42 compiler_backend_cache_Probe(Slice arguments, bool piped);
 bool compiler_backend_cache_HashProbeOutput(HashState* hash, String text);
-bool compiler_backend_cache_JoinProbeVersions(__type_c53c2d7c4913dc02* lines);
+bool compiler_backend_cache_JoinProbeVersions(__type_9f828aa1372cb21a* lines);
 BuildCache* compiler_backend_cache_Open(Slice arguments, String output, String executable);
 void compiler_backend_cache_HashSnapshot(HashState* hash, PathInfo info);
 String compiler_backend_cache_ToolFromLine(String line);
 bool compiler_backend_cache_ParseProbe(BuildCache* cache, HashState* hash, String text, bool piped);
-bool compiler_backend_cache_SpellingKey(BuildCache* cache, HashState* hash, String spelling, __type_c53c2d7c4913dc02* parents, bool* recordable);
-bool compiler_backend_cache_LookupDigest(BuildCache* cache, __type_c53c2d7c4913dc02* dependencies, Digest* output, bool recording);
-bool compiler_backend_cache_ReadDependencies(String object, __type_c53c2d7c4913dc02* dependencies);
+bool compiler_backend_cache_SpellingKey(BuildCache* cache, HashState* hash, String spelling, __type_9f828aa1372cb21a* parents, bool* recordable);
+bool compiler_backend_cache_LookupDigest(BuildCache* cache, __type_9f828aa1372cb21a* dependencies, Digest* output, bool recording);
+bool compiler_backend_cache_ReadDependencies(String object, __type_9f828aa1372cb21a* dependencies);
 bool compiler_backend_cache_ReadInteger(Slice bytes, int64_t* offset, uint32_t* output);
 bool compiler_backend_cache_ReadDigest(Slice bytes, int64_t* offset, Digest* output);
 bool compiler_backend_cache_SameDigest(Digest left, Digest right);
 bool compiler_backend_cache_Piped(BuildCache* cache);
 bool compiler_backend_cache_Hit(BuildCache* cache, String object);
-bool compiler_backend_cache_AppendBytes(__type_838711075b90279a* output, Slice bytes);
-bool compiler_backend_cache_AppendText(__type_838711075b90279a* output, String value);
-bool compiler_backend_cache_AppendDigest(__type_838711075b90279a* output, Digest value);
-bool compiler_backend_cache_AppendCount(__type_838711075b90279a* output, uint32_t value);
-bool compiler_backend_cache_AppendNumber(__type_838711075b90279a* output, int64_t value);
+bool compiler_backend_cache_AppendBytes(__type_131eebaaeb761e42* output, Slice bytes);
+bool compiler_backend_cache_AppendText(__type_131eebaaeb761e42* output, String value);
+bool compiler_backend_cache_AppendDigest(__type_131eebaaeb761e42* output, Digest value);
+bool compiler_backend_cache_AppendCount(__type_131eebaaeb761e42* output, uint32_t value);
+bool compiler_backend_cache_AppendNumber(__type_131eebaaeb761e42* output, int64_t value);
 String compiler_backend_cache_TemporaryInputPath(String object, int64_t attempt);
 void compiler_backend_cache_Record(BuildCache* cache, String object, String source);
-void compiler_backend_cache_ReleaseFingerprints(__type_d5737c4838766181* values);
+void compiler_backend_cache_ReleaseFingerprints(__type_c555612ad40905fa* values);
 void compiler_backend_cache_Close(BuildCache* cache);
 
 /* Small procedures other modules inline; compiler_backend_cache.c defines them. */

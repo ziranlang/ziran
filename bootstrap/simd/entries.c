@@ -9,15 +9,15 @@
 #include "narrow.h"
 #include "convert.h"
 
-__type_93ba55c8a15657d3
+__type_168d4645c4544df6
 entries_Entries(void)
 {
-    __type_93ba55c8a15657d3 output = {0};
-    __type_93ba55c8a15657d3* value_0 = &output;
-    __type_c53c2d7c4913dc02 operations = operations_Operations();
-    __type_c53c2d7c4913dc02* value_1 = &operations;
-    __type_de2f10dbf3e6d44c types = model_Types();
-    __type_de2f10dbf3e6d44c* value_2 = &types;
+    __type_168d4645c4544df6 output = {0};
+    __type_168d4645c4544df6* value_0 = &output;
+    __type_9f828aa1372cb21a operations = operations_Operations();
+    __type_9f828aa1372cb21a* value_1 = &operations;
+    __type_a304a0dc8230c4a1 types = model_Types();
+    __type_a304a0dc8230c4a1* value_2 = &types;
     {
         Slice value_3 = {(operations).data, (operations).count};
         Slice loop_view_3 = SliceRangeAt(value_3, 0LL, operations.count, sizeof(*(operations).data));
@@ -117,11 +117,11 @@ entries_Entries(void)
             loop_cursor_3 = (int64_t)((uint64_t)loop_cursor_3 + UINT64_C(1));
         }
     }
-    __type_93ba55c8a15657d3 value_25 = output;
+    __type_168d4645c4544df6 value_25 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
-    __type_93ba55c8a15657d3 value_26 = value_25;
+    __type_168d4645c4544df6 value_26 = value_25;
     free((*value_2).data);
     (*value_2).data = NULL;
     (*value_2).capacity = 0;

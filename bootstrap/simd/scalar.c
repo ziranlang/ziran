@@ -289,8 +289,8 @@ scalar_ScalarExpression(String op, VectorType t, VectorType r, int32_t i)
         return model_Render(StringLiteral("(@0)((@0)@1 + (@0)@2)"), r.scalar, value_31, value_32, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
     }
     if (StringEqual(op, StringLiteral("sad"))) {
-        __type_838711075b90279a terms = {0};
-        __type_838711075b90279a* value_33 = &terms;
+        __type_131eebaaeb761e42 terms = {0};
+        __type_131eebaaeb761e42* value_33 = &terms;
         {
             int32_t range_first_97 = (int32_t)((uint32_t)i * 8u);
             int32_t range_last_97 = (int32_t)(((uint32_t)i * 8u) + 7u);
@@ -333,7 +333,7 @@ scalar_ScalarExpression(String op, VectorType t, VectorType r, int32_t i)
                 k = (int32_t)((uint32_t)k + 1u);
             }
         }
-        __type_838711075b90279a value_41 = terms;
+        __type_131eebaaeb761e42 value_41 = terms;
         terms.data = NULL;
         terms.capacity = 0;
         terms.count = 0;
@@ -415,8 +415,8 @@ scalar_ScalarSetup(String op, VectorType t)
 String
 scalar_ScalarFloatBits(String op, VectorType t)
 {
-    __type_838711075b90279a output = {0};
-    __type_838711075b90279a* value_0 = &output;
+    __type_131eebaaeb761e42 output = {0};
+    __type_131eebaaeb761e42* value_0 = &output;
     VectorType value_1 = model_Unsigned(t);
     String value_2 = value_1.c;
     String value_3 = model_Render(StringLiteral("union { @0 f; @1 u; } v_;\n    v_.f = a;"), t.c, value_2, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
@@ -486,7 +486,7 @@ scalar_ScalarFloatBits(String op, VectorType t)
         }
     }
     (void)value_12;
-    __type_838711075b90279a value_14 = output;
+    __type_131eebaaeb761e42 value_14 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
@@ -501,8 +501,8 @@ scalar_ScalarFloatBits(String op, VectorType t)
 String
 scalar_ScalarSelectFloat(VectorType t)
 {
-    __type_838711075b90279a output = {0};
-    __type_838711075b90279a* value_0 = &output;
+    __type_131eebaaeb761e42 output = {0};
+    __type_131eebaaeb761e42* value_0 = &output;
     VectorType value_1 = model_Unsigned(t);
     String value_2 = value_1.c;
     String value_3 = model_Render(StringLiteral("union { @0 f; @1 u; } x_, y_, o_;\n    x_.f = a;\n    y_.f = b;"), t.c, value_2, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
@@ -559,7 +559,7 @@ scalar_ScalarSelectFloat(VectorType t)
         }
     }
     (void)value_11;
-    __type_838711075b90279a value_13 = output;
+    __type_131eebaaeb761e42 value_13 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
@@ -574,8 +574,8 @@ scalar_ScalarSelectFloat(VectorType t)
 String
 scalar_ScalarReduction(String op, VectorType t)
 {
-    __type_838711075b90279a output = {0};
-    __type_838711075b90279a* value_0 = &output;
+    __type_131eebaaeb761e42 output = {0};
+    __type_131eebaaeb761e42* value_0 = &output;
     if (StringEqual(op, StringLiteral("reduce_add")) || StringEqual(op, StringLiteral("all_zero"))) {
         String value_1 = StringView(NULL, 0);
         if (StringEqual(op, StringLiteral("all_zero"))) {
@@ -702,7 +702,7 @@ scalar_ScalarReduction(String op, VectorType t)
             }
         }
         (void)value_19;
-        __type_838711075b90279a value_21 = output;
+        __type_131eebaaeb761e42 value_21 = output;
         output.data = NULL;
         output.capacity = 0;
         output.count = 0;
@@ -813,7 +813,7 @@ scalar_ScalarReduction(String op, VectorType t)
         }
     }
     (void)value_40;
-    __type_838711075b90279a value_42 = output;
+    __type_131eebaaeb761e42 value_42 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
@@ -849,8 +849,8 @@ scalar_ScalarBody(String op, VectorType t, VectorType r)
         }
         return model_Render(StringLiteral("union { @0 w; @1 h[2]; } u_;\n    u_.w = a;\n    return u_.h[@2];"), t.c, value_2, value_3, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
     }
-    __type_838711075b90279a output = {0};
-    __type_838711075b90279a* value_4 = &output;
+    __type_131eebaaeb761e42 output = {0};
+    __type_131eebaaeb761e42* value_4 = &output;
     String value_5 = scalar_ScalarSetup(op, t);
     bool value_6 = false;
     if ((value_5).length == 0) {
@@ -971,7 +971,7 @@ scalar_ScalarBody(String op, VectorType t, VectorType r)
         }
     }
     (void)value_29;
-    __type_838711075b90279a value_31 = output;
+    __type_131eebaaeb761e42 value_31 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;

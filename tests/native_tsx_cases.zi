@@ -9,6 +9,8 @@
 using Vectors :: #import "std/vec"
 
 TSX_DOMAIN :: #string ZI
+#load "private_a.zi";
+#load "private_b.zi";
 using Vectors :: #import "std/vec"
 Model :: struct { value: float64; id: u64; }
 Box :: struct($T: Type) { value: T; }
@@ -33,10 +35,14 @@ Parts :: (parts: [5]string) -> s32 {
 Report :: () { print("native TSX passed\n") }
 ZI
 
-TSX_LOGIC :: "function HalfImpl(value: number): number { return value / 2; }\nexport function Half(value: number): number { return HalfImpl(value); }\n"
+TSX_PRIVATE_A :: "#scope_file\nCell :: struct($T: Type) { first: T; }\nLeaf :: struct { first: s32; }\n#scope_export\nPrivateA :: () -> s32 { item: Cell(Box(Leaf)) = .{first = .{value = .{first = 11}}}; return item.first.value.first }\n"
+TSX_PRIVATE_B :: "#scope_file\nCell :: struct($T: Type) { second: T; }\nLeaf :: struct { second: s32; }\n#scope_export\nPrivateB :: () -> s32 { item: Cell(Box(Leaf)) = .{second = .{value = .{second = 12}}}; return item.second.value.second }\n"
+
+TSX_LOGIC :: "export interface Box<T> { other: T; }\nexport function Wrapped(): Box<number> { return {other: 9}; }\nfunction HalfImpl(value: number): number { return value / 2; }\nexport function Half(value: number): number { return HalfImpl(value); }\n"
 
 TSX_APP :: #string TSX
 import * as Domain from "domain";
+import * as OtherAlias from "domain";
 import { Vec } from "std/vec";
 interface Props { value: number; other: number; }
 interface PartsProps { children: [string, string, string, string, string]; }
@@ -44,6 +50,8 @@ interface EmptyProps {}
 type Transform = (value: number) => number;
 interface ActionProps { action: (value: number) => number; value: number; }
 interface Holder<T> { value: T; }
+interface Box<T> { local: T; }
+interface Model { local: number; }
 type Factory = (value: number) => Holder<number>;
 function Echo(props: Props): number { return props.value + props.other; }
 function Tail(props: EmptyProps): string { return "tail"; }
@@ -83,8 +91,15 @@ export function main(): s32 {
     const make: Factory = (value: number): Holder<number> => Wrap(value);
     if (make(4).value !== 4 || owned.count !== s64(4)) { return s32(17); }
     const wrapped: Domain.Box<number> = Domain.Wrapped();
-    const nestedBox: Holder<Holder<number>>={value: {value: wrapped.value}};
-    if (nestedBox.value.value !== 6) { return s32(15); }
+    const localBox: Box<number> = {local: 8};
+    const logicBox: Logic.Box<number> = Logic.Wrapped();
+    const nestedBox: Holder<Box<Domain.Box<number>>> = {value: {local: wrapped}};
+    const reverseBox: Domain.Box<Box<number>> = {value: localBox};
+    const modelBox: Box<Domain.Model> = {local: snapshot};
+    const aliasedBox: Box<OtherAlias.Model> = modelBox;
+    if (aliasedBox.local.value !== snapshot.value || Domain.PrivateA() !== s32(11) || Domain.PrivateB() !== s32(12)) { return s32(19); }
+    if (localBox.local !== 8 || logicBox.other !== 9 || reverseBox.value.local !== 8) { return s32(18); }
+    if (nestedBox.value.local.value !== 6) { return s32(15); }
     if (Domain.Increment(u64(18446744073709551615n)) !== 1) { return s32(5); }
     if (Divide(5) !== 2.5) { return s32(6); }
     const half: Domain.Action = (value: number): number => value / 2;
@@ -101,6 +116,7 @@ export function main(): s32 {
     return s32(Divide(value) - 21);
 }
 import { Half as Divide } from "logic";
+import * as Logic from "logic";
 TSX
 
 TsxApplication :: () -> string {
@@ -188,6 +204,8 @@ TsxProject :: (test: *NativeTest) -> bool {
         !FixtureOverrides(test, project, aliases[:], paths[:]) ||
         !NativeWrite(test, CheckPath(project, "src/native_app.tsx"), source) ||
         !NativeWrite(test, CheckPath(project, "src/domain.zi"), TSX_DOMAIN) ||
+        !NativeWrite(test, CheckPath(project, "src/private_a.zi"), TSX_PRIVATE_A) ||
+        !NativeWrite(test, CheckPath(project, "src/private_b.zi"), TSX_PRIVATE_B) ||
         !NativeWrite(test, CheckPath(project, "src/logic.ts"), logic) ||
         !NativeWrite(test, CheckPath(project, "src/label.tsx"), "export interface Props { value: number; } export function Label(props: Props): number { return props.value; }\n") { return false }
     lock := string.["lock", "--offline"]; unused PackageCommand(test, project, lock[:])
@@ -224,6 +242,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     saved_root := CheckPath(test.work, "ir")
     if !NativeWrite(*test, source, TsxApplication()) ||
         !NativeWrite(*test, CheckPath(root, "domain.zi"), TSX_DOMAIN) ||
+        !NativeWrite(*test, CheckPath(root, "private_a.zi"), TSX_PRIVATE_A) ||
+        !NativeWrite(*test, CheckPath(root, "private_b.zi"), TSX_PRIVATE_B) ||
         !NativeWrite(*test, CheckPath(root, "logic.ts"), TSX_LOGIC) { return 1 }
     warm := string.[test.ziran, "check", "--root", root, source]
     unused NativeRun(*test, warm[:])
@@ -239,6 +259,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
         !TsxReject(*test, root, "uninitialized", "export function main(): s32 { let value: number; return s32(value); }", "native bindings require an initializer") ||
         !TsxReject(*test, root, "collection_const", "export function main(): s32 { const values: [number] = [1]; for (const value of values) { value = 2; } return s32(0); }", "cannot assign to a const binding") ||
         !TsxReject(*test, root, "collection_borrow", "import * as Domain from \"domain\"; import { Vec } from \"std/vec\"; export function main(): s32 { const values: Vec<number> = Domain.Numbers(); for (const value of values) { VecPush(values, value); } return s32(0); }", "borrow") ||
+        !TsxReject(*test, root, "generic_identity", "import * as Domain from \"domain\"; interface Box<T> { value: T; } export function main(): s32 { const box: Box<number> = Domain.Wrapped(); return s32(box.value); }", "type") ||
+        !TsxReject(*test, root, "generic_nested_identity", "import * as Domain from \"domain\"; interface Box<T> { value: T; } interface Holder<T> { value: T; } export function main(): s32 { const native: Holder<Domain.Box<number>> = {value: Domain.Wrapped()}; const local: Holder<Box<number>> = native; return s32(0); }", "type") ||
         !TsxReject(*test, root, "generic_type", "interface Box<T> { value: T; } export function main(): s32 { const box: Box<number> = {value: true}; return s32(box.value); }", "type") ||
         !TsxReject(*test, root, "action", "import * as Domain from \"domain\"; export function main(): s32 { Domain.Increment(true); return s32(0); }", "argument") ||
         !TsxReject(*test, root, "visibility", "import { HalfImpl } from \"logic\"; export function main(): s32 { return s32(HalfImpl(0)); }", "unresolved function:") ||

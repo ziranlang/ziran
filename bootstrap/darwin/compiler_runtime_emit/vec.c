@@ -43,11 +43,11 @@ vec_TextCopy(String value)
 }
 
 Text
-vec_TextFromBuilder(__type_838711075b90279a bytes)
+vec_TextFromBuilder(__type_131eebaaeb761e42 bytes)
 {
-    __type_838711075b90279a* value_0 = &bytes;
+    __type_131eebaaeb761e42* value_0 = &bytes;
     Text value_1 = {0};
-    __type_838711075b90279a value_2 = bytes;
+    __type_131eebaaeb761e42 value_2 = bytes;
     bytes.data = NULL;
     bytes.capacity = 0;
     bytes.count = 0;

@@ -136,7 +136,7 @@ static PathKind file_tree_linux_PathKindOf(int32_t mode) ZIRAN_MAYBE_UNUSED;
 static bool file_tree_linux_ReadPathInfo(uint8_t* name, int32_t flags, PathInfo* info) ZIRAN_MAYBE_UNUSED;
 static void file_tree_linux_ReleaseOwnedText(String text) ZIRAN_MAYBE_UNUSED;
 static Text file_tree_linux_CopyText(Slice bytes) ZIRAN_MAYBE_UNUSED;
-static void file_tree_linux_ReleaseNames(__type_c53c2d7c4913dc02* names, int64_t from) ZIRAN_MAYBE_UNUSED;
+static void file_tree_linux_ReleaseNames(__type_9f828aa1372cb21a* names, int64_t from) ZIRAN_MAYBE_UNUSED;
 static bool file_tree_linux_CopyTreeNewContents(String source, String target, int32_t mode) ZIRAN_MAYBE_UNUSED;
 static bool file_tree_linux_CopyLink(String source, String target) ZIRAN_MAYBE_UNUSED;
 static bool file_tree_linux_MatchAt(String name, int64_t at, String pattern, int64_t from) ZIRAN_MAYBE_UNUSED;
@@ -372,8 +372,8 @@ file_tree_linux_JoinPath(String directory, String name)
     if ((int64_t)(directory).length == 0LL || ((int64_t)(name).length > 0LL && (uint8_t)name.data[0] == 47)) {
         return vec_TextCopy(name);
     }
-    __type_838711075b90279a result = {0};
-    __type_838711075b90279a* value_0 = &result;
+    __type_131eebaaeb761e42 result = {0};
+    __type_131eebaaeb761e42* value_0 = &result;
     bool value_1 = false;
     if ((directory).length == 0) {
         value_1 = true;
@@ -411,7 +411,7 @@ file_tree_linux_JoinPath(String directory, String name)
         }
     }
     (void)value_6;
-    __type_838711075b90279a value_8 = result;
+    __type_131eebaaeb761e42 value_8 = result;
     result.data = NULL;
     result.capacity = 0;
     result.count = 0;
@@ -534,8 +534,8 @@ file_tree_linux_CreateTemporaryDirectory(String parent, String prefix)
         (cleanup_return_0).bytes.count = 0;
         return value_4;
     }
-    __type_838711075b90279a output = {0};
-    __type_838711075b90279a* value_5 = &output;
+    __type_131eebaaeb761e42 output = {0};
+    __type_131eebaaeb761e42* value_5 = &output;
     bool value_6 = false;
     if ((directory).length == 0) {
         value_6 = true;
@@ -679,7 +679,7 @@ file_tree_linux_CreateTemporaryDirectory(String parent, String prefix)
             at = (int64_t)((uint64_t)at + UINT64_C(1));
         }
     }
-    __type_838711075b90279a value_35 = output;
+    __type_131eebaaeb761e42 value_35 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
@@ -728,8 +728,8 @@ file_tree_linux_WorkingDirectory(void)
 static Text
 file_tree_linux_CopyText(Slice bytes)
 {
-    __type_838711075b90279a result = {0};
-    __type_838711075b90279a* value_0 = &result;
+    __type_131eebaaeb761e42 result = {0};
+    __type_131eebaaeb761e42* value_0 = &result;
     for (int64_t it_index = 0LL; it_index < (int64_t)(bytes).length; it_index++) {
         uint8_t it = ((uint8_t *)bytes.data)[it_index];
         if (it == 0) {
@@ -752,7 +752,7 @@ file_tree_linux_CopyText(Slice bytes)
             return value_4;
         }
     }
-    __type_838711075b90279a value_5 = result;
+    __type_131eebaaeb761e42 value_5 = result;
     result.data = NULL;
     result.capacity = 0;
     result.count = 0;
@@ -830,11 +830,11 @@ file_tree_linux_CreateDirectories(String path, int32_t mode)
 }
 
 static void
-file_tree_linux_ReleaseNames(__type_c53c2d7c4913dc02* names, int64_t from)
+file_tree_linux_ReleaseNames(__type_9f828aa1372cb21a* names, int64_t from)
 {
-    __type_c53c2d7c4913dc02 owned = {0};
-    __type_c53c2d7c4913dc02* value_0 = &owned;
-    __type_c53c2d7c4913dc02 value_1 = owned;
+    __type_9f828aa1372cb21a owned = {0};
+    __type_9f828aa1372cb21a* value_0 = &owned;
+    __type_9f828aa1372cb21a value_1 = owned;
     owned = (*(names));
     (*(names)) = value_1;
     int64_t index = from;
@@ -842,7 +842,7 @@ file_tree_linux_ReleaseNames(__type_c53c2d7c4913dc02* names, int64_t from)
         file_tree_linux_ReleaseOwnedText((owned).data[index]);
         index = (int64_t)((uint64_t)index + UINT64_C(1));
     }
-    __type_c53c2d7c4913dc02 value_2 = owned;
+    __type_9f828aa1372cb21a value_2 = owned;
     owned = (*(names));
     (*(names)) = value_2;
     free((*value_0).data);
@@ -852,15 +852,15 @@ file_tree_linux_ReleaseNames(__type_c53c2d7c4913dc02* names, int64_t from)
 }
 
 void
-file_tree_linux_FreeDirectoryNames(__type_c53c2d7c4913dc02* names)
+file_tree_linux_FreeDirectoryNames(__type_9f828aa1372cb21a* names)
 {
     if (names == ((void *)0)) {
         return;
     }
     file_tree_linux_ReleaseNames(names, 0LL);
-    __type_c53c2d7c4913dc02 owned = {0};
-    __type_c53c2d7c4913dc02* value_0 = &owned;
-    __type_c53c2d7c4913dc02 value_1 = owned;
+    __type_9f828aa1372cb21a owned = {0};
+    __type_9f828aa1372cb21a* value_0 = &owned;
+    __type_9f828aa1372cb21a value_1 = owned;
     owned = (*(names));
     (*(names)) = value_1;
     free((owned).data);
@@ -874,7 +874,7 @@ file_tree_linux_FreeDirectoryNames(__type_c53c2d7c4913dc02* names)
 }
 
 bool
-file_tree_linux_ListDirectory(String path, __type_c53c2d7c4913dc02* names)
+file_tree_linux_ListDirectory(String path, __type_9f828aa1372cb21a* names)
 {
     if (names == ((void *)0)) {
         return false;
@@ -884,8 +884,8 @@ file_tree_linux_ListDirectory(String path, __type_c53c2d7c4913dc02* names)
         return false;
     }
     bool open = true;
-    __type_c53c2d7c4913dc02 found = {0};
-    __type_c53c2d7c4913dc02* value_0 = &found;
+    __type_9f828aa1372cb21a found = {0};
+    __type_9f828aa1372cb21a* value_0 = &found;
     int64_t transferred = 0;
     while (true) {
         DirectoryEntry entry = NextDirectoryEntry(&(cursor));
@@ -1067,8 +1067,8 @@ file_tree_linux_RemoveTree(String path)
     if (((PathKind)(info.kind)) != PathKind_Directory) {
         return zir_foreign_file_tree_linux__UnlinkRaw(&(name[0])) == 0;
     }
-    __type_c53c2d7c4913dc02 names = {0};
-    __type_c53c2d7c4913dc02* value_6 = &names;
+    __type_9f828aa1372cb21a names = {0};
+    __type_9f828aa1372cb21a* value_6 = &names;
     bool value_7 = file_tree_linux_ListDirectory(path, &(names));
     if (!value_7) {
         bool value_8 = false;
@@ -1081,8 +1081,8 @@ file_tree_linux_RemoveTree(String path)
     bool ok = true;
     int64_t index = 0LL;
     while (index < names.count) {
-        __type_838711075b90279a child = {0};
-        __type_838711075b90279a* value_9 = &child;
+        __type_131eebaaeb761e42 child = {0};
+        __type_131eebaaeb761e42* value_9 = &child;
         bool value_10 = false;
         if ((path).length == 0) {
             value_10 = true;
@@ -1239,8 +1239,8 @@ file_tree_linux_CopyTree(String source, String target)
     if (!value_3) {
         return false;
     }
-    __type_c53c2d7c4913dc02 names = {0};
-    __type_c53c2d7c4913dc02* value_4 = &names;
+    __type_9f828aa1372cb21a names = {0};
+    __type_9f828aa1372cb21a* value_4 = &names;
     bool value_5 = file_tree_linux_ListDirectory(source, &(names));
     if (!value_5) {
         bool value_6 = false;
@@ -1450,8 +1450,8 @@ file_tree_linux_CopyTreeNewContents(String source, String target, int32_t mode)
     if (!value_1 || zir_foreign_file_tree_linux__MakeDirectoryRaw(&(name[0]), 448) != 0) {
         return false;
     }
-    __type_c53c2d7c4913dc02 names = {0};
-    __type_c53c2d7c4913dc02* value_2 = &names;
+    __type_9f828aa1372cb21a names = {0};
+    __type_9f828aa1372cb21a* value_2 = &names;
     bool value_3 = file_tree_linux_ListDirectory(source, &(names));
     if (!value_3) {
         bool cleanup_return_0 = false;
@@ -1566,8 +1566,8 @@ file_tree_linux_CopyLink(String source, String target)
 bool
 file_tree_linux_ReplaceFile(String path, String text)
 {
-    __type_838711075b90279a temporary_text = {0};
-    __type_838711075b90279a* value_0 = &temporary_text;
+    __type_131eebaaeb761e42 temporary_text = {0};
+    __type_131eebaaeb761e42* value_0 = &temporary_text;
     bool value_1 = false;
     if ((path).length == 0) {
         value_1 = true;
@@ -1618,7 +1618,7 @@ file_tree_linux_ReplaceFile(String path, String text)
         (void)value_7;
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
-    __type_838711075b90279a value_9 = temporary_text;
+    __type_131eebaaeb761e42 value_9 = temporary_text;
     temporary_text.data = NULL;
     temporary_text.capacity = 0;
     temporary_text.count = 0;

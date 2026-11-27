@@ -163,7 +163,7 @@ GO
     GO111MODULE=off go run "$work/box-go-$input"/*.go
 done
 
-# Equal generated names cannot erase distinct template identities.
+# Shadowed generic fields remain usable, but distinct templates cannot mix.
 cat > "$work/cells.zi" <<'ZI'
 Cell :: struct($T: Type) { value: T }
 Holder :: struct { item: Cell(s32) }
@@ -177,14 +177,15 @@ Cell :: struct($T: Type) { value: T }
 Answer :: () -> s32 {
     own: Cell(s32)
     holder: Holder
+    holder.item = own
     return holder.item.value + own.value
 }
 ZI
 if "$ziran" ir --root "$work" -o "$work/cell-ir" "$work/cell_app.zi" 2> "$work/cell.err"; then
-    echo 'accepted shadowed generic field with a distinct template' >&2
+    echo 'accepted assignment between distinct generic templates' >&2
     exit 1
 fi
-grep -Fq 'imported record field type is shadowed: item' "$work/cell.err"
+grep -Fq 'assignment type mismatch' "$work/cell.err"
 
 # A shared template applied to distinct nominal leaves stays distinct too.
 cat > "$work/shared_cell.zi" <<'ZI'
@@ -205,11 +206,12 @@ Leaf :: struct { value: s32 }
 Answer :: () -> s32 {
     own: Cell(Leaf)
     holder: Holder
+    holder.item = own
     return holder.item.value.value + own.value.value
 }
 ZI
 if "$ziran" ir --root "$work" -o "$work/leaf-ir" "$work/leaf_app.zi" 2> "$work/leaf.err"; then
-    echo 'accepted shadowed generic field with a distinct nominal argument' >&2
+    echo 'accepted assignment between distinct nominal arguments' >&2
     exit 1
 fi
-grep -Fq 'imported record field type is shadowed: item' "$work/leaf.err"
+grep -Fq 'assignment type mismatch' "$work/leaf.err"

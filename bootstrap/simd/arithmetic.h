@@ -10,26 +10,26 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_a48ccc373f318f67
-#define ZIRAN_CONCRETE_FORWARD___type_a48ccc373f318f67
-typedef struct __type_a48ccc373f318f67 __type_a48ccc373f318f67;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_e265f79c93ee1c4a
+#define ZIRAN_CONCRETE_FORWARD___type_e265f79c93ee1c4a
+typedef struct __type_e265f79c93ee1c4a __type_e265f79c93ee1c4a;
 #endif
-#ifndef ZIRAN_CONCRETE___type_a48ccc373f318f67
-#define ZIRAN_CONCRETE___type_a48ccc373f318f67
+#ifndef ZIRAN_CONCRETE___type_e265f79c93ee1c4a
+#define ZIRAN_CONCRETE___type_e265f79c93ee1c4a
 
-struct __type_a48ccc373f318f67 {
+struct __type_e265f79c93ee1c4a {
     Branch* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
 String arithmetic_Intrinsic(String result, String ziran_keyword_register_0, String name, String a, String b);
-void arithmetic_AddBranch(__type_a48ccc373f318f67* output, String condition, String body);
-__type_a48ccc373f318f67 arithmetic_MinMaxSpecials(String op, VectorType t);
-__type_a48ccc373f318f67 arithmetic_MulHighSpecials(String op, VectorType t);
-__type_a48ccc373f318f67 arithmetic_AbsSpecials(VectorType t);
-__type_a48ccc373f318f67 arithmetic_AbsDiffSpecials(VectorType t);
-__type_a48ccc373f318f67 arithmetic_ArithmeticSpecials(String op, VectorType t);
+void arithmetic_AddBranch(__type_e265f79c93ee1c4a* output, String condition, String body);
+__type_e265f79c93ee1c4a arithmetic_MinMaxSpecials(String op, VectorType t);
+__type_e265f79c93ee1c4a arithmetic_MulHighSpecials(String op, VectorType t);
+__type_e265f79c93ee1c4a arithmetic_AbsSpecials(VectorType t);
+__type_e265f79c93ee1c4a arithmetic_AbsDiffSpecials(VectorType t);
+__type_e265f79c93ee1c4a arithmetic_ArithmeticSpecials(String op, VectorType t);
 
 #ifdef __cplusplus
 }

@@ -16,7 +16,7 @@ arithmetic_Intrinsic(String result, String ziran_keyword_register_0, String name
 }
 
 void
-arithmetic_AddBranch(__type_a48ccc373f318f67* output, String condition, String body)
+arithmetic_AddBranch(__type_e265f79c93ee1c4a* output, String condition, String body)
 {
     Branch value_0 = {0};
     String value_1 = vec_TextDetach(vec_TextCopy(condition));
@@ -34,11 +34,11 @@ arithmetic_AddBranch(__type_a48ccc373f318f67* output, String condition, String b
     (void)value_4;
 }
 
-__type_a48ccc373f318f67
+__type_e265f79c93ee1c4a
 arithmetic_MinMaxSpecials(String op, VectorType t)
 {
-    __type_a48ccc373f318f67 output = {0};
-    __type_a48ccc373f318f67* value_0 = &output;
+    __type_e265f79c93ee1c4a output = {0};
+    __type_e265f79c93ee1c4a* value_0 = &output;
     String intrinsic = StringView(NULL, 0);
     String tier = StringView(NULL, 0);
     String value_1 = StringView(NULL, 0);
@@ -101,11 +101,11 @@ arithmetic_MinMaxSpecials(String op, VectorType t)
         String value_16 = model_Render(StringLiteral("wasm_@0_p@1"), value_15, op, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
         arithmetic_AddBranch(&(output), StringLiteral("ZI_WASM"), arithmetic_Intrinsic(t.c, StringLiteral("v128_t"), value_16, StringLiteral("b"), StringLiteral("a")));
     }
-    __type_a48ccc373f318f67 value_17 = output;
+    __type_e265f79c93ee1c4a value_17 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
-    __type_a48ccc373f318f67 value_18 = value_17;
+    __type_e265f79c93ee1c4a value_18 = value_17;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;
@@ -113,11 +113,11 @@ arithmetic_MinMaxSpecials(String op, VectorType t)
     return value_18;
 }
 
-__type_a48ccc373f318f67
+__type_e265f79c93ee1c4a
 arithmetic_MulHighSpecials(String op, VectorType t)
 {
-    __type_a48ccc373f318f67 output = {0};
-    __type_a48ccc373f318f67* value_0 = &output;
+    __type_e265f79c93ee1c4a output = {0};
+    __type_e265f79c93ee1c4a* value_0 = &output;
     bool rounded = StringEqual(op, StringLiteral("mul_high_round"));
     String value_1 = StringView(NULL, 0);
     if (rounded) {
@@ -190,11 +190,11 @@ arithmetic_MulHighSpecials(String op, VectorType t)
             arithmetic_AddBranch(&(output), StringLiteral("ZI_WASM"), value_22);
         }
     }
-    __type_a48ccc373f318f67 value_23 = output;
+    __type_e265f79c93ee1c4a value_23 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
-    __type_a48ccc373f318f67 value_24 = value_23;
+    __type_e265f79c93ee1c4a value_24 = value_23;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;
@@ -202,11 +202,11 @@ arithmetic_MulHighSpecials(String op, VectorType t)
     return value_24;
 }
 
-__type_a48ccc373f318f67
+__type_e265f79c93ee1c4a
 arithmetic_AbsSpecials(VectorType t)
 {
-    __type_a48ccc373f318f67 output = {0};
-    __type_a48ccc373f318f67* value_0 = &output;
+    __type_e265f79c93ee1c4a output = {0};
+    __type_e265f79c93ee1c4a* value_0 = &output;
     if (!t.is_float) {
         if (t.bits <= 32) {
             String value_1 = StringView(NULL, 0);
@@ -258,11 +258,11 @@ arithmetic_AbsSpecials(VectorType t)
             arithmetic_AddBranch(&(output), StringLiteral("ZI_WASM"), arithmetic_Intrinsic(t.c, StringLiteral("v128_t"), value_19, StringLiteral("a"), StringLiteral("")));
         }
     }
-    __type_a48ccc373f318f67 value_20 = output;
+    __type_e265f79c93ee1c4a value_20 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
-    __type_a48ccc373f318f67 value_21 = value_20;
+    __type_e265f79c93ee1c4a value_21 = value_20;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;
@@ -270,11 +270,11 @@ arithmetic_AbsSpecials(VectorType t)
     return value_21;
 }
 
-__type_a48ccc373f318f67
+__type_e265f79c93ee1c4a
 arithmetic_AbsDiffSpecials(VectorType t)
 {
-    __type_a48ccc373f318f67 output = {0};
-    __type_a48ccc373f318f67* value_0 = &output;
+    __type_e265f79c93ee1c4a output = {0};
+    __type_e265f79c93ee1c4a* value_0 = &output;
     VectorType r = model_Unsigned(t);
     String value_1 = StringView(NULL, 0);
     if (t.wide) {
@@ -335,11 +335,11 @@ arithmetic_AbsDiffSpecials(VectorType t)
             arithmetic_AddBranch(&(output), StringLiteral("ZI_WASM"), value_23);
         }
     }
-    __type_a48ccc373f318f67 value_24 = output;
+    __type_e265f79c93ee1c4a value_24 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
-    __type_a48ccc373f318f67 value_25 = value_24;
+    __type_e265f79c93ee1c4a value_25 = value_24;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;
@@ -347,7 +347,7 @@ arithmetic_AbsDiffSpecials(VectorType t)
     return value_25;
 }
 
-__type_a48ccc373f318f67
+__type_e265f79c93ee1c4a
 arithmetic_ArithmeticSpecials(String op, VectorType t)
 {
     if (StringEqual(op, StringLiteral("min")) || StringEqual(op, StringLiteral("max"))) {
@@ -362,8 +362,8 @@ arithmetic_ArithmeticSpecials(String op, VectorType t)
     if (StringEqual(op, StringLiteral("abs_diff"))) {
         return arithmetic_AbsDiffSpecials(t);
     }
-    __type_a48ccc373f318f67 output = {0};
-    __type_a48ccc373f318f67* value_0 = &output;
+    __type_e265f79c93ee1c4a output = {0};
+    __type_e265f79c93ee1c4a* value_0 = &output;
     if (StringEqual(op, StringLiteral("add_sat")) || StringEqual(op, StringLiteral("sub_sat")) || StringEqual(op, StringLiteral("avg"))) {
         String value_1 = StringView(NULL, 0);
         if (StringEqual(op, StringLiteral("add_sat"))) {
@@ -457,11 +457,11 @@ arithmetic_ArithmeticSpecials(String op, VectorType t)
         String value_30 = model_Render(StringLiteral("return (@0)wasm_v128_bitselect((v128_t)a, (v128_t)b, (v128_t)m);"), t.c, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
         arithmetic_AddBranch(&(output), StringLiteral("ZI_WASM"), value_30);
     }
-    __type_a48ccc373f318f67 value_31 = output;
+    __type_e265f79c93ee1c4a value_31 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
-    __type_a48ccc373f318f67 value_32 = value_31;
+    __type_e265f79c93ee1c4a value_32 = value_31;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;

@@ -2515,8 +2515,8 @@ compiler_proof_GraphVisit(ZirFunction* fn, int32_t at, Slice seen, int32_t depth
 static bool
 compiler_proof_GraphValid(ZirFunction* fn)
 {
-    __type_838711075b90279a seen = {0};
-    __type_838711075b90279a* value_0 = &seen;
+    __type_131eebaaeb761e42 seen = {0};
+    __type_131eebaaeb761e42* value_0 = &seen;
     bool value_1 = fn->expr_count < 0 || fn->expr_count > 4096 || fn->checked != 0;
     bool value_2 = value_1;
     if (!value_2) {
@@ -3368,8 +3368,8 @@ int32_t
 ParseProofDeclaration(ZirModule* m, uint8_t* source, ZirSourceSpan span)
 {
     String text = compiler_ir_CText(source);
-    __type_838711075b90279a clean = {0};
-    __type_838711075b90279a* value_0 = &clean;
+    __type_131eebaaeb761e42 clean = {0};
+    __type_131eebaaeb761e42* value_0 = &clean;
     int64_t value_2 = (int64_t)(text).length;
     bool value_3 = false;
     if (value_2 >= 0) {

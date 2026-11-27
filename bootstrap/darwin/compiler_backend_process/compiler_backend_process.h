@@ -30,9 +30,9 @@ extern "C" {
 #define ProcessorsOnline 58
 #define AffinityBytes 128
 #define ToolLogMaximum 4095
-#ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-#define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-typedef struct __type_838711075b90279a __type_838711075b90279a;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
 typedef struct Job Job;
 typedef struct SlotOutput SlotOutput;
@@ -45,30 +45,30 @@ typedef struct DiagnosticSpan DiagnosticSpan;
 typedef struct PollRecord PollRecord;
 typedef struct OwnedText OwnedText;
 typedef struct CapturePointer CapturePointer;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-typedef struct __type_c53c2d7c4913dc02 __type_c53c2d7c4913dc02;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_21092c8252d3dcaa
-#define ZIRAN_CONCRETE_FORWARD___type_21092c8252d3dcaa
-typedef struct __type_21092c8252d3dcaa __type_21092c8252d3dcaa;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_6897586eed124d12
+#define ZIRAN_CONCRETE_FORWARD___type_6897586eed124d12
+typedef struct __type_6897586eed124d12 __type_6897586eed124d12;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_977f1aa2b1338c92
-#define ZIRAN_CONCRETE_FORWARD___type_977f1aa2b1338c92
-typedef struct __type_977f1aa2b1338c92 __type_977f1aa2b1338c92;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_791f4dbda1b77cfe
+#define ZIRAN_CONCRETE_FORWARD___type_791f4dbda1b77cfe
+typedef struct __type_791f4dbda1b77cfe __type_791f4dbda1b77cfe;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_ed1e6fa4811ab16b
-#define ZIRAN_CONCRETE_FORWARD___type_ed1e6fa4811ab16b
-typedef struct __type_ed1e6fa4811ab16b __type_ed1e6fa4811ab16b;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_32a8006a7b472f5f
+#define ZIRAN_CONCRETE_FORWARD___type_32a8006a7b472f5f
+typedef struct __type_32a8006a7b472f5f __type_32a8006a7b472f5f;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_6f55d821d15c8cbf
-#define ZIRAN_CONCRETE_FORWARD___type_6f55d821d15c8cbf
-typedef struct __type_6f55d821d15c8cbf __type_6f55d821d15c8cbf;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_a62c3df80303f6fb
+#define ZIRAN_CONCRETE_FORWARD___type_a62c3df80303f6fb
+typedef struct __type_a62c3df80303f6fb __type_a62c3df80303f6fb;
 #endif
-#ifndef ZIRAN_CONCRETE___type_838711075b90279a
-#define ZIRAN_CONCRETE___type_838711075b90279a
+#ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE___type_131eebaaeb761e42
 
-struct __type_838711075b90279a {
+struct __type_131eebaaeb761e42 {
     uint8_t* data;
     int64_t count;
     int64_t capacity;
@@ -78,7 +78,7 @@ struct __type_838711075b90279a {
 struct Job {
     int32_t process;
     int32_t descriptor;
-    __type_838711075b90279a output;
+    __type_131eebaaeb761e42 output;
     bool finished;
     bool ok;
 };
@@ -90,7 +90,7 @@ struct SlotOutput {
 
 struct PendingOutput {
     int64_t file;
-    __type_838711075b90279a output;
+    __type_131eebaaeb761e42 output;
 };
 
 struct compiler_backend_process_Results__string__bool {
@@ -136,52 +136,52 @@ struct OwnedText {
 struct CapturePointer {
     uint8_t* value;
 };
-#ifndef ZIRAN_CONCRETE___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE___type_c53c2d7c4913dc02
+#ifndef ZIRAN_CONCRETE___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE___type_9f828aa1372cb21a
 
-struct __type_c53c2d7c4913dc02 {
+struct __type_9f828aa1372cb21a {
     String* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_21092c8252d3dcaa
-#define ZIRAN_CONCRETE___type_21092c8252d3dcaa
+#ifndef ZIRAN_CONCRETE___type_6897586eed124d12
+#define ZIRAN_CONCRETE___type_6897586eed124d12
 
-struct __type_21092c8252d3dcaa {
+struct __type_6897586eed124d12 {
     uint8_t** data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_977f1aa2b1338c92
-#define ZIRAN_CONCRETE___type_977f1aa2b1338c92
+#ifndef ZIRAN_CONCRETE___type_791f4dbda1b77cfe
+#define ZIRAN_CONCRETE___type_791f4dbda1b77cfe
 
-struct __type_977f1aa2b1338c92 {
+struct __type_791f4dbda1b77cfe {
     MapOwner* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_ed1e6fa4811ab16b
-#define ZIRAN_CONCRETE___type_ed1e6fa4811ab16b
+#ifndef ZIRAN_CONCRETE___type_32a8006a7b472f5f
+#define ZIRAN_CONCRETE___type_32a8006a7b472f5f
 
-struct __type_ed1e6fa4811ab16b {
+struct __type_32a8006a7b472f5f {
     MapLink* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_6f55d821d15c8cbf
-#define ZIRAN_CONCRETE___type_6f55d821d15c8cbf
+#ifndef ZIRAN_CONCRETE___type_a62c3df80303f6fb
+#define ZIRAN_CONCRETE___type_a62c3df80303f6fb
 
-struct __type_6f55d821d15c8cbf {
+struct __type_a62c3df80303f6fb {
     PendingOutput* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-extern __type_c53c2d7c4913dc02 zir_g_ebee27c61794d0ae;
+extern __type_9f828aa1372cb21a zir_g_ebee27c61794d0ae;
 #ifdef __APPLE__
 int64_t zir_foreign_compiler_backend_process__SysconfByName(int32_t name) __asm__("_sysconf");
 #else
@@ -329,7 +329,7 @@ void zir_foreign_compiler_backend_process__DiagnosticTargetForeign(DiagnosticSpa
 #endif
 int32_t compiler_backend_process_WorkerLimit(void);
 int32_t compiler_backend_process_BuildLock(String directory);
-void compiler_backend_process_ReleasePointerVector(__type_21092c8252d3dcaa* values);
+void compiler_backend_process_ReleasePointerVector(__type_6897586eed124d12* values);
 Job compiler_backend_process_StartJob(Slice commands, bool capture, bool report_error);
 bool compiler_backend_process_WaitJob(Job* job);
 void compiler_backend_process_FreeJob(Job* job);
@@ -342,35 +342,35 @@ compiler_backend_process_Results__string__bool compiler_backend_process_PathSuff
 void compiler_backend_process_ReleaseOwnedText(String value);
 uint8_t* compiler_backend_process_AllocateText(String value);
 String compiler_backend_process_CText(uint8_t* value);
-void compiler_backend_process_FreePointers(__type_21092c8252d3dcaa values);
-bool compiler_backend_process_PrepareArguments(Slice arguments, __type_21092c8252d3dcaa* pointers);
-bool compiler_backend_process_WordsInto(String value, __type_21092c8252d3dcaa* output);
-bool compiler_backend_process_EnvironmentWords(String name, __type_21092c8252d3dcaa* output);
+void compiler_backend_process_FreePointers(__type_6897586eed124d12 values);
+bool compiler_backend_process_PrepareArguments(Slice arguments, __type_6897586eed124d12* pointers);
+bool compiler_backend_process_WordsInto(String value, __type_6897586eed124d12* output);
+bool compiler_backend_process_EnvironmentWords(String name, __type_6897586eed124d12* output);
 uint8_t* compiler_backend_process_LinkFlag(String name);
 uint8_t* compiler_backend_process_ReadMapBytes(uint8_t* path, int64_t* length);
-bool compiler_backend_process_AppendIncludedLinks(__type_21092c8252d3dcaa* files, __type_21092c8252d3dcaa* tail);
-bool compiler_backend_process_AddCArgument(__type_21092c8252d3dcaa* output, String flag, String value);
-bool compiler_backend_process_AddSource(__type_21092c8252d3dcaa* files, String path);
+bool compiler_backend_process_AppendIncludedLinks(__type_6897586eed124d12* files, __type_6897586eed124d12* tail);
+bool compiler_backend_process_AddCArgument(__type_6897586eed124d12* output, String flag, String value);
+bool compiler_backend_process_AddSource(__type_6897586eed124d12* files, String path);
 bool compiler_backend_process_CompileExecutable(String out, String name, bool threads, bool release);
-bool compiler_backend_process_FinishCompile(String out, String name, bool forced_language, __type_21092c8252d3dcaa* base, __type_21092c8252d3dcaa* tail, __type_21092c8252d3dcaa* files, __type_21092c8252d3dcaa* objects, __type_838711075b90279a* log);
+bool compiler_backend_process_FinishCompile(String out, String name, bool forced_language, __type_6897586eed124d12* base, __type_6897586eed124d12* tail, __type_6897586eed124d12* files, __type_6897586eed124d12* objects, __type_131eebaaeb761e42* log);
 Results__pu8__bool compiler_backend_process_ObjectPath(String out, String relative);
-void compiler_backend_process_SortPaths(__type_21092c8252d3dcaa* values);
+void compiler_backend_process_SortPaths(__type_6897586eed124d12* values);
 bool compiler_backend_process_PathBefore(String left, String right);
 void compiler_backend_process_ReapJob(Job* job);
 void compiler_backend_process_StoreJob(Job* target, Job value);
 void compiler_backend_process_PollSlots(Slice jobs, Slice slots, bool* failed);
-bool compiler_backend_process_CompileAndLink(String out, String name, bool forced_language, __type_21092c8252d3dcaa* base, __type_21092c8252d3dcaa* tail, __type_21092c8252d3dcaa* files, __type_21092c8252d3dcaa* objects, __type_838711075b90279a* log);
-__type_c53c2d7c4913dc02 compiler_backend_process_PointerTexts(__type_21092c8252d3dcaa* source);
-__type_c53c2d7c4913dc02 compiler_backend_process_CloneTexts(__type_21092c8252d3dcaa* source);
-void compiler_backend_process_FreeArguments(__type_c53c2d7c4913dc02* values);
-bool compiler_backend_process_AddDependencyArguments(__type_c53c2d7c4913dc02* arguments, String dependency);
-bool compiler_backend_process_AddObjectArguments(__type_c53c2d7c4913dc02* arguments, String source, String object);
-bool compiler_backend_process_AddTextArgument(__type_c53c2d7c4913dc02* output, String flag, String value);
-bool compiler_backend_process_AppendLog(__type_838711075b90279a* log, Slice output);
-bool compiler_backend_process_LinkOwnedObjects(String out, String name, bool forced_language, __type_21092c8252d3dcaa* base, __type_21092c8252d3dcaa* tail, __type_21092c8252d3dcaa* files, __type_21092c8252d3dcaa* objects, __type_838711075b90279a* log, BuildCache* cache);
-void compiler_backend_process_ReleaseBuildValues(__type_21092c8252d3dcaa* base, __type_21092c8252d3dcaa* tail, __type_21092c8252d3dcaa* files, __type_21092c8252d3dcaa* objects, __type_838711075b90279a* log);
+bool compiler_backend_process_CompileAndLink(String out, String name, bool forced_language, __type_6897586eed124d12* base, __type_6897586eed124d12* tail, __type_6897586eed124d12* files, __type_6897586eed124d12* objects, __type_131eebaaeb761e42* log);
+__type_9f828aa1372cb21a compiler_backend_process_PointerTexts(__type_6897586eed124d12* source);
+__type_9f828aa1372cb21a compiler_backend_process_CloneTexts(__type_6897586eed124d12* source);
+void compiler_backend_process_FreeArguments(__type_9f828aa1372cb21a* values);
+bool compiler_backend_process_AddDependencyArguments(__type_9f828aa1372cb21a* arguments, String dependency);
+bool compiler_backend_process_AddObjectArguments(__type_9f828aa1372cb21a* arguments, String source, String object);
+bool compiler_backend_process_AddTextArgument(__type_9f828aa1372cb21a* output, String flag, String value);
+bool compiler_backend_process_AppendLog(__type_131eebaaeb761e42* log, Slice output);
+bool compiler_backend_process_LinkOwnedObjects(String out, String name, bool forced_language, __type_6897586eed124d12* base, __type_6897586eed124d12* tail, __type_6897586eed124d12* files, __type_6897586eed124d12* objects, __type_131eebaaeb761e42* log, BuildCache* cache);
+void compiler_backend_process_ReleaseBuildValues(__type_6897586eed124d12* base, __type_6897586eed124d12* tail, __type_6897586eed124d12* files, __type_6897586eed124d12* objects, __type_131eebaaeb761e42* log);
 bool compiler_backend_process_MoveLinkOutput(String directory, String out, String name);
-void compiler_backend_process_ReportToolchain(String out, __type_838711075b90279a* log, bool ok);
+void compiler_backend_process_ReportToolchain(String out, __type_131eebaaeb761e42* log, bool ok);
 void compiler_backend_process_Report(bool ok, String code, String message);
 int64_t compiler_backend_process_AffinityCpus(void);
 int64_t compiler_backend_process_AvailableMemory(void);
@@ -403,7 +403,7 @@ static inline int32_t ZiShrS32(int32_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-static inline void compiler_backend_process_SortPaths_ziran_inline(__type_21092c8252d3dcaa* values);
+static inline void compiler_backend_process_SortPaths_ziran_inline(__type_6897586eed124d12* values);
 #define compiler_backend_process_SortPaths(...) compiler_backend_process_SortPaths_ziran_inline(__VA_ARGS__)
 static inline bool compiler_backend_process_PathBefore_ziran_inline(String left, String right);
 #define compiler_backend_process_PathBefore(...) compiler_backend_process_PathBefore_ziran_inline(__VA_ARGS__)
@@ -413,7 +413,7 @@ static inline void compiler_backend_process_FinishStatus_ziran_inline(Job* job, 
 #define compiler_backend_process_FinishStatus(...) compiler_backend_process_FinishStatus_ziran_inline(__VA_ARGS__)
 
 static inline void
-compiler_backend_process_SortPaths_ziran_inline(__type_21092c8252d3dcaa* values)
+compiler_backend_process_SortPaths_ziran_inline(__type_6897586eed124d12* values)
 {
     {
         int64_t range_first_0 = 1LL;

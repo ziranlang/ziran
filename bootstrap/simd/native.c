@@ -22,21 +22,21 @@ native_OwnNative(String name)
     return false;
 }
 
-__type_9729e0c938c828df
+__type_369bb27e9de8ac5e
 native_NativeNames(Slice names)
 {
-    __type_9729e0c938c828df output = {0};
-    __type_9729e0c938c828df* value_0 = &output;
+    __type_369bb27e9de8ac5e output = {0};
+    __type_369bb27e9de8ac5e* value_0 = &output;
     for (int64_t it_index = 0LL; it_index < (int64_t)(names).length; it_index++) {
         String name = ((String *)names.data)[it_index];
         bool value_1 = text_tools_TextHasPrefix(name, StringLiteral("lane_"));
         if (value_1 || text_tools_TextHasPrefix(name, StringLiteral("with_lane_"))) {
             continue;
         }
-        __type_c53c2d7c4913dc02 words = text_tools_TextSplit(name, StringLiteral("_"));
-        __type_c53c2d7c4913dc02* value_2 = &words;
-        __type_838711075b90279a text = {0};
-        __type_838711075b90279a* value_3 = &text;
+        __type_9f828aa1372cb21a words = text_tools_TextSplit(name, StringLiteral("_"));
+        __type_9f828aa1372cb21a* value_2 = &words;
+        __type_131eebaaeb761e42 text = {0};
+        __type_131eebaaeb761e42* value_3 = &text;
         bool found = false;
         bool wide = false;
         bool mixed = false;
@@ -105,7 +105,7 @@ native_NativeNames(Slice names)
         }
         if (found && !mixed) {
             NativeName value_12 = {0};
-            __type_838711075b90279a value_13 = text;
+            __type_131eebaaeb761e42 value_13 = text;
             text.data = NULL;
             text.capacity = 0;
             text.count = 0;
@@ -133,11 +133,11 @@ native_NativeNames(Slice names)
         (*value_2).capacity = 0;
         (*value_2).count = 0;
     }
-    __type_9729e0c938c828df value_19 = output;
+    __type_369bb27e9de8ac5e value_19 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
-    __type_9729e0c938c828df value_20 = value_19;
+    __type_369bb27e9de8ac5e value_20 = value_19;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;
@@ -145,13 +145,13 @@ native_NativeNames(Slice names)
     return value_20;
 }
 
-__type_287c5fe78eff2f41
+__type_42eafff0fc85ffde
 native_Aliases(Slice names)
 {
-    __type_287c5fe78eff2f41 output = {0};
-    __type_287c5fe78eff2f41* value_0 = &output;
-    __type_9729e0c938c828df candidates = native_NativeNames(names);
-    __type_9729e0c938c828df* value_1 = &candidates;
+    __type_42eafff0fc85ffde output = {0};
+    __type_42eafff0fc85ffde* value_0 = &output;
+    __type_369bb27e9de8ac5e candidates = native_NativeNames(names);
+    __type_369bb27e9de8ac5e* value_1 = &candidates;
     {
         Slice value_2 = {(candidates).data, (candidates).count};
         Slice loop_view_2 = SliceRangeAt(value_2, 0LL, candidates.count, sizeof(*(candidates).data));
@@ -198,11 +198,11 @@ native_Aliases(Slice names)
             loop_cursor_2 = (int64_t)((uint64_t)loop_cursor_2 + UINT64_C(1));
         }
     }
-    __type_287c5fe78eff2f41 value_13 = output;
+    __type_42eafff0fc85ffde value_13 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
-    __type_287c5fe78eff2f41 value_14 = value_13;
+    __type_42eafff0fc85ffde value_14 = value_13;
     free((*value_1).data);
     (*value_1).data = NULL;
     (*value_1).capacity = 0;
@@ -215,12 +215,12 @@ native_Aliases(Slice names)
 }
 
 void
-native_NativeMacros(__type_838711075b90279a* output)
+native_NativeMacros(__type_131eebaaeb761e42* output)
 {
-    __type_c53c2d7c4913dc02 names = {0};
-    __type_c53c2d7c4913dc02* value_0 = &names;
-    __type_de2f10dbf3e6d44c types = model_Types();
-    __type_de2f10dbf3e6d44c* value_1 = &types;
+    __type_9f828aa1372cb21a names = {0};
+    __type_9f828aa1372cb21a* value_0 = &names;
+    __type_a304a0dc8230c4a1 types = model_Types();
+    __type_a304a0dc8230c4a1* value_1 = &types;
     String operations[4] = {StringLiteral("align_bytes"), StringLiteral("shr_bytes"), StringLiteral("shl_bytes"), StringLiteral("shuffle")};
     {
         Slice value_2 = {operations, 4};
@@ -251,10 +251,10 @@ native_NativeMacros(__type_838711075b90279a* output)
         }
     }
     Slice value_7 = {(names).data, (names).count};
-    __type_287c5fe78eff2f41 aliases = native_Aliases(SliceRangeAt(value_7, 0LL, names.count, sizeof(*(names).data)));
-    __type_287c5fe78eff2f41* value_8 = &aliases;
-    __type_c53c2d7c4913dc02 sorted = {0};
-    __type_c53c2d7c4913dc02* value_9 = &sorted;
+    __type_42eafff0fc85ffde aliases = native_Aliases(SliceRangeAt(value_7, 0LL, names.count, sizeof(*(names).data)));
+    __type_42eafff0fc85ffde* value_8 = &aliases;
+    __type_9f828aa1372cb21a sorted = {0};
+    __type_9f828aa1372cb21a* value_9 = &sorted;
     for (int64_t it_index = 0LL; it_index < aliases.count; it_index++) {
         Alias alias = (aliases).data[it_index];
         String value_10 = alias.name;
@@ -426,13 +426,13 @@ native_NativeHelper(String op, VectorType t, String body, String result)
     return value_23;
 }
 
-__type_93ba55c8a15657d3
+__type_168d4645c4544df6
 native_NativeHelpers(void)
 {
-    __type_93ba55c8a15657d3 output = {0};
-    __type_93ba55c8a15657d3* value_0 = &output;
-    __type_de2f10dbf3e6d44c types = model_Types();
-    __type_de2f10dbf3e6d44c* value_1 = &types;
+    __type_168d4645c4544df6 output = {0};
+    __type_168d4645c4544df6* value_0 = &output;
+    __type_a304a0dc8230c4a1 types = model_Types();
+    __type_a304a0dc8230c4a1* value_1 = &types;
     {
         Slice value_2 = {(types).data, (types).count};
         Slice loop_view_2 = SliceRangeAt(value_2, 0LL, types.count, sizeof(*(types).data));
@@ -447,8 +447,8 @@ native_NativeHelpers(void)
                 continue;
             }
             VectorType h = model_Half(t);
-            __type_838711075b90279a arguments = {0};
-            __type_838711075b90279a* value_3 = &arguments;
+            __type_131eebaaeb761e42 arguments = {0};
+            __type_131eebaaeb761e42* value_3 = &arguments;
             {
                 int32_t range_first_8 = 0;
                 int32_t range_last_8 = (int32_t)((uint32_t)(model_Block(t)) - 1u);
@@ -490,7 +490,7 @@ native_NativeHelpers(void)
                     i = (int32_t)((uint32_t)i + 1u);
                 }
             }
-            __type_838711075b90279a value_10 = arguments;
+            __type_131eebaaeb761e42 value_10 = arguments;
             arguments.data = NULL;
             arguments.capacity = 0;
             arguments.count = 0;
@@ -655,11 +655,11 @@ native_NativeHelpers(void)
             (helper).branches.count = 0;
         }
     }
-    __type_93ba55c8a15657d3 value_64 = output;
+    __type_168d4645c4544df6 value_64 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
-    __type_93ba55c8a15657d3 value_65 = value_64;
+    __type_168d4645c4544df6 value_65 = value_64;
     free((*value_1).data);
     (*value_1).data = NULL;
     (*value_1).capacity = 0;
@@ -682,13 +682,13 @@ native_NativeHelpers(void)
 }
 
 void
-native_NativeSection(__type_838711075b90279a* output, Slice helpers, String* marker)
+native_NativeSection(__type_131eebaaeb761e42* output, Slice helpers, String* marker)
 {
     emit_Marker(output, marker, StringLiteral(""));
     model_AppendLine(output, StringLiteral("/* ---- native vectors, such as s16xN ---- */"));
     model_AppendLine(output, StringLiteral("#if ZI_TIER >= 4"));
-    __type_93ba55c8a15657d3 own = native_NativeHelpers();
-    __type_93ba55c8a15657d3* value_0 = &own;
+    __type_168d4645c4544df6 own = native_NativeHelpers();
+    __type_168d4645c4544df6* value_0 = &own;
     {
         int64_t it_index = 0LL;
         while (it_index < own.count) {
@@ -700,8 +700,8 @@ native_NativeSection(__type_838711075b90279a* output, Slice helpers, String* mar
     }
     emit_Marker(output, marker, StringLiteral(""));
     model_AppendLine(output, StringLiteral("#endif"));
-    __type_c53c2d7c4913dc02 names = {0};
-    __type_c53c2d7c4913dc02* value_1 = &names;
+    __type_9f828aa1372cb21a names = {0};
+    __type_9f828aa1372cb21a* value_1 = &names;
     {
         int64_t it_index = 0LL;
         while (it_index < (int64_t)(helpers).length) {
@@ -719,8 +719,8 @@ native_NativeSection(__type_838711075b90279a* output, Slice helpers, String* mar
         }
     }
     Slice value_5 = {(names).data, (names).count};
-    __type_287c5fe78eff2f41 aliases = native_Aliases(SliceRangeAt(value_5, 0LL, names.count, sizeof(*(names).data)));
-    __type_287c5fe78eff2f41* value_6 = &aliases;
+    __type_42eafff0fc85ffde aliases = native_Aliases(SliceRangeAt(value_5, 0LL, names.count, sizeof(*(names).data)));
+    __type_42eafff0fc85ffde* value_6 = &aliases;
     for (int64_t width = 0LL; width <= 1LL; width++) {
         int64_t it_index = width;
         emit_Marker(output, marker, StringLiteral(""));

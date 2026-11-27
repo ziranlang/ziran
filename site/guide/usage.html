@@ -1359,6 +1359,11 @@ that procedure and exits with its integer result; the entry takes nothing or
 <code>--release</code> for final builds: the default flags become <code>-O3 -flto=auto</code>, which
 optimizes across modules. Each link then generates code for the whole program
 again, so one-file edits rebuild many times slower. <code>CFLAGS</code> still wins.</p>
+<p>Use <code>--emit-main --entry module:function</code> to emit the same checked C process
+entry without invoking a C compiler. This is useful when a native host, browser
+toolchain or other build system compiles and links the generated C itself.
+It accepts source and saved checked IR from every native frontend; no source
+wrapper or entry-signature scan is needed. <code>--exe</code> includes this emission step.</p>
 <p>Small public procedures are inlinable across modules in every C build: the
 module's header carries a <code>static inline</code> copy that other modules' calls use,
 while the module's own <code>.c</code> keeps the one external definition, so a
@@ -1372,7 +1377,8 @@ including that module's header, so the header leaves out its copies.
 <code>-DZIRAN_NO_HEADER_INLINE</code> leaves out every module's copies, so all calls
 reach the external definitions; a test that interposes procedures at link
 time, as with <code>ld --wrap</code>, builds with it.</p>
-<p>A closed program, one linked with <code>--entry</code> that builds with <code>--exe</code> or has
+<p>A closed program, one linked with <code>--entry</code> that builds with <code>--emit-main</code>,
+<code>--exe</code> or has
 its own C <code>main</code>, carries only the code it uses. Its generated files are the
 only ones that include its headers, so each header declares just the types,
 procedures, constants, variables and foreign bindings that another generated
@@ -1380,7 +1386,7 @@ file names. The module's own <code>.c</code> keeps whatever only it reads, a hea
 stays only for a procedure another module calls, and a module whose header
 would declare nothing has no header. Runtime headers such as <code>zir_bounds.h</code>
 keep only the helpers some generated file calls. A library build, without
-<code>--exe</code> or a C <code>main</code>, keeps each header's whole public interface for the C
+<code>--emit-main</code>, <code>--exe</code> or a C <code>main</code>, keeps each header's whole public interface for the C
 code that hosts it.</p>
 <p>Closed native entry links also remove branches guarded by callbacks that are
 never registered or boolean globals that are never changed. Empty hooks and

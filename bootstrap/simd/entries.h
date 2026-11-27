@@ -14,20 +14,20 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_93ba55c8a15657d3
-#define ZIRAN_CONCRETE_FORWARD___type_93ba55c8a15657d3
-typedef struct __type_93ba55c8a15657d3 __type_93ba55c8a15657d3;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_168d4645c4544df6
+#define ZIRAN_CONCRETE_FORWARD___type_168d4645c4544df6
+typedef struct __type_168d4645c4544df6 __type_168d4645c4544df6;
 #endif
-#ifndef ZIRAN_CONCRETE___type_93ba55c8a15657d3
-#define ZIRAN_CONCRETE___type_93ba55c8a15657d3
+#ifndef ZIRAN_CONCRETE___type_168d4645c4544df6
+#define ZIRAN_CONCRETE___type_168d4645c4544df6
 
-struct __type_93ba55c8a15657d3 {
+struct __type_168d4645c4544df6 {
     Helper* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-__type_93ba55c8a15657d3 entries_Entries(void);
+__type_168d4645c4544df6 entries_Entries(void);
 
 #ifdef __cplusplus
 }

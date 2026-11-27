@@ -31,9 +31,9 @@ typedef struct Edit Edit;
 #endif
 typedef int32_t Kept;
 #ifdef ZIRAN_COMPILER_LINK_H_PRIVATE
-#ifndef ZIRAN_CONCRETE_FORWARD___type_2906b320536adc4d
-#define ZIRAN_CONCRETE_FORWARD___type_2906b320536adc4d
-typedef struct __type_2906b320536adc4d __type_2906b320536adc4d;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_a41e6f41ab808f06
+#define ZIRAN_CONCRETE_FORWARD___type_a41e6f41ab808f06
+typedef struct __type_a41e6f41ab808f06 __type_a41e6f41ab808f06;
 #endif
 #endif
 #ifdef ZIRAN_COMPILER_LINK_H_PRIVATE
@@ -79,10 +79,10 @@ enum {
 };
 #endif
 #ifdef ZIRAN_COMPILER_LINK_H_PRIVATE
-#ifndef ZIRAN_CONCRETE___type_2906b320536adc4d
-#define ZIRAN_CONCRETE___type_2906b320536adc4d
+#ifndef ZIRAN_CONCRETE___type_a41e6f41ab808f06
+#define ZIRAN_CONCRETE___type_a41e6f41ab808f06
 
-struct __type_2906b320536adc4d {
+struct __type_a41e6f41ab808f06 {
     Rename* data;
     int64_t count;
     int64_t capacity;

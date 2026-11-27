@@ -29,9 +29,9 @@ typedef struct ZirCPruneModule ZirCPruneModule;
 typedef struct Chunk Chunk;
 #endif
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
-#ifndef ZIRAN_CONCRETE_FORWARD___type_fe0108ea63f82bdc
-#define ZIRAN_CONCRETE_FORWARD___type_fe0108ea63f82bdc
-typedef struct __type_fe0108ea63f82bdc __type_fe0108ea63f82bdc;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_ca45a416a4c278d1
+#define ZIRAN_CONCRETE_FORWARD___type_ca45a416a4c278d1
+typedef struct __type_ca45a416a4c278d1 __type_ca45a416a4c278d1;
 #endif
 #endif
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
@@ -40,26 +40,26 @@ typedef struct Chunks Chunks;
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
 typedef struct Word Word;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-typedef struct __type_c53c2d7c4913dc02 __type_c53c2d7c4913dc02;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_1f00ef809eed7c2e
-#define ZIRAN_CONCRETE_FORWARD___type_1f00ef809eed7c2e
-typedef struct __type_1f00ef809eed7c2e __type_1f00ef809eed7c2e;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_03c9bb6e22816916
+#define ZIRAN_CONCRETE_FORWARD___type_03c9bb6e22816916
+typedef struct __type_03c9bb6e22816916 __type_03c9bb6e22816916;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-#define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-typedef struct __type_838711075b90279a __type_838711075b90279a;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_85ffe259200e6bb1
-#define ZIRAN_CONCRETE_FORWARD___type_85ffe259200e6bb1
-typedef struct __type_85ffe259200e6bb1 __type_85ffe259200e6bb1;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_7a2629767503dccc
+#define ZIRAN_CONCRETE_FORWARD___type_7a2629767503dccc
+typedef struct __type_7a2629767503dccc __type_7a2629767503dccc;
 #endif
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
-#ifndef ZIRAN_CONCRETE_FORWARD___type_7b94ef646809f09b
-#define ZIRAN_CONCRETE_FORWARD___type_7b94ef646809f09b
-typedef struct __type_7b94ef646809f09b __type_7b94ef646809f09b;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_d18112a8c2754324
+#define ZIRAN_CONCRETE_FORWARD___type_d18112a8c2754324
+typedef struct __type_d18112a8c2754324 __type_d18112a8c2754324;
 #endif
 #endif
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
@@ -70,9 +70,9 @@ typedef int64_t NoteKind;
 typedef struct TextDescriptor TextDescriptor;
 #endif
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
-#ifndef ZIRAN_CONCRETE_FORWARD___type_93edd547deb23a5d
-#define ZIRAN_CONCRETE_FORWARD___type_93edd547deb23a5d
-typedef struct __type_93edd547deb23a5d __type_93edd547deb23a5d;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_76ce7479f672fb46
+#define ZIRAN_CONCRETE_FORWARD___type_76ce7479f672fb46
+typedef struct __type_76ce7479f672fb46 __type_76ce7479f672fb46;
 #endif
 #endif
 
@@ -103,10 +103,10 @@ struct Chunk {
 };
 #endif
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
-#ifndef ZIRAN_CONCRETE___type_fe0108ea63f82bdc
-#define ZIRAN_CONCRETE___type_fe0108ea63f82bdc
+#ifndef ZIRAN_CONCRETE___type_ca45a416a4c278d1
+#define ZIRAN_CONCRETE___type_ca45a416a4c278d1
 
-struct __type_fe0108ea63f82bdc {
+struct __type_ca45a416a4c278d1 {
     Chunk* data;
     int64_t count;
     int64_t capacity;
@@ -116,7 +116,7 @@ struct __type_fe0108ea63f82bdc {
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
 
 struct Chunks {
-    __type_fe0108ea63f82bdc items;
+    __type_ca45a416a4c278d1 items;
     int64_t top;
     bool written;
     bool inlines;
@@ -131,49 +131,49 @@ struct Word {
     int64_t stamp;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE___type_c53c2d7c4913dc02
+#ifndef ZIRAN_CONCRETE___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE___type_9f828aa1372cb21a
 
-struct __type_c53c2d7c4913dc02 {
+struct __type_9f828aa1372cb21a {
     String* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_1f00ef809eed7c2e
-#define ZIRAN_CONCRETE___type_1f00ef809eed7c2e
+#ifndef ZIRAN_CONCRETE___type_03c9bb6e22816916
+#define ZIRAN_CONCRETE___type_03c9bb6e22816916
 
-struct __type_1f00ef809eed7c2e {
+struct __type_03c9bb6e22816916 {
     int64_t* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_838711075b90279a
-#define ZIRAN_CONCRETE___type_838711075b90279a
+#ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE___type_131eebaaeb761e42
 
-struct __type_838711075b90279a {
+struct __type_131eebaaeb761e42 {
     uint8_t* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_85ffe259200e6bb1
-#define ZIRAN_CONCRETE___type_85ffe259200e6bb1
+#ifndef ZIRAN_CONCRETE___type_7a2629767503dccc
+#define ZIRAN_CONCRETE___type_7a2629767503dccc
 
-struct __type_85ffe259200e6bb1 {
-    __type_c53c2d7c4913dc02 keys;
-    __type_1f00ef809eed7c2e values;
-    __type_838711075b90279a states;
+struct __type_7a2629767503dccc {
+    __type_9f828aa1372cb21a keys;
+    __type_03c9bb6e22816916 values;
+    __type_131eebaaeb761e42 states;
     int64_t count;
     int64_t removed;
 };
 #endif
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
-#ifndef ZIRAN_CONCRETE___type_7b94ef646809f09b
-#define ZIRAN_CONCRETE___type_7b94ef646809f09b
+#ifndef ZIRAN_CONCRETE___type_d18112a8c2754324
+#define ZIRAN_CONCRETE___type_d18112a8c2754324
 
-struct __type_7b94ef646809f09b {
+struct __type_d18112a8c2754324 {
     Word* data;
     int64_t count;
     int64_t capacity;
@@ -183,9 +183,9 @@ struct __type_7b94ef646809f09b {
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
 
 struct Prune {
-    __type_c53c2d7c4913dc02 names;
-    __type_85ffe259200e6bb1 index;
-    __type_7b94ef646809f09b words;
+    __type_9f828aa1372cb21a names;
+    __type_7a2629767503dccc index;
+    __type_d18112a8c2754324 words;
     int64_t stamp;
     void* simd;
     bool failed;
@@ -207,10 +207,10 @@ struct TextDescriptor {
 };
 #endif
 #ifdef ZIRAN_COMPILER_C_PRUNE_H_PRIVATE
-#ifndef ZIRAN_CONCRETE___type_93edd547deb23a5d
-#define ZIRAN_CONCRETE___type_93edd547deb23a5d
+#ifndef ZIRAN_CONCRETE___type_76ce7479f672fb46
+#define ZIRAN_CONCRETE___type_76ce7479f672fb46
 
-struct __type_93edd547deb23a5d {
+struct __type_76ce7479f672fb46 {
     Chunks* data;
     int64_t count;
     int64_t capacity;

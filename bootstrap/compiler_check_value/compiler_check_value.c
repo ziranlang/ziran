@@ -188,6 +188,11 @@ int32_t zir_foreign_compiler_check_value__ZirIntegerLiteral(uint8_t* text, uint6
 int32_t zir_foreign_compiler_check_value__ZirIntegerLiteral(uint8_t* text, uint64_t* value) __asm__("ZirIntegerLiteral");
 #endif
 #ifdef __APPLE__
+uint64_t zir_foreign_compiler_check_value__type_application_hash(ZirModule* owner, ZirType* generic, uint8_t* identity) __asm__("_private_check_type_application_hash");
+#else
+uint64_t zir_foreign_compiler_check_value__type_application_hash(ZirModule* owner, ZirType* generic, uint8_t* identity) __asm__("private_check_type_application_hash");
+#endif
+#ifdef __APPLE__
 int32_t zir_foreign_compiler_check_value__canonical_type_arguments(uint8_t* source, uint8_t* output, size_t capacity) __asm__("_private_check_canonical_type_arguments");
 #else
 int32_t zir_foreign_compiler_check_value__canonical_type_arguments(uint8_t* source, uint8_t* output, size_t capacity) __asm__("private_check_canonical_type_arguments");
@@ -3643,7 +3648,6 @@ private_check_vec_option_result_type(Checker* c, uint8_t* element, ZirSourceSpan
     void* value_1 = zir_foreign_compiler_check_value__AllocateOrExit(sizeof(CheckArray128_u8));
     CheckArray128_u8* name_storage_1 = (CheckArray128_u8*)(value_1);
     zir_foreign_compiler_check_value__memset((void*)(name_storage_1), 0, sizeof(CheckArray128_u8));
-    uint64_t hash = 14695981039346656037ULL;
     bool value_2 = zir_foreign_compiler_check_value__canonical_type_arguments(element, (uint8_t*)(&((canonical_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray4096_u8)))) != 0;
     if (!value_2) {
         Checker* value_3 = c;
@@ -3655,46 +3659,37 @@ private_check_vec_option_result_type(Checker* c, uint8_t* element, ZirSourceSpan
         zir_foreign_compiler_check_value__CompilerFree((void*)(canonical_storage_0));
         return cleanup_return_0;
     }
-    {
-        uint8_t* value_6 = compiler_check_types_CheckCString(StringLiteral("Option"));
-        uint8_t* p = (uint8_t*)(value_6);
-        while (true) {
-            bool check_loop_103 = p[0] != 0;
-            if (!check_loop_103) {
-                break;
-            }
-            hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)(p[0])) * UINT64_C(1099511628211));
-            compiler_check_types_CheckPost6(&(p));
-        }
-    }
-    hash = (uint64_t)(((uint64_t)hash ^ UINT64_C(40)) * UINT64_C(1099511628211));
-    void* value_7 = zir_foreign_compiler_check_value__AllocateOrExit(sizeof(CheckArray4096_u8));
-    CheckArray4096_u8* identity_storage = (CheckArray4096_u8*)(value_7);
-    bool value_8 = zir_foreign_compiler_check_value__type_application_identity(c->module, (uint8_t*)(&((canonical_storage_0[0]).items)), (uint8_t*)(&((identity_storage[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray4096_u8)))) != 0;
-    if (!value_8) {
-        Checker* value_9 = c;
-        ZirSourceSpan value_10 = span;
-        uint8_t* value_11 = compiler_check_types_CheckCString(StringLiteral("Vec result element type is too long"));
-        zir_foreign_compiler_check_value__error(value_9, value_10, value_11, element);
+    void* value_6 = zir_foreign_compiler_check_value__AllocateOrExit(sizeof(CheckArray4096_u8));
+    CheckArray4096_u8* identity_storage = (CheckArray4096_u8*)(value_6);
+    bool value_7 = zir_foreign_compiler_check_value__type_application_identity(c->module, (uint8_t*)(&((canonical_storage_0[0]).items)), (uint8_t*)(&((identity_storage[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray4096_u8)))) != 0;
+    if (!value_7) {
+        Checker* value_8 = c;
+        ZirSourceSpan value_9 = span;
+        uint8_t* value_10 = compiler_check_types_CheckCString(StringLiteral("Vec result element type is too long"));
+        zir_foreign_compiler_check_value__error(value_8, value_9, value_10, element);
         int32_t cleanup_return_1 = 0;
         zir_foreign_compiler_check_value__CompilerFree((void*)(identity_storage));
         zir_foreign_compiler_check_value__CompilerFree((void*)(name_storage_1));
         zir_foreign_compiler_check_value__CompilerFree((void*)(canonical_storage_0));
         return cleanup_return_1;
     }
-    {
-        uint8_t* p = (uint8_t*)((uint8_t*)(&((identity_storage[0]).items)));
-        while (true) {
-            bool check_loop_104 = p[0] != 0;
-            if (!check_loop_104) {
-                break;
-            }
-            hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)(p[0])) * UINT64_C(1099511628211));
-            compiler_check_types_CheckPost6(&(p));
-        }
+    ZirModule* generic_owner = (void *)0;
+    ZirModule* value_11 = c->module;
+    ZirType* generic = zir_foreign_compiler_check_value__FindType(value_11, compiler_check_types_CheckCString(StringLiteral("Option")), &(generic_owner));
+    if (generic == ((void *)0) || generic_owner == ((void *)0) || generic->is_record_template == 0) {
+        Checker* value_12 = c;
+        ZirSourceSpan value_13 = span;
+        uint8_t* value_14 = compiler_check_types_CheckCString(StringLiteral("Vec result requires the Option record; import option"));
+        zir_foreign_compiler_check_value__error(value_12, value_13, value_14, element);
+        int32_t cleanup_return_2 = 0;
+        zir_foreign_compiler_check_value__CompilerFree((void*)(identity_storage));
+        zir_foreign_compiler_check_value__CompilerFree((void*)(name_storage_1));
+        zir_foreign_compiler_check_value__CompilerFree((void*)(canonical_storage_0));
+        return cleanup_return_2;
     }
-    uint8_t* value_12 = compiler_check_types_CheckCString(StringLiteral("__type_%016llx"));
-    zir_foreign_compiler_check_value__snprintf((uint8_t*)(&((name_storage_1[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))), value_12, hash);
+    uint64_t hash = zir_foreign_compiler_check_value__type_application_hash(generic_owner, generic, (uint8_t*)(&((identity_storage[0]).items)));
+    uint8_t* value_15 = compiler_check_types_CheckCString(StringLiteral("__type_%016llx"));
+    zir_foreign_compiler_check_value__snprintf((uint8_t*)(&((name_storage_1[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))), value_15, hash);
     {
         int32_t t = 0;
         while (true) {
@@ -3704,76 +3699,30 @@ private_check_vec_option_result_type(Checker* c, uint8_t* element, ZirSourceSpan
             }
             if (zir_foreign_compiler_check_value__strcmp((uint8_t*)(&((c->module->types[t]).name)), (uint8_t*)(&((name_storage_1[0]).items))) == 0) {
                 zir_foreign_compiler_check_value__copy_text(out, size, (uint8_t*)(&((name_storage_1[0]).items)));
-                int32_t cleanup_return_2 = 1;
+                int32_t cleanup_return_3 = 1;
                 zir_foreign_compiler_check_value__CompilerFree((void*)(identity_storage));
                 zir_foreign_compiler_check_value__CompilerFree((void*)(name_storage_1));
                 zir_foreign_compiler_check_value__CompilerFree((void*)(canonical_storage_0));
-                return cleanup_return_2;
+                return cleanup_return_3;
             }
             compiler_check_types_CheckPost0(&(t));
         }
     }
-    ZirModule* value_13 = c->module;
-    uint8_t* value_14 = compiler_check_types_CheckCString(StringLiteral("Option"));
-    ZirType* generic = zir_foreign_compiler_check_value__FindType(value_13, value_14, (void *)0);
-    void* value_15 = zir_foreign_compiler_check_value__AllocateOrExit(sizeof(CheckArray128_u8));
-    CheckArray128_u8* parameter_storage_2 = (CheckArray128_u8*)(value_15);
+    void* value_16 = zir_foreign_compiler_check_value__AllocateOrExit(sizeof(CheckArray128_u8));
+    CheckArray128_u8* parameter_storage_2 = (CheckArray128_u8*)(value_16);
     zir_foreign_compiler_check_value__memset((void*)(parameter_storage_2), 0, sizeof(CheckArray128_u8));
-    uint8_t* value_16 = (uint8_t*)(parameter_storage_2);
-    zir_foreign_compiler_check_value__copy_text(value_16, sizeof(CheckArray128_u8), compiler_check_types_CheckCString(StringLiteral("")));
+    uint8_t* value_17 = (uint8_t*)(parameter_storage_2);
+    zir_foreign_compiler_check_value__copy_text(value_17, sizeof(CheckArray128_u8), compiler_check_types_CheckCString(StringLiteral("")));
     uint8_t* cursor = (void *)0;
     uint8_t* dollar = (void *)0;
     size_t length = (size_t)(0LL);
     size_t offset = (size_t)(0LL);
     ZirTypeField field = {0};
     if (generic == (ZirType*)(((void *)0)) || !(generic->is_record_template != 0)) {
-        Checker* value_17 = c;
-        ZirSourceSpan value_18 = span;
-        uint8_t* value_19 = compiler_check_types_CheckCString(StringLiteral("Vec result requires the Option record; import option"));
-        zir_foreign_compiler_check_value__error(value_17, value_18, value_19, element);
-        int32_t cleanup_return_3 = 0;
-        zir_foreign_compiler_check_value__CompilerFree((void*)(parameter_storage_2));
-        zir_foreign_compiler_check_value__CompilerFree((void*)(identity_storage));
-        zir_foreign_compiler_check_value__CompilerFree((void*)(name_storage_1));
-        zir_foreign_compiler_check_value__CompilerFree((void*)(canonical_storage_0));
-        return cleanup_return_3;
-    }
-    cursor = zir_foreign_compiler_check_value__skip_ws((uint8_t*)(&(generic->template_params)));
-    uint8_t* value_20 = (void *)0;
-    if ((int32_t)((int8_t)(cursor[0])) == 36) {
-        value_20 = (uint8_t*)(((size_t)(cursor) + ((size_t)(1LL) * sizeof(uint8_t))));
-    } else {
-        value_20 = cursor;
-    }
-    dollar = value_20;
-    while (true) {
-        bool value_21 = zir_foreign_compiler_check_value__isalnum((int32_t)(dollar[length])) != 0;
-        bool value_22 = value_21 || (int32_t)((int8_t)(dollar[length])) == 95;
-        if (value_22) {
-            uint64_t value_23 = (uint64_t)((length + (size_t)(1LL)));
-            uint64_t value_24 = (uint64_t)(sizeof(CheckArray128_u8));
-            value_22 = (value_23 < value_24);
-        }
-        bool check_loop_106 = value_22;
-        if (!check_loop_106) {
-            break;
-        }
-        uint8_t* value_25 = &(((parameter_storage_2[0]).items)[length]);
-        (*value_25) = dollar[length];
-        compiler_check_types_CheckPost5(&(length));
-    }
-    uint8_t* value_26 = &(((parameter_storage_2[0]).items)[length]);
-    (*value_26) = 0;
-    bool value_27 = zir_foreign_compiler_check_value__TypeNextField(generic, &(offset), &(field)) != 1;
-    bool value_28 = value_27 || zir_foreign_compiler_check_value__strcmp((uint8_t*)(&(field.name)), compiler_check_types_CheckCString(StringLiteral("has_value"))) != 0;
-    bool value_29 = value_28 || zir_foreign_compiler_check_value__strcmp((uint8_t*)(&(field.type)), compiler_check_types_CheckCString(StringLiteral("bool"))) != 0;
-    bool value_30 = value_29 || zir_foreign_compiler_check_value__TypeNextField(generic, &(offset), &(field)) != 1;
-    bool value_31 = value_30 || zir_foreign_compiler_check_value__strcmp((uint8_t*)(&(field.name)), compiler_check_types_CheckCString(StringLiteral("value"))) != 0;
-    bool value_32 = value_31 || zir_foreign_compiler_check_value__strcmp((uint8_t*)(&(field.type)), (uint8_t*)(&((parameter_storage_2[0]).items))) != 0;
-    if (value_32 || zir_foreign_compiler_check_value__TypeNextField(generic, &(offset), &(field)) != 0) {
-        Checker* value_33 = c;
-        ZirSourceSpan value_34 = span;
-        zir_foreign_compiler_check_value__error(value_33, value_34, compiler_check_types_CheckCString(StringLiteral("Vec result requires Option fields has_value and value")), (uint8_t*)(&(generic->name)));
+        Checker* value_18 = c;
+        ZirSourceSpan value_19 = span;
+        uint8_t* value_20 = compiler_check_types_CheckCString(StringLiteral("Vec result requires the Option record; import option"));
+        zir_foreign_compiler_check_value__error(value_18, value_19, value_20, element);
         int32_t cleanup_return_4 = 0;
         zir_foreign_compiler_check_value__CompilerFree((void*)(parameter_storage_2));
         zir_foreign_compiler_check_value__CompilerFree((void*)(identity_storage));
@@ -3781,13 +3730,42 @@ private_check_vec_option_result_type(Checker* c, uint8_t* element, ZirSourceSpan
         zir_foreign_compiler_check_value__CompilerFree((void*)(canonical_storage_0));
         return cleanup_return_4;
     }
-    int32_t generic_public = generic->is_public;
-    int32_t generic_file_private = generic->is_file_private;
-    ZirType* instance = zir_foreign_compiler_check_value__ModuleAddType(c->module, (uint8_t*)(&((name_storage_1[0]).items)), span);
-    if (instance == (ZirType*)(((void *)0))) {
-        Checker* value_35 = c;
-        ZirSourceSpan value_36 = span;
-        zir_foreign_compiler_check_value__error(value_35, value_36, compiler_check_types_CheckCString(StringLiteral("cannot register Vec result record")), (uint8_t*)(&((name_storage_1[0]).items)));
+    cursor = zir_foreign_compiler_check_value__skip_ws((uint8_t*)(&(generic->template_params)));
+    uint8_t* value_21 = (void *)0;
+    if ((int32_t)((int8_t)(cursor[0])) == 36) {
+        value_21 = (uint8_t*)(((size_t)(cursor) + ((size_t)(1LL) * sizeof(uint8_t))));
+    } else {
+        value_21 = cursor;
+    }
+    dollar = value_21;
+    while (true) {
+        bool value_22 = zir_foreign_compiler_check_value__isalnum((int32_t)(dollar[length])) != 0;
+        bool value_23 = value_22 || (int32_t)((int8_t)(dollar[length])) == 95;
+        if (value_23) {
+            uint64_t value_24 = (uint64_t)((length + (size_t)(1LL)));
+            uint64_t value_25 = (uint64_t)(sizeof(CheckArray128_u8));
+            value_23 = (value_24 < value_25);
+        }
+        bool check_loop_106 = value_23;
+        if (!check_loop_106) {
+            break;
+        }
+        uint8_t* value_26 = &(((parameter_storage_2[0]).items)[length]);
+        (*value_26) = dollar[length];
+        compiler_check_types_CheckPost5(&(length));
+    }
+    uint8_t* value_27 = &(((parameter_storage_2[0]).items)[length]);
+    (*value_27) = 0;
+    bool value_28 = zir_foreign_compiler_check_value__TypeNextField(generic, &(offset), &(field)) != 1;
+    bool value_29 = value_28 || zir_foreign_compiler_check_value__strcmp((uint8_t*)(&(field.name)), compiler_check_types_CheckCString(StringLiteral("has_value"))) != 0;
+    bool value_30 = value_29 || zir_foreign_compiler_check_value__strcmp((uint8_t*)(&(field.type)), compiler_check_types_CheckCString(StringLiteral("bool"))) != 0;
+    bool value_31 = value_30 || zir_foreign_compiler_check_value__TypeNextField(generic, &(offset), &(field)) != 1;
+    bool value_32 = value_31 || zir_foreign_compiler_check_value__strcmp((uint8_t*)(&(field.name)), compiler_check_types_CheckCString(StringLiteral("value"))) != 0;
+    bool value_33 = value_32 || zir_foreign_compiler_check_value__strcmp((uint8_t*)(&(field.type)), (uint8_t*)(&((parameter_storage_2[0]).items))) != 0;
+    if (value_33 || zir_foreign_compiler_check_value__TypeNextField(generic, &(offset), &(field)) != 0) {
+        Checker* value_34 = c;
+        ZirSourceSpan value_35 = span;
+        zir_foreign_compiler_check_value__error(value_34, value_35, compiler_check_types_CheckCString(StringLiteral("Vec result requires Option fields has_value and value")), (uint8_t*)(&(generic->name)));
         int32_t cleanup_return_5 = 0;
         zir_foreign_compiler_check_value__CompilerFree((void*)(parameter_storage_2));
         zir_foreign_compiler_check_value__CompilerFree((void*)(identity_storage));
@@ -3795,16 +3773,30 @@ private_check_vec_option_result_type(Checker* c, uint8_t* element, ZirSourceSpan
         zir_foreign_compiler_check_value__CompilerFree((void*)(canonical_storage_0));
         return cleanup_return_5;
     }
+    int32_t generic_public = generic->is_public;
+    int32_t generic_file_private = generic->is_file_private;
+    ZirType* instance = zir_foreign_compiler_check_value__ModuleAddType(c->module, (uint8_t*)(&((name_storage_1[0]).items)), span);
+    if (instance == (ZirType*)(((void *)0))) {
+        Checker* value_36 = c;
+        ZirSourceSpan value_37 = span;
+        zir_foreign_compiler_check_value__error(value_36, value_37, compiler_check_types_CheckCString(StringLiteral("cannot register Vec result record")), (uint8_t*)(&((name_storage_1[0]).items)));
+        int32_t cleanup_return_6 = 0;
+        zir_foreign_compiler_check_value__CompilerFree((void*)(parameter_storage_2));
+        zir_foreign_compiler_check_value__CompilerFree((void*)(identity_storage));
+        zir_foreign_compiler_check_value__CompilerFree((void*)(name_storage_1));
+        zir_foreign_compiler_check_value__CompilerFree((void*)(canonical_storage_0));
+        return cleanup_return_6;
+    }
     zir_foreign_compiler_check_value__TypeApplicationScope(c->module, (uint8_t*)(&((canonical_storage_0[0]).items)), generic_public, generic_file_private, instance);
-    int32_t* value_37 = &(instance->is_type_instance);
-    (*value_37) = 1;
-    int32_t* value_38 = &(instance->is_synthetic_application);
+    int32_t* value_38 = &(instance->is_type_instance);
     (*value_38) = 1;
+    int32_t* value_39 = &(instance->is_synthetic_application);
+    (*value_39) = 1;
     zir_foreign_compiler_check_value__copy_text((uint8_t*)(&(instance->template_name)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))), compiler_check_types_CheckCString(StringLiteral("Option")));
     zir_foreign_compiler_check_value__copy_text((uint8_t*)(&(instance->template_args)), (size_t)((uint64_t)(sizeof(CheckArray4096_u8))), (uint8_t*)(&((canonical_storage_0[0]).items)));
-    ZirModule* value_39 = c->module;
-    uint8_t* value_40 = compiler_check_types_CheckCString(StringLiteral("Option"));
-    generic = zir_foreign_compiler_check_value__FindType(value_39, value_40, (void *)0);
+    ZirModule* value_40 = c->module;
+    uint8_t* value_41 = compiler_check_types_CheckCString(StringLiteral("Option"));
+    generic = zir_foreign_compiler_check_value__FindType(value_40, value_41, (void *)0);
     instance = (void *)0;
     {
         int32_t t = 0;
@@ -3816,30 +3808,30 @@ private_check_vec_option_result_type(Checker* c, uint8_t* element, ZirSourceSpan
                 }
                 if (zir_foreign_compiler_check_value__strcmp((uint8_t*)(&((c->module->types[t]).name)), (uint8_t*)(&((name_storage_1[0]).items))) == 0) {
                     instance = (ZirType*)(((size_t)(c->module->types) + ((size_t)(t) * sizeof(ZirType))));
-                    goto zir_loop_break_5;
+                    goto zir_loop_break_3;
                 }
                 compiler_check_types_CheckPost0(&(t));
             }
-            zir_loop_continue_5: ;
+            zir_loop_continue_3: ;
         }
-        zir_loop_break_5: ;
+        zir_loop_break_3: ;
     }
-    bool value_41 = instance == (ZirType*)(((void *)0)) || generic == (ZirType*)(((void *)0));
-    bool value_42 = value_41;
-    if (!value_42) {
-        bool value_43 = zir_foreign_compiler_check_value__InstantiateGenericRecord(instance, generic) != 0;
-        value_42 = !value_43;
+    bool value_42 = instance == (ZirType*)(((void *)0)) || generic == (ZirType*)(((void *)0));
+    bool value_43 = value_42;
+    if (!value_43) {
+        bool value_44 = zir_foreign_compiler_check_value__InstantiateGenericRecord(instance, generic) != 0;
+        value_43 = !value_44;
     }
-    if (value_42) {
-        Checker* value_44 = c;
-        ZirSourceSpan value_45 = span;
-        zir_foreign_compiler_check_value__error(value_44, value_45, compiler_check_types_CheckCString(StringLiteral("cannot instantiate Vec result record")), (uint8_t*)(&((name_storage_1[0]).items)));
-        int32_t cleanup_return_6 = 0;
+    if (value_43) {
+        Checker* value_45 = c;
+        ZirSourceSpan value_46 = span;
+        zir_foreign_compiler_check_value__error(value_45, value_46, compiler_check_types_CheckCString(StringLiteral("cannot instantiate Vec result record")), (uint8_t*)(&((name_storage_1[0]).items)));
+        int32_t cleanup_return_7 = 0;
         zir_foreign_compiler_check_value__CompilerFree((void*)(parameter_storage_2));
         zir_foreign_compiler_check_value__CompilerFree((void*)(identity_storage));
         zir_foreign_compiler_check_value__CompilerFree((void*)(name_storage_1));
         zir_foreign_compiler_check_value__CompilerFree((void*)(canonical_storage_0));
-        return cleanup_return_6;
+        return cleanup_return_7;
     }
     instance = (void *)0;
     {
@@ -3852,41 +3844,41 @@ private_check_vec_option_result_type(Checker* c, uint8_t* element, ZirSourceSpan
                 }
                 if (zir_foreign_compiler_check_value__strcmp((uint8_t*)(&((c->module->types[t]).name)), (uint8_t*)(&((name_storage_1[0]).items))) == 0) {
                     instance = (ZirType*)(((size_t)(c->module->types) + ((size_t)(t) * sizeof(ZirType))));
-                    goto zir_loop_break_6;
+                    goto zir_loop_break_4;
                 }
                 compiler_check_types_CheckPost0(&(t));
             }
-            zir_loop_continue_6: ;
+            zir_loop_continue_4: ;
         }
-        zir_loop_break_6: ;
+        zir_loop_break_4: ;
     }
     if (instance != (ZirType*)(((void *)0)) && (instance->body)[0] != 0) {
-        void* value_46 = zir_foreign_compiler_check_value__AllocateOrExit(sizeof(CheckArray8192_u8));
-        CheckArray8192_u8* expanded_storage_3 = (CheckArray8192_u8*)(value_46);
+        void* value_47 = zir_foreign_compiler_check_value__AllocateOrExit(sizeof(CheckArray8192_u8));
+        CheckArray8192_u8* expanded_storage_3 = (CheckArray8192_u8*)(value_47);
         zir_foreign_compiler_check_value__memset((void*)(expanded_storage_3), 0, sizeof(CheckArray8192_u8));
-        bool value_47 = zir_foreign_compiler_check_value__rewrite_type_applications(c->module, (uint8_t*)(&(instance->body)), (uint8_t*)(&((expanded_storage_3[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray8192_u8))), span, 0) != 0;
-        if (!value_47) {
-            Checker* value_48 = c;
-            ZirSourceSpan value_49 = span;
-            zir_foreign_compiler_check_value__error(value_48, value_49, compiler_check_types_CheckCString(StringLiteral("cannot expand Vec result record")), (uint8_t*)(&((name_storage_1[0]).items)));
-            int32_t cleanup_return_7 = 0;
+        bool value_48 = zir_foreign_compiler_check_value__rewrite_type_applications(c->module, (uint8_t*)(&(instance->body)), (uint8_t*)(&((expanded_storage_3[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray8192_u8))), span, 0) != 0;
+        if (!value_48) {
+            Checker* value_49 = c;
+            ZirSourceSpan value_50 = span;
+            zir_foreign_compiler_check_value__error(value_49, value_50, compiler_check_types_CheckCString(StringLiteral("cannot expand Vec result record")), (uint8_t*)(&((name_storage_1[0]).items)));
+            int32_t cleanup_return_8 = 0;
             zir_foreign_compiler_check_value__CompilerFree((void*)(expanded_storage_3));
             zir_foreign_compiler_check_value__CompilerFree((void*)(parameter_storage_2));
             zir_foreign_compiler_check_value__CompilerFree((void*)(identity_storage));
             zir_foreign_compiler_check_value__CompilerFree((void*)(name_storage_1));
             zir_foreign_compiler_check_value__CompilerFree((void*)(canonical_storage_0));
-            return cleanup_return_7;
+            return cleanup_return_8;
         }
         zir_foreign_compiler_check_value__copy_text((uint8_t*)(&(instance->body)), (size_t)((uint64_t)(sizeof(CheckArray8192_u8))), (uint8_t*)(&((expanded_storage_3[0]).items)));
         zir_foreign_compiler_check_value__CompilerFree((void*)(expanded_storage_3));
     }
     zir_foreign_compiler_check_value__copy_text(out, size, (uint8_t*)(&((name_storage_1[0]).items)));
-    int32_t cleanup_return_8 = 1;
+    int32_t cleanup_return_9 = 1;
     zir_foreign_compiler_check_value__CompilerFree((void*)(parameter_storage_2));
     zir_foreign_compiler_check_value__CompilerFree((void*)(identity_storage));
     zir_foreign_compiler_check_value__CompilerFree((void*)(name_storage_1));
     zir_foreign_compiler_check_value__CompilerFree((void*)(canonical_storage_0));
-    return cleanup_return_8;
+    return cleanup_return_9;
 }
 
 int32_t

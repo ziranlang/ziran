@@ -141,11 +141,9 @@ canonical_type_arguments :: (source: *u8, output: *u8, capacity: usize) -> s32 {
     return 1
 }
 
-// The spelling that names a type application: canonical arguments with each
-// qualified type, such as Db.Match, spelled as its own module declares it
-// (Match). An application then has one name in every module that spells it,
-// and so one type. A qualified type keeps its spelling when the bare name
-// means another type here.
+// Hash-only argument identity: resolve nominal records to their declaring
+// module and name, independent of the consumer's aliases or shadowing.
+// Synthetic applications already carry their declaration/argument identity.
 #scope_export
 #program_export "private_check_type_application_identity"
 type_application_identity :: (module: *IR.ZirModule, canonical: *u8, output: *u8, capacity: usize) -> s32 {
@@ -156,26 +154,41 @@ type_application_identity :: (module: *IR.ZirModule, canonical: *u8, output: *u8
         byte := canonical[at]
         if quote == 0 && (isalpha(cast(s32)byte) != 0 || byte == #char "_") {
             start := at
-            dotted := false
             while isalnum(cast(s32)canonical[at]) != 0 || canonical[at] == #char "_" ||
                   (canonical[at] == #char "." && (isalpha(cast(s32)canonical[at + 1]) != 0 || canonical[at + 1] == #char "_")) {
-                if canonical[at] == #char "." { dotted = true }
                 at += 1
             }
             token := cast(*u8)(cast(usize)canonical + start)
             length := at - start
-            if dotted && length < 256 {
+            if length < 256 {
                 path: [256]u8
                 memcpy(cast(*void)*path[0], cast(*void)token, length)
                 path[length] = 0
                 owner: *IR.ZirModule = null
                 type := FindType(module, *path[0], *owner)
-                if type != null && owner != null && owner != module {
-                    local := FindType(module, *type.name[0], null)
-                    if local == null || local == type {
-                        token = *type.name[0]
-                        length = strlen(token)
+                if type != null && owner != null {
+                    if type.is_synthetic_application == 0 {
+                        declaring := *owner.name[0]
+                        declaring_length := strlen(declaring)
+                        if used + declaring_length + 1 >= capacity { return 0 }
+                        memcpy(cast(*void)(cast(usize)output + used), cast(*void)declaring, declaring_length)
+                        used += declaring_length
+                        output[used] = #char ":"
+                        used += 1
+                        if type.is_file_private != 0 {
+                            declaring_file := SpanPath(type.span)
+                            if declaring_file != null {
+                                file_length := strlen(declaring_file)
+                                if used + file_length + 1 >= capacity { return 0 }
+                                memcpy(cast(*void)(cast(usize)output + used), cast(*void)declaring_file, file_length)
+                                used += file_length
+                            }
+                            output[used] = #char ":"
+                            used += 1
+                        }
                     }
+                    token = *type.name[0]
+                    length = strlen(token)
                 }
             }
             if used + length >= capacity { return 0 }
@@ -200,6 +213,45 @@ type_application_identity :: (module: *IR.ZirModule, canonical: *u8, output: *u8
     }
     output[used] = 0
     return 1
+}
+
+#scope_export
+#program_export "private_check_type_application_hash"
+type_application_hash :: (owner: *IR.ZirModule, generic: *IR.ZirType, identity: *u8) -> u64 {
+    hash: u64 = 14695981039346656037
+    // Hash the resolved declaration, independent of import aliases.
+    // Same-named templates in other modules or private files
+    // must produce distinct applications.
+    declaring_name := *owner.name[0]
+    while declaring_name[0] != 0 {
+        hash = (hash ^ cast(u64)declaring_name[0]) * 1099511628211
+        declaring_name = cast(*u8)(cast(usize)declaring_name + 1)
+    }
+    hash = (hash ^ cast(u64)0) * 1099511628211
+    if generic.is_file_private != 0 {
+        declaring_file := SpanPath(generic.span)
+        while declaring_file != null && declaring_file[0] != 0 {
+            hash = (hash ^ cast(u64)declaring_file[0]) * 1099511628211
+            declaring_file = cast(*u8)(cast(usize)declaring_file + 1)
+        }
+    }
+    hash = (hash ^ cast(u64)0) * 1099511628211
+    {
+        p: *u8 = cast(*u8)(cast(*u8)(*((generic).name)))
+        while check_loop_152 := ((p)[0] != 0) {
+            hash = (((hash ^ cast(u64)((p)[0]))) * 1099511628211)
+            S12Post1(*(p))
+        }
+    }
+    hash = (((hash ^ cast(u64)(40))) * 1099511628211)
+    {
+        p: *u8 = identity
+        while check_loop_153 := ((p)[0] != 0) {
+            hash = (((hash ^ cast(u64)((p)[0]))) * 1099511628211)
+            S12Post1(*(p))
+        }
+    }
+    return hash
 }
 
 #scope_export
@@ -286,10 +338,11 @@ rewrite_type_applications_with_buffers :: (module: *IR.ZirModule, source: *u8, o
                 defer CompilerFree(cast(*void)base_storage_0)
                 memset(cast(*void)base_storage_0, 0, size_of(S12Array128_u8))
                 generic: *IR.ZirType = null
+                generic_owner: *IR.ZirModule = null
                 if ((cast(u64)(length) < cast(u64)size_of(S12Array128_u8)) && (cast(s32)(cast(s8)((opening)[0])) == 40)) {
                     memcpy(cast(*void)(cast(*u8)(*((base_storage_0[0]).items))), cast(*void)(start), length)
                     (base_storage_0[0]).items[length] = cast(u8)(0)
-                    generic = FindType(module, cast(*u8)(*((base_storage_0[0]).items)), null)
+                    generic = FindType(module, cast(*u8)(*((base_storage_0[0]).items)), *generic_owner)
                 }
                 if ((generic != cast(*IR.ZirType)((null))) && ((generic).is_record_template != 0)) {
                     closing: *u8 = cast(*u8)(cast(usize)(opening) + cast(usize)(1) * size_of(u8))
@@ -325,22 +378,10 @@ rewrite_type_applications_with_buffers :: (module: *IR.ZirModule, source: *u8, o
                         Diagnostic(span, CheckCString("check.type_application"), CheckCString("type application arguments are too long: %s"), cast(*u8)(*((base_storage_0[0]).items)))
                         return 0
                     }
-                    hash: u64 = 14695981039346656037
-                    {
-                        p: *u8 = cast(*u8)(cast(*u8)(*((generic).name)))
-                        while check_loop_152 := ((p)[0] != 0) {
-                            hash = (((hash ^ cast(u64)((p)[0]))) * 1099511628211)
-                            S12Post1(*(p))
-                        }
-                    }
-                    hash = (((hash ^ cast(u64)(40))) * 1099511628211)
-                    {
-                        p: *u8 = cast(*u8)(cast(*u8)(*((identity_storage[0]).items)))
-                        while check_loop_153 := ((p)[0] != 0) {
-                            hash = (((hash ^ cast(u64)((p)[0]))) * 1099511628211)
-                            S12Post1(*(p))
-                        }
-                    }
+                    // Nested applications may have grown the local type array.
+                    generic = FindType(module, cast(*u8)(*((base_storage_0[0]).items)), *generic_owner)
+                    if generic == null || generic_owner == null { return 0 }
+                    hash := type_application_hash(generic_owner, generic, cast(*u8)(*((identity_storage[0]).items)))
                     name_storage_1 := cast(*S12Array128_u8)AllocateOrExit(size_of(S12Array128_u8))
                     defer CompilerFree(cast(*void)name_storage_1)
                     memset(cast(*void)name_storage_1, 0, size_of(S12Array128_u8))
@@ -527,7 +568,10 @@ normalize_type_applications_with_buffers :: (module: *IR.ZirModule, buffers: *No
                 }
             }
             if module.types[t].is_procedure_type != 0 {
-                if rewrite_type_applications(module, cast(*u8)(*module.types[t].procedure_return_type),
+                // Rewriting can add an application and relocate module.types.
+                copy_text(cast(*u8)(*buffers.body.items), size_of(S12Array8192_u8),
+                    cast(*u8)(*module.types[t].procedure_return_type))
+                if rewrite_type_applications(module, cast(*u8)(*buffers.body.items),
                     cast(*u8)(*buffers.expanded.items), size_of(S12Array8192_u8), module.types[t].span, 0) == 0 { return 0 }
                 if !IR.CopyText(module.types[t].procedure_return_type[:], IR.CText(cast(*u8)(*buffers.expanded.items))) { return 0 }
             }

@@ -1959,8 +1959,8 @@ compiler_zx_link_MarkSlotDestination(ZirModule* module, ZirFunction* function, i
 bool
 compiler_zx_link_FoldUnwrittenGlobals(ZirProgram* program)
 {
-    __type_b2d06830c77bfbfb slots = {0};
-    __type_b2d06830c77bfbfb* value_0 = &slots;
+    __type_fc36affa4d0cd14e slots = {0};
+    __type_fc36affa4d0cd14e* value_0 = &slots;
     {
         int32_t range_first_1 = 0;
         int32_t range_last_1 = (int32_t)((uint32_t)(program->module_count) - 1u);

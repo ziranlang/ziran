@@ -11,20 +11,20 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_a48ccc373f318f67
-#define ZIRAN_CONCRETE_FORWARD___type_a48ccc373f318f67
-typedef struct __type_a48ccc373f318f67 __type_a48ccc373f318f67;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_e265f79c93ee1c4a
+#define ZIRAN_CONCRETE_FORWARD___type_e265f79c93ee1c4a
+typedef struct __type_e265f79c93ee1c4a __type_e265f79c93ee1c4a;
 #endif
-#ifndef ZIRAN_CONCRETE___type_a48ccc373f318f67
-#define ZIRAN_CONCRETE___type_a48ccc373f318f67
+#ifndef ZIRAN_CONCRETE___type_e265f79c93ee1c4a
+#define ZIRAN_CONCRETE___type_e265f79c93ee1c4a
 
-struct __type_a48ccc373f318f67 {
+struct __type_e265f79c93ee1c4a {
     Branch* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-__type_a48ccc373f318f67 widen_WidenSpecials(String op, VectorType t);
+__type_e265f79c93ee1c4a widen_WidenSpecials(String op, VectorType t);
 
 #ifdef __cplusplus
 }

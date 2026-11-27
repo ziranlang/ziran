@@ -25,9 +25,9 @@ typedef struct ProofKernel ProofKernel;
 typedef struct Monomial Monomial;
 #endif
 #ifdef ZIRAN_COMPILER_PROOF_KERNEL_H_PRIVATE
-#ifndef ZIRAN_CONCRETE_FORWARD___type_1d5d50278dc3155f
-#define ZIRAN_CONCRETE_FORWARD___type_1d5d50278dc3155f
-typedef struct __type_1d5d50278dc3155f __type_1d5d50278dc3155f;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_f9bbd1fa46d0a544
+#define ZIRAN_CONCRETE_FORWARD___type_f9bbd1fa46d0a544
+typedef struct __type_f9bbd1fa46d0a544 __type_f9bbd1fa46d0a544;
 #endif
 #endif
 #ifdef ZIRAN_COMPILER_PROOF_KERNEL_H_PRIVATE
@@ -94,10 +94,10 @@ struct Monomial {
 };
 #endif
 #ifdef ZIRAN_COMPILER_PROOF_KERNEL_H_PRIVATE
-#ifndef ZIRAN_CONCRETE___type_1d5d50278dc3155f
-#define ZIRAN_CONCRETE___type_1d5d50278dc3155f
+#ifndef ZIRAN_CONCRETE___type_f9bbd1fa46d0a544
+#define ZIRAN_CONCRETE___type_f9bbd1fa46d0a544
 
-struct __type_1d5d50278dc3155f {
+struct __type_f9bbd1fa46d0a544 {
     Monomial* data;
     int64_t count;
     int64_t capacity;
@@ -107,7 +107,7 @@ struct __type_1d5d50278dc3155f {
 #ifdef ZIRAN_COMPILER_PROOF_KERNEL_H_PRIVATE
 
 struct Polynomial {
-    __type_1d5d50278dc3155f terms;
+    __type_f9bbd1fa46d0a544 terms;
     int64_t count;
 };
 #endif

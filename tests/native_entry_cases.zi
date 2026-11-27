@@ -42,6 +42,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     missing := string.[runner, "run", "missing.zi"]
     if !NativeReject(*test, missing[:], "cannot open", test.work) { return 1 }
     cc := NativeCompiler()
+    missing_entry := string.[test.ziran, "build", "--target=c", "--emit-main", "--root", test.work, "-o", hello_c, hello]
+    if !NativeReject(*test, missing_entry[:], "needs --entry module:function") { return 1 }
     cxx := EnvironmentText("CXX"); if cxx == "" { cxx = "c++" }
     emcc := EnvironmentText("EMCC")
     if emcc == "" { emcc = CheckPath(EnvironmentText("HOME"), "emsdk/upstream/emscripten/emcc") }
@@ -120,6 +122,30 @@ main :: (argc: s32, argv: **u8) -> s32 {
                 in_place := !PathExists(CheckPath(closed, "ziran_exe_main.c")) && !TextContains(NativeRead(*test, CheckPath(closed, CheckConcat(module, ".c"))), "zir_main_")
                 own := name == "recursive" || name == "assembly" || name == "renamed" || name == "renamedvoid"
                 if !NativeAssert(*test, closed_result.output == expected && in_place != own, CheckConcat("closed C entry changed: ", name)) { return 1 }
+                // Host builds need identical checked entries without starting
+                // the C compiler. Verify both in-place and separate-main cases
+                // from source and saved IR using an unusable CC during emission.
+                emitted := CheckPath(folder, CheckConcat("emit-", form))
+                emit := string.[test.ziran, "build", "--target=c", "--emit-main", "--root", root, "--entry", CheckConcat(module, CheckConcat(":", entry)), "-o", emitted, input]
+                NativeSet(*test, "CC", "/nonexistent-ziran-emission-compiler")
+                unused NativeRun(*test, emit[:])
+                configured_cc := EnvironmentText("CC")
+                if configured_cc == "" { NativeUnset(*test, "CC") }
+                else { NativeSet(*test, "CC", configured_cc) }
+                if !NativeAssert(*test, !PathExists(CheckPath(emitted, module)) &&
+                    NativeSameFile(CheckPath(closed, CheckConcat(module, ".c")), CheckPath(emitted, CheckConcat(module, ".c"))) &&
+                    PathExists(CheckPath(emitted, "ziran_exe_main.c")) == PathExists(CheckPath(closed, "ziran_exe_main.c")),
+                    CheckConcat("entry-only emission compiled or changed the program: ", CheckConcat(name, CheckConcat("/", form)))) { return 1 }
+                host_compile: Vec(string); VecPush(host_compile, cc)
+                for flag: flags { if flag != CheckConcat("-I", output) { VecPush(host_compile, flag) } }
+                VecPush(host_compile, CheckConcat("-I", emitted))
+                emitted_sources := NativeFiles(emitted, ".c")
+                for file: emitted_sources { VecPush(host_compile, file) }
+                VecPush(host_compile, "-o"); VecPush(host_compile, CheckPath(emitted, module))
+                unused NativeRun(*test, host_compile[:])
+                emitted_run := string.[CheckPath(emitted, module), "alpha", "π"]
+                emitted_result := NativeRun(*test, emitted_run[:], "", closed_answer)
+                if !NativeAssert(*test, emitted_result.output == expected, "host-linked emitted entry output changed") { return 1 }
                 closed_programs += 1
             }
             ndk := EnvironmentText("ANDROID_NDK_HOME")
@@ -192,6 +218,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
             if CheckField(*document, document.root, "capability") == "entry.signature" { found = true }
         }
         if !NativeAssert(*test, found, "missing entry.signature capability") { return 1 }
+        emit := string.[test.ziran, "build", "--target=c", "--emit-main", "--diagnostics=json", "--entry", CheckConcat("bad", CheckConcat(CheckNumber(index), ":main")), "--root", test.work, "-o", CheckPath(test.work, "bad-output"), path]
+        if !NativeReject(*test, emit[:], "entry.signature") { return 1 }
     }
     if test.failed { return 1 }
     print("Native C entries preserve typed bodies, argument bytes, status, exports, assembly fallback and saved IR, and a closed program's entry is C's main itself (% executables, % closed programs, % Android cross-links, % Wasm executions)\n", compiled, closed_programs, cross_linked, web_executed)

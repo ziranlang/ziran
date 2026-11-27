@@ -76,8 +76,8 @@ narrow_LowLimit(VectorType r)
 String
 narrow_NarrowGeneric(VectorType t, VectorType r)
 {
-    __type_838711075b90279a output = {0};
-    __type_838711075b90279a* value_0 = &output;
+    __type_131eebaaeb761e42 output = {0};
+    __type_131eebaaeb761e42* value_0 = &output;
     VectorType value_1 = r;
     int64_t value_2 = 0;
     {
@@ -177,8 +177,8 @@ narrow_NarrowGeneric(VectorType t, VectorType r)
             (void)value_30;
         }
     }
-    __type_838711075b90279a indices = {0};
-    __type_838711075b90279a* value_32 = &indices;
+    __type_131eebaaeb761e42 indices = {0};
+    __type_131eebaaeb761e42* value_32 = &indices;
     {
         int64_t range_first_13 = 0LL;
         int64_t value_33 = 0;
@@ -239,7 +239,7 @@ narrow_NarrowGeneric(VectorType t, VectorType r)
             block = (int64_t)((uint64_t)block + UINT64_C(1));
         }
     }
-    __type_838711075b90279a value_40 = indices;
+    __type_131eebaaeb761e42 value_40 = indices;
     indices.data = NULL;
     indices.capacity = 0;
     indices.count = 0;
@@ -262,7 +262,7 @@ narrow_NarrowGeneric(VectorType t, VectorType r)
         }
     }
     (void)value_46;
-    __type_838711075b90279a value_48 = output;
+    __type_131eebaaeb761e42 value_48 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
@@ -309,8 +309,8 @@ narrow_NarrowLiteral(VectorType t, int64_t value)
 String
 narrow_NarrowScalar(VectorType t, VectorType r)
 {
-    __type_838711075b90279a output = {0};
-    __type_838711075b90279a* value_0 = &output;
+    __type_131eebaaeb761e42 output = {0};
+    __type_131eebaaeb761e42* value_0 = &output;
     String value_1 = model_Render(StringLiteral("@0 r_;"), r.c, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
     bool value_2 = false;
     if ((value_1).length == 0) {
@@ -412,7 +412,7 @@ narrow_NarrowScalar(VectorType t, VectorType r)
         }
     }
     (void)value_25;
-    __type_838711075b90279a value_27 = output;
+    __type_131eebaaeb761e42 value_27 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
@@ -424,11 +424,11 @@ narrow_NarrowScalar(VectorType t, VectorType r)
     return value_28;
 }
 
-__type_a48ccc373f318f67
+__type_e265f79c93ee1c4a
 narrow_NarrowSpecials(VectorType t, VectorType r)
 {
-    __type_a48ccc373f318f67 output = {0};
-    __type_a48ccc373f318f67* value_0 = &output;
+    __type_e265f79c93ee1c4a output = {0};
+    __type_e265f79c93ee1c4a* value_0 = &output;
     VectorType value_1 = r;
     int64_t value_2 = 0;
     {
@@ -572,11 +572,11 @@ narrow_NarrowSpecials(VectorType t, VectorType r)
             }
         }
     }
-    __type_a48ccc373f318f67 value_47 = output;
+    __type_e265f79c93ee1c4a value_47 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
-    __type_a48ccc373f318f67 value_48 = value_47;
+    __type_e265f79c93ee1c4a value_48 = value_47;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;
@@ -611,9 +611,9 @@ narrow_Narrow(VectorType t, VectorType r)
         value_7 = true;
     }
     (void)value_7;
-    __type_a48ccc373f318f67* value_9 = &(helper.branches);
-    __type_a48ccc373f318f67 value_10 = narrow_NarrowSpecials(t, r);
-    __type_a48ccc373f318f67 value_11 = value_10;
+    __type_e265f79c93ee1c4a* value_9 = &(helper.branches);
+    __type_e265f79c93ee1c4a value_10 = narrow_NarrowSpecials(t, r);
+    __type_e265f79c93ee1c4a value_11 = value_10;
     free((*value_9).data);
     (*value_9).data = NULL;
     (*value_9).capacity = 0;

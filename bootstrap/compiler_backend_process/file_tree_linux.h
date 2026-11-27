@@ -68,13 +68,13 @@ typedef struct StatxRecord StatxRecord;
 typedef uint8_t PathKind;
 typedef struct PathInfo PathInfo;
 typedef struct PathQueryResult PathQueryResult;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-#define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-typedef struct __type_838711075b90279a __type_838711075b90279a;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-typedef struct __type_c53c2d7c4913dc02 __type_c53c2d7c4913dc02;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
 #endif
 #ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
 
@@ -113,19 +113,19 @@ struct PathQueryResult {
     bool missing;
     int32_t error;
 };
-#ifndef ZIRAN_CONCRETE___type_838711075b90279a
-#define ZIRAN_CONCRETE___type_838711075b90279a
+#ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE___type_131eebaaeb761e42
 
-struct __type_838711075b90279a {
+struct __type_131eebaaeb761e42 {
     uint8_t* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE___type_c53c2d7c4913dc02
+#ifndef ZIRAN_CONCRETE___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE___type_9f828aa1372cb21a
 
-struct __type_c53c2d7c4913dc02 {
+struct __type_9f828aa1372cb21a {
     String* data;
     int64_t count;
     int64_t capacity;
@@ -154,8 +154,8 @@ Text file_tree_linux_ResolvePath(String path);
 Text file_tree_linux_CreateTemporaryDirectory(String parent, String prefix);
 Text file_tree_linux_WorkingDirectory(void);
 bool file_tree_linux_CreateDirectories(String path, int32_t mode);
-void file_tree_linux_FreeDirectoryNames(__type_c53c2d7c4913dc02* names);
-bool file_tree_linux_ListDirectory(String path, __type_c53c2d7c4913dc02* names);
+void file_tree_linux_FreeDirectoryNames(__type_9f828aa1372cb21a* names);
+bool file_tree_linux_ListDirectory(String path, __type_9f828aa1372cb21a* names);
 bool file_tree_linux_RemoveTree(String path);
 bool file_tree_linux_CopyFile(String source, String target);
 bool file_tree_linux_CopyTree(String source, String target);

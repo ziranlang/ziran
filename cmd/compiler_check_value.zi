@@ -34,6 +34,7 @@ TypeApplicationScope :: (module: *IR.ZirModule, arguments: *u8, template_public:
 TypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
 VecElementType :: (module: *IR.ZirModule, type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "VecElementType";
 ZirIntegerLiteral :: (text: *u8, value: *u64) -> s32 #foreign compiler "ZirIntegerLiteral";
+type_application_hash :: (owner: *IR.ZirModule, generic: *IR.ZirType, identity: *u8) -> u64 #foreign compiler "private_check_type_application_hash";
 canonical_type_arguments :: (source: *u8, output: *u8, capacity: usize) -> s32 #foreign compiler "private_check_canonical_type_arguments";
 type_application_identity :: (module: *IR.ZirModule, canonical: *u8, output: *u8, capacity: usize) -> s32 #foreign compiler "private_check_type_application_identity";
 contains_vec :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 #foreign compiler "private_check_contains_vec";
@@ -1812,32 +1813,23 @@ vec_option_result_type :: (c: *Checker, element: *u8, span: IR.ZirSourceSpan, ou
     name_storage_1 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
     defer CompilerFree(cast(*void)name_storage_1)
     memset(cast(*void)name_storage_1, 0, size_of(CheckArray128_u8))
-    hash: u64 = 14695981039346656037
     if !(canonical_type_arguments(element, cast(*u8)(*((canonical_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8))) != 0) {
         error(c, span, CheckCString("Vec result element type is too long"), element)
         return 0
     }
-    {
-        p: *u8 = cast(*u8)(CheckCString("Option"))
-        while check_loop_103 := ((p)[0] != 0) {
-            hash = (((hash ^ cast(u64)((p)[0]))) * 1099511628211)
-            CheckPost6(*(p))
-        }
-    }
-    hash = (((hash ^ cast(u64)(40))) * 1099511628211)
     identity_storage := cast(*CheckArray4096_u8)AllocateOrExit(size_of(CheckArray4096_u8))
     defer CompilerFree(cast(*void)identity_storage)
     if !(type_application_identity((c).module, cast(*u8)(*((canonical_storage_0[0]).items)), cast(*u8)(*((identity_storage[0]).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8))) != 0) {
         error(c, span, CheckCString("Vec result element type is too long"), element)
         return 0
     }
-    {
-        p: *u8 = cast(*u8)(cast(*u8)(*((identity_storage[0]).items)))
-        while check_loop_104 := ((p)[0] != 0) {
-            hash = (((hash ^ cast(u64)((p)[0]))) * 1099511628211)
-            CheckPost6(*(p))
-        }
+    generic_owner: *IR.ZirModule = null
+    generic := FindType(c.module, CheckCString("Option"), *generic_owner)
+    if generic == null || generic_owner == null || generic.is_record_template == 0 {
+        error(c, span, CheckCString("Vec result requires the Option record; import option"), element)
+        return 0
     }
+    hash := type_application_hash(generic_owner, generic, cast(*u8)(*((identity_storage[0]).items)))
     snprintf(cast(*u8)(*((name_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("__type_%016llx"), cast(u64)(hash))
     {
         t: s32 = 0
@@ -1849,7 +1841,6 @@ vec_option_result_type :: (c: *Checker, element: *u8, span: IR.ZirSourceSpan, ou
             CheckPost0(*(t))
         }
     }
-    generic: *IR.ZirType = FindType((c).module, CheckCString("Option"), null)
     parameter_storage_2 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
     defer CompilerFree(cast(*void)parameter_storage_2)
     memset(cast(*void)parameter_storage_2, 0, size_of(CheckArray128_u8))

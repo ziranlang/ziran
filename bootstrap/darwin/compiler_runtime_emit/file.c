@@ -54,10 +54,10 @@ file_FilePathText(String text)
     return true;
 }
 
-__type_d6f9b1b7c4ee2d51
+__type_03752d993185c042
 ReadEntireFileCapped(String path, int64_t maximum)
 {
-    __type_d6f9b1b7c4ee2d51 result = {0};
+    __type_03752d993185c042 result = {0};
     if (maximum < 0LL) {
         FileReadFailure* value_0 = &(result.error);
         (*value_0) = FileReadFailure_InvalidLimit;
@@ -93,8 +93,8 @@ ReadEntireFileCapped(String path, int64_t maximum)
         (*value_4) = value_6;
         return result;
     }
-    __type_838711075b90279a bytes = {0};
-    __type_838711075b90279a* value_7 = &bytes;
+    __type_131eebaaeb761e42 bytes = {0};
+    __type_131eebaaeb761e42* value_7 = &bytes;
     uint8_t chunk[4096] = {0};
     int64_t offset = 0LL;
     while (true) {
@@ -115,7 +115,7 @@ ReadEntireFileCapped(String path, int64_t maximum)
             bytes.count = 0;
             FileReadFailure* value_10 = &(result.error);
             (*value_10) = FileReadFailure_ReadError;
-            __type_d6f9b1b7c4ee2d51 value_11 = result;
+            __type_03752d993185c042 value_11 = result;
             free((*value_7).data);
             (*value_7).data = NULL;
             (*value_7).capacity = 0;
@@ -133,7 +133,7 @@ ReadEntireFileCapped(String path, int64_t maximum)
             bytes.count = 0;
             FileReadFailure* value_12 = &(result.error);
             (*value_12) = FileReadFailure_TooLarge;
-            __type_d6f9b1b7c4ee2d51 value_13 = result;
+            __type_03752d993185c042 value_13 = result;
             free((*value_7).data);
             (*value_7).data = NULL;
             (*value_7).capacity = 0;
@@ -163,7 +163,7 @@ ReadEntireFileCapped(String path, int64_t maximum)
         bytes.count = 0;
         FileReadFailure* value_18 = &(result.error);
         (*value_18) = FileReadFailure_ReadError;
-        __type_d6f9b1b7c4ee2d51 value_19 = result;
+        __type_03752d993185c042 value_19 = result;
         free((*value_7).data);
         (*value_7).data = NULL;
         (*value_7).capacity = 0;
@@ -181,7 +181,7 @@ ReadEntireFileCapped(String path, int64_t maximum)
     bytes.capacity = 0;
     bytes.count = 0;
     (*value_21) = value_22;
-    __type_d6f9b1b7c4ee2d51 value_23 = result;
+    __type_03752d993185c042 value_23 = result;
     free((*value_7).data);
     (*value_7).data = NULL;
     (*value_7).capacity = 0;
@@ -189,16 +189,16 @@ ReadEntireFileCapped(String path, int64_t maximum)
     return value_23;
 }
 
-__type_86107481102e856b
-ReadFileIntoCapped(String path, int64_t maximum, __type_838711075b90279a* bytes)
+__type_be05e2c4104bacce
+ReadFileIntoCapped(String path, int64_t maximum, __type_131eebaaeb761e42* bytes)
 {
-    __type_86107481102e856b result = {0};
+    __type_be05e2c4104bacce result = {0};
     if (bytes == ((void *)0)) {
         FileReadFailure* value_0 = &(result.error);
         (*value_0) = FileReadFailure_ReadError;
         return result;
     }
-    __type_d6f9b1b7c4ee2d51 read = ReadEntireFileCapped(path, maximum);
+    __type_03752d993185c042 read = ReadEntireFileCapped(path, maximum);
     if (!read.is_ok) {
         FileReadFailure* value_1 = &(result.error);
         (*value_1) = (FileReadFailure)(read.error);
@@ -257,8 +257,8 @@ file_ReadEntireFile(String path)
     if (!file.valid) {
         return (file_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
     }
-    __type_838711075b90279a bytes = {0};
-    __type_838711075b90279a* value_2 = &bytes;
+    __type_131eebaaeb761e42 bytes = {0};
+    __type_131eebaaeb761e42* value_2 = &bytes;
     uint8_t chunk[4096] = {0};
     int64_t offset = 0LL;
     while (true) {
@@ -315,7 +315,7 @@ file_ReadEntireFile(String path)
 }
 
 bool
-file_ReadFileInto(String path, __type_838711075b90279a* bytes)
+file_ReadFileInto(String path, __type_131eebaaeb761e42* bytes)
 {
     FileHandle file = OpenRead(path);
     if (!file.valid) {

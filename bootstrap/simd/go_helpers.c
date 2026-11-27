@@ -339,8 +339,8 @@ go_helpers_List(String prefix, Slice items, String suffix)
     if ((int64_t)(line).length <= 96LL) {
         return model_Render(StringLiteral("\t@0\n"), line, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
     }
-    __type_838711075b90279a output = {0};
-    __type_838711075b90279a* value_0 = &output;
+    __type_131eebaaeb761e42 output = {0};
+    __type_131eebaaeb761e42* value_0 = &output;
     String value_1 = model_Render(StringLiteral("\t@0{\n"), prefix, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
     bool value_2 = false;
     if ((value_1).length == 0) {
@@ -355,8 +355,8 @@ go_helpers_List(String prefix, Slice items, String suffix)
         }
     }
     (void)value_2;
-    __type_838711075b90279a row = {0};
-    __type_838711075b90279a* value_4 = &row;
+    __type_131eebaaeb761e42 row = {0};
+    __type_131eebaaeb761e42* value_4 = &row;
     for (int64_t it_index = 0LL; it_index < (int64_t)(items).length; it_index++) {
         String item = ((String *)items.data)[it_index];
         if (row.count > 0LL && (int64_t)(((uint64_t)(row.count) + (uint64_t)((int64_t)(item).length)) + UINT64_C(2)) > 88LL) {
@@ -430,7 +430,7 @@ go_helpers_List(String prefix, Slice items, String suffix)
         }
     }
     (void)value_23;
-    __type_838711075b90279a value_25 = output;
+    __type_131eebaaeb761e42 value_25 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
@@ -657,8 +657,8 @@ go_helpers_Map(LaneFunctions* functions, String op, VectorType t, VectorType r, 
         String value_1 = go_helpers_MapLane(functions, op, t, r, StringLiteral("j"));
         return model_Render(StringLiteral("@0\tvar r @1\n\tfor j := range r {\n\t\tr[j] = @2\n\t}\n\treturn r\n"), setup, value_0, value_1, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
     }
-    __type_c53c2d7c4913dc02 items = {0};
-    __type_c53c2d7c4913dc02* value_2 = &items;
+    __type_9f828aa1372cb21a items = {0};
+    __type_9f828aa1372cb21a* value_2 = &items;
     {
         int32_t range_first_4 = 0;
         int32_t range_last_4 = (int32_t)((uint32_t)(r.lanes) - 1u);
@@ -693,8 +693,8 @@ String
 go_helpers_Word(VectorType t, String v, int64_t w)
 {
     int32_t per = ZiDivS32(64, t.bits, INT32_MIN);
-    __type_c53c2d7c4913dc02 terms = {0};
-    __type_c53c2d7c4913dc02* value_0 = &terms;
+    __type_9f828aa1372cb21a terms = {0};
+    __type_9f828aa1372cb21a* value_0 = &terms;
     {
         int32_t range_first_2 = 0;
         int32_t range_last_2 = (int32_t)((uint32_t)per - 1u);
@@ -741,8 +741,8 @@ go_helpers_Word(VectorType t, String v, int64_t w)
 String
 go_helpers_ByteShift(VectorType t, String op)
 {
-    __type_838711075b90279a output = {0};
-    __type_838711075b90279a* value_0 = &output;
+    __type_131eebaaeb761e42 output = {0};
+    __type_131eebaaeb761e42* value_0 = &output;
     bool value_1 = false;
     if ((StringLiteral("\ts := uint(n) * 8\n")).length == 0) {
         value_1 = true;
@@ -756,8 +756,8 @@ go_helpers_ByteShift(VectorType t, String op)
         }
     }
     (void)value_1;
-    __type_c53c2d7c4913dc02 words = {0};
-    __type_c53c2d7c4913dc02* value_3 = &words;
+    __type_9f828aa1372cb21a words = {0};
+    __type_9f828aa1372cb21a* value_3 = &words;
     {
         int64_t range_first_3 = 0LL;
         int64_t value_4 = 0;
@@ -890,8 +890,8 @@ go_helpers_ByteShift(VectorType t, String op)
         }
     }
     int32_t per = ZiDivS32(64, t.bits, INT32_MIN);
-    __type_c53c2d7c4913dc02 items = {0};
-    __type_c53c2d7c4913dc02* value_35 = &items;
+    __type_9f828aa1372cb21a items = {0};
+    __type_9f828aa1372cb21a* value_35 = &items;
     {
         int32_t range_first_23 = 0;
         int32_t range_last_23 = (int32_t)((uint32_t)(t.lanes) - 1u);
@@ -939,7 +939,7 @@ go_helpers_ByteShift(VectorType t, String op)
         }
     }
     (void)value_46;
-    __type_838711075b90279a value_48 = output;
+    __type_131eebaaeb761e42 value_48 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
@@ -967,8 +967,8 @@ go_helpers_Reduce(LaneFunctions* functions, String op, VectorType t)
             String value_0 = go_helpers_GoLane(t);
             return model_Render(StringLiteral("\tvar s @0\n\tfor _, v := range a {\n\t\ts += v\n\t}\n\treturn s\n"), value_0, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
         }
-        __type_c53c2d7c4913dc02 terms = {0};
-        __type_c53c2d7c4913dc02* value_1 = &terms;
+        __type_9f828aa1372cb21a terms = {0};
+        __type_9f828aa1372cb21a* value_1 = &terms;
         {
             int32_t range_first_5 = 0;
             int32_t range_last_5 = (int32_t)((uint32_t)(t.lanes) - 1u);
@@ -1004,8 +1004,8 @@ go_helpers_Reduce(LaneFunctions* functions, String op, VectorType t)
         if (t.lanes > 8) {
             return StringLiteral("\tm, at := a[0], 0\n\tfor j, v := range a {\n\t\tif v > m {\n\t\t\tm, at = v, j\n\t\t}\n\t}\n\treturn int64(at)\n");
         }
-        __type_838711075b90279a output = {0};
-        __type_838711075b90279a* value_10 = &output;
+        __type_131eebaaeb761e42 output = {0};
+        __type_131eebaaeb761e42* value_10 = &output;
         bool value_11 = false;
         if ((StringLiteral("\tm, at := a[0], 0\n")).length == 0) {
             value_11 = true;
@@ -1058,7 +1058,7 @@ go_helpers_Reduce(LaneFunctions* functions, String op, VectorType t)
             }
         }
         (void)value_17;
-        __type_838711075b90279a value_19 = output;
+        __type_131eebaaeb761e42 value_19 = output;
         output.data = NULL;
         output.capacity = 0;
         output.count = 0;
@@ -1073,8 +1073,8 @@ go_helpers_Reduce(LaneFunctions* functions, String op, VectorType t)
     if (t.lanes > 8) {
         return model_Render(StringLiteral("\tm := a[0]\n\tfor _, v := range a {\n\t\tm = @0(m, v)\n\t}\n\treturn m\n"), f, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
     }
-    __type_c53c2d7c4913dc02 values = {0};
-    __type_c53c2d7c4913dc02* value_21 = &values;
+    __type_9f828aa1372cb21a values = {0};
+    __type_9f828aa1372cb21a* value_21 = &values;
     {
         int32_t range_first_27 = 0;
         int32_t range_last_27 = (int32_t)((uint32_t)(t.lanes) - 1u);
@@ -1167,8 +1167,8 @@ go_helpers_PickLane(LaneFunctions* functions, String op, VectorType t, VectorTyp
         return model_Render(StringLiteral("@0(a[@1]) + @0(a[@2])"), value_12, value_13, value_14, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
     }
     if (StringEqual(op, StringLiteral("sad"))) {
-        __type_c53c2d7c4913dc02 terms = {0};
-        __type_c53c2d7c4913dc02* value_15 = &terms;
+        __type_9f828aa1372cb21a terms = {0};
+        __type_9f828aa1372cb21a* value_15 = &terms;
         String f = go_helpers_AbsoluteDifference(functions, t);
         {
             int32_t range_first_23 = (int32_t)((uint32_t)j * 8u);
@@ -1287,8 +1287,8 @@ go_helpers_PickLane(LaneFunctions* functions, String op, VectorType t, VectorTyp
     }
     if (StringEqual(op, StringLiteral("reinterpret")) && r.bits > t.bits) {
         int32_t per = ZiDivS32(r.bits, t.bits, INT32_MIN);
-        __type_c53c2d7c4913dc02 terms = {0};
-        __type_c53c2d7c4913dc02* value_48 = &terms;
+        __type_9f828aa1372cb21a terms = {0};
+        __type_9f828aa1372cb21a* value_48 = &terms;
         {
             int32_t range_first_51 = 0;
             int32_t range_last_51 = (int32_t)((uint32_t)per - 1u);
@@ -1350,8 +1350,8 @@ go_helpers_PickLane(LaneFunctions* functions, String op, VectorType t, VectorTyp
 String
 go_helpers_Picked(LaneFunctions* functions, String op, VectorType t, VectorType r)
 {
-    __type_c53c2d7c4913dc02 items = {0};
-    __type_c53c2d7c4913dc02* value_0 = &items;
+    __type_9f828aa1372cb21a items = {0};
+    __type_9f828aa1372cb21a* value_0 = &items;
     {
         int32_t range_first_1 = 0;
         int32_t range_last_1 = (int32_t)((uint32_t)(r.lanes) - 1u);
@@ -1410,8 +1410,8 @@ go_helpers_Body(LaneFunctions* functions, String op, VectorType t, VectorType r)
             String value_1 = go_helpers_GoLane(t);
             return model_Render(StringLiteral("\tvar x @0\n\tfor _, v := range a {\n\t\tx |= v\n\t}\n\treturn x == 0\n"), value_1, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
         }
-        __type_c53c2d7c4913dc02 lanes = {0};
-        __type_c53c2d7c4913dc02* value_2 = &lanes;
+        __type_9f828aa1372cb21a lanes = {0};
+        __type_9f828aa1372cb21a* value_2 = &lanes;
         {
             int32_t range_first_23 = 0;
             int32_t range_last_23 = (int32_t)((uint32_t)(t.lanes) - 1u);
@@ -1464,7 +1464,7 @@ go_helpers_Body(LaneFunctions* functions, String op, VectorType t, VectorType r)
 }
 
 void
-go_helpers_AddEntry(__type_73d8922a30726f91* entries, LaneFunctions* functions, String op, VectorType t, VectorType r, String name)
+go_helpers_AddEntry(__type_7fa229285bfd385d* entries, LaneFunctions* functions, String op, VectorType t, VectorType r, String name)
 {
     Entry value_0 = {0};
     String value_1 = model_Render(StringLiteral("zi_@0"), name, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
@@ -1482,13 +1482,13 @@ go_helpers_AddEntry(__type_73d8922a30726f91* entries, LaneFunctions* functions, 
     (void)value_4;
 }
 
-__type_73d8922a30726f91
+__type_7fa229285bfd385d
 go_helpers_GoEntries(LaneFunctions* functions)
 {
-    __type_73d8922a30726f91 output = {0};
-    __type_73d8922a30726f91* value_0 = &output;
-    __type_c53c2d7c4913dc02 operations = operations_Operations();
-    __type_c53c2d7c4913dc02* value_1 = &operations;
+    __type_7fa229285bfd385d output = {0};
+    __type_7fa229285bfd385d* value_0 = &output;
+    __type_9f828aa1372cb21a operations = operations_Operations();
+    __type_9f828aa1372cb21a* value_1 = &operations;
     String shapes[4] = {StringLiteral("shl_bytes"), StringLiteral("shr_bytes"), StringLiteral("align_bytes"), StringLiteral("shuffle")};
     for (int64_t it_index = 0LL; it_index < 4; it_index++) {
         String shape = (shapes)[it_index];
@@ -1502,8 +1502,8 @@ go_helpers_GoEntries(LaneFunctions* functions)
         }
         (void)value_3;
     }
-    __type_de2f10dbf3e6d44c types = model_Types();
-    __type_de2f10dbf3e6d44c* value_5 = &types;
+    __type_a304a0dc8230c4a1 types = model_Types();
+    __type_a304a0dc8230c4a1* value_5 = &types;
     {
         Slice value_6 = {(operations).data, (operations).count};
         Slice loop_view_7 = SliceRangeAt(value_6, 0LL, operations.count, sizeof(*(operations).data));
@@ -1566,11 +1566,11 @@ go_helpers_GoEntries(LaneFunctions* functions)
             loop_cursor_7 = (int64_t)((uint64_t)loop_cursor_7 + UINT64_C(1));
         }
     }
-    __type_73d8922a30726f91 value_18 = output;
+    __type_7fa229285bfd385d value_18 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
-    __type_73d8922a30726f91 value_19 = value_18;
+    __type_7fa229285bfd385d value_19 = value_18;
     free((*value_5).data);
     (*value_5).data = NULL;
     (*value_5).capacity = 0;
@@ -1589,8 +1589,8 @@ go_helpers_GoEntries(LaneFunctions* functions)
 String
 go_helpers_CString(String text)
 {
-    __type_838711075b90279a output = {0};
-    __type_838711075b90279a* value_0 = &output;
+    __type_131eebaaeb761e42 output = {0};
+    __type_131eebaaeb761e42* value_0 = &output;
     uint8_t value_1 = 34;
     bool value_2 = false;
     void *value_3 = ZirVecGrow((void *)(output).data, &(output).capacity, (output).count, sizeof(*(output).data));
@@ -1679,7 +1679,7 @@ go_helpers_CString(String text)
         value_16 = true;
     }
     (void)value_16;
-    __type_838711075b90279a value_18 = output;
+    __type_131eebaaeb761e42 value_18 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
@@ -1692,12 +1692,12 @@ go_helpers_CString(String text)
 }
 
 void
-go_helpers_Table(__type_838711075b90279a* output, String table, Slice names, Slice texts)
+go_helpers_Table(__type_131eebaaeb761e42* output, String table, Slice names, Slice texts)
 {
     String value_0 = model_Render(StringLiteral("static const GoSimdText @0[] = {"), table, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
     model_AppendLine(output, value_0);
-    __type_c53c2d7c4913dc02 sorted = {0};
-    __type_c53c2d7c4913dc02* value_1 = &sorted;
+    __type_9f828aa1372cb21a sorted = {0};
+    __type_9f828aa1372cb21a* value_1 = &sorted;
     for (int64_t it_index = 0LL; it_index < (int64_t)(names).length; it_index++) {
         String name = ((String *)names.data)[it_index];
         String value_2 = name;
@@ -1740,15 +1740,15 @@ go_helpers_Table(__type_838711075b90279a* output, String table, Slice names, Sli
 }
 
 bool
-go_helpers_GoHeader(__type_838711075b90279a* output)
+go_helpers_GoHeader(__type_131eebaaeb761e42* output)
 {
     LaneFunctions functions = {0};
-    __type_73d8922a30726f91 entries = go_helpers_GoEntries(&(functions));
-    __type_73d8922a30726f91* value_0 = &entries;
-    __type_c53c2d7c4913dc02 names = {0};
-    __type_c53c2d7c4913dc02* value_1 = &names;
-    __type_c53c2d7c4913dc02 bodies = {0};
-    __type_c53c2d7c4913dc02* value_2 = &bodies;
+    __type_7fa229285bfd385d entries = go_helpers_GoEntries(&(functions));
+    __type_7fa229285bfd385d* value_0 = &entries;
+    __type_9f828aa1372cb21a names = {0};
+    __type_9f828aa1372cb21a* value_1 = &names;
+    __type_9f828aa1372cb21a bodies = {0};
+    __type_9f828aa1372cb21a* value_2 = &bodies;
     for (int64_t it_index = 0LL; it_index < entries.count; it_index++) {
         Entry entry = (entries).data[it_index];
         if (StringEqual(entry.body, StringLiteral(""))) {

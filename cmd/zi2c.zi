@@ -102,7 +102,7 @@ NoSpan :: () -> IR.ZirSourceSpan {
 
 Usage :: () {
     Diagnostic(NoSpan(), CStr("command.arguments"),
-        CStr("usage: zi2c [--no-main] [--prune-stale] [--checks] [--thorough|--quickest] [--entry module:function [--exe [--release]] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] [--diagnostics=text|json] [--module-path DIR] [--define NAME] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.ts|file.tsx|file.zir ...\n"))
+        CStr("usage: zi2c [--no-main] [--prune-stale] [--checks] [--thorough|--quickest] [--entry module:function [--emit-main|--exe [--release]] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] [--diagnostics=text|json] [--module-path DIR] [--define NAME] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.ts|file.tsx|file.zir ...\n"))
 }
 
 LockOutput :: (directory: *u8) -> s32 {
@@ -113,16 +113,16 @@ LockOutput :: (directory: *u8) -> s32 {
     return descriptor
 }
 
-// The procedure a closed program writes as C's main itself: its --exe
+// The procedure a closed program writes as C's main itself: its explicit
 // entry, or else its exported main. It keeps a name of its own, and a
 // separate C main calls it, when other code calls it or takes it as a
 // value, when it is exported under another symbol, or when it carries
 // assembly or per-CPU clones.
 InPlaceMain :: (program: *IR.ZirProgram, entry_owner: *IR.ZirModule,
-                entry_fn: *IR.ZirFunction, exe: s32) -> *IR.ZirFunction {
+                entry_fn: *IR.ZirFunction, emit_main: s32) -> *IR.ZirFunction {
     owner := entry_owner
     function := entry_fn
-    if exe == 0 {
+    if emit_main == 0 {
         owner = null
         function = null
     }
@@ -169,7 +169,7 @@ WriteEntryMain :: (module: *IR.ZirModule, function: *IR.ZirFunction, path: *u8) 
         Diagnostic(function.span, CStr("zir.output"), CStr("cannot write %s: %s"), path, ErrorText(LastError()))
         return 0
     }
-    unused fprintf(out, CStr("/* zi2c --exe: runs %s:%s as the program. */\n"),
+    unused fprintf(out, CStr("/* zi2c: runs %s:%s as the program. */\n"),
                    cast(*u8)*module.name, cast(*u8)*function.name)
     unused fprintf(out, CStr("#include \"%s.h\"\n"), *stem[0])
     EmitNativeMain(out, module, function, 0)
@@ -439,6 +439,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     entry_module: [IR.ZIR_NAME_MAX]u8
     entry_function: [IR.ZIR_NAME_MAX]u8
     no_main: s32 = 0
+    emit_main: s32 = 0
     exe: s32 = 0
     release: s32 = 0
     checks: s32 = 0
@@ -485,7 +486,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
 
     SetFormatArguments(argc, argv)
     CLI.CommandLowerPriority()
-    options: [16]CLI.CommandOption = .{
+    options: [17]CLI.CommandOption = .{
         .{name = CStr("--root"), value = *root},
         .{name = CStr("--module-path"), value = module_paths, count = *module_path_count, capacity = argc},
         .{name = CStr("--define"), value = cast(**u8)*defines, count = *define_count, capacity = 64,
@@ -498,6 +499,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         .{name = CStr("--bind-host"), value = cast(**u8)*host_modules, count = *host_module_count, capacity = 16},
         .{name = CStr("--prune-stale"), flag = *prune_stale},
         .{name = CStr("--no-main"), flag = *no_main},
+        .{name = CStr("--emit-main"), flag = *emit_main},
         .{name = CStr("--exe"), flag = *exe},
         .{name = CStr("--release"), flag = *release},
         .{name = CStr("--checks"), flag = *checks},
@@ -505,6 +507,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         .{name = CStr("--quickest"), flag = *quickest},
     }
     first_file = CLI.ReadCommandOptions(argc, argv, *options[0], cast(usize)options.count)
+    if exe != 0 { emit_main = 1 }
     if thorough != 0 { checks = 1 }
     if first_file < 0 {
         Usage()
@@ -517,9 +520,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if root == null || out_dir == null || first_file == 0 ||
        (entry != null && CLI.SplitEntry(entry, *entry_module[0], *entry_function[0]) == 0) ||
        ((binding_count > 0 || host_module_count > 0) && entry == null) ||
-       (exe != 0 && entry == null) {
-        if exe != 0 && entry == null {
-            Diagnostic(NoSpan(), CStr("command.arguments"), CStr("--exe needs --entry module:function"))
+       (emit_main != 0 && entry == null) {
+        if emit_main != 0 && entry == null {
+            Diagnostic(NoSpan(), CStr("command.arguments"), CStr("--emit-main or --exe needs --entry module:function"))
             return 1
         }
         Usage()
@@ -623,7 +626,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         /* A program with its own C main is closed: only its generated files
          * include its headers, so they keep just what those files use. A
          * library keeps its whole interface for the C code that hosts it. */
-        closed := exe
+        closed := emit_main
         if closed == 0 {
             m: s32 = 0
             while closed == 0 && m < linked.module_count {
@@ -638,15 +641,15 @@ main :: (argc: s32, argv: **u8) -> s32 {
                 m += 1
             }
         }
-        if exe != 0 && entry_fn == null {
+        if emit_main != 0 && entry_fn == null {
             DiagnosticTarget(NoSpan(), CStr("zir_c.entry"), CStr("c"), CStr("entry.signature"),
-                             CStr("--exe cannot find %s"), entry)
+                             CStr("cannot emit C main for missing entry %s"), entry)
             return result
         }
-        if exe != 0 && CheckNativeEntry(entry_fn, CStr("c")) == 0 { return result }
+        if emit_main != 0 && CheckNativeEntry(entry_fn, CStr("c")) == 0 { return result }
         /* --no-main writes every procedure under its own name. */
         main_fn: *IR.ZirFunction = null
-        if closed != 0 && no_main == 0 { main_fn = InPlaceMain(linked, entry_owner, entry_fn, exe) }
+        if closed != 0 && no_main == 0 { main_fn = InPlaceMain(linked, entry_owner, entry_fn, emit_main) }
         entry_argument: *IR.ZirFunction = null
         if closed != 0 { entry_argument = entry_fn }
         if c_lower(linked, root, out_dir, syms, linked.module_count,
@@ -656,7 +659,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         wrapper: [IR.ZIR_PATH_MAX]u8
         unused snprintf(*wrapper[0], cast(usize)wrapper.count, CStr("%s/ziran_exe_main.c"), out_dir)
         unused remove(*wrapper[0])
-        if exe != 0 && entry_fn != main_fn &&
+        if emit_main != 0 && entry_fn != main_fn &&
            WriteEntryMain(entry_owner, entry_fn, *wrapper[0]) == 0 {
             return result
         }

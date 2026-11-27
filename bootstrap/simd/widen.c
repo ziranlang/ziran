@@ -6,11 +6,11 @@
 #include "arithmetic.h"
 #include "text_tools.h"
 
-__type_a48ccc373f318f67
+__type_e265f79c93ee1c4a
 widen_WidenSpecials(String op, VectorType t)
 {
-    __type_a48ccc373f318f67 output = {0};
-    __type_a48ccc373f318f67* value_0 = &output;
+    __type_e265f79c93ee1c4a output = {0};
+    __type_e265f79c93ee1c4a* value_0 = &output;
     VectorType value_1 = {0};
     if (StringEqual(op, StringLiteral("widen"))) {
         VectorType value_2 = model_Type((int32_t)((uint32_t)(t.lane) + 2u), true);
@@ -200,11 +200,11 @@ widen_WidenSpecials(String op, VectorType t)
         String value_65 = model_Render(value_62, value_64, StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""), StringLiteral(""));
         arithmetic_AddBranch(&(output), StringLiteral("ZI_X86 && ZI_TIER >= 4"), value_65);
     }
-    __type_a48ccc373f318f67 value_66 = output;
+    __type_e265f79c93ee1c4a value_66 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
-    __type_a48ccc373f318f67 value_67 = value_66;
+    __type_e265f79c93ee1c4a value_67 = value_66;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;

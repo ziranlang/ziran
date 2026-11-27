@@ -974,7 +974,7 @@ PkgUsage :: (command: string) -> string {
         return "usage: ziran ir [--root DIR] [--entry module:function] [--module-path DIR] [-o FILE.zir] [file.zi|file.ts|file.tsx|file.zir ...]\n"
     }
     if command == "build" {
-        return "usage: ziran build [--target=c|go|wasm|zx] [--thorough|--quickest] [--exe --entry module:function] [--root DIR] [--module-path DIR] [-o FILE|DIR] [file.zi|file.ts|file.tsx|file.zir ...]; in a project: ziran build\n"
+        return "usage: ziran build [--target=c|go|wasm|zx] [--thorough|--quickest] [--emit-main|--exe --entry module:function] [--root DIR] [--module-path DIR] [-o FILE|DIR] [file.zi|file.ts|file.tsx|file.zir ...]; in a project: ziran build\n"
     }
     if command == "bundle" {
         return "usage: ziran bundle --entry module:function [--zx-lock FILE] [--thorough|--quickest] [--root DIR] [--module-path DIR] [--bind CALLER:CAPABILITY=PROVIDER:FUNCTION] [-o FILE] [file.zi|file.ts|file.tsx|file.zir ...]\n       ziran bundle --library NAME --export module:function [--thorough|--quickest] [--require-module IFACE=NAME] [--import CALLER:FUNCTION=IFACE:EXPORT] [--root DIR] [--module-path DIR] [-o FILE] [file.zi|file.ts|file.tsx|file.zir ...]\n"

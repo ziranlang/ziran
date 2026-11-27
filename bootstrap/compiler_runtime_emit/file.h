@@ -14,17 +14,17 @@ extern "C" {
 #endif
 typedef int64_t FileReadFailure;
 typedef struct file_Results__string__bool file_Results__string__bool;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_d6f9b1b7c4ee2d51
-#define ZIRAN_CONCRETE_FORWARD___type_d6f9b1b7c4ee2d51
-typedef struct __type_d6f9b1b7c4ee2d51 __type_d6f9b1b7c4ee2d51;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_03752d993185c042
+#define ZIRAN_CONCRETE_FORWARD___type_03752d993185c042
+typedef struct __type_03752d993185c042 __type_03752d993185c042;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-#define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-typedef struct __type_838711075b90279a __type_838711075b90279a;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_86107481102e856b
-#define ZIRAN_CONCRETE_FORWARD___type_86107481102e856b
-typedef struct __type_86107481102e856b __type_86107481102e856b;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_be05e2c4104bacce
+#define ZIRAN_CONCRETE_FORWARD___type_be05e2c4104bacce
+typedef struct __type_be05e2c4104bacce __type_be05e2c4104bacce;
 #endif
 
 enum {
@@ -40,38 +40,38 @@ struct file_Results__string__bool {
     String value_0;
     bool value_1;
 };
-#ifndef ZIRAN_CONCRETE___type_d6f9b1b7c4ee2d51
-#define ZIRAN_CONCRETE___type_d6f9b1b7c4ee2d51
+#ifndef ZIRAN_CONCRETE___type_03752d993185c042
+#define ZIRAN_CONCRETE___type_03752d993185c042
 
-struct __type_d6f9b1b7c4ee2d51 {
+struct __type_03752d993185c042 {
     bool is_ok;
     String value;
     FileReadFailure error;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_838711075b90279a
-#define ZIRAN_CONCRETE___type_838711075b90279a
+#ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE___type_131eebaaeb761e42
 
-struct __type_838711075b90279a {
+struct __type_131eebaaeb761e42 {
     uint8_t* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_86107481102e856b
-#define ZIRAN_CONCRETE___type_86107481102e856b
+#ifndef ZIRAN_CONCRETE___type_be05e2c4104bacce
+#define ZIRAN_CONCRETE___type_be05e2c4104bacce
 
-struct __type_86107481102e856b {
+struct __type_be05e2c4104bacce {
     bool is_ok;
     int64_t value;
     FileReadFailure error;
 };
 #endif
 bool file_FilePathText(String text);
-__type_d6f9b1b7c4ee2d51 ReadEntireFileCapped(String path, int64_t maximum);
-__type_86107481102e856b ReadFileIntoCapped(String path, int64_t maximum, __type_838711075b90279a* bytes);
+__type_03752d993185c042 ReadEntireFileCapped(String path, int64_t maximum);
+__type_be05e2c4104bacce ReadFileIntoCapped(String path, int64_t maximum, __type_131eebaaeb761e42* bytes);
 file_Results__string__bool file_ReadEntireFile(String path);
-bool file_ReadFileInto(String path, __type_838711075b90279a* bytes);
+bool file_ReadFileInto(String path, __type_131eebaaeb761e42* bytes);
 bool file_WriteEntireFile(String path, String text);
 
 /* Small procedures other modules inline; file.c defines them. */

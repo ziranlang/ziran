@@ -11,32 +11,32 @@
 extern "C" {
 #endif
 typedef struct Results__s64__bool Results__s64__bool;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-typedef struct __type_c53c2d7c4913dc02 __type_c53c2d7c4913dc02;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-#define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-typedef struct __type_838711075b90279a __type_838711075b90279a;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
 
 struct Results__s64__bool {
     int64_t value_0;
     bool value_1;
 };
-#ifndef ZIRAN_CONCRETE___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE___type_c53c2d7c4913dc02
+#ifndef ZIRAN_CONCRETE___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE___type_9f828aa1372cb21a
 
-struct __type_c53c2d7c4913dc02 {
+struct __type_9f828aa1372cb21a {
     String* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_838711075b90279a
-#define ZIRAN_CONCRETE___type_838711075b90279a
+#ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE___type_131eebaaeb761e42
 
-struct __type_838711075b90279a {
+struct __type_131eebaaeb761e42 {
     uint8_t* data;
     int64_t count;
     int64_t capacity;
@@ -50,8 +50,8 @@ bool text_tools_TextHasSuffix(String text, String suffix);
 bool text_tools_TextIsSpace(uint8_t byte);
 String text_tools_TextTrim(String text);
 String text_tools_TextTrimEnd(String text);
-__type_c53c2d7c4913dc02 text_tools_TextSplit(String text, String separator);
-__type_c53c2d7c4913dc02 text_tools_TextLines(String text);
+__type_9f828aa1372cb21a text_tools_TextSplit(String text, String separator);
+__type_9f828aa1372cb21a text_tools_TextLines(String text);
 Text text_tools_TextReplace(String text, String old, String new);
 Text text_tools_TextJoin(Slice parts, String separator);
 Text text_tools_TextLower(String text);
@@ -60,7 +60,7 @@ bool text_tools_TextIsLowerHex(String text);
 bool text_tools_TextOnly(String text, String allowed);
 Results__s64__bool text_tools_TextInteger(String text);
 int32_t text_tools_TextHexDigit(uint8_t byte);
-bool text_tools_TextHexDecodeInto(String value, __type_838711075b90279a* output, int64_t max_bytes);
+bool text_tools_TextHexDecodeInto(String value, __type_131eebaaeb761e42* output, int64_t max_bytes);
 Text text_tools_TextHex(Slice bytes);
 
 /* Small procedures other modules inline; text_tools.c defines them. */

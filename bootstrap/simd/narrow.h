@@ -14,27 +14,27 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-#define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-typedef struct __type_838711075b90279a __type_838711075b90279a;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_a48ccc373f318f67
-#define ZIRAN_CONCRETE_FORWARD___type_a48ccc373f318f67
-typedef struct __type_a48ccc373f318f67 __type_a48ccc373f318f67;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_e265f79c93ee1c4a
+#define ZIRAN_CONCRETE_FORWARD___type_e265f79c93ee1c4a
+typedef struct __type_e265f79c93ee1c4a __type_e265f79c93ee1c4a;
 #endif
-#ifndef ZIRAN_CONCRETE___type_838711075b90279a
-#define ZIRAN_CONCRETE___type_838711075b90279a
+#ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE___type_131eebaaeb761e42
 
-struct __type_838711075b90279a {
+struct __type_131eebaaeb761e42 {
     uint8_t* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_a48ccc373f318f67
-#define ZIRAN_CONCRETE___type_a48ccc373f318f67
+#ifndef ZIRAN_CONCRETE___type_e265f79c93ee1c4a
+#define ZIRAN_CONCRETE___type_e265f79c93ee1c4a
 
-struct __type_a48ccc373f318f67 {
+struct __type_e265f79c93ee1c4a {
     Branch* data;
     int64_t count;
     int64_t capacity;
@@ -45,7 +45,7 @@ int64_t narrow_LowLimit(VectorType r);
 String narrow_NarrowGeneric(VectorType t, VectorType r);
 String narrow_NarrowLiteral(VectorType t, int64_t value);
 String narrow_NarrowScalar(VectorType t, VectorType r);
-__type_a48ccc373f318f67 narrow_NarrowSpecials(VectorType t, VectorType r);
+__type_e265f79c93ee1c4a narrow_NarrowSpecials(VectorType t, VectorType r);
 Helper narrow_Narrow(VectorType t, VectorType r);
 
 /* Small procedures other modules inline; narrow.c defines them. */

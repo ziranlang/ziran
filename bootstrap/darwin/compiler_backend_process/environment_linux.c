@@ -8,10 +8,10 @@
 #include "number_text.h"
 #include "result.h"
 
-__type_6c5c09809af9b2be
+__type_1da6ca1b906259e1
 environment_linux_BoundedHostText(uint8_t* value, Slice output)
 {
-    __type_6c5c09809af9b2be result = {0};
+    __type_1da6ca1b906259e1 result = {0};
     if (value == ((void *)0)) {
         EnvironmentFailure* value_0 = &(result.error);
         (*value_0) = EnvironmentFailure_Unset;
@@ -36,10 +36,10 @@ environment_linux_BoundedHostText(uint8_t* value, Slice output)
     return result;
 }
 
-__type_6c5c09809af9b2be
+__type_1da6ca1b906259e1
 EnvironmentRead(String name, Slice output)
 {
-    __type_6c5c09809af9b2be result = {0};
+    __type_1da6ca1b906259e1 result = {0};
     uint8_t buffer[256] = {0};
     bool value_0 = (int64_t)(name).length == 0LL;
     if (!value_0) {
@@ -62,16 +62,16 @@ EnvironmentRead(String name, Slice output)
     return result;
 }
 
-__type_2327be0556361c2c
+__type_4b8e91f1fe7720dd
 EnvironmentRange(String name, int64_t minimum, int64_t maximum, Slice input)
 {
-    __type_2327be0556361c2c result = {0};
+    __type_4b8e91f1fe7720dd result = {0};
     if (minimum > maximum) {
         EnvironmentFailure* value_0 = &(result.error);
         (*value_0) = EnvironmentFailure_OutOfRange;
         return result;
     }
-    __type_6c5c09809af9b2be text = EnvironmentRead(name, input);
+    __type_1da6ca1b906259e1 text = EnvironmentRead(name, input);
     if (!text.is_ok) {
         EnvironmentFailure* value_1 = &(result.error);
         (*value_1) = (EnvironmentFailure)(text.error);
@@ -128,10 +128,10 @@ EnvironmentRange(String name, int64_t minimum, int64_t maximum, Slice input)
     return result;
 }
 
-__type_4289a23f77d76d0a
+__type_9f5455d017f855f3
 ArgumentRead(int32_t argc, uint8_t** argv, int32_t index, Slice output)
 {
-    __type_4289a23f77d76d0a result = {0};
+    __type_9f5455d017f855f3 result = {0};
     if (argv == ((void *)0) || index < 0 || index >= argc) {
         ArgumentFailure* value_0 = &(result.error);
         (*value_0) = ArgumentFailure_InvalidIndex;

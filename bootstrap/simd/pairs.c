@@ -30,11 +30,11 @@ pairs_PairGeneric(String op, VectorType t)
     return StringLiteral("");
 }
 
-__type_a48ccc373f318f67
+__type_e265f79c93ee1c4a
 pairs_PairSpecials(String op, VectorType t)
 {
-    __type_a48ccc373f318f67 output = {0};
-    __type_a48ccc373f318f67* value_0 = &output;
+    __type_e265f79c93ee1c4a output = {0};
+    __type_e265f79c93ee1c4a* value_0 = &output;
     VectorType r = operations_ResultType(op, t);
     String value_1 = StringView(NULL, 0);
     if (t.wide) {
@@ -219,11 +219,11 @@ pairs_PairSpecials(String op, VectorType t)
             }
         }
     }
-    __type_a48ccc373f318f67 value_61 = output;
+    __type_e265f79c93ee1c4a value_61 = output;
     output.data = NULL;
     output.capacity = 0;
     output.count = 0;
-    __type_a48ccc373f318f67 value_62 = value_61;
+    __type_e265f79c93ee1c4a value_62 = value_61;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;

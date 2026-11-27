@@ -23,22 +23,22 @@ extern "C" {
 typedef struct VectorType VectorType;
 typedef struct Parameter Parameter;
 typedef struct Branch Branch;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_dbffd523ffce8cd6
-#define ZIRAN_CONCRETE_FORWARD___type_dbffd523ffce8cd6
-typedef struct __type_dbffd523ffce8cd6 __type_dbffd523ffce8cd6;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_9321dcf64a5a2195
+#define ZIRAN_CONCRETE_FORWARD___type_9321dcf64a5a2195
+typedef struct __type_9321dcf64a5a2195 __type_9321dcf64a5a2195;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_a48ccc373f318f67
-#define ZIRAN_CONCRETE_FORWARD___type_a48ccc373f318f67
-typedef struct __type_a48ccc373f318f67 __type_a48ccc373f318f67;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_e265f79c93ee1c4a
+#define ZIRAN_CONCRETE_FORWARD___type_e265f79c93ee1c4a
+typedef struct __type_e265f79c93ee1c4a __type_e265f79c93ee1c4a;
 #endif
 typedef struct Helper Helper;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-#define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-typedef struct __type_838711075b90279a __type_838711075b90279a;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_de2f10dbf3e6d44c
-#define ZIRAN_CONCRETE_FORWARD___type_de2f10dbf3e6d44c
-typedef struct __type_de2f10dbf3e6d44c __type_de2f10dbf3e6d44c;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_a304a0dc8230c4a1
+#define ZIRAN_CONCRETE_FORWARD___type_a304a0dc8230c4a1
+typedef struct __type_a304a0dc8230c4a1 __type_a304a0dc8230c4a1;
 #endif
 
 struct VectorType {
@@ -64,19 +64,19 @@ struct Branch {
     String condition;
     String body;
 };
-#ifndef ZIRAN_CONCRETE___type_dbffd523ffce8cd6
-#define ZIRAN_CONCRETE___type_dbffd523ffce8cd6
+#ifndef ZIRAN_CONCRETE___type_9321dcf64a5a2195
+#define ZIRAN_CONCRETE___type_9321dcf64a5a2195
 
-struct __type_dbffd523ffce8cd6 {
+struct __type_9321dcf64a5a2195 {
     Parameter* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_a48ccc373f318f67
-#define ZIRAN_CONCRETE___type_a48ccc373f318f67
+#ifndef ZIRAN_CONCRETE___type_e265f79c93ee1c4a
+#define ZIRAN_CONCRETE___type_e265f79c93ee1c4a
 
-struct __type_a48ccc373f318f67 {
+struct __type_e265f79c93ee1c4a {
     Branch* data;
     int64_t count;
     int64_t capacity;
@@ -86,23 +86,23 @@ struct __type_a48ccc373f318f67 {
 struct Helper {
     String name;
     String result;
-    __type_dbffd523ffce8cd6 parameters;
-    __type_a48ccc373f318f67 branches;
+    __type_9321dcf64a5a2195 parameters;
+    __type_e265f79c93ee1c4a branches;
     bool split;
 };
-#ifndef ZIRAN_CONCRETE___type_838711075b90279a
-#define ZIRAN_CONCRETE___type_838711075b90279a
+#ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE___type_131eebaaeb761e42
 
-struct __type_838711075b90279a {
+struct __type_131eebaaeb761e42 {
     uint8_t* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_de2f10dbf3e6d44c
-#define ZIRAN_CONCRETE___type_de2f10dbf3e6d44c
+#ifndef ZIRAN_CONCRETE___type_a304a0dc8230c4a1
+#define ZIRAN_CONCRETE___type_a304a0dc8230c4a1
 
-struct __type_de2f10dbf3e6d44c {
+struct __type_a304a0dc8230c4a1 {
     VectorType* data;
     int64_t count;
     int64_t capacity;
@@ -111,7 +111,7 @@ struct __type_de2f10dbf3e6d44c {
 String model_Decimal(int64_t value);
 String model_Render(String text, String a, String b, String c, String d, String e, String f, String g, String h);
 VectorType model_Type(int32_t lane, bool wide);
-__type_de2f10dbf3e6d44c model_Types(void);
+__type_a304a0dc8230c4a1 model_Types(void);
 VectorType model_Unsigned(VectorType type);
 VectorType model_Signed(VectorType type);
 VectorType model_Half(VectorType type);
@@ -128,7 +128,7 @@ VectorType model_ByName(String name);
 bool model_WideParameter(Parameter parameter);
 bool model_WideParameters(Slice parameters);
 String model_ParameterList(Slice parameters, bool pointers);
-void model_AppendLine(__type_838711075b90279a* output, String text);
+void model_AppendLine(__type_131eebaaeb761e42* output, String text);
 
 /* Small procedures other modules inline; model.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_MODEL_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)

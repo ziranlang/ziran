@@ -17,25 +17,25 @@ extern "C" {
 #endif
 typedef struct Alias Alias;
 typedef struct NativeName NativeName;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_9729e0c938c828df
-#define ZIRAN_CONCRETE_FORWARD___type_9729e0c938c828df
-typedef struct __type_9729e0c938c828df __type_9729e0c938c828df;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_369bb27e9de8ac5e
+#define ZIRAN_CONCRETE_FORWARD___type_369bb27e9de8ac5e
+typedef struct __type_369bb27e9de8ac5e __type_369bb27e9de8ac5e;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-#define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-typedef struct __type_838711075b90279a __type_838711075b90279a;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_287c5fe78eff2f41
-#define ZIRAN_CONCRETE_FORWARD___type_287c5fe78eff2f41
-typedef struct __type_287c5fe78eff2f41 __type_287c5fe78eff2f41;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_42eafff0fc85ffde
+#define ZIRAN_CONCRETE_FORWARD___type_42eafff0fc85ffde
+typedef struct __type_42eafff0fc85ffde __type_42eafff0fc85ffde;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-typedef struct __type_c53c2d7c4913dc02 __type_c53c2d7c4913dc02;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE_FORWARD___type_9f828aa1372cb21a
+typedef struct __type_9f828aa1372cb21a __type_9f828aa1372cb21a;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_93ba55c8a15657d3
-#define ZIRAN_CONCRETE_FORWARD___type_93ba55c8a15657d3
-typedef struct __type_93ba55c8a15657d3 __type_93ba55c8a15657d3;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_168d4645c4544df6
+#define ZIRAN_CONCRETE_FORWARD___type_168d4645c4544df6
+typedef struct __type_168d4645c4544df6 __type_168d4645c4544df6;
 #endif
 
 struct Alias {
@@ -49,58 +49,58 @@ struct NativeName {
     String fixed;
     bool wide;
 };
-#ifndef ZIRAN_CONCRETE___type_9729e0c938c828df
-#define ZIRAN_CONCRETE___type_9729e0c938c828df
+#ifndef ZIRAN_CONCRETE___type_369bb27e9de8ac5e
+#define ZIRAN_CONCRETE___type_369bb27e9de8ac5e
 
-struct __type_9729e0c938c828df {
+struct __type_369bb27e9de8ac5e {
     NativeName* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_838711075b90279a
-#define ZIRAN_CONCRETE___type_838711075b90279a
+#ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE___type_131eebaaeb761e42
 
-struct __type_838711075b90279a {
+struct __type_131eebaaeb761e42 {
     uint8_t* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_287c5fe78eff2f41
-#define ZIRAN_CONCRETE___type_287c5fe78eff2f41
+#ifndef ZIRAN_CONCRETE___type_42eafff0fc85ffde
+#define ZIRAN_CONCRETE___type_42eafff0fc85ffde
 
-struct __type_287c5fe78eff2f41 {
+struct __type_42eafff0fc85ffde {
     Alias* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE___type_c53c2d7c4913dc02
+#ifndef ZIRAN_CONCRETE___type_9f828aa1372cb21a
+#define ZIRAN_CONCRETE___type_9f828aa1372cb21a
 
-struct __type_c53c2d7c4913dc02 {
+struct __type_9f828aa1372cb21a {
     String* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-#ifndef ZIRAN_CONCRETE___type_93ba55c8a15657d3
-#define ZIRAN_CONCRETE___type_93ba55c8a15657d3
+#ifndef ZIRAN_CONCRETE___type_168d4645c4544df6
+#define ZIRAN_CONCRETE___type_168d4645c4544df6
 
-struct __type_93ba55c8a15657d3 {
+struct __type_168d4645c4544df6 {
     Helper* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
 bool native_OwnNative(String name);
-__type_9729e0c938c828df native_NativeNames(Slice names);
-__type_287c5fe78eff2f41 native_Aliases(Slice names);
-void native_NativeMacros(__type_838711075b90279a* output);
+__type_369bb27e9de8ac5e native_NativeNames(Slice names);
+__type_42eafff0fc85ffde native_Aliases(Slice names);
+void native_NativeMacros(__type_131eebaaeb761e42* output);
 Helper native_NativeHelper(String op, VectorType t, String body, String result);
-__type_93ba55c8a15657d3 native_NativeHelpers(void);
-void native_NativeSection(__type_838711075b90279a* output, Slice helpers, String* marker);
+__type_168d4645c4544df6 native_NativeHelpers(void);
+void native_NativeSection(__type_131eebaaeb761e42* output, Slice helpers, String* marker);
 
 #ifdef __cplusplus
 }

@@ -21,9 +21,9 @@ typedef struct LinkState LinkState;
 typedef struct Parameter Parameter;
 typedef struct Parameters Parameters;
 typedef struct StaticText StaticText;
-#ifndef ZIRAN_CONCRETE_FORWARD___type_b2d06830c77bfbfb
-#define ZIRAN_CONCRETE_FORWARD___type_b2d06830c77bfbfb
-typedef struct __type_b2d06830c77bfbfb __type_b2d06830c77bfbfb;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_fc36affa4d0cd14e
+#define ZIRAN_CONCRETE_FORWARD___type_fc36affa4d0cd14e
+typedef struct __type_fc36affa4d0cd14e __type_fc36affa4d0cd14e;
 #endif
 typedef int32_t (*Order)(void*, void*);
 
@@ -90,10 +90,10 @@ struct StaticText {
     uint8_t* data;
     size_t length;
 };
-#ifndef ZIRAN_CONCRETE___type_b2d06830c77bfbfb
-#define ZIRAN_CONCRETE___type_b2d06830c77bfbfb
+#ifndef ZIRAN_CONCRETE___type_fc36affa4d0cd14e
+#define ZIRAN_CONCRETE___type_fc36affa4d0cd14e
 
-struct __type_b2d06830c77bfbfb {
+struct __type_fc36affa4d0cd14e {
     UnwrittenSlot* data;
     int64_t count;
     int64_t capacity;

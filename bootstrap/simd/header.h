@@ -18,21 +18,21 @@
 extern "C" {
 #endif
 #define VecDetection "/* Native vectors need __builtin_shufflevector: Clang, or GCC 12 and later. */\n#if !defined(ZIRAN_SIMD_SCALAR) && \\\n    (defined(__clang__) || (defined(__GNUC__) && __GNUC__ >= 12)) && \\\n    defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__\n#define ZI_VEC 1\n#else\n#define ZI_VEC 0\n#endif\n"
-#ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-#define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
-typedef struct __type_838711075b90279a __type_838711075b90279a;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
+typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
 #endif
-#ifndef ZIRAN_CONCRETE___type_838711075b90279a
-#define ZIRAN_CONCRETE___type_838711075b90279a
+#ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42
+#define ZIRAN_CONCRETE___type_131eebaaeb761e42
 
-struct __type_838711075b90279a {
+struct __type_131eebaaeb761e42 {
     uint8_t* data;
     int64_t count;
     int64_t capacity;
 };
 #endif
-void header_TypesHeader(__type_838711075b90279a* output);
-bool header_OpsHeader(__type_838711075b90279a* output);
+void header_TypesHeader(__type_131eebaaeb761e42* output);
+bool header_OpsHeader(__type_131eebaaeb761e42* output);
 bool header_Flag(uint8_t* argument, String flag);
 int32_t zir_main_7db90aa6b11633cd(int32_t argc, uint8_t** argv);
 #ifdef __cplusplus

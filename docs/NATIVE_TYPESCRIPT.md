@@ -123,9 +123,10 @@ cleanup remain required migration work. The `__tsx_` identifier prefix is
 reserved for generated IR declarations.
 
 Captured callbacks, classes, promises, async functions and type unions are not
-implemented yet. Native specialization currently rejects colliding generic
-declaration names in a module; resolving distinct template identities is open
-compiler work.
+implemented yet. Generic record applications retain their declaring module
+and file scope: a local `Box<T>` and an imported `Domain.Box<T>` remain
+distinct, including inside nested applications. Import aliases for the same
+declaration share its identity.
 
 JSX calls an ordinary typed component value with one props record. The compiler
 knows no widget names and does not choose a UI library. Qualified component

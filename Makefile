@@ -829,13 +829,13 @@ $(BIN_DIR)/zi2go: cmd/zi2go.zi cmd/compiler_cli.zi cmd/compiler_ir.zi $(BIN_DIR)
 	$(BIN_DIR)/zi2c --entry zi2go:main $(ZIRAN_DEFINES) --root cmd --module-path std -o $(ZI2GO_C) cmd/zi2go.zi
 	$(NICE) $(CC) $(CFLAGS) -I$(ZI2GO_C) -o $@ $(ZI2GO_C)/zi2go.c $(GO_PORT_OBJECTS) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) -lm
 
-# zi2zx runs revision-28 executable ZX on the portable instruction engine.
+# zi2zx runs verified executable ZX with the portable engine or native code.
 # Its driver is Ziran; the generated copy uses the assembly set's own headers
 # (no engine defines), matching assembly-core.o's unprefixed entry points.
 ZI2ZX_C := $(BUILD_DIR)/zi2zx-c
 $(ZI2ZX_C)/.generated: cmd/zi2zx.zi cmd/compiler_cli.zi cmd/compiler_ir.zi \
-    $(BUILD_DIR)/compiler-assembly/.generated $(BIN_DIR)/zi2c
-	$(BIN_DIR)/zi2c --entry zi2zx:main --root cmd --module-path std -o $(ZI2ZX_C) cmd/zi2zx.zi
+    $(BUILD_DIR)/compiler-assembly/.generated $(GEN_ZI2C)
+	$(GEN_ZI2C) --entry zi2zx:main --root cmd --module-path std -o $(ZI2ZX_C) cmd/zi2zx.zi
 	touch $@
 $(ZI2ZX_C)/%.c: $(ZI2ZX_C)/.generated
 	@test -f $@
@@ -1246,7 +1246,7 @@ audio-mp3:
 # Native ZX on an Android device: ANDROID_ARCH is aarch64 or armv7.
 # android-build cross-builds libziran.a and zi2zx with the NDK for
 # ANDROID_API; the compilers that run during that build are this host's.
-# android-parity runs the revision-28 parity bundles on ANDROID_SERIAL, on
+# android-parity runs the parity bundles on ANDROID_SERIAL, on
 # its engine and natively, against this host's engine and writes
 # ANDROID_PARITY_RECEIPT. ANDROID_ADB_HOST is the ssh destination whose adb
 # reaches the device, or empty for this host's adb.
@@ -1260,6 +1260,8 @@ ANDROID_PARITY_RECEIPT ?= $(BUILD_DIR)/android-parity.json
 ANDROID_TOOLCHAIN = $(ANDROID_NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin
 ANDROID_TRIPLE_aarch64 = aarch64-linux-android
 ANDROID_TRIPLE_armv7 = armv7a-linux-androideabi
+ANDROID_DEFINE_aarch64 = __aarch64__
+ANDROID_DEFINE_armv7 = __arm__
 ANDROID_OUT = $(abspath $(ANDROID_BUILD_DIR))
 # Real-device streaming PCM test, separate from native ZX parity.
 .PHONY: audio-android-test
@@ -1274,6 +1276,7 @@ android-build: $(BIN_DIR)/zi2c
 	@test -n "$(ANDROID_TRIPLE_$(ANDROID_ARCH))" || { echo 'ANDROID_ARCH is aarch64 or armv7' >&2; exit 1; }
 	$(MAKE) BUILD_DIR=$(ANDROID_OUT) CC=$(ANDROID_TOOLCHAIN)/$(ANDROID_TRIPLE_$(ANDROID_ARCH))$(ANDROID_API)-clang \
 	    AR=$(ANDROID_TOOLCHAIN)/llvm-ar OBJCOPY=$(ANDROID_TOOLCHAIN)/llvm-objcopy \
+	    ZIRAN_DEFINES='--define __ANDROID__ --define $(ANDROID_DEFINE_$(ANDROID_ARCH))' \
 	    GEN_ZI2C=$(abspath $(BIN_DIR)/zi2c) $(ANDROID_OUT)/libziran.a $(ANDROID_OUT)/bin/zi2zx
 
 android-parity: $(BIN_DIR)/ziran $(BIN_DIR)/zi2zx android-build

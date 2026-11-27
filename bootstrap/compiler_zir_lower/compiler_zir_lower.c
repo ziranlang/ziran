@@ -181,6 +181,16 @@ int32_t zir_foreign_compiler_zir_lower__EvaluateCompileExpression(ZirModule* mod
 int32_t zir_foreign_compiler_zir_lower__EvaluateCompileExpression(ZirModule* module, uint8_t* text, ZirSourceSpan span, int32_t executing, int64_t* value) __asm__("EvaluateCompileExpression");
 #endif
 #ifdef __APPLE__
+int32_t zir_foreign_compiler_zir_lower__BoundStringConstant(ZirModule* module, uint8_t* name, int32_t depth, uint8_t** literal) __asm__("_private_check_bound_string_constant");
+#else
+int32_t zir_foreign_compiler_zir_lower__BoundStringConstant(ZirModule* module, uint8_t* name, int32_t depth, uint8_t** literal) __asm__("private_check_bound_string_constant");
+#endif
+#ifdef __APPLE__
+int32_t zir_foreign_compiler_zir_lower__BoundRealConstant(ZirModule* module, uint8_t* name, int32_t depth, uint8_t* literal, size_t size) __asm__("_private_check_bound_real_constant");
+#else
+int32_t zir_foreign_compiler_zir_lower__BoundRealConstant(ZirModule* module, uint8_t* name, int32_t depth, uint8_t* literal, size_t size) __asm__("private_check_bound_real_constant");
+#endif
+#ifdef __APPLE__
 int32_t zir_foreign_compiler_zir_lower__CZirIntegerLiteral(uint8_t* text, uint64_t* value) __asm__("_ZirIntegerLiteral");
 #else
 int32_t zir_foreign_compiler_zir_lower__CZirIntegerLiteral(uint8_t* text, uint64_t* value) __asm__("ZirIntegerLiteral");
@@ -4894,30 +4904,69 @@ compiler_zir_lower_Define(AssemblyProgram* program, AssemblyFunction* function, 
     ZirModule* definition_owner = (void *)0;
     int64_t constant_value = 0LL;
     bool value_0 = zir_foreign_compiler_zir_lower__ResolveDefine(function->module, name, &(definition), &(definition_owner), (void *)0) != 1;
-    bool value_1 = value_0 || definition == ((void *)0);
-    if (value_1 || zir_foreign_compiler_zir_lower__EvaluateCompileExpression(definition_owner, (uint8_t*)definition->value, span, 0, &(constant_value)) == 0) {
+    if (value_0 || definition == ((void *)0)) {
+        return -2;
+    }
+    uint8_t* literal = (void *)0;
+    bool value_1 = zir_foreign_compiler_zir_lower__BoundStringConstant(function->module, name, 0, &(literal)) == 1;
+    if (value_1 && literal != ((void *)0)) {
+        ZirExpr bound = {.kind = (ZirExprKind)(4), .text = (const char *)(literal), .span = span};
+        return compiler_zir_lower_String(program, function, &(bound));
+    }
+    uint8_t real[128] = {0};
+    if (zir_foreign_compiler_zir_lower__BoundRealConstant(function->module, name, 0, &(real[0]), (128) * (sizeof(uint8_t))) == 1) {
+        int32_t typed = type;
+        AssemblyProgram* value_2 = program;
+        LirType* value_3 = (void *)0;
+        {
+            AssemblyProgram* program = value_2;
+            int32_t identity = type;
+            value_3 = &(program->types.data[identity]);
+        }
+        LirTypeKind own = (LirTypeKind)(value_3->kind);
+        if (own != ((LirTypeKind)(4)) && function->literal_at == (int32_t)((uint32_t)root + 1u)) {
+            typed = function->literal_type;
+        }
+        AssemblyProgram* value_5 = program;
+        LirType* value_6 = (void *)0;
+        {
+            AssemblyProgram* program = value_5;
+            int32_t identity = typed;
+            value_6 = &(program->types.data[identity]);
+        }
+        if (((LirTypeKind)(value_6->kind)) != ((LirTypeKind)(4))) {
+            return -2;
+        }
+        ZirExpr bound = {.kind = (ZirExprKind)(3), .text = (const char *)(&(real[0])), .span = span};
+        uint64_t bits = 0ULL;
+        if (compiler_zir_lower_LiteralBits(program, &(bound), typed, &(bits)) == 0) {
+            return -1;
+        }
+        return compiler_zir_lower_Constant(program, function, typed, bits, span);
+    }
+    if (zir_foreign_compiler_zir_lower__EvaluateCompileExpression(definition_owner, (uint8_t*)definition->value, span, 0, &(constant_value)) == 0) {
         return -2;
     }
     int32_t typed = type;
-    AssemblyProgram* value_2 = program;
-    LirType* value_3 = (void *)0;
+    AssemblyProgram* value_8 = program;
+    LirType* value_9 = (void *)0;
     {
-        AssemblyProgram* program = value_2;
+        AssemblyProgram* program = value_8;
         int32_t identity = type;
-        value_3 = &(program->types.data[identity]);
+        value_9 = &(program->types.data[identity]);
     }
-    LirTypeKind own = (LirTypeKind)(value_3->kind);
+    LirTypeKind own = (LirTypeKind)(value_9->kind);
     if (own != ((LirTypeKind)(3)) && own != ((LirTypeKind)(2)) && function->literal_at == (int32_t)((uint32_t)root + 1u)) {
         typed = function->literal_type;
     }
-    AssemblyProgram* value_5 = program;
-    LirType* value_6 = (void *)0;
+    AssemblyProgram* value_11 = program;
+    LirType* value_12 = (void *)0;
     {
-        AssemblyProgram* program = value_5;
+        AssemblyProgram* program = value_11;
         int32_t identity = typed;
-        value_6 = &(program->types.data[identity]);
+        value_12 = &(program->types.data[identity]);
     }
-    LirTypeKind kind = (LirTypeKind)(value_6->kind);
+    LirTypeKind kind = (LirTypeKind)(value_12->kind);
     if (kind != ((LirTypeKind)(3)) && kind != ((LirTypeKind)(2))) {
         return -2;
     }

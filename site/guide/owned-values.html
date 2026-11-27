@@ -49,10 +49,14 @@ record-held <code>TextView</code> rejects mutation of its local backing place un
 view leaves scope, including views returned by checked calls and views nested
 in their result records. The check is field-sensitive: sibling record fields
 remain writable, while the borrowed field, its array storage, and whole
-aggregate replacement are rejected. A view-bearing global conservatively keeps
-its global backing aliases for the rest of the program: assignment from local
-or parameter-backed storage is rejected, and mutation of a tracked backing
-global is rejected in any function. A view reached through a local pointer created
+aggregate replacement are rejected. A view-bearing global retains its tracked
+global backing aliases until a checked path proves they have ended. Before
+mutating that backing, every relevant path must replace the whole owner, or a
+named enclosing field covering all of that backing's retained views, with an
+empty or static value. Checked helper calls participate in this proof. Clearing a sibling,
+one element of an array, or an unresolved pointer alias grants no such proof;
+other live views still protect the backing independently. Assignment from local
+or parameter-backed storage into a global is rejected. A view reached through a local pointer created
 with Jai <code>*value</code> protects its pointee binding and pointer aliases while live.
 Local copies of pointer parameters keep the parameter's backing identity.
 <code>TextView</code> through an opaque local pointer is rejected when its backing lifetime

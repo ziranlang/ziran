@@ -1,31 +1,95 @@
+Identity :: struct { name: string; context: *void }
+Owner :: struct { identity: Identity }
+current: Identity;
+Keep :: (identity: Identity) -> Identity { return identity }
+ReplaceDescriptor :: () -> s32 {
+    current.name = "a"
+    snapshot := Keep(current)
+    current = Identity.{.name = "b"}
+    current = snapshot
+    return cast(s32)snapshot.name[0]
+}
+Signer :: #type (context: *void, text: string, output: []u8) -> bool;
+Sign :: (context: *void, text: string, output: []u8) -> bool {
+    unused context
+    output[0] = text[0]
+    return true
+}
+Send :: (identity: Identity, sign: Signer, output: []u8) -> bool {
+    return sign(identity.context, identity.name, output)
+}
+FromRecord :: (owner: *Owner, sign: Signer) -> s32 {
+    bytes: [1]u8
+    if !Send(owner.identity, sign, bytes[:]) { return 0 }
+    return cast(s32)bytes[0]
+}
+#program_export
+CheckIdentity :: () -> s32 {
+    if ReplaceDescriptor() != 97 { return 2 }
+    owner: Owner
+    owner.identity.name = "a"
+    if FromRecord(*owner, Sign) != 97 { return 1 }
+    return 0
+}
+
 Node :: struct { bytes: [2]u8; other: [2]u8; result: s32 }
 Write :: (node: *Node) { node.bytes[0] = cast(u8)98 }
 
-    global_bytes: [2]u8 = .[97, 98];
-    global_view: string;
-    Hold :: () { global_view = TextView(global_bytes[:]) }
-    Read :: (node: *Node) -> s32 { return cast(s32)node.bytes[0] }
-    Sibling :: (node: *Node) { node.other[0] = cast(u8)99 }
-    Forward :: (node: *Node) { Sibling(node) }
-    Params :: (first: *Node, second: *Node) -> s32 {
-        text := TextView(first.bytes[:])
-        second.result = 42
-        return cast(s32)text[0]
+Input :: struct { text: string }
+Context :: struct { input: Input; sibling: Input; mode: s32 }
+context: Context;
+input_bytes: [2]u8;
+ClearInput :: () { context.input = .{} }
+ResetMode :: (state: *Context, depth: s32) {
+    if depth > 0 { ResetMode(state, depth - 1) }
+    state.mode = 0
+}
+Sample :: (bytes: []u8) -> Input {
+    index: s32 = 0
+    while index < 1 {
+        bytes[index] = 97
+        index += 1
     }
-    #program_export
-    Answer :: () -> s32 {
-        Hold()
-        node: Node
-        node.bytes[0] = 97
-        node.bytes[1] = 98
-        {
-            text := TextView(node.bytes[:])
-            Forward(*node)
-            if Read(*node) != 97 || text != "ab" { return 1 }
-            if Params(*node, *node) != 97 { return 2 }
-        }
-        Write(*node)
-        if node.bytes[0] != 98 || node.other[0] != 99 { return 3 }
-        if global_view != "ab" { return 4 }
-        return node.result
+    return Input.{text = TextView(bytes)}
+}
+InputCycle :: () -> s32 {
+    ResetMode(*context, 2)
+    ClearInput()
+    context.input = Sample(input_bytes[:])
+    result := cast(s32)context.input.text[0]
+    ClearInput()
+    return result
+}
+
+global_bytes: [2]u8 = .[97, 98];
+global_view: string;
+Hold :: () { global_view = TextView(global_bytes[:]) }
+Read :: (node: *Node) -> s32 { return cast(s32)node.bytes[0] }
+Sibling :: (node: *Node) { node.other[0] = cast(u8)99 }
+Forward :: (node: *Node) { Sibling(node) }
+Params :: (first: *Node, second: *Node) -> s32 {
+    text := TextView(first.bytes[:])
+    second.result = 42
+    return cast(s32)text[0]
+}
+#program_export
+Answer :: () -> s32 {
+    if CheckIdentity() != 0 { return 7 }
+    Hold()
+    context.sibling.text = TextView(global_bytes[:])
+    if InputCycle() != 97 || InputCycle() != 97 { return 5 }
+    if context.sibling.text != "ab" { return 6 }
+    node: Node
+    node.bytes[0] = 97
+    node.bytes[1] = 98
+    {
+        text := TextView(node.bytes[:])
+        Forward(*node)
+        if Read(*node) != 97 || text != "ab" { return 1 }
+        if Params(*node, *node) != 97 { return 2 }
     }
+    Write(*node)
+    if node.bytes[0] != 98 || node.other[0] != 99 { return 3 }
+    if global_view != "ab" { return 4 }
+    return node.result
+}

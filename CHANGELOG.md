@@ -4,7 +4,18 @@
 
 - Preserve the exact backing field of returned native views. End a global view's
   loan only when every relevant path clears that owner before mutating its
-  storage; retain independent aliases and local views through calls and joins.
+  storage, including named nested fields. Retain independent aliases and local
+  views through calls and joins; share read-only intrinsic effects with the
+  ordinary mutation checker. Recursive cleanup that cannot write the backing
+  preserves safety without establishing a clear.
+
+- Preserve named string and real constants in compound global initializers
+  through generated C/Go, portable and direct native output.
+
+- Combine the positive text-mutation fixtures and remove thirteen redundant
+  check or execution commands from the text-mutation and portable-global checks.
+  Keep source/saved-IR byte comparisons and unique backend and instance-lifecycle
+  assertions in the existing checks.
 
 - Check explicitly bounded native pointer slices and preserve their caller's
   backing storage through pointer-returning helpers. Reject expired views and

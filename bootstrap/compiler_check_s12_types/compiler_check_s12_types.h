@@ -57,6 +57,10 @@ typedef struct BorrowLoanFrame BorrowLoanFrame;
 #define ZIRAN_TYPE_FORWARD_BorrowLoanProof
 typedef struct BorrowLoanProof BorrowLoanProof;
 #endif
+#ifndef ZIRAN_TYPE_FORWARD_BorrowRetainedLoan
+#define ZIRAN_TYPE_FORWARD_BorrowRetainedLoan
+typedef struct BorrowRetainedLoan BorrowRetainedLoan;
+#endif
 #ifndef ZIRAN_TYPE_FORWARD_BorrowReturnedBacking
 #define ZIRAN_TYPE_FORWARD_BorrowReturnedBacking
 typedef struct BorrowReturnedBacking BorrowReturnedBacking;
@@ -330,6 +334,7 @@ struct BorrowCheck {
     int32_t loan_move;
     ZirExpr* loan_call;
     BorrowLoanProof* loan_proofs;
+    BorrowRetainedLoan* retained_loans;
 };
 
 struct IndexList {
@@ -383,6 +388,13 @@ struct BorrowLoanProof {
     bool complete;
     BorrowLoanFlow result;
     struct BorrowLoanProof* next;
+};
+
+struct BorrowRetainedLoan {
+    int32_t view;
+    int32_t backing;
+    BorrowPath* path;
+    struct BorrowRetainedLoan* next;
 };
 
 struct BorrowReturnedBacking {

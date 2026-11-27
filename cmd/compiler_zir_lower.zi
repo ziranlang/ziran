@@ -60,6 +60,8 @@ ParseExprTyped :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *void,
                    span: IR.ZirSourceSpan, expected_type: *void) -> s32 #foreign compiler "CompilerParseExprTyped";
 EvaluateCompileExpression :: (module: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan,
                               executing: s32, value: *s64) -> s32 #foreign compiler "EvaluateCompileExpression";
+BoundStringConstant :: (module: *IR.ZirModule, name: *u8, depth: s32, literal: **u8) -> s32 #foreign compiler "private_check_bound_string_constant";
+BoundRealConstant :: (module: *IR.ZirModule, name: *u8, depth: s32, literal: *u8, size: usize) -> s32 #foreign compiler "private_check_bound_real_constant";
 CZirIntegerLiteral :: (text: *u8, value: *u64) -> s32 #foreign compiler "ZirIntegerLiteral";
 CZirSignedIntegerLiteral :: (text: *u8, value: *u64, negative: *s32) -> s32 #foreign compiler "ZirSignedIntegerLiteral";
 CDecodeStringLiteral :: (source: *u8, out: *u8, capacity: usize, length: *usize) -> s32 #foreign compiler "DecodeStringLiteral";
@@ -2043,14 +2045,37 @@ String :: (program: *AssemblyProgram, function: *AssemblyFunction, expression: *
 
 // A named constant, which a parsed global initializer leaves by name, as
 // `NAME` or `Module.NAME`: its compile-time value, typed by the member or
-// global it sets. Returns -2 when `name` is not one.
+// global it sets. The checker binds a constant to its literal before
+// lowering, so the same literal is bound here: a string keeps its constant
+// data and a real keeps its decimal spelling; the rest evaluate to an
+// integer constant. Returns -2 when `name` is not one.
 Define :: (program: *AssemblyProgram, function: *AssemblyFunction, name: *u8, type: s32, root: s32,
            span: IR.ZirSourceSpan) -> s32 {
     definition: *IR.ZirDefine = null
     definition_owner: *IR.ZirModule = null
     constant_value: s64 = 0
-    if ResolveDefine(function.module, name, *definition, *definition_owner, null) != 1 || definition == null ||
-       EvaluateCompileExpression(definition_owner, definition.value, span, 0, *constant_value) == 0 {
+    if ResolveDefine(function.module, name, *definition, *definition_owner, null) != 1 || definition == null {
+        return -2
+    }
+    literal: *u8 = null
+    if BoundStringConstant(function.module, name, 0, *literal) == 1 && literal != null {
+        bound := IR.ZirExpr.{kind = ZirExprKind.STRING, text = literal, span = span}
+        return String(program, function, *bound)
+    }
+    real: [128]u8
+    if BoundRealConstant(function.module, name, 0, *real[0], size_of([128]u8)) == 1 {
+        typed := type
+        own := TypeAt(program, type).kind
+        if own != LirTypeKind.Float && function.literal_at == root + 1 {
+            typed = function.literal_type
+        }
+        if TypeAt(program, typed).kind != LirTypeKind.Float { return -2 }
+        bound := IR.ZirExpr.{kind = ZirExprKind.FLOAT, text = *real[0], span = span}
+        bits: u64 = 0
+        if LiteralBits(program, *bound, typed, *bits) == 0 { return -1 }
+        return Constant(program, function, typed, bits, span)
+    }
+    if EvaluateCompileExpression(definition_owner, definition.value, span, 0, *constant_value) == 0 {
         return -2
     }
     typed := type

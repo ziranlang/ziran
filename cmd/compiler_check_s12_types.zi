@@ -105,6 +105,7 @@ BorrowCheck :: struct {
     loan_move: s32
     loan_call: *IR.ZirExpr
     loan_proofs: *BorrowLoanProof
+    retained_loans: *BorrowRetainedLoan
 }
 
 IndexList :: struct {
@@ -161,6 +162,15 @@ BorrowLoanProof :: struct {
     complete: bool
     result: BorrowLoanFlow
     next: *BorrowLoanProof
+}
+
+// Common destination ancestor of every view of one backing held by a global.
+// A null path requires replacing the whole owner before its loan can end.
+BorrowRetainedLoan :: struct {
+    view: s32
+    backing: s32
+    path: *BorrowPath
+    next: *BorrowRetainedLoan
 }
 
 BorrowReturnedBacking :: struct {

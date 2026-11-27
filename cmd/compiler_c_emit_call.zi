@@ -46,6 +46,8 @@ CResolveFunction :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, fn
 CanEmitBody :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> s32 #foreign compiler "CanEmitBody";
 DecodeStringLiteral :: (source: *u8, out: *u8, capacity: usize, length: *usize) -> s32 #foreign compiler "DecodeStringLiteral";
 CompilerParseExprTyped :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *void, span: IR.ZirSourceSpan, expected: *void) -> s32 #foreign compiler "CompilerParseExprTyped";
+BoundStringConstant :: (module: *IR.ZirModule, name: *u8, depth: s32, literal: **u8) -> s32 #foreign compiler "private_check_bound_string_constant";
+BoundRealConstant :: (module: *IR.ZirModule, name: *u8, depth: s32, literal: *u8, size: usize) -> s32 #foreign compiler "private_check_bound_real_constant";
 
 PRINT_PIECES_MAX :: 64
 PrintPiece :: struct {
@@ -195,6 +197,30 @@ GlobalLiteralEmit :: struct {
     context: *void
 }
 
+// A parsed global initializer leaves a named constant by name, while the
+// checker binds constants to their literals before lowering. Bind string
+// and real constants here so the shared compound initializer emits the
+// same static value as a spelled literal on every target; integer
+// constants already lower through their target macros.
+NormalizeGlobalConstants :: (module: *IR.ZirModule, probe: *IR.ZirFunction) {
+    for i: cast(s32)0..probe.expr_count - 1 {
+        expr := *probe.exprs[i]
+        if (expr.kind != .IDENT && expr.kind != .MEMBER) || expr.is_function_value != 0 { continue }
+        name := ifx expr.kind == .IDENT then expr.name else expr.text
+        literal: *u8 = null
+        if BoundStringConstant(module, name, 0, *literal) == 1 && literal != null {
+            probe.exprs[i].kind = .STRING
+            probe.exprs[i].text = literal
+            continue
+        }
+        real: [128]u8
+        if BoundRealConstant(module, name, 0, *real[0], size_of([128]u8)) == 1 {
+            probe.exprs[i].kind = .FLOAT
+            probe.exprs[i].text = KeepText(*real[0])
+        }
+    }
+}
+
 EmitGlobalLiteralNode :: (emit: *GlobalLiteralEmit, index: s32, scope: *IR.ZirModule, type: *u8,
                           out: *u8, size: usize, used: *usize, depth: s32) -> bool {
     if index < 0 || index >= emit.probe.expr_count || depth > 32 { return false }
@@ -307,6 +333,7 @@ EmitGlobalInitializer :: (module: *IR.ZirModule, global: *IR.ZirGlobal, target: 
         free(cast(*void)probe.exprs)
         return 0
     }
+    NormalizeGlobalConstants(module, probe)
     emit := GlobalLiteralEmit.{module, global, probe, target, global.span, scalar, type_name, field_name, context}
     used: usize = 0
     ok := EmitGlobalLiteralNode(*emit, root, module, *global.type[0], out, size, *used, 0)

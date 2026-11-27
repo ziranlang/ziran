@@ -173,6 +173,16 @@ int32_t zir_foreign_compiler_c_emit_call__CompilerParseExprTyped(ZirFunction* fn
 int32_t zir_foreign_compiler_c_emit_call__CompilerParseExprTyped(ZirFunction* fn, ZirModule* module, void* text, ZirSourceSpan span, void* expected) __asm__("CompilerParseExprTyped");
 #endif
 #ifdef __APPLE__
+int32_t zir_foreign_compiler_c_emit_call__BoundStringConstant(ZirModule* module, uint8_t* name, int32_t depth, uint8_t** literal) __asm__("_private_check_bound_string_constant");
+#else
+int32_t zir_foreign_compiler_c_emit_call__BoundStringConstant(ZirModule* module, uint8_t* name, int32_t depth, uint8_t** literal) __asm__("private_check_bound_string_constant");
+#endif
+#ifdef __APPLE__
+int32_t zir_foreign_compiler_c_emit_call__BoundRealConstant(ZirModule* module, uint8_t* name, int32_t depth, uint8_t* literal, size_t size) __asm__("_private_check_bound_real_constant");
+#else
+int32_t zir_foreign_compiler_c_emit_call__BoundRealConstant(ZirModule* module, uint8_t* name, int32_t depth, uint8_t* literal, size_t size) __asm__("private_check_bound_real_constant");
+#endif
+#ifdef __APPLE__
 int32_t zir_foreign_compiler_c_emit_call__PrintFormatPieces(uint8_t* fmt, PrintPiece* pieces, int32_t capacity) __asm__("_PrintFormatPieces");
 #else
 int32_t zir_foreign_compiler_c_emit_call__PrintFormatPieces(uint8_t* fmt, PrintPiece* pieces, int32_t capacity) __asm__("PrintFormatPieces");
@@ -247,6 +257,7 @@ static bool compiler_c_emit_call_AppendText(uint8_t* out, size_t size, size_t* u
 static bool compiler_c_emit_call_GlobalField(ZirType* record, uint8_t* name, int32_t ordinal, ZirTypeField* found) ZIRAN_MAYBE_UNUSED;
 static ZirType* compiler_c_emit_call_GlobalFunctionSlot(ZirModule* module, ZirModule* scope, uint8_t* type, ZirExpr* expr) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_emit_call_GlobalTypeAtUse(ZirModule* module, ZirModule* scope, uint8_t* type, uint8_t* out, size_t size) ZIRAN_MAYBE_UNUSED;
+static void compiler_c_emit_call_NormalizeGlobalConstants(ZirModule* module, ZirFunction* probe) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_emit_call_EmitGlobalLiteralNode(GlobalLiteralEmit* emit, int32_t index, ZirModule* scope, uint8_t* type, uint8_t* out, size_t size, size_t* used, int32_t depth) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_emit_call_GlobalTypeHoldsSlot(ZirModule* scope, uint8_t* type, int32_t depth) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_call_EmitGlobalSlotWrappersNode(void* out, ZirModule* module, ZirGlobal* global, ZirFunction* probe, int32_t index, ZirModule* scope, uint8_t* type, ZirTarget target, ZirResolveTarget resolver, void* context, int32_t depth) ZIRAN_MAYBE_UNUSED;
@@ -547,6 +558,59 @@ compiler_c_emit_call_GlobalTypeAtUse(ZirModule* module, ZirModule* scope, uint8_
         }
     }
     return false;
+}
+
+static void
+compiler_c_emit_call_NormalizeGlobalConstants(ZirModule* module, ZirFunction* probe)
+{
+    {
+        int32_t range_first_0 = 0;
+        int32_t range_last_0 = (int32_t)((uint32_t)(probe->expr_count) - 1u);
+        int32_t i = range_first_0;
+        if (i <= range_last_0) for (;;) {
+            ZirExpr* expr = &(probe->exprs[i]);
+            bool value_0 = ((ZirExprKind)(expr->kind)) != ((ZirExprKind)(1)) && ((ZirExprKind)(expr->kind)) != ((ZirExprKind)(8));
+            if (value_0 || expr->is_function_value != 0) {
+                if (i == range_last_0) {
+                    break;
+                }
+                i = (int32_t)((uint32_t)i + 1u);
+                continue;
+            }
+            uint8_t* value_1 = (void *)0;
+            if (((ZirExprKind)(expr->kind)) == ((ZirExprKind)(1))) {
+                value_1 = (uint8_t*)expr->name;
+            } else {
+                value_1 = (uint8_t*)expr->text;
+            }
+            uint8_t* name = value_1;
+            uint8_t* literal = (void *)0;
+            bool value_2 = zir_foreign_compiler_c_emit_call__BoundStringConstant(module, name, 0, &(literal)) == 1;
+            if (value_2 && literal != ((void *)0)) {
+                ZirExprKind* value_3 = &((probe->exprs[i]).kind);
+                (*value_3) = (ZirExprKind)(4);
+                const char ** value_4 = &((probe->exprs[i]).text);
+                (*value_4) = (const char *)(literal);
+                if (i == range_last_0) {
+                    break;
+                }
+                i = (int32_t)((uint32_t)i + 1u);
+                continue;
+            }
+            uint8_t real[128] = {0};
+            if (zir_foreign_compiler_c_emit_call__BoundRealConstant(module, name, 0, &(real[0]), (128) * (sizeof(uint8_t))) == 1) {
+                ZirExprKind* value_5 = &((probe->exprs[i]).kind);
+                (*value_5) = (ZirExprKind)(3);
+                const char ** value_6 = &((probe->exprs[i]).text);
+                uint8_t* value_7 = zir_foreign_compiler_c_emit_call__KeepText(&(real[0]));
+                (*value_6) = (const char *)(value_7);
+            }
+            if (i == range_last_0) {
+                break;
+            }
+            i = (int32_t)((uint32_t)i + 1u);
+        }
+    }
 }
 
 static bool
@@ -927,6 +991,7 @@ EmitGlobalInitializer(ZirModule* module, ZirGlobal* global, ZirTarget target, Zi
         }
         return cleanup_return_0;
     }
+    compiler_c_emit_call_NormalizeGlobalConstants(module, probe);
     GlobalLiteralEmit emit = {.module = module, .global = global, .probe = probe, .target = target, .span = global->span, .scalar = scalar, .type_name = type_name, .field_name = field_name, .context = context};
     size_t used = 0;
     bool ok = compiler_c_emit_call_EmitGlobalLiteralNode(&(emit), root, module, &(global->type[0]), out, size, &(used), 0);

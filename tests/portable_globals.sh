@@ -13,6 +13,10 @@ MODE_STAGES :: 42;
 ZI
 cat > "$work/initial_values.zi" <<'ZI'
 ONLY_INITIALIZER :: 43;
+FIRST_TITLE :: "fir\u0073t";
+SECOND_TITLE :: "second";
+FIRST_SCORE :: 3.25;
+WIDE_ID :: 9007199254740993;
 ZI
 cat > "$work/navigation.zi" <<'ZI'
 GameNavigation :: struct { previous: s32; }
@@ -21,9 +25,11 @@ ZI
 cat > "$work/state.zi" <<'ZI'
 
 Navigation :: #import "navigation";
+Initial :: #import "initial_values";
 #import, file "values.zi";
 #import, file "initial_values.zi";
 LOCAL_MODE :: 44;
+LOCAL_TITLE :: "third";
 controls_navigation: Navigation.GameNavigation = .{.previous = MODE_STAGES};
 initializer_only: Navigation.GameNavigation = .{.previous = ONLY_INITIALIZER};
 local_mode: Navigation.GameNavigation = .{.previous = LOCAL_MODE};
@@ -50,8 +56,10 @@ origin: Cell = Cell.{.value = 9};
 Track :: struct {
     title: string
     weight: s32
+    score: float32
+    id: u64
 }
-tracks: [3]Track = .[Track.{.title = "fir\u0073t", .weight = 3}, Track.{.title = "second", .weight = 5}, Track.{.title = "third", .weight = 7}];
+tracks: [3]Track = .[Track.{.title = FIRST_TITLE, .weight = 3, .score = Initial.FIRST_SCORE, .id = WIDE_ID}, Track.{.title = Initial.SECOND_TITLE, .weight = 5}, Track.{.title = LOCAL_TITLE, .weight = 7}];
 marks: [4]s32 = .[2, 4, 6, 8];
 Shelf :: struct {
     first: Track
@@ -79,6 +87,8 @@ InitChecks :: () -> s32 {
     if tracks[0].weight != 3 || tracks[2].weight != 7 { return 0 }
     if tracks[1].title.count != 6 { return 0 }
     if tracks[0].title != "first" { return 0 }
+    if tracks[1].title != "second" || tracks[2].title != "third" { return 0 }
+    if tracks[0].score != 3.25 || tracks[0].id != cast(u64)9007199254740993 { return 0 }
     if shelf.first.title != "nested" || shelf.first.weight != 11 { return 0 }
     if shelf.labels[0] != "one" || shelf.labels[1] != "two" { return 0 }
     if shelf.count != 2 { return 0 }
@@ -144,7 +154,6 @@ ZI
     -o "$work/saved.zx" "$work/ir/app.zir"
 cmp "$work/source.zx" "$work/saved.zx"
 test "$("$ziran" run "$work/source.zx")" = 42
-test "$("$ziran" run "$work/saved.zx")" = 42
 # Qualified constant initializers also retain their alias when it is used
 # only by a global, with identical source and saved portable execution.
 cat > "$work/qualified.zi" <<'ZI'
@@ -161,7 +170,6 @@ ZI
     -o "$work/qualified-saved.zx" "$work/ir/qualified.zir"
 cmp "$work/qualified-source.zx" "$work/qualified-saved.zx"
 test "$("$ziran" run "$work/qualified-source.zx")" = 42
-test "$("$ziran" run "$work/qualified-saved.zx")" = 42
 
 cat > "$work/global_instance.c" <<'C'
 #include "ziran_host.h"
@@ -191,7 +199,6 @@ C
     "$work/global_instance.c" "$ziran_lib" ${VM_LDFLAGS:-} \
     -o "$work/global_instance"
 "$work/global_instance" "$work/source.zx"
-"$work/global_instance" "$work/saved.zx"
 
 for input in source saved; do
     if test "$input" = source; then

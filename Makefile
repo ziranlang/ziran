@@ -697,7 +697,7 @@ $(BIN_DIR)/zi-fmt: $(FORMAT_SOURCES) $(BIN_DIR)/zi2c $(BUILD_DIR)/.compiler-flag
 ZX_RUNNER_C := $(BUILD_DIR)/zx-runner-c
 ZX_RUNNER_SOURCES := $(wildcard cmd/zx_runner*.zi) std/bundle_host.zi std/byte_text_linux.zi \
     std/c_string.zi std/environment_linux.zi std/file.zi std/file_linux.zi std/file_tree_linux.zi \
-    std/process_run_linux.zi std/stdio_linux.zi std/text_tools.zi std/timer_linux.zi std/vec.zi
+    std/guest_host.zi std/process_run_linux.zi std/stdio_linux.zi std/text_tools.zi std/timer_linux.zi std/vec.zi
 # With SDL2 present, zx also answers the window set (std/guest_window).
 ZX_WINDOW_LIBS := $(shell pkg-config --libs sdl2 2>/dev/null)
 $(BIN_DIR)/zx: $(ZX_RUNNER_SOURCES) $(BIN_DIR)/zi2c $(BUILD_DIR)/libziran.a $(BUILD_DIR)/.compiler-flags | $(BIN_DIR)

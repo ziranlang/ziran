@@ -322,7 +322,7 @@ unlike <code>ziran run</code>, it hands a bundle to no installed provider.</p>
 </tr>
 <tr>
 <td><code>std/guest_process</code></td>
-<td><code>ArgumentCount</code>, <code>Argument</code> (0 is the bundle's path), <code>Environment</code></td>
+<td><code>ArgumentCount</code>, <code>Argument</code> (0 is the bundle's path), <code>Environment</code>, <code>ProcessId</code>, <code>ClockTicks</code>, <code>PageSize</code>, <code>SendSignal</code>, <code>RunShell</code> (native wait status; rejects embedded NUL)</td>
 </tr>
 <tr>
 <td><code>std/guest_window</code></td>
@@ -330,6 +330,18 @@ unlike <code>ziran run</code>, it hands a bundle to no installed provider.</p>
 </tr>
 </tbody>
 </table></div>
+<p>Native embedders share the non-window implementation in <code>std/guest_host</code>.
+Keep one <code>State</code> per instance, set its borrowed <code>bundle</code>, <code>argc</code> and <code>argv</code>
+(indexed from the bundle path at 0), and bind only names accepted by
+<code>Provides</code>. A host callback forwards its decoded module and function names to
+<code>Call</code>. Keep the state and argument storage alive until the instance closes;
+its owned answer buffer is released with the state. Text replies borrow that
+buffer until the next call, while asset data borrows the open bundle. Separate
+instances, including a replacement being initialized, need separate states.</p>
+<p><code>ClockTicks</code> and <code>PageSize</code> report the native accounting units; a nonpositive
+result means unavailable. <code>SendSignal</code> follows native signal semantics.
+<code>RunShell</code> blocks until the shell returns and preserves its native wait status,
+or returns -1 on failure, including an embedded NUL in the command.</p>
 <p>The bundle runs its own loop and draws its own pixels; the runner only shows
 them and reports input. <code>zx</code> answers <code>std/guest_window</code> when it was built
 with SDL2 (<code>pkg-config sdl2</code>); built without it, a window bundle is refused

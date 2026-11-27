@@ -350,8 +350,22 @@ The capabilities every bundle may use are declared in standard modules:
 | `std/guest_assets` | `AssetCount`, `AssetName`, `AssetData`, `AssetFind`: the bundle's own embedded files |
 | `std/guest_clock` | `MonotonicNanoseconds`, `WallMilliseconds` (since 1970 UTC) |
 | `std/guest_files` | `FileStatus` (size, `FILE_MISSING`, `FILE_DIRECTORY`), `FileRead`, `FileWrite`, `FileRemove`, `FileRename`, `DirectoryMake`, `DirectoryList`, with a native program's reach |
-| `std/guest_process` | `ArgumentCount`, `Argument` (0 is the bundle's path), `Environment` |
+| `std/guest_process` | `ArgumentCount`, `Argument` (0 is the bundle's path), `Environment`, `ProcessId`, `ClockTicks`, `PageSize`, `SendSignal`, `RunShell` (native wait status; rejects embedded NUL) |
 | `std/guest_window` | `WindowOpen`, `WindowPresent` (RGBA pixels the bundle drew), `WindowNextEvent` (pointer, wheel, keys with GLFW numbering, text, resize, focus, close), `WindowWait`, `WindowWidth`/`Height`, `WindowTitle`, `WindowCursor`, `WindowTextInput`, `ClipboardRead`/`Write`, `WindowClose` |
+
+Native embedders share the non-window implementation in `std/guest_host`.
+Keep one `State` per instance, set its borrowed `bundle`, `argc` and `argv`
+(indexed from the bundle path at 0), and bind only names accepted by
+`Provides`. A host callback forwards its decoded module and function names to
+`Call`. Keep the state and argument storage alive until the instance closes;
+its owned answer buffer is released with the state. Text replies borrow that
+buffer until the next call, while asset data borrows the open bundle. Separate
+instances, including a replacement being initialized, need separate states.
+
+`ClockTicks` and `PageSize` report the native accounting units; a nonpositive
+result means unavailable. `SendSignal` follows native signal semantics.
+`RunShell` blocks until the shell returns and preserves its native wait status,
+or returns -1 on failure, including an embedded NUL in the command.
 
 The bundle runs its own loop and draws its own pixels; the runner only shows
 them and reports input. `zx` answers `std/guest_window` when it was built

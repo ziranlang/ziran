@@ -17,6 +17,7 @@
 #import "std/stdio_linux"
 #import "std/text_tools"
 #import "zx_runner_capabilities"
+Native :: #import "std/guest_host";
 #import "zx_runner_dialog"
 #import "zx_runner_header"
 using Vectors :: #import "std/vec"
@@ -65,7 +66,7 @@ Tail :: (text: string, limit: s64) -> string {
 
 // Binds every capability the bundle imports and returns how many this
 // runner lacks, listing them in missing.
-Bind :: (bundle: *void, state: *RunnerState, bindings: *Vec(HostBinding), missing: *Vec(u8)) -> s64 {
+Bind :: (bundle: *void, state: *Native.State, bindings: *Vec(HostBinding), missing: *Vec(u8)) -> s64 {
     gaps: s64 = 0
     count := BundleCapabilities(bundle)
     index: u64 = 0
@@ -141,7 +142,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     }
     defer CloseBundle(bundle)
     // The bundle sees its own path as argument 0, then the arguments after it.
-    state := RunnerState.{bundle = bundle, argc = argc - 1, argv = argv}
+    state := Native.State.{bundle = bundle, argc = argc - 1, argv = *argv[1]}
     bindings: Vec(HostBinding)
     defer VecFree(bindings)
     missing: Vec(u8)

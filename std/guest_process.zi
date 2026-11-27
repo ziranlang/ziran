@@ -1,10 +1,15 @@
-// The arguments and environment a runner passes a portable bundle. Argument 0
-// is the bundle's path; `zx app.zx a b` gives the bundle three arguments.
+// Process operations supplied by the native runner. Argument 0 is the bundle's
+// path; `zx app.zx a b` gives the bundle three arguments.
 host_api :: #system_library "host_api";
 
 ArgumentCountHost :: () -> s32 #foreign host_api;
 ArgumentHost :: (index: s32) -> string #foreign host_api;
 EnvironmentHost :: (name: string) -> string #foreign host_api;
+ProcessIdHost :: () -> s32 #foreign host_api;
+ClockTicksHost :: () -> s64 #foreign host_api;
+PageSizeHost :: () -> s64 #foreign host_api;
+SendSignalHost :: (process_id: s32, signal: s32) -> bool #foreign host_api;
+RunShellHost :: (command: string) -> s32 #foreign host_api;
 
 #program_export
 ArgumentCount :: () -> s32 { return ArgumentCountHost() }
@@ -16,3 +21,27 @@ Argument :: (index: s32) -> string { return ArgumentHost(index) }
 // The variable's value, or "" when it is unset.
 #program_export
 Environment :: (name: string) -> string { return EnvironmentHost(name) }
+
+// The native process hosting this bundle, suitable for excluding itself from
+// a process list. These operations require a host that provides them.
+#program_export
+ProcessId :: () -> s32 { return ProcessIdHost() }
+
+// Native accounting ticks per second and bytes per memory page. A nonpositive
+// value means the host could not obtain the unit; callers must not invent one.
+#program_export
+ClockTicks :: () -> s64 { return ClockTicksHost() }
+
+#program_export
+PageSize :: () -> s64 { return PageSizeHost() }
+
+// Native signal semantics, including signal 0 to check an owned process.
+#program_export
+SendSignal :: (process_id: s32, signal: s32) -> bool {
+    return SendSignalHost(process_id, signal)
+}
+
+// Runs a native shell command synchronously and returns its native wait status,
+// or -1 if it could not run. Embedded NUL bytes are rejected, never truncated.
+#program_export
+RunShell :: (command: string) -> s32 { return RunShellHost(command) }

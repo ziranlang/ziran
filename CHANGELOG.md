@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Share native assets, clock, process and file services between portable-program
+  hosts through `std/guest_host`, with reply storage owned by each instance.
+  Expose typed process identity, accounting units, signals and shell execution
+  through `std/guest_process`. Reject embedded NUL in shell commands and reclaim
+  temporary file-read storage after copying host replies.
+
 - Save entry-selected checked IR without native-only folding or record-field
   pruning. Preserve canonical expression graphs and host providers so direct
   source and saved-IR portable bundles agree.

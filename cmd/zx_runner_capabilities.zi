@@ -1,17 +1,7 @@
-// The capabilities ZX Runner gives every bundle: its own assets, the clock,
-// the process arguments and environment, and files. A bundle reaches them
-// through std/guest_assets, guest_clock, guest_process and guest_files. Each
-// call answers in a host value; a string result stays valid until the
-// runner's next call.
+// The runner binds shared native capabilities plus its optional window host.
 #import "std/bundle_host"
 #import "std/byte_text_linux"
-#import "std/c_string"
-#import "std/environment_linux"
-#import "std/file"
-#import "std/file_linux"
-#import "std/file_tree_linux"
-#import "std/timer_linux"
-using Vectors :: #import "std/vec"
+Native :: #import "std/guest_host";
 // The window set needs a window host: SDL2 on a desktop, the app's EGL glue
 // on Android. A runner built without one lacks guest_window.
 #if #defined(ZX_ANDROID) {
@@ -21,29 +11,8 @@ using Vectors :: #import "std/vec"
     Window :: #import "zx_runner_window";
 }
 
-RunnerState :: struct {
-    bundle: *void
-    // The bundle's arguments are argv[1] to argv[argc]: argv[0] is the runner.
-    argc: s32
-    argv: **u8
-    // The bytes the latest string result borrows.
-    answer: Vec(u8)
-}
-
-// Whether this runner answers module:function.
 RunnerProvides :: (module: string, function: string) -> bool {
-    if module == "guest_assets" {
-        return function == "AssetCountHost" || function == "AssetNameHost" || function == "AssetDataHost"
-    }
-    if module == "guest_clock" { return function == "MonotonicNanosecondsHost" || function == "WallMillisecondsHost" }
-    if module == "guest_process" {
-        return function == "ArgumentCountHost" || function == "ArgumentHost" || function == "EnvironmentHost"
-    }
-    if module == "guest_files" {
-        return function == "FileStatusHost" || function == "FileReadHost" || function == "FileWriteHost" ||
-            function == "FileRemoveHost" || function == "FileRenameHost" ||
-            function == "DirectoryMakeHost" || function == "DirectoryListHost"
-    }
+    if Native.Provides(module, function) { return true }
     #if #defined(ZX_WINDOW) || #defined(ZX_ANDROID) {
         if module == "guest_window" {
             return function == "WindowOpenHost" || function == "WindowPresentHost" ||
@@ -59,164 +28,41 @@ RunnerProvides :: (module: string, function: string) -> bool {
 
 #scope_file
 using HostValueKind;
-libc :: #system_library "libc";
-WallClock :: struct { seconds: s64; nanoseconds: s64 }
-ClockGetTime :: (clock: s32, value: *WallClock) -> s32 #foreign libc "clock_gettime";
-REALTIME_CLOCK :: 0;
-
-Text :: (value: HostValue) -> string {
-    if value.kind != cast(s32)HostString || value.length == 0 { return "" }
-    return TextFromBytes(BytesFromPointer(cast(*u8)value.data, cast(u64)value.length))
-}
-
-Whole :: (value: HostValue) -> s64 {
-    if value.kind == cast(s32)HostUnsigned { return cast(s64)value.bits }
-    return value.integer
-}
-
-Integer :: (result: *HostValue, value: s64) -> s32 {
-    result.kind = cast(s32)HostInteger; result.integer = value
-    return 1
-}
-
-Unsigned :: (result: *HostValue, value: u64) -> s32 {
-    result.kind = cast(s32)HostUnsigned; result.bits = value
-    return 1
-}
-
-Borrowed :: (result: *HostValue, data: *u8, length: u64) -> s32 {
-    result.kind = cast(s32)HostString; result.data = data; result.length = cast(usize)length
-    return 1
-}
-
-// Copies text into the runner's answer storage and returns it.
-Answer :: (state: *RunnerState, result: *HostValue, text: string) -> s32 {
-    VecClear(state.answer)
-    for byte: text { VecPush(state.answer, byte) }
-    if state.answer.count == 0 { return Borrowed(result, null, 0) }
-    return Borrowed(result, *state.answer[0], cast(u64)state.answer.count)
-}
-
-AssetCall :: (state: *RunnerState, function: string, arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
-    if function == "AssetCountHost" && count == 0 { return Unsigned(result, BundleAssets(state.bundle)) }
-    if count != 1 { return 0 }
-    index := cast(u64)Whole(arguments[0])
-    if index >= BundleAssets(state.bundle) { return Borrowed(result, null, 0) }
-    if function == "AssetNameHost" {
-        name := TextFromCString(BundleAssetPath(state.bundle, index))
-        return Answer(state, result, name)
-    }
-    if function == "AssetDataHost" {
-        return Borrowed(result, BundleAssetBytes(state.bundle, index), BundleAssetLength(state.bundle, index))
-    }
-    return 0
-}
-
-ClockCall :: (function: string, count: s32, result: *HostValue) -> s32 {
-    if count != 0 { return 0 }
-    if function == "MonotonicNanosecondsHost" { return Integer(result, MonotonicNanoseconds()) }
-    if function == "WallMillisecondsHost" {
-        now: WallClock
-        if ClockGetTime(REALTIME_CLOCK, *now) != 0 { return 0 }
-        return Integer(result, now.seconds * 1000 + now.nanoseconds / 1000000)
-    }
-    return 0
-}
-
-ProcessCall :: (state: *RunnerState, function: string, arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
-    if function == "ArgumentCountHost" && count == 0 { return Integer(result, cast(s64)state.argc) }
-    if count != 1 { return 0 }
-    if function == "ArgumentHost" {
-        index := Whole(arguments[0])
-        if index < 0 || index >= cast(s64)state.argc { return Borrowed(result, null, 0) }
-        return Answer(state, result, TextFromCString(state.argv[index + 1]))
-    }
-    if function == "EnvironmentHost" { return Answer(state, result, EnvironmentText(Text(arguments[0]))) }
-    return 0
-}
-
-FileCall :: (state: *RunnerState, function: string, arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
-    if count < 1 { return 0 }
-    reply: HostValue
-    handled: s32 = 0
-    {
-        path := Text(arguments[0])
-        if function == "FileStatusHost" && count == 1 {
-            info := PathStatus(path)
-            value := info.size
-            if info.kind == .Missing { value = -1 }
-            else if info.kind == .Directory { value = -2 }
-            handled = Integer(*reply, value)
-        } else if function == "FileReadHost" && count == 1 {
-            text, ok := ReadEntireFile(path)
-            if !ok { handled = Borrowed(*reply, null, 0) }
-            else { handled = Answer(state, *reply, text) }
-        } else if function == "FileWriteHost" && count == 2 {
-            handled = Integer(*reply, ifx WriteEntireFile(path, Text(arguments[1])) then 1 else 0)
-        } else if function == "FileRemoveHost" && count == 1 {
-            handled = Integer(*reply, ifx RemoveFile(path) then 1 else 0)
-        } else if function == "FileRenameHost" && count == 2 {
-            handled = Integer(*reply, ifx RenamePath(path, Text(arguments[1])) then 1 else 0)
-        } else if function == "DirectoryMakeHost" && count == 1 {
-            handled = Integer(*reply, ifx CreateDirectory(path) then 1 else 0)
-        } else if function == "DirectoryListHost" && count == 1 {
-            listing: Vec(u8)
-            cursor := OpenDirectory(path)
-            if cursor.valid {
-                while true {
-                    entry := NextDirectoryEntry(*cursor)
-                    if !entry.valid { break }
-                    name := TextFromBytes(entry.name[0:entry.name_count])
-                    if name == "." || name == ".." { continue }
-                    if listing.count > 0 { VecPush(listing, #char "\n") }
-                    for byte: name { VecPush(listing, byte) }
-                }
-                unused CloseDirectory(*cursor)
-            }
-            handled = Answer(state, *reply, TextFromBytes(VecSlice(listing, 0, listing.count)))
-        }
-    }
-    if handled != 0 {
-        reply.type_name = result.type_name
-        result[0] = reply
-    }
-    return handled
-}
 
 #if #defined(ZX_WINDOW) || #defined(ZX_ANDROID) {
-WindowCall :: (state: *RunnerState, function: string, arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
+WindowCall :: (state: *Native.State, function: string, arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
     if function == "WindowOpenHost" && count == 4 {
-        opened := Window.WindowOpen(Text(arguments[0]), cast(s32)Whole(arguments[1]), cast(s32)Whole(arguments[2]), Whole(arguments[3]) != 0)
-        return Integer(result, ifx opened then 1 else 0)
+        opened := Window.WindowOpen(Native.Text(arguments[0]), cast(s32)Native.Whole(arguments[1]), cast(s32)Native.Whole(arguments[2]), Native.Whole(arguments[3]) != 0)
+        return Native.Integer(result, ifx opened then 1 else 0)
     }
     if function == "WindowPresentHost" && count == 3 {
         shown := false
         {
             pixels := BytesFromPointer(cast(*u8)arguments[0].data, cast(u64)arguments[0].length)
-            shown = Window.WindowPresent(pixels, cast(s32)Whole(arguments[1]), cast(s32)Whole(arguments[2]))
+            shown = Window.WindowPresent(pixels, cast(s32)Native.Whole(arguments[1]), cast(s32)Native.Whole(arguments[2]))
         }
-        return Integer(result, ifx shown then 1 else 0)
+        return Native.Integer(result, ifx shown then 1 else 0)
     }
     if function == "WindowNextEventHost" && count == 0 {
         bytes := Window.WindowNextEvent()
-        if bytes.count == 0 { return Borrowed(result, null, 0) }
-        return Borrowed(result, *bytes[0], cast(u64)bytes.count)
+        if bytes.count == 0 { return Native.Borrowed(result, null, 0) }
+        return Native.Borrowed(result, *bytes[0], cast(u64)bytes.count)
     }
     if function == "WindowWaitHost" && count == 1 {
-        return Integer(result, ifx Window.WindowWait(cast(s32)Whole(arguments[0])) then 1 else 0)
+        return Native.Integer(result, ifx Window.WindowWait(cast(s32)Native.Whole(arguments[0])) then 1 else 0)
     }
-    if function == "WindowWidthHost" && count == 0 { width, _ := Window.WindowSize(); return Integer(result, cast(s64)width) }
-    if function == "WindowHeightHost" && count == 0 { _, height := Window.WindowSize(); return Integer(result, cast(s64)height) }
-    if function == "WindowTitleHost" && count == 1 { Window.WindowTitle(Text(arguments[0])); return 1 }
-    if function == "WindowCursorHost" && count == 1 { Window.WindowCursor(cast(s32)Whole(arguments[0])); return 1 }
-    if function == "WindowTextInputHost" && count == 1 { Window.WindowTextInput(Whole(arguments[0]) != 0); return 1 }
+    if function == "WindowWidthHost" && count == 0 { width, _ := Window.WindowSize(); return Native.Integer(result, cast(s64)width) }
+    if function == "WindowHeightHost" && count == 0 { _, height := Window.WindowSize(); return Native.Integer(result, cast(s64)height) }
+    if function == "WindowTitleHost" && count == 1 { Window.WindowTitle(Native.Text(arguments[0])); return 1 }
+    if function == "WindowCursorHost" && count == 1 { Window.WindowCursor(cast(s32)Native.Whole(arguments[0])); return 1 }
+    if function == "WindowTextInputHost" && count == 1 { Window.WindowTextInput(Native.Whole(arguments[0]) != 0); return 1 }
     if function == "ClipboardReadHost" && count == 0 {
         Window.ClipboardRead(*state.answer)
-        if state.answer.count == 0 { return Borrowed(result, null, 0) }
-        return Borrowed(result, *state.answer[0], cast(u64)state.answer.count)
+        if state.answer.count == 0 { return Native.Borrowed(result, null, 0) }
+        return Native.Borrowed(result, *state.answer[0], cast(u64)state.answer.count)
     }
     if function == "ClipboardWriteHost" && count == 1 {
-        return Integer(result, ifx Window.ClipboardWrite(Text(arguments[0])) then 1 else 0)
+        return Native.Integer(result, ifx Window.ClipboardWrite(Native.Text(arguments[0])) then 1 else 0)
     }
     if function == "WindowCloseHost" && count == 0 { Window.WindowClose(); return 1 }
     return 0
@@ -227,15 +73,12 @@ WindowCall :: (state: *RunnerState, function: string, arguments: *HostValue, cou
 // The one host callback the runner binds for every capability it provides.
 RunnerCall :: (context: *void, module_name: *u8, function_name: *u8,
     arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
-    state := cast(*RunnerState)context
+    state := cast(*Native.State)context
     module := TextFromCString(module_name)
     function := TextFromCString(function_name)
     if !RunnerProvides(module, function) { return 0 }
     result.kind = cast(s32)HostVoid
-    if module == "guest_assets" { return AssetCall(state, function, arguments, count, result) }
-    if module == "guest_clock" { return ClockCall(function, count, result) }
-    if module == "guest_process" { return ProcessCall(state, function, arguments, count, result) }
-    if module == "guest_files" { return FileCall(state, function, arguments, count, result) }
+    if Native.Provides(module, function) { return Native.Call(state, module, function, arguments, count, result) }
     #if #defined(ZX_WINDOW) || #defined(ZX_ANDROID) {
         if module == "guest_window" { return WindowCall(state, function, arguments, count, result) }
     }

@@ -1,0 +1,211 @@
+// Native, non-window capabilities shared by portable-program hosts. One
+// State belongs to each hosted instance. It borrows its bundle and argument
+// vector; returned text borrows answer storage until the next host call,
+// while asset bytes remain borrowed from the open bundle.
+#import "bundle_host"
+#import "byte_text_linux"
+#import "c_string"
+#import "environment_linux"
+#import "file"
+#import "file_linux"
+#import "file_tree_linux"
+#import "timer_linux"
+using Vectors :: #import "vec"
+
+#scope_export
+State :: struct {
+    bundle: *void
+    // Arguments are indexed directly: argv[0] is the bundle path.
+    argc: s32
+    argv: **u8
+    // The bytes the latest string result borrows.
+    answer: Vec(u8)
+}
+
+Provides :: (module: string, function: string) -> bool {
+    if module == "guest_assets" {
+        return function == "AssetCountHost" || function == "AssetNameHost" || function == "AssetDataHost"
+    }
+    if module == "guest_clock" { return function == "MonotonicNanosecondsHost" || function == "WallMillisecondsHost" }
+    if module == "guest_process" {
+        return function == "ArgumentCountHost" || function == "ArgumentHost" || function == "EnvironmentHost" ||
+            function == "ProcessIdHost" || function == "ClockTicksHost" || function == "PageSizeHost" ||
+            function == "SendSignalHost" || function == "RunShellHost"
+    }
+    if module == "guest_files" {
+        return function == "FileStatusHost" || function == "FileReadHost" || function == "FileWriteHost" ||
+            function == "FileRemoveHost" || function == "FileRenameHost" ||
+            function == "DirectoryMakeHost" || function == "DirectoryListHost"
+    }
+    return false
+}
+
+#scope_file
+using HostValueKind;
+libc :: #system_library "libc";
+WallClock :: struct { seconds: s64; nanoseconds: s64 }
+ClockGetTime :: (clock: s32, value: *WallClock) -> s32 #foreign libc "clock_gettime";
+ProcessIdRaw :: () -> s32 #foreign libc "getpid";
+ProcessPageSizeRaw :: () -> s32 #foreign libc "getpagesize";
+ProcessConfigurationRaw :: (name: s32) -> isize #foreign libc "sysconf";
+ProcessSignalRaw :: (process_id: s32, signal: s32) -> s32 #foreign libc "kill";
+ProcessShellRaw :: (command: *u8) -> s32 #foreign libc "system";
+#if OS == .ANDROID || #defined(ZX_ANDROID) {
+    ClockTicksConfiguration :: 0x0006;
+} else #if #defined(__APPLE__) {
+    ClockTicksConfiguration :: 3;
+} else {
+    ClockTicksConfiguration :: 2;
+}
+REALTIME_CLOCK :: 0;
+
+#scope_export
+Text :: (value: HostValue) -> string {
+    if value.kind != cast(s32)HostString || value.length == 0 { return "" }
+    return TextFromBytes(BytesFromPointer(cast(*u8)value.data, cast(u64)value.length))
+}
+
+Whole :: (value: HostValue) -> s64 {
+    if value.kind == cast(s32)HostUnsigned { return cast(s64)value.bits }
+    return value.integer
+}
+
+Integer :: (result: *HostValue, value: s64) -> s32 {
+    result.kind = cast(s32)HostInteger; result.integer = value
+    return 1
+}
+
+Unsigned :: (result: *HostValue, value: u64) -> s32 {
+    result.kind = cast(s32)HostUnsigned; result.bits = value
+    return 1
+}
+
+Borrowed :: (result: *HostValue, data: *u8, length: u64) -> s32 {
+    result.kind = cast(s32)HostString; result.data = data; result.length = cast(usize)length
+    return 1
+}
+
+// Copies text into this instance's answer storage and returns it.
+Answer :: (state: *State, result: *HostValue, text: string) -> s32 {
+    VecClear(state.answer)
+    for byte: text { VecPush(state.answer, byte) }
+    if state.answer.count == 0 { return Borrowed(result, null, 0) }
+    return Borrowed(result, *state.answer[0], cast(u64)state.answer.count)
+}
+
+#scope_file
+AssetCall :: (state: *State, function: string, arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
+    if function == "AssetCountHost" && count == 0 { return Unsigned(result, BundleAssets(state.bundle)) }
+    if count != 1 { return 0 }
+    index := cast(u64)Whole(arguments[0])
+    if index >= BundleAssets(state.bundle) { return Borrowed(result, null, 0) }
+    if function == "AssetNameHost" {
+        name := TextFromCString(BundleAssetPath(state.bundle, index))
+        return Answer(state, result, name)
+    }
+    if function == "AssetDataHost" {
+        return Borrowed(result, BundleAssetBytes(state.bundle, index), BundleAssetLength(state.bundle, index))
+    }
+    return 0
+}
+
+ClockCall :: (function: string, count: s32, result: *HostValue) -> s32 {
+    if count != 0 { return 0 }
+    if function == "MonotonicNanosecondsHost" { return Integer(result, MonotonicNanoseconds()) }
+    if function == "WallMillisecondsHost" {
+        now: WallClock
+        if ClockGetTime(REALTIME_CLOCK, *now) != 0 { return 0 }
+        return Integer(result, now.seconds * 1000 + now.nanoseconds / 1000000)
+    }
+    return 0
+}
+
+ProcessCall :: (state: *State, function: string, arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
+    if function == "ArgumentCountHost" && count == 0 { return Integer(result, cast(s64)state.argc) }
+    if function == "ProcessIdHost" && count == 0 { return Integer(result, cast(s64)ProcessIdRaw()) }
+    if function == "ClockTicksHost" && count == 0 { return Integer(result, cast(s64)ProcessConfigurationRaw(ClockTicksConfiguration)) }
+    if function == "PageSizeHost" && count == 0 { return Integer(result, cast(s64)ProcessPageSizeRaw()) }
+    if function == "SendSignalHost" && count == 2 {
+        sent := ProcessSignalRaw(cast(s32)Whole(arguments[0]), cast(s32)Whole(arguments[1])) == 0
+        return Integer(result, ifx sent then 1 else 0)
+    }
+    if count != 1 { return 0 }
+    if function == "ArgumentHost" {
+        index := Whole(arguments[0])
+        if index < 0 || index >= cast(s64)state.argc { return Borrowed(result, null, 0) }
+        return Answer(state, result, TextFromCString(state.argv[index]))
+    }
+    if function == "EnvironmentHost" { return Answer(state, result, EnvironmentText(Text(arguments[0]))) }
+    if function == "RunShellHost" {
+        command: Vec(u8)
+        length := arguments[0].length
+        if length >= 2147483647 || !VecResize(command, cast(s64)length + 1) {
+            return Integer(result, -1)
+        }
+        if !CopyCString(Text(arguments[0]), command[:]) { return Integer(result, -1) }
+        return Integer(result, cast(s64)ProcessShellRaw(*command[0]))
+    }
+    return 0
+}
+
+FileCall :: (state: *State, function: string, arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
+    if count < 1 { return 0 }
+    reply: HostValue
+    handled: s32 = 0
+    {
+        path := Text(arguments[0])
+        if function == "FileStatusHost" && count == 1 {
+            info := PathStatus(path)
+            value := info.size
+            if info.kind == .Missing { value = -1 }
+            else if info.kind == .Directory { value = -2 }
+            handled = Integer(*reply, value)
+        } else if function == "FileReadHost" && count == 1 {
+            bytes: Vec(u8)
+            if !ReadFileInto(path, *bytes) { handled = Borrowed(*reply, null, 0) }
+            else { handled = Answer(state, *reply, TextFromBytes(bytes[:])) }
+        } else if function == "FileWriteHost" && count == 2 {
+            handled = Integer(*reply, ifx WriteEntireFile(path, Text(arguments[1])) then 1 else 0)
+        } else if function == "FileRemoveHost" && count == 1 {
+            handled = Integer(*reply, ifx RemoveFile(path) then 1 else 0)
+        } else if function == "FileRenameHost" && count == 2 {
+            handled = Integer(*reply, ifx RenamePath(path, Text(arguments[1])) then 1 else 0)
+        } else if function == "DirectoryMakeHost" && count == 1 {
+            handled = Integer(*reply, ifx CreateDirectory(path) then 1 else 0)
+        } else if function == "DirectoryListHost" && count == 1 {
+            listing: Vec(u8)
+            cursor := OpenDirectory(path)
+            if cursor.valid {
+                while true {
+                    entry := NextDirectoryEntry(*cursor)
+                    if !entry.valid { break }
+                    name := TextFromBytes(entry.name[0:entry.name_count])
+                    if name == "." || name == ".." { continue }
+                    if listing.count > 0 { VecPush(listing, #char "\n") }
+                    for byte: name { VecPush(listing, byte) }
+                }
+                unused CloseDirectory(*cursor)
+            }
+            handled = Answer(state, *reply, TextFromBytes(VecSlice(listing, 0, listing.count)))
+        }
+    }
+    if handled != 0 {
+        reply.type_name = result.type_name
+        result[0] = reply
+    }
+    return handled
+}
+
+#scope_export
+// Dispatches a non-window capability. The state and its borrowed bundle must
+// outlive the instance; answer storage is released with its owning State.
+Call :: (state: *State, module: string, function: string,
+    arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
+    if !Provides(module, function) { return 0 }
+    result.kind = cast(s32)HostVoid
+    if module == "guest_assets" { return AssetCall(state, function, arguments, count, result) }
+    if module == "guest_clock" { return ClockCall(function, count, result) }
+    if module == "guest_process" { return ProcessCall(state, function, arguments, count, result) }
+    if module == "guest_files" { return FileCall(state, function, arguments, count, result) }
+    return 0
+}

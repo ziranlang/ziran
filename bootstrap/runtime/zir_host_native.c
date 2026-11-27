@@ -1,6 +1,6 @@
 /*
  * zir_host_native.c - native execution of verified ZX on linux-x86_64,
- * linux-aarch64 and linux-armv7, Android included.
+ * linux-aarch64, linux-armv7 and ARM Android.
  *
  * The machine pipeline compiles the bundle's verified program once per
  * content, CPU and backend. Each instance copies that image into RW pages,
@@ -26,6 +26,11 @@
 #include "zir_zx_wasm_platform.h"
 #endif
 
+#if defined(__linux__) && (defined(__aarch64__) || defined(__arm__) || \
+    (defined(__x86_64__) && !defined(__ANDROID__)))
+#define ZIRAN_ZX_NATIVE_PLATFORM 1
+#endif
+
 /* The native backend this build carries; elsewhere native code is a named
  * gap from the loader. The embedding API (cmd/compiler_host_api.zi) asks. */
 BundleExecutionBackend
@@ -42,7 +47,7 @@ BundleNativePlatformBackend(void)
 
 /* Auto is a platform decision, never a per-bundle probe: a web runtime that
  * installed the wasm provider runs bundles on it; linux-x86_64,
- * linux-aarch64 and linux-armv7 (Android included), which have a native
+ * linux-aarch64, linux-armv7 and ARM Android, which have a native
  * backend, run native code, and a bundle native code cannot run fails instead
  * of moving to another engine; every other host, including 64-bit and JSPI
  * web runtimes such as the playground's, runs the instruction engine. */
@@ -52,18 +57,17 @@ BundleAutoPlatformBackend(void)
 #if defined(__EMSCRIPTEN__)
     if(ZxWasmPlatformActive() != NULL)
         return BUNDLE_EXECUTION_WASM;
-#elif (defined(__x86_64__) || defined(__aarch64__) || defined(__arm__)) && defined(__linux__)
+#elif defined(ZIRAN_ZX_NATIVE_PLATFORM)
     return BundleNativePlatformBackend();
 #endif
     return BUNDLE_EXECUTION_ENGINE;
 }
 
-#if defined(ZIRAN_NO_ENGINE) || !(defined(__x86_64__) || defined(__aarch64__) || defined(__arm__)) || \
-    !defined(__linux__)
+#if defined(ZIRAN_NO_ENGINE) || !defined(ZIRAN_ZX_NATIVE_PLATFORM)
 
 static const char native_unavailable[] =
     "assembly.gap.target-unimplemented: native ZX runs only on linux-x86_64, linux-aarch64 and "
-    "linux-armv7; "
+    "linux-armv7 and ARM Android; "
     "no alternate engine was selected";
 
 const NativeBundleCode *

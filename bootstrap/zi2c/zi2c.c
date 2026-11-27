@@ -412,7 +412,7 @@ zi2c_Usage(void)
         String s = value_2;
         value_3 = ((zi2c_StaticText*)(&(s)))->data;
     }
-    String value_5 = StringLiteral("usage: zi2c [--no-main] [--prune-stale] [--checks] [--thorough|--quickest] [--entry module:function [--exe [--release]] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] [--diagnostics=text|json] [--module-path DIR] [--define NAME] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.zir ...\n");
+    String value_5 = StringLiteral("usage: zi2c [--no-main] [--prune-stale] [--checks] [--thorough|--quickest] [--entry module:function [--exe [--release]] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] [--diagnostics=text|json] [--module-path DIR] [--define NAME] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.ts|file.tsx|file.zir ...\n");
     uint8_t* value_6 = (void *)0;
     {
         String s = value_5;
@@ -496,82 +496,124 @@ zi2c_WriteEntryMain(ZirModule* module, ZirFunction* function, uint8_t* path)
     uint8_t stem[1024] = {0};
     zir_foreign_zi2c__copy_text(&(stem[0]), (size_t)(1024), (uint8_t*)(&(module->source_path)));
     size_t length = zir_foreign_zi2c__strlen(&(stem[0]));
-    bool value_0 = length > 3;
+    bool value_0 = length > 4;
     bool value_1 = value_0;
     if (value_1) {
-        uint8_t* value_2 = (uint8_t*)((((size_t)(&(stem[0])) + length) - 3));
-        String value_3 = StringLiteral(".zi");
+        uint8_t* value_2 = (uint8_t*)((((size_t)(&(stem[0])) + length) - 4));
+        String value_3 = StringLiteral(".tsx");
         uint8_t* value_4 = (void *)0;
         {
             String s = value_3;
             value_4 = ((zi2c_StaticText*)(&(s)))->data;
         }
         bool value_6 = zir_foreign_zi2c__strcmp(value_2, value_4) == 0;
-        value_1 = value_6;
+        bool value_7 = value_6;
+        if (!value_7) {
+            uint8_t* value_8 = (uint8_t*)((((size_t)(&(stem[0])) + length) - 4));
+            String value_9 = StringLiteral(".zir");
+            uint8_t* value_10 = (void *)0;
+            {
+                String s = value_9;
+                value_10 = ((zi2c_StaticText*)(&(s)))->data;
+            }
+            bool value_12 = zir_foreign_zi2c__strcmp(value_8, value_10) == 0;
+            value_7 = value_12;
+        }
+        value_1 = value_7;
     }
     if (value_1) {
-        uint8_t* value_7 = &(stem[(length - 3)]);
-        (*value_7) = 0;
+        uint8_t* value_13 = &(stem[(length - 4)]);
+        (*value_13) = 0;
+    } else {
+        bool value_14 = length > 3;
+        bool value_15 = value_14;
+        if (value_15) {
+            uint8_t* value_16 = (uint8_t*)((((size_t)(&(stem[0])) + length) - 3));
+            String value_17 = StringLiteral(".zi");
+            uint8_t* value_18 = (void *)0;
+            {
+                String s = value_17;
+                value_18 = ((zi2c_StaticText*)(&(s)))->data;
+            }
+            bool value_20 = zir_foreign_zi2c__strcmp(value_16, value_18) == 0;
+            bool value_21 = value_20;
+            if (!value_21) {
+                uint8_t* value_22 = (uint8_t*)((((size_t)(&(stem[0])) + length) - 3));
+                String value_23 = StringLiteral(".ts");
+                uint8_t* value_24 = (void *)0;
+                {
+                    String s = value_23;
+                    value_24 = ((zi2c_StaticText*)(&(s)))->data;
+                }
+                bool value_26 = zir_foreign_zi2c__strcmp(value_22, value_24) == 0;
+                value_21 = value_26;
+            }
+            value_15 = value_21;
+        }
+        if (value_15) {
+            uint8_t* value_27 = &(stem[(length - 3)]);
+            (*value_27) = 0;
+        }
     }
-    uint8_t* value_8 = path;
-    String value_9 = StringLiteral("w");
-    uint8_t* value_10 = (void *)0;
+    uint8_t* value_28 = path;
+    String value_29 = StringLiteral("w");
+    uint8_t* value_30 = (void *)0;
     {
-        String s = value_9;
-        value_10 = ((zi2c_StaticText*)(&(s)))->data;
+        String s = value_29;
+        value_30 = ((zi2c_StaticText*)(&(s)))->data;
     }
-    void* out = zir_foreign_zi2c__fopen(value_8, value_10);
+    void* out = zir_foreign_zi2c__fopen(value_28, value_30);
     if (out == ((void *)0)) {
-        ZirSourceSpan value_12 = function->span;
-        String value_13 = StringLiteral("zir.output");
-        uint8_t* value_14 = (void *)0;
+        ZirSourceSpan value_32 = function->span;
+        String value_33 = StringLiteral("zir.output");
+        uint8_t* value_34 = (void *)0;
         {
-            String s = value_13;
-            value_14 = ((zi2c_StaticText*)(&(s)))->data;
+            String s = value_33;
+            value_34 = ((zi2c_StaticText*)(&(s)))->data;
         }
-        String value_16 = StringLiteral("cannot write %s: %s");
-        uint8_t* value_17 = (void *)0;
+        String value_36 = StringLiteral("cannot write %s: %s");
+        uint8_t* value_37 = (void *)0;
         {
-            String s = value_16;
-            value_17 = ((zi2c_StaticText*)(&(s)))->data;
+            String s = value_36;
+            value_37 = ((zi2c_StaticText*)(&(s)))->data;
         }
-        uint8_t* value_19 = path;
-        zir_foreign_zi2c__Diagnostic(value_12, value_14, value_17, value_19, zir_foreign_zi2c__ErrorText(zir_foreign_zi2c__LastError()));
+        uint8_t* value_39 = path;
+        zir_foreign_zi2c__Diagnostic(value_32, value_34, value_37, value_39, zir_foreign_zi2c__ErrorText(zir_foreign_zi2c__LastError()));
         return 0;
     }
-    void* value_20 = out;
-    String value_21 = StringLiteral("/* zi2c --exe: runs %s:%s as the program. */\n");
-    uint8_t* value_22 = (void *)0;
+    void* value_40 = out;
+    String value_41 = StringLiteral("/* zi2c --exe: runs %s:%s as the program. */\n");
+    uint8_t* value_42 = (void *)0;
     {
-        String s = value_21;
-        value_22 = ((zi2c_StaticText*)(&(s)))->data;
+        String s = value_41;
+        value_42 = ((zi2c_StaticText*)(&(s)))->data;
     }
-    zir_foreign_zi2c__fprintf(value_20, value_22, (uint8_t*)(&(module->name)), (uint8_t*)(&(function->name)));
-    void* value_24 = out;
-    String value_25 = StringLiteral("#include \"%s.h\"\n");
-    uint8_t* value_26 = (void *)0;
+    zir_foreign_zi2c__fprintf(value_40, value_42, (uint8_t*)(&(module->name)), (uint8_t*)(&(function->name)));
+    void* value_44 = out;
+    String value_45 = StringLiteral("#include \"%s.h\"\n");
+    uint8_t* value_46 = (void *)0;
     {
-        String s = value_25;
-        value_26 = ((zi2c_StaticText*)(&(s)))->data;
+        String s = value_45;
+        value_46 = ((zi2c_StaticText*)(&(s)))->data;
     }
-    zir_foreign_zi2c__fprintf(value_24, value_26, &(stem[0]));
+    zir_foreign_zi2c__fprintf(value_44, value_46, &(stem[0]));
     zir_foreign_zi2c__EmitNativeMain(out, module, function, 0);
     if (zir_foreign_zi2c__fclose(out) != 0) {
-        ZirSourceSpan value_28 = function->span;
-        String value_29 = StringLiteral("zir.output");
-        uint8_t* value_30 = (void *)0;
+        ZirSourceSpan value_48 = function->span;
+        String value_49 = StringLiteral("zir.output");
+        uint8_t* value_50 = (void *)0;
         {
-            String s = value_29;
-            value_30 = ((zi2c_StaticText*)(&(s)))->data;
+            String s = value_49;
+            value_50 = ((zi2c_StaticText*)(&(s)))->data;
         }
-        String value_32 = StringLiteral("cannot finish %s: %s");
-        uint8_t* value_33 = (void *)0;
+        String value_52 = StringLiteral("cannot finish %s: %s");
+        uint8_t* value_53 = (void *)0;
         {
-            String s = value_32;
-            value_33 = ((zi2c_StaticText*)(&(s)))->data;
+            String s = value_52;
+            value_53 = ((zi2c_StaticText*)(&(s)))->data;
         }
-        uint8_t* value_35 = path;
-        zir_foreign_zi2c__Diagnostic(value_28, value_30, value_33, value_35, zir_foreign_zi2c__ErrorText(zir_foreign_zi2c__LastError()));
+        uint8_t* value_55 = path;
+        zir_foreign_zi2c__Diagnostic(value_48, value_50, value_53, value_55, zir_foreign_zi2c__ErrorText(zir_foreign_zi2c__LastError()));
         return 0;
     }
     return 1;

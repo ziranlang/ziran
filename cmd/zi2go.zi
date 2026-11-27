@@ -46,7 +46,7 @@ free :: (memory: *void) #foreign libc "free";
 
 Usage :: () {
     span: IR.ZirSourceSpan = .{}
-    Diagnostic(span, CStr("command.arguments"), CStr("usage: zi2go [--no-main] [--prune-stale] [--exe] [--minify] [--checks] [--thorough|--quickest] [--pkg NAME] [--entry module:function] [--bind module:function=module:function] [--bind-host module] [--diagnostics=text|json] [--module-path DIR] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.zir ..."))
+    Diagnostic(span, CStr("command.arguments"), CStr("usage: zi2go [--no-main] [--prune-stale] [--exe] [--minify] [--checks] [--thorough|--quickest] [--pkg NAME] [--entry module:function] [--bind module:function=module:function] [--bind-host module] [--diagnostics=text|json] [--module-path DIR] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.ts|file.tsx|file.zir ..."))
 }
 
 EntryReturnSupported :: (function: *IR.ZirFunction) -> s32 {

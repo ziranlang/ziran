@@ -50,6 +50,9 @@ typedef struct compiler_load_ParserArray4096_u8 compiler_load_ParserArray4096_u8
 typedef struct ParserArray14_u8 ParserArray14_u8;
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+typedef struct SourceCandidates SourceCandidates;
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 typedef struct CacheDigits CacheDigits;
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
@@ -173,6 +176,12 @@ struct compiler_load_ParserArray4096_u8 {
 
 struct ParserArray14_u8 {
     uint8_t items[14];
+};
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+
+struct SourceCandidates {
+    uint8_t* items[7];
 };
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE

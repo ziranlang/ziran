@@ -32,6 +32,7 @@ do not import a UI library.
 | How do I compile, run, or package a program? | docs/USAGE.md |
 | Which targets and features are supported today? | docs/IMPLEMENTATION_STATUS.md, docs/FEATURES.md |
 | How do packages, projects, and locks work? | docs/PACKAGES.md |
+| How do native TypeScript and TSX sources work? | docs/NATIVE_TYPESCRIPT.md |
 | What does the compiler pipeline do? | docs/ARCHITECTURE.md |
 | How do I write Ziran (syntax by example, habits from other languages, std signatures)? | docs/REFERENCE.md (site/llms.txt is generated from it) |
 | What is the language syntax (directives, enums, imports)? | docs/LANGUAGE_DIRECTION.md |

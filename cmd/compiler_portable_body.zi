@@ -125,15 +125,14 @@ PortableType :: (module: *IR.ZirModule, type: *u8, path: *TypePath) -> bool {
     current := TypePath.{record, path}
     offset: usize = 0
     field: *IR.ZirTypeField
-    count := 0
     status := CNextField(record, *offset, *field)
     while status == 1 {
         field_type := *field.type[0]
         if !PortableType(owner, field_type, *current) || IR.CText(field_type) == "void" { return false }
-        count += 1
         status = CNextField(record, *offset, *field)
     }
-    return status == 0 && count > 0
+    // An empty record is a valid native value, including stateless props.
+    return status == 0
 }
 
 PortableExpression :: (module: *IR.ZirModule, fn: *IR.ZirFunction, index: s32, support: *u8) -> bool {

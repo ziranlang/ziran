@@ -102,7 +102,7 @@ NoSpan :: () -> IR.ZirSourceSpan {
 
 Usage :: () {
     Diagnostic(NoSpan(), CStr("command.arguments"),
-        CStr("usage: zi2c [--no-main] [--prune-stale] [--checks] [--thorough|--quickest] [--entry module:function [--exe [--release]] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] [--diagnostics=text|json] [--module-path DIR] [--define NAME] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.zir ...\n"))
+        CStr("usage: zi2c [--no-main] [--prune-stale] [--checks] [--thorough|--quickest] [--entry module:function [--exe [--release]] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] [--diagnostics=text|json] [--module-path DIR] [--define NAME] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.ts|file.tsx|file.zir ...\n"))
 }
 
 LockOutput :: (directory: *u8) -> s32 {
@@ -157,7 +157,11 @@ WriteEntryMain :: (module: *IR.ZirModule, function: *IR.ZirFunction, path: *u8) 
     stem: [IR.ZIR_PATH_MAX]u8
     unused copy_text(*stem[0], cast(usize)stem.count, cast(*u8)*module.source_path)
     length := strlen(*stem[0])
-    if length > 3 && strcmp(cast(*u8)(cast(usize)*stem[0] + length - 3), CStr(".zi")) == 0 {
+    if length > 4 && (strcmp(cast(*u8)(cast(usize)*stem[0] + length - 4), CStr(".tsx")) == 0 ||
+        strcmp(cast(*u8)(cast(usize)*stem[0] + length - 4), CStr(".zir")) == 0) {
+        stem[length - 4] = 0
+    } else if length > 3 && (strcmp(cast(*u8)(cast(usize)*stem[0] + length - 3), CStr(".zi")) == 0 ||
+        strcmp(cast(*u8)(cast(usize)*stem[0] + length - 3), CStr(".ts")) == 0) {
         stem[length - 3] = 0
     }
     out := fopen(path, CStr("w"))

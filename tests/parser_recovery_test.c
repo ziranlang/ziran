@@ -120,11 +120,11 @@ int main(int argc, char **argv)
     pthread_t threads[4];
     for(int i = 0; i < 4; i++) assert(!pthread_create(&threads[i], NULL, worker, NULL));
     for(int i = 0; i < 4; i++) assert(!pthread_join(threads[i], NULL));
-    // Semantic checking must not mark a valid empty-record body as unchecked
-    // merely because the scalar-body emitter cannot represent it.
+    // Empty records are valid checked values, including stateless component
+    // props. Querying portable emission must preserve the checked body.
     ZirProgram *program = parse_source_text("empty.zi", "Empty :: struct {}\nAnswer :: () -> Empty { return .{} }\n");
     inspect(program, "empty.zi");
-    assert(!CanEmitBody(&program->modules[0], &program->modules[0].functions[0]));
+    assert(CanEmitBody(&program->modules[0], &program->modules[0].functions[0]));
     assert(program->modules[0].functions[0].checked);
     ProgramFree(program);
     puts("Parser failures recover with independent contexts, closed streams and semantically checked bodies");

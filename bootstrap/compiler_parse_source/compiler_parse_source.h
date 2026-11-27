@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include "compiler_ir.h"
 #include "compiler_parse_types.h"
+#include "compiler_tsx.h"
 
 #ifdef __cplusplus
 extern "C" {

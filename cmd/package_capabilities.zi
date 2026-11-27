@@ -153,7 +153,7 @@ PkgMaskNames :: (mask: u64, features: bool) -> string {
     return text
 }
 
-ASSEMBLY_USAGE: string = "usage: ziran capabilities --assembly-target=ARCH-OS[+FEATURE...] [--os-service=NAME]... [--json] [INPUT.zi|INPUT.zir ...]";
+ASSEMBLY_USAGE: string = "usage: ziran capabilities --assembly-target=ARCH-OS[+FEATURE...] [--os-service=NAME]... [--json] [INPUT.zi|INPUT.ts|INPUT.tsx|INPUT.zir ...]";
 
 // Target preflight for the direct assembly target. It runs before any input
 // is opened: a rejected row reads no input, writes no output, runs no
@@ -193,7 +193,7 @@ AssemblyPreflight :: (spec: string, services: []string, inputs: []string) -> s32
         requirements.services |= Target.TargetServiceBit(service)
     }
     for input: inputs {
-        if !PkgEndsWith(input, ".zi") && !PkgEndsWith(input, ".zir") { return PkgFail(ASSEMBLY_USAGE) }
+        if !PkgCompilerInput(input) { return PkgFail(ASSEMBLY_USAGE) }
     }
     row := Target.TargetRowFor(arch, os)
     result := Target.TargetPreflight(described.target, requirements)

@@ -1,0 +1,917 @@
+// Native TypeScript/TSX syntax frontend. Constructs the shared structured IR;
+// never emits or reparses a generated Ziran source module.
+IR :: #import "compiler_ir"
+Scan :: #import "compiler_scan"
+Services :: #import "compiler_services"
+using Vectors :: #import "std/vec"
+
+#scope_file
+compiler :: #system_library "ziran";
+RelativePath :: (root: *u8, path: *u8) -> *u8 #foreign compiler "private_parse_relative_path";
+ProgramNew :: () -> *IR.ZirProgram #foreign compiler "ProgramNew";
+ProgramFree :: (program: *IR.ZirProgram) #foreign compiler "ProgramFree";
+ProgramAddModule :: (program: *IR.ZirProgram, name: *u8, path: *u8, span: IR.ZirSourceSpan) -> *IR.ZirModule #foreign compiler "ProgramAddModule";
+ModuleAddFunction :: (module: *IR.ZirModule, name: *u8, args: *u8, result: *u8, exported: s32, span: IR.ZirSourceSpan) -> *IR.ZirFunction #foreign compiler "ModuleAddFunction";
+ModuleAddType :: (module: *IR.ZirModule, name: *u8, span: IR.ZirSourceSpan) -> *IR.ZirType #foreign compiler "ModuleAddType";
+FunctionAddStmt :: (fn: *IR.ZirFunction, kind: IR.ZirStmtKind, text: *u8, span: IR.ZirSourceSpan) -> *IR.ZirStmt #foreign compiler "FunctionAddStmt";
+Span :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan #foreign compiler "Span";
+
+ImportedName :: struct { alias: string; path: *u8; }
+LocalBinding :: struct { name: string; immutable: bool; }
+LoopStep :: struct { loop: s32; statement: IR.ZirStmt; }
+
+Parser :: struct {
+    source: string
+    path: *u8
+    token: Scan.Scan
+    module: *IR.ZirModule
+    fn: *IR.ZirFunction
+    failed: bool
+    depth: s32
+    loop_serial: s32
+    loop: s32
+    consumed: s64
+    imports: Vec(ImportedName)
+    locals: Vec(LocalBinding)
+    local_base: s64
+    steps: Vec(LoopStep)
+}
+
+Join :: (a: string, b: string, c: string = "") -> string {
+    bytes: Vec(u8)
+    for v: a { VecPush(bytes, v) }
+    for v: b { VecPush(bytes, v) }
+    for v: c { VecPush(bytes, v) }
+    owned: Text = .{bytes = bytes}
+    view := TextView(owned)
+    kept := Services.Keep(view)
+    return IR.CText(kept)
+}
+Token :: (p: *Parser) -> string { return p.source[p.token.begin:p.token.end] }
+Location :: (p: *Parser) -> IR.ZirSourceSpan {
+    span := Span(p.path, p.token.line, p.token.column)
+    span.end_line = p.token.after_line
+    span.end_column = p.token.after_column
+    return span
+}
+Fail :: (p: *Parser, message: string) {
+    if !p.failed { Services.Diagnose(Location(p), "parse.tsx", message) }
+    p.failed = true
+}
+Advance :: (p: *Parser) {
+    p.consumed = p.token.end
+    at := p.token.end
+    line := p.token.after_line
+    column := p.token.after_column
+    while true {
+        token := Scan.NextToken(p.source, at, line, column)
+        if token.begin + 1 < p.source.count && p.source[token.begin] == #char "/" &&
+        (p.source[token.begin + 1] == #char "/" || p.source[token.begin + 1] == #char "*") {
+            block := p.source[token.begin + 1] == #char "*"
+            at = token.begin + 2
+            line = token.line
+            column = token.column + 2
+            closed := !block
+            while at < p.source.count {
+                if !block && p.source[at] == #char "\n" { break }
+                if block && p.source[at] == #char "*" && at + 1 < p.source.count && p.source[at + 1] == #char "/" {
+                    at += 2; column += 2; closed = true; break
+                }
+                if p.source[at] == #char "\n" { line += 1; column = 1 }
+                else { column += 1 }
+                at += 1
+            }
+            if !closed { p.token = token; Fail(p, "unterminated block comment"); return }
+        } else { p.token = token; return }
+    }
+}
+Take :: (p: *Parser, text: string) -> bool {
+    if Token(p) != text { return false }
+    Advance(p)
+    return true
+}
+Expect :: (p: *Parser, text: string) {
+    if !Take(p, text) { Fail(p, Join("expected ", text)) }
+}
+Identifier :: (p: *Parser) -> string {
+    result := Token(p)
+    if p.token.kind != .Ident || result.count >= IR.ZIR_NAME_MAX { Fail(p, "expected a native identifier"); return "" }
+    if result.count >= 6 && result[:6] == "__tsx_" { Fail(p, "the __tsx_ prefix is reserved for frontend declarations"); return "" }
+    Advance(p)
+    return result
+}
+NativeType :: (name: string) -> string {
+    if name == "number" { return "float64" }
+    if name == "boolean" { return "bool" }
+    return name
+}
+Decimal :: (value: s64) -> string {
+    digits: [20]u8
+    at: s64 = 20
+    remaining := value
+    while true {
+        at -= 1
+        digits[at] = cast(u8)(48 + remaining % 10)
+        remaining /= 10
+        if remaining == 0 { break }
+    }
+    return IR.CText(Services.Keep(TextView(digits[at:])))
+}
+GeneratedName :: (kind: string, span: IR.ZirSourceSpan) -> string {
+    return Join("__tsx_", kind, Join("_", Decimal(span.line), Join("_", Decimal(span.column))))
+}
+Parameters :: (p: *Parser, bind: bool) -> string {
+    Expect(p, "(")
+    args := ""
+    while !p.failed && Token(p) != ")" {
+        arg := Identifier(p)
+        if bind && !VecPush(p.locals, .{name = arg}) { Fail(p, "cannot allocate parameter binding"); return "" }
+        Expect(p, ":")
+        type := TypeName(p)
+        if args.count > 0 { args = Join(args, ", ") }
+        args = Join(args, arg, Join(": ", type))
+        if !Take(p, ",") { break }
+    }
+    Expect(p, ")")
+    return args
+}
+ProcedureType :: (p: *Parser, name: string, public: bool, span: IR.ZirSourceSpan) {
+    args := Parameters(p, false)
+    Expect(p, "=>")
+    result := TypeName(p)
+    if p.failed { return }
+    type := ModuleAddType(p.module, Services.KeepName(name), span)
+    if type == null { Fail(p, "cannot allocate procedure type"); return }
+    type.is_procedure_type = 1
+    type.is_public = ifx public then 1 else 0
+    unused IR.CopyText(type.body[:], args)
+    unused IR.CopyText(type.procedure_return_type[:], result)
+}
+TypeAlias :: (p: *Parser, public: bool) {
+    span := Location(p)
+    name := Identifier(p)
+    Expect(p, "=")
+    if Token(p) != "(" { Fail(p, "native type aliases currently require a procedure signature"); return }
+    ProcedureType(p, name, public, span)
+    unused Take(p, ";")
+}
+TypeName :: (p: *Parser) -> string {
+    if Token(p) == "(" {
+        span := Location(p)
+        name := GeneratedName("type", span)
+        ProcedureType(p, name, true, span)
+        return name
+    }
+    if Take(p, "[") {
+        element := TypeName(p)
+        count: s64 = 1
+        while Take(p, ",") {
+            if Token(p) == "]" { break }
+            next := TypeName(p)
+            if next != element { Fail(p, "native fixed tuples require one element type"); return "" }
+            count += 1
+        }
+        Expect(p, "]")
+        return Join("[", Decimal(count), Join("]", element))
+    }
+    name := Identifier(p)
+    if name == "any" || name == "unknown" || name == "never" { Fail(p, "this type has no native checked representation"); return "" }
+    name = IR.CText(ResolveName(p, name))
+    while Take(p, ".") { name = Join(name, ".", Identifier(p)) }
+    name = NativeType(name)
+    while Take(p, "[") { Expect(p, "]"); name = Join("[]", name) }
+    return name
+}
+Statement :: (p: *Parser, kind: IR.ZirStmtKind, text: string, span: IR.ZirSourceSpan) -> *IR.ZirStmt {
+    return FunctionAddStmt(p.fn, kind, Services.Keep(text), span)
+}
+Node :: (p: *Parser, kind: IR.ZirExprKind, text: string, span: IR.ZirSourceSpan, left: s32 = -1, right: s32 = -1) -> s32 {
+    node := Services.AddExpr(p.fn, kind, text, span)
+    if node == null { Fail(p, "cannot allocate expression"); return -1 }
+    node.left = left
+    node.right = right
+    return p.fn.expr_count - 1
+}
+// Named imports are aliases of ordinary checked module exports. Resolve
+// their spelling into member nodes; there is no duplicate type catalogue.
+ResolveName :: (p: *Parser, name: string) -> *u8 {
+    at := p.locals.count
+    while at > 0 {
+        at -= 1
+        if p.locals[at].name == name {
+            if at < p.local_base { Fail(p, "captured callbacks require owned capture support; this native callback cannot capture a local") }
+            return Services.KeepName(name)
+        }
+    }
+    for imported: p.imports { if imported.alias == name { return imported.path } }
+    return Services.KeepName(name)
+}
+NameNode :: (p: *Parser, name: string, span: IR.ZirSourceSpan) -> s32 {
+    begin: s64 = 0
+    result: s32 = -1
+    for at: cast(s64)0..name.count {
+        if at != name.count && name[at] != #char "." { continue }
+        part := name[begin:at]
+        if begin == 0 { result = Node(p, .IDENT, part, span) }
+        else { result = Node(p, .MEMBER, name[:at], span, result) }
+        if result >= 0 {
+            p.fn.exprs[result].name = Services.KeepName(part)
+            if begin > 0 { unused IR.CopyText(p.fn.exprs[result].op[:], ".") }
+        }
+        begin = at + 1
+    }
+    return result
+}
+TextOf :: (p: *Parser, expr: s32) -> string {
+    if expr < 0 { return "" }
+    return IR.CText(p.fn.exprs[expr].text)
+}
+Link :: (p: *Parser, head: *s32, tail: *s32, node: s32) {
+    if <<tail >= 0 { p.fn.exprs[<<tail].next_sibling = node } else { <<head = node }
+    <<tail = node
+}
+Precedence :: (op: string) -> s32 {
+    if op == "||" { return 1 }
+    if op == "&&" { return 2 }
+    if op == "==" || op == "!=" { return 3 }
+    if op == "<" || op == ">" || op == "<=" || op == ">=" { return 4 }
+    if op == "+" || op == "-" { return 5 }
+    if op == "*" || op == "/" || op == "%" { return 6 }
+    return 0
+}
+Expression :: (p: *Parser, minimum: s32 = 1) -> s32 {
+    p.depth += 1
+    if p.depth > 128 { Fail(p, "expression nesting exceeds 128"); p.depth -= 1; return -1 }
+    left := Prefix(p)
+    while !p.failed {
+        op := Token(p)
+        precedence := Precedence(op)
+        if precedence < minimum || precedence == 0 { break }
+        span := Location(p)
+        Advance(p)
+        if op == "==" || op == "!=" {
+            if !Take(p, "=") { Fail(p, "use === or !==; coercive equality is unsupported"); break }
+        }
+        right := Expression(p, precedence + 1)
+        left = Node(p, .BINARY, Join(TextOf(p, left), op, TextOf(p, right)), span, left, right)
+        if left >= 0 { unused IR.CopyText(p.fn.exprs[left].op[:], op) }
+    }
+    if minimum == 1 && Take(p, "?") {
+        span := Location(p)
+        yes := Expression(p)
+        Expect(p, ":")
+        no := Expression(p)
+        result := Node(p, .CONDITIONAL, Join("ifx ", TextOf(p, left), Join(" then ", TextOf(p, yes), Join(" else ", TextOf(p, no)))), span, left, yes)
+        if result >= 0 { p.fn.exprs[result].third = no }
+        left = result
+    }
+    p.depth -= 1
+    return left
+}
+Quoted :: (p: *Parser) -> string {
+    token := Token(p)
+    if token.count < 2 || token[token.count - 1] != token[0] { Fail(p, "unterminated string"); return "\"\"" }
+    bytes: Vec(u8)
+    VecPush(bytes, #char "\"")
+    at: s64 = 1
+    while at < token.count - 1 {
+        byte := token[at]
+        if byte == #char "\n" || byte == #char "\r" { Fail(p, "string literals cannot span lines"); break }
+        if byte == #char "\\" && at + 1 < token.count - 1 {
+            at += 1
+            next := token[at]
+            if next == #char "'" && token[0] == #char "'" { VecPush(bytes, next) }
+            else { VecPush(bytes, #char "\\"); VecPush(bytes, next) }
+        } else {
+            if byte == #char "\"" { VecPush(bytes, #char "\\") }
+            VecPush(bytes, byte)
+        }
+        at += 1
+    }
+    VecPush(bytes, #char "\"")
+    owned: Text = .{bytes = bytes}
+    view := TextView(owned)
+    kept := Services.Keep(view)
+    result := IR.CText(kept)
+    Advance(p)
+    return result
+}
+ArrowAhead :: (p: *Parser) -> bool {
+    token := p.token
+    depth: s32 = 0
+    while token.kind != .Eof {
+        text := p.source[token.begin:token.end]
+        if text == "(" { depth += 1 }
+        else if text == ")" {
+            depth -= 1
+            if depth == 0 {
+                next := Scan.NextCodeToken(p.source, token.end, token.after_line, token.after_column)
+                spelling := p.source[next.begin:next.end]
+                return spelling == ":" || spelling == "=>"
+            }
+        }
+        token = Scan.NextCodeToken(p.source, token.end, token.after_line, token.after_column)
+    }
+    return false
+}
+Arrow :: (p: *Parser) -> s32 {
+    span := Location(p)
+    name := GeneratedName("callback", span)
+    // Adding a function can relocate the module's function array. Keep an
+    // index across recursive callback parsing, never an enclosing raw pointer.
+    parent := (cast(usize)p.fn - cast(usize)p.module.functions) / size_of(IR.ZirFunction)
+    previous := p.locals.count
+    previous_base := p.local_base
+    previous_loop := p.loop
+    p.local_base = previous
+    p.loop = 0
+    args := Parameters(p, true)
+    Expect(p, ":")
+    result := TypeName(p)
+    Expect(p, "=>")
+    if !p.failed {
+        p.fn = ModuleAddFunction(p.module, Services.KeepName(name), Services.KeepParameters(args), Services.KeepName(result), 0, span)
+        if p.fn == null { Fail(p, "cannot allocate callback") }
+        else {
+            p.fn.from_ir = 1
+            p.fn.is_file_private = 1
+            if Token(p) == "{" { Block(p) }
+            else {
+                value := Expression(p)
+                kind := ifx result == "void" then IR.ZirStmtKind.EXPR else IR.ZirStmtKind.RETURN
+                st := Statement(p, kind, Join(ifx result == "void" then "" else "return ", TextOf(p, value)), span)
+                if st != null { st.expr_root = value }
+            }
+        }
+    }
+    p.fn = cast(*IR.ZirFunction)(cast(usize)p.module.functions + parent * size_of(IR.ZirFunction))
+    p.local_base = previous_base
+    p.loop = previous_loop
+    unused VecResize(p.locals, previous)
+    if p.failed { return -1 }
+    return NameNode(p, name, span)
+}
+Prefix :: (p: *Parser) -> s32 {
+    span := Location(p)
+    text := Token(p)
+    result: s32 = -1
+    if text == "!" || text == "-" || text == "+" {
+        Advance(p)
+        operand := Expression(p, 7)
+        result = Node(p, .UNARY, Join(text, TextOf(p, operand)), span, -1, operand)
+        if result >= 0 { unused IR.CopyText(p.fn.exprs[result].op[:], text) }
+        return result
+    }
+    if text == "(" && ArrowAhead(p) { result = Arrow(p) }
+    else if Take(p, "(") { result = Expression(p); Expect(p, ")") }
+    else if text == "<" { result = JSX(p) }
+    else if p.token.kind == .String || p.token.kind == .Char {
+        value := Quoted(p)
+        result = Node(p, .STRING, value, span)
+    } else if p.token.kind == .Int || p.token.kind == .Float {
+        // TS number is binary64, including integer-spelled literals. Native
+        // integer values require an explicit conversion at the ABI boundary.
+        Advance(p)
+        if text.count > 1 && text[text.count - 1] == #char "n" {
+            result = Node(p, .INT, text[:text.count - 1], span)
+        } else {
+            if p.source.count > 0 && text.count > 2 && text[:2] == "0b" { Fail(p, "binary native integers require the n literal suffix and an explicit conversion"); return -1 }
+            if p.source.count > 0 && text.count > 2 && (text[:2] == "0x" || text[:2] == "0X") { text = Join(text, "p0") }
+            else {
+                decimal := false
+                for byte: text { if byte == #char "." || byte == #char "e" || byte == #char "E" { decimal = true } }
+                if !decimal { text = Join(text, ".0") }
+            }
+            result = Node(p, .FLOAT, text, span)
+        }
+    } else if Take(p, "{") {
+        result = Record(p, span, false)
+    } else if Take(p, "[") {
+        result = Record(p, span, true)
+    } else if p.token.kind == .Ident {
+        Advance(p)
+        if text == "undefined" || text == "null" { Fail(p, "use a checked native optional value"); return -1 }
+        result = NameNode(p, IR.CText(ResolveName(p, text)), span)
+    } else { Fail(p, "unsupported native TypeScript expression"); return -1 }
+    while !p.failed {
+        if Take(p, ".") {
+            member := Identifier(p)
+            next := Node(p, .MEMBER, Join(TextOf(p, result), ".", member), span, result)
+            if next >= 0 { p.fn.exprs[next].name = Services.KeepName(member); unused IR.CopyText(p.fn.exprs[next].op[:], ".") }
+            result = next
+        } else if Take(p, "[") {
+            index := Expression(p)
+            Expect(p, "]")
+            result = Node(p, .INDEX, Join(TextOf(p, result), "[", Join(TextOf(p, index), "]")), span, result, index)
+        } else if Take(p, "(") {
+            first: s32 = -1
+            last: s32 = -1
+            spelling := Join(TextOf(p, result), "(")
+            while !p.failed && Token(p) != ")" {
+                argument := Expression(p)
+                Link(p, *first, *last, argument)
+                spelling = Join(spelling, TextOf(p, argument))
+                if !Take(p, ",") { break }
+                spelling = Join(spelling, ", ")
+            }
+            Expect(p, ")")
+            spelling = Join(spelling, ")")
+            callee := TextOf(p, result)
+            native := NativeType(callee)
+            conversion := native == "s8" || native == "s16" || native == "s32" || native == "s64" || native == "u8" || native == "u16" || native == "u32" || native == "u64" || native == "float32" || native == "float64" || native == "usize" || native == "isize"
+            if conversion {
+                if first < 0 || first != last { Fail(p, "native conversion requires exactly one value"); return -1 }
+                result = Node(p, .CAST, Join("cast(", native, Join(")", TextOf(p, first))), span, -1, first)
+                if result >= 0 { p.fn.exprs[result].name = Services.KeepName(native) }
+            } else {
+                target := result
+                simple := p.fn.exprs[target].kind == .IDENT
+                result = Node(p, .CALL, spelling, span, ifx simple then -1 else target)
+                if result >= 0 {
+                    p.fn.exprs[result].first_child = first
+                    if simple { p.fn.exprs[result].name = Services.KeepName(callee) }
+                }
+            }
+        } else { break }
+    }
+    return result
+}
+Record :: (p: *Parser, span: IR.ZirSourceSpan, array: bool) -> s32 {
+    head: s32 = -1
+    tail: s32 = -1
+    text := ifx array then ".[" else ".{"
+    close := ifx array then "]" else "}"
+    while !p.failed && Token(p) != close {
+        field := ""
+        field_span := Location(p)
+        if !array { field = Identifier(p); Expect(p, ":") }
+        value := Expression(p)
+        child := Node(p, .FIELD_INIT, TextOf(p, value), field_span, -1, value)
+        if !array && child >= 0 {
+            p.fn.exprs[child].text = Services.Keep(Join(field, " = ", TextOf(p, value)))
+            p.fn.exprs[child].name = Services.KeepName(field)
+            unused IR.CopyText(p.fn.exprs[child].op[:], "=")
+        }
+        if head >= 0 { text = Join(text, ", ") }
+        text = Join(text, TextOf(p, child))
+        Link(p, *head, *tail, child)
+        if !Take(p, ",") { break }
+    }
+    Expect(p, close)
+    result := Node(p, .COMPOUND, Join(text, close), span)
+    if result >= 0 { p.fn.exprs[result].first_child = head }
+    return result
+}
+
+// Resume code scanning at a raw JSX delimiter, retaining authored locations.
+Seek :: (p: *Parser, at: s64) {
+    line: s32 = 1
+    column: s32 = 1
+    for i: cast(s64)0..at - 1 {
+        if p.source[i] == #char "\n" { line += 1; column = 1 }
+        else { column += 1 }
+    }
+    p.token = .{end = at, after_line = line, after_column = column}
+    Advance(p)
+}
+QuoteText :: (text: string) -> string {
+    bytes: Vec(u8)
+    VecPush(bytes, #char "\"")
+    for byte: text {
+        if byte == #char "\"" || byte == #char "\\" { VecPush(bytes, #char "\\") }
+        if byte == #char "\n" { VecPush(bytes, #char "\\"); VecPush(bytes, #char "n") }
+        else if byte == #char "\r" { VecPush(bytes, #char "\\"); VecPush(bytes, #char "r") }
+        else if byte == #char "\t" { VecPush(bytes, #char "\\"); VecPush(bytes, #char "t") }
+        else { VecPush(bytes, byte) }
+    }
+    VecPush(bytes, #char "\"")
+    owned: Text = .{bytes = bytes}
+    view := TextView(owned)
+    kept := Services.Keep(view)
+    return IR.CText(kept)
+}
+// Inline spaces survive mixed text/expressions. Multiline indentation is
+// removed and nonempty physical lines are separated by one space.
+JSXText :: (raw: string) -> string {
+    lines: Vec(string)
+    begin: s64 = 0
+    at: s64 = 0
+    while at < raw.count {
+        if raw[at] == #char "\n" || raw[at] == #char "\r" {
+            VecPush(lines, raw[begin:at])
+            if raw[at] == #char "\r" && at + 1 < raw.count && raw[at + 1] == #char "\n" { at += 1 }
+            begin = at + 1
+        }
+        at += 1
+    }
+    VecPush(lines, raw[begin:])
+    last: s64 = -1
+    for i: cast(s64)0..lines.count - 1 {
+        for byte: lines[i] { if byte != #char " " && byte != #char "\t" { last = i; break } }
+    }
+    out: Vec(u8)
+    for i: cast(s64)0..lines.count - 1 {
+        line := lines[i]
+        first: s64 = 0
+        end := line.count
+        if i != 0 { while first < end && (line[first] == #char " " || line[first] == #char "\t") { first += 1 } }
+        if i != lines.count - 1 { while end > first && (line[end - 1] == #char " " || line[end - 1] == #char "\t" || line[end - 1] == #char "\r") { end -= 1 } }
+        if first == end { continue }
+        for at: first..end - 1 { VecPush(out, ifx line[at] == #char "\t" then #char " " else line[at]) }
+        if i < last { VecPush(out, #char " ") }
+    }
+    owned: Text = .{bytes = out}
+    view := TextView(owned)
+    kept := Services.Keep(view)
+    return IR.CText(kept)
+}
+JSXChildren :: (p: *Parser, component: string) -> s32 {
+    span := Location(p)
+    at := p.token.end
+    Expect(p, ">")
+    head: s32 = -1
+    tail: s32 = -1
+    text := ".["
+    while !p.failed && at < p.source.count {
+        value: s32 = -1
+        child_span := span
+        if p.source[at] == #char "<" {
+            Seek(p, at)
+            child_span = Location(p)
+            if at + 1 < p.source.count && p.source[at + 1] == #char "/" {
+                Expect(p, "<")
+                Expect(p, "/")
+                close := Identifier(p)
+                while Take(p, ".") { close = Join(close, ".", Identifier(p)) }
+                if close != component { Fail(p, "JSX closing component does not match"); return -1 }
+                Expect(p, ">")
+                result := Node(p, .COMPOUND, Join(text, "]"), span)
+                if result >= 0 { p.fn.exprs[result].first_child = head }
+                return result
+            }
+            value = JSX(p)
+            at = p.consumed
+        } else if p.source[at] == #char "{" {
+            Seek(p, at)
+            child_span = Location(p)
+            Expect(p, "{")
+            if Token(p) != "}" { value = Expression(p) }
+            Expect(p, "}")
+            at = p.consumed
+        } else {
+            begin := at
+            while at < p.source.count && p.source[at] != #char "<" && p.source[at] != #char "{" { at += 1 }
+            content := JSXText(p.source[begin:at])
+            if content.count > 0 {
+                Seek(p, begin)
+                child_span = Location(p)
+                value = Node(p, .STRING, QuoteText(content), child_span)
+            }
+        }
+        if value >= 0 {
+            field := Node(p, .FIELD_INIT, TextOf(p, value), child_span, -1, value)
+            if head >= 0 { text = Join(text, ", ") }
+            text = Join(text, TextOf(p, value))
+            Link(p, *head, *tail, field)
+        }
+    }
+    Fail(p, "unterminated JSX component")
+    return -1
+}
+
+// A JSX component is an ordinary typed callable taking one props record.
+// Its result and the props/children types are resolved by the common checker.
+// There is deliberately no widget or library catalogue in this frontend.
+JSX :: (p: *Parser) -> s32 {
+    span := Location(p)
+    Expect(p, "<")
+    component := Identifier(p)
+    callee := NameNode(p, IR.CText(ResolveName(p, component)), span)
+    while Take(p, ".") {
+        member := Identifier(p)
+        component = Join(component, ".", member)
+        callee = Node(p, .MEMBER, Join(TextOf(p, callee), ".", member), span, callee)
+        if callee >= 0 { p.fn.exprs[callee].name = Services.KeepName(member); unused IR.CopyText(p.fn.exprs[callee].op[:], ".") }
+    }
+    head: s32 = -1
+    tail: s32 = -1
+    props := ".{"
+    names: Vec(string)
+    while !p.failed && Token(p) != "/" && Token(p) != ">" {
+        prop_span := Location(p)
+        name := Identifier(p)
+        for existing: names { if existing == name { Fail(p, "duplicate JSX property"); return -1 } }
+        if !VecPush(names, name) { Fail(p, "cannot allocate JSX properties"); return -1 }
+        value: s32
+        if Take(p, "=") {
+            if Take(p, "{") { value = Expression(p); Expect(p, "}") }
+            else if p.token.kind == .String || p.token.kind == .Char { value = Node(p, .STRING, Quoted(p), prop_span) }
+            else { Fail(p, "JSX props require a string or a braced expression"); break }
+        } else {
+            value = Node(p, .IDENT, "true", prop_span)
+            if value >= 0 { p.fn.exprs[value].name = Services.KeepName("true") }
+        }
+        field := Node(p, .FIELD_INIT, Join(name, " = ", TextOf(p, value)), prop_span, -1, value)
+        if field >= 0 {
+            p.fn.exprs[field].name = Services.KeepName(name)
+            unused IR.CopyText(p.fn.exprs[field].op[:], "=")
+        }
+        if head >= 0 { props = Join(props, ", ") }
+        props = Join(props, TextOf(p, field))
+        Link(p, *head, *tail, field)
+    }
+    if Take(p, "/") { Expect(p, ">") }
+    else {
+        children := JSXChildren(p, component)
+        if p.failed { return -1 }
+        if children >= 0 && p.fn.exprs[children].first_child >= 0 {
+            for name: names { if name == "children" { Fail(p, "children cannot be both a property and JSX content"); return -1 } }
+            field := Node(p, .FIELD_INIT, Join("children = ", TextOf(p, children)), span, -1, children)
+            if field >= 0 { p.fn.exprs[field].name = Services.KeepName("children"); unused IR.CopyText(p.fn.exprs[field].op[:], "=") }
+            if head >= 0 { props = Join(props, ", ") }
+            props = Join(props, TextOf(p, field))
+            Link(p, *head, *tail, field)
+        }
+    }
+    props = Join(props, "}")
+    record := Node(p, .COMPOUND, props, span)
+    if record >= 0 { p.fn.exprs[record].first_child = head }
+    simple := p.fn.exprs[callee].kind == .IDENT
+    callable_name := TextOf(p, callee)
+    call := Node(p, .CALL, Join(callable_name, "(", Join(props, ")")), span, ifx simple then -1 else callee)
+    if call >= 0 {
+        p.fn.exprs[call].first_child = record
+        if simple { p.fn.exprs[call].name = Services.KeepName(callable_name) }
+    }
+    return call
+}
+Block :: (p: *Parser) {
+    previous := p.locals.count
+    Expect(p, "{")
+    while !p.failed && Token(p) != "}" && p.token.kind != .Eof { ParseStatement(p) }
+    Expect(p, "}")
+    unused VecResize(p.locals, previous)
+}
+ParseStatement :: (p: *Parser) {
+    span := Location(p)
+    if Take(p, ";") { return }
+    if Take(p, "return") {
+        expr: s32 = -1
+        if Token(p) != ";" && Token(p) != "}" { expr = Expression(p) }
+        st := Statement(p, .RETURN, Join("return ", TextOf(p, expr)), span)
+        if st != null { st.expr_root = expr }
+    } else if Token(p) == "let" || Token(p) == "const" {
+        immutable := Token(p) == "const"
+        Advance(p)
+        name := Identifier(p)
+        type := ""
+        if Take(p, ":") { type = TypeName(p) }
+        expr: s32 = -1
+        if Take(p, "=") { expr = Expression(p) }
+        else { Fail(p, "native bindings require an initializer"); return }
+        text := Join(name, ": ", type)
+        if type.count == 0 { text = Join(name, " := ", TextOf(p, expr)) }
+        else if expr >= 0 { text = Join(text, " = ", TextOf(p, expr)) }
+        if !VecPush(p.locals, .{name = name, immutable = immutable}) { Fail(p, "cannot allocate local binding"); return }
+        st := Statement(p, .DECL, text, span)
+        if st != null { st.names = .{name = Services.KeepName(name)}; st.type = Services.KeepName(type); st.expr_root = expr }
+    } else if Take(p, "for") {
+        locals := p.locals.count
+        previous_loop := p.loop
+        unused Statement(p, .BLOCK_OPEN, "{", span)
+        Expect(p, "(")
+        if !Take(p, ";") { ParseStatement(p) }
+        condition: s32
+        if Token(p) == ";" {
+            condition = NameNode(p, "true", Location(p))
+        } else { condition = Expression(p) }
+        Expect(p, ";")
+        // Parse the step into a detached statement. It executes on normal
+        // iteration and before a continue targeting this loop, never on break.
+        step_at := p.fn.stmt_count
+        has_step := Token(p) != ")"
+        step: IR.ZirStmt
+        if has_step {
+            ParseStatement(p)
+            if p.failed { return }
+            if p.fn.stmt_count != step_at + 1 ||
+               (p.fn.stmts[step_at].kind != .ASSIGN && p.fn.stmts[step_at].kind != .EXPR) {
+                Fail(p, "for step requires an assignment or call"); return
+            }
+            step = p.fn.stmts[step_at]
+            p.fn.stmt_count = step_at
+        }
+        Expect(p, ")")
+        p.loop_serial += 1
+        p.loop = p.loop_serial
+        loop := Statement(p, .WHILE, Join("while ", TextOf(p, condition), " {"), span)
+        if loop != null { loop.expr_root = condition; loop.loop_id = p.loop }
+        previous_steps := p.steps.count
+        if has_step && !VecPush(p.steps, .{loop = p.loop, statement = step}) { Fail(p, "cannot allocate loop step"); return }
+        Block(p)
+        if has_step {
+            appended := Statement(p, step.kind, IR.CText(step.text), step.span)
+            if appended != null { appended[0] = step }
+            unused VecResize(p.steps, previous_steps)
+        }
+        unused Statement(p, .BLOCK_CLOSE, "}", Location(p))
+        unused Statement(p, .BLOCK_CLOSE, "}", Location(p))
+        p.loop = previous_loop
+        unused VecResize(p.locals, locals)
+        return
+    } else if Token(p) == "if" || Token(p) == "while" {
+        keyword := Token(p)
+        Advance(p)
+        Expect(p, "(")
+        condition := Expression(p)
+        Expect(p, ")")
+        previous_loop := p.loop
+        kind := ifx keyword == "if" then IR.ZirStmtKind.IF else IR.ZirStmtKind.WHILE
+        st := Statement(p, kind, Join(keyword, " ", Join(TextOf(p, condition), " {")), span)
+        if st != null { st.expr_root = condition }
+        if keyword == "while" {
+            p.loop_serial += 1
+            p.loop = p.loop_serial
+            if st != null { st.loop_id = p.loop }
+        }
+        Block(p)
+        unused Statement(p, .BLOCK_CLOSE, "}", Location(p))
+        p.loop = previous_loop
+        if keyword == "if" && Take(p, "else") {
+            otherwise := Statement(p, .IF, "else {", Location(p))
+            if otherwise != null { otherwise.is_else = 1 }
+            if Token(p) == "if" { ParseStatement(p) }
+            else { Block(p) }
+            unused Statement(p, .BLOCK_CLOSE, "}", Location(p))
+        }
+        return
+    } else if Token(p) == "break" || Token(p) == "continue" {
+        keyword := Token(p)
+        Advance(p)
+        if p.loop == 0 { Fail(p, "loop control requires an enclosing loop"); return }
+        if keyword == "continue" {
+            for step: p.steps {
+                if step.loop == p.loop {
+                    appended := Statement(p, step.statement.kind, IR.CText(step.statement.text), span)
+                    if appended != null { appended[0] = step.statement; appended.span = span }
+                }
+            }
+        }
+        st := Statement(p, ifx keyword == "break" then IR.ZirStmtKind.BREAK else IR.ZirStmtKind.CONTINUE, keyword, span)
+        if st != null { st.target_id = p.loop }
+    } else if Token(p) == "{" {
+        unused Statement(p, .BLOCK_OPEN, "{", span)
+        Block(p)
+        unused Statement(p, .BLOCK_CLOSE, "}", Location(p))
+        return
+    } else {
+        left := Expression(p)
+        op := Token(p)
+        if op == "=" || op == "+=" || op == "-=" || op == "*=" || op == "/=" {
+            if left >= 0 && p.fn.exprs[left].kind == .IDENT {
+                local := p.locals.count
+                while local > 0 {
+                    local -= 1
+                    binding := p.locals[local]
+                    if binding.name == IR.CText(p.fn.exprs[left].name) {
+                        if binding.immutable { Fail(p, "cannot assign to a const binding"); return }
+                        break
+                    }
+                }
+            }
+            Advance(p)
+            right := Expression(p)
+            if op != "=" {
+                if p.fn.exprs[left].kind != .IDENT { Fail(p, "compound assignment currently requires a local binding"); return }
+                binary := Node(p, .BINARY, Join(TextOf(p, left), op[:1], TextOf(p, right)), span, left, right)
+                if binary >= 0 { unused IR.CopyText(p.fn.exprs[binary].op[:], op[:1]) }
+                right = binary
+                op = "="
+            }
+            st := Statement(p, .ASSIGN, Join(TextOf(p, left), op, TextOf(p, right)), span)
+            if st != null { st.lhs_root = left; st.expr_root = right; unused IR.CopyText(st.assignment_op[:], op) }
+        } else {
+            st := Statement(p, .EXPR, TextOf(p, left), span)
+            if st != null { st.expr_root = left }
+        }
+    }
+    unused Take(p, ";")
+}
+Function :: (p: *Parser, public: bool) {
+    span := Location(p)
+    name := Identifier(p)
+    previous := p.locals.count
+    args := Parameters(p, true)
+    result := "void"
+    if Take(p, ":") { result = TypeName(p) }
+    p.fn = ModuleAddFunction(p.module, Services.KeepName(name), Services.KeepParameters(args), Services.KeepName(result), 0, span)
+    if p.fn == null { Fail(p, "cannot allocate function"); return }
+    p.fn.is_public = ifx public then 1 else 0
+    // The expression graph is already structured. The common checker consumes
+    // it with exactly the same contract as saved ZIR, without source reparsing.
+    p.fn.from_ir = 1
+    Block(p)
+    unused VecResize(p.locals, previous)
+    p.fn = null
+}
+Interface :: (p: *Parser, public: bool) {
+    span := Location(p)
+    name := Identifier(p)
+    Expect(p, "{")
+    fields := ""
+    while !p.failed && Token(p) != "}" {
+        field := Identifier(p)
+        Expect(p, ":")
+        type := TypeName(p)
+        fields = Join(fields, field, Join(": ", type, "\n"))
+        if fields.count >= IR.ZIR_TEXT_MAX * 2 { Fail(p, "record declaration exceeds native IR limit"); return }
+        unused Take(p, ";")
+        unused Take(p, ",")
+    }
+    Expect(p, "}")
+    record := ModuleAddType(p.module, Services.KeepName(name), span)
+    if record == null { Fail(p, "cannot allocate record"); return }
+    unused IR.CopyText(record.body[:], fields)
+    record.is_public = ifx public then 1 else 0
+}
+Import :: (p: *Parser, collect: bool = true) {
+    span := Location(p)
+    name := ""
+    mappings: Vec(ImportedName)
+    if Take(p, "*") {
+        Expect(p, "as")
+        name = Identifier(p)
+    } else {
+        Expect(p, "{")
+        while !p.failed && Token(p) != "}" {
+            original := Identifier(p)
+            alias := original
+            if Take(p, "as") { alias = Identifier(p) }
+            if name.count == 0 { name = Join("__tsx_import_", alias) }
+            if !VecPush(mappings, .{alias = alias, path = Services.KeepName(Join(name, ".", original))}) { Fail(p, "cannot allocate named import"); return }
+            if !Take(p, ",") { break }
+        }
+        Expect(p, "}")
+        if name.count == 0 { Fail(p, "empty named import is unsupported"); return }
+    }
+    Expect(p, "from")
+    if p.token.kind != .String && p.token.kind != .Char { Fail(p, "expected module path"); return }
+    target := Token(p)
+    if target.count < 2 { Fail(p, "invalid module path"); return }
+    target = target[1:target.count - 1]
+    Advance(p)
+    if collect {
+        unused Services.AddImport(p.module, .MODULE, name, target, "", span)
+        for mapping: mappings {
+            for existing: p.imports { if existing.alias == mapping.alias { Fail(p, "duplicate named import"); return } }
+            if !VecPush(p.imports, mapping) { Fail(p, "cannot allocate import binding"); return }
+        }
+    }
+    unused Take(p, ";")
+}
+
+#scope_export
+#program_export "ZiranParseTSX"
+Parse :: (path: *u8, root: *u8, source: *u8) -> *IR.ZirProgram {
+    program := ProgramNew()
+    if program == null { return null }
+    path_text := IR.CText(path)
+    at := path_text.count
+    while at > 0 && path_text[at - 1] != #char "/" { at -= 1 }
+    end := path_text.count
+    if end >= 4 && path_text[end - 4:] == ".tsx" { end -= 4 }
+    else if end >= 3 && path_text[end - 3:] == ".ts" { end -= 3 }
+    name := path_text[at:end]
+    if name.count == 0 || name.count >= IR.ZIR_NAME_MAX { ProgramFree(program); return null }
+    module := ProgramAddModule(program, Services.KeepName(name), RelativePath(root, path), Span(path, 1, 1))
+    if module == null { ProgramFree(program); return null }
+    if root != null { unused IR.CopyText(module.source_root[:], IR.CText(root)) }
+    p: Parser = .{source = IR.CText(source), path = path, module = module}
+    p.token.after_line = 1
+    p.token.after_column = 1
+    Advance(*p)
+    // Imports have module scope, even when they follow a declaration. Collect
+    // them before building expression names; parse them normally in both passes.
+    braces: s32 = 0
+    while !p.failed && p.token.kind != .Eof {
+        if braces == 0 && Take(*p, "import") { Import(*p) }
+        else {
+            if Token(*p) == "{" { braces += 1 }
+            else if Token(*p) == "}" { braces -= 1 }
+            Advance(*p)
+        }
+    }
+    p.token = .{after_line = 1, after_column = 1}
+    p.consumed = 0
+    Advance(*p)
+    while !p.failed && p.token.kind != .Eof {
+        public := Take(*p, "export")
+        if Take(*p, "function") { Function(*p, public) }
+        else if Take(*p, "interface") { Interface(*p, public) }
+        else if Take(*p, "type") { TypeAlias(*p, public) }
+        else if !public && Take(*p, "import") { Import(*p, false) }
+        else { Fail(*p, "unsupported native TypeScript declaration") }
+    }
+    if p.failed { ProgramFree(program); return null }
+    return program
+}

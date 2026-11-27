@@ -486,3 +486,16 @@ PkgReleaseStringArena :: () {
         PkgFreeRaw(cast(*u8)block)
     }
 }
+
+// All authored native frontends participate in ordinary package commands.
+PkgAuthoredSource :: (path: string) -> bool {
+    return PkgEndsWith(path, ".zi") || PkgEndsWith(path, ".ts") || PkgEndsWith(path, ".tsx")
+}
+PkgCompilerInput :: (path: string) -> bool {
+    return PkgAuthoredSource(path) || PkgEndsWith(path, ".zir")
+}
+PkgSourceStem :: (path: string) -> string {
+    if PkgEndsWith(path, ".tsx") || PkgEndsWith(path, ".zir") { return path[:path.count - 4] }
+    if PkgAuthoredSource(path) { return path[:path.count - 3] }
+    return path
+}

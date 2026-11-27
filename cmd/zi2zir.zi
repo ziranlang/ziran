@@ -53,16 +53,16 @@ free :: (memory: *void) #foreign libc "free";
 
 Usage :: () {
     span: IR.ZirSourceSpan = .{}
-    Diagnostic(span, CStr("command.arguments"), CStr("usage: zi2zir [--check-only] [--target=c|go|zx] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE] --root DIR -o DIR file.zi|file.zir ..."))
+    Diagnostic(span, CStr("command.arguments"), CStr("usage: zi2zir [--check-only] [--target=c|go|zx] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE] --root DIR -o DIR file.zi|file.ts|file.tsx|file.zir ..."))
 }
 
 WriteProgram :: (program: *IR.ZirProgram, out_dir: *u8) -> s32 {
     source := cast(*u8)*program.modules[0].source_path
     length := strlen(source)
     output: [IR.ZIR_PATH_MAX * 2]u8
-    if length > 3 && strcmp(cast(*u8)(cast(usize)source + length - 3), CStr(".zi")) == 0 {
-        length -= 3
-    }
+    source_text := IR.CText(source)
+    if length > 4 && source_text[source_text.count - 4:] == ".tsx" { length -= 4 }
+    else if length > 3 && (source_text[source_text.count - 3:] == ".zi" || source_text[source_text.count - 3:] == ".ts") { length -= 3 }
     if snprintf(*output[0], cast(usize)output.count, CStr("%s/%.*s.zir"), out_dir,
                 cast(s32)length, source) >= cast(s32)output.count {
         Diagnostic(program.modules[0].span, CStr("zir.output"), CStr("IR output path is too long"))

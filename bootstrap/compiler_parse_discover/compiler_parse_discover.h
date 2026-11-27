@@ -43,6 +43,7 @@ int32_t InstantiateGenericRecord(ZirType* instance, ZirType* generic);
 int32_t InstantiateGenericRecordAt(ZirType* instance, ZirType* generic, ZirModule* owner, ZirModule* user);
 uint8_t* private_parse_read_lowered_source(uint8_t* path);
 uint8_t* private_parse_import_string_source(uint8_t* line, ZirSourceSpan span);
+uint8_t* private_parse_read_authored_source(uint8_t* path);
 
 #ifdef __cplusplus
 }

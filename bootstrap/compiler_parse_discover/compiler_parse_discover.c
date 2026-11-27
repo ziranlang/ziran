@@ -470,7 +470,7 @@ static void compiler_parse_discover_canonical_enum_values_with_buffers(ZirType* 
 static void compiler_parse_discover_canonical_enum_values(ZirType* type) ZIRAN_MAYBE_UNUSED;
 static void compiler_parse_discover_lower_enum_values_with_buffers(ZirType* type, LowerEnumValuesBuffers* buffers) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_parse_discover_qualify_generic_field_type(uint8_t* type, uint8_t* out, size_t size, ParserArray128_u8* params, int32_t parameter_count, ZirModule* owner, ZirModule* user) ZIRAN_MAYBE_UNUSED;
-static uint8_t* compiler_parse_discover_read_lowered_source_with_buffers(uint8_t* path, ReadLoweredSourceBuffers* buffers) ZIRAN_MAYBE_UNUSED;
+static uint8_t* compiler_parse_discover_read_lowered_source_with_buffers(uint8_t* path, ReadLoweredSourceBuffers* buffers, bool lower) ZIRAN_MAYBE_UNUSED;
 static void compiler_parse_discover_compile_value_clear(CompileValue* value) ZIRAN_MAYBE_UNUSED;
 static uint8_t discover_named_type_scratch = {0};
 static uint8_t discover_function_header_scratch = {0};
@@ -4118,7 +4118,7 @@ InstantiateGenericRecordAt(ZirType* instance, ZirType* generic, ZirModule* owner
 }
 
 static uint8_t*
-compiler_parse_discover_read_lowered_source_with_buffers(uint8_t* path, ReadLoweredSourceBuffers* buffers)
+compiler_parse_discover_read_lowered_source_with_buffers(uint8_t* path, ReadLoweredSourceBuffers* buffers, bool lower)
 {
     bool value_0 = zir_foreign_compiler_parse_discover__SourceOverlayAllowed(path) != 0;
     if (!value_0) {
@@ -4134,6 +4134,9 @@ compiler_parse_discover_read_lowered_source_with_buffers(uint8_t* path, ReadLowe
             ZirSourceSpan value_3 = zir_foreign_compiler_parse_discover__Span(path, 0, 0);
             zir_foreign_compiler_parse_discover__die_at(value_3, compiler_parse_types_ParserCString(StringLiteral("source document identity limit exceeded")));
             abort();
+        }
+        if (!lower) {
+            return zir_foreign_compiler_parse_discover__CompilerStrdup(overlay);
         }
         return zir_foreign_compiler_parse_discover__lower_jai_multiline_strings(overlay, path);
     }
@@ -4198,11 +4201,16 @@ compiler_parse_discover_read_lowered_source_with_buffers(uint8_t* path, ReadLowe
         zir_foreign_compiler_parse_discover__die_at(value_17, compiler_parse_types_ParserCString(StringLiteral("source document identity limit exceeded")));
         abort();
     }
+    if (!lower) {
+        uint8_t* cleanup_return_0 = (input_storage_0[0]).text;
+        zir_foreign_compiler_parse_discover__CompilerFree((void*)(input_storage_0));
+        return cleanup_return_0;
+    }
     uint8_t* lowered = zir_foreign_compiler_parse_discover__lower_jai_multiline_strings((input_storage_0[0]).text, path);
     zir_foreign_compiler_parse_discover__CompilerFree((void*)((input_storage_0[0]).text));
-    uint8_t* cleanup_return_0 = lowered;
+    uint8_t* cleanup_return_1 = lowered;
     zir_foreign_compiler_parse_discover__CompilerFree((void*)(input_storage_0));
-    return cleanup_return_0;
+    return cleanup_return_1;
 }
 
 uint8_t*
@@ -4210,7 +4218,7 @@ private_parse_read_lowered_source(uint8_t* path)
 {
     void* value_0 = compiler_parse_types_ParserScratchTake(&(read_lowered_source_scratch), sizeof(ReadLoweredSourceBuffers));
     ReadLoweredSourceBuffers* buffers = (ReadLoweredSourceBuffers*)(value_0);
-    uint8_t* cleanup_return_0 = compiler_parse_discover_read_lowered_source_with_buffers(path, buffers);
+    uint8_t* cleanup_return_0 = compiler_parse_discover_read_lowered_source_with_buffers(path, buffers, true);
     compiler_parse_types_ParserScratchRelease(&(read_lowered_source_scratch), (void*)(buffers));
     return cleanup_return_0;
 }
@@ -4412,4 +4420,14 @@ compiler_parse_discover_compile_value_clear(CompileValue* value)
     (*value_5) = 0;
     ZirModule** value_6 = &(value->type_owner);
     (*value_6) = (void *)0;
+}
+
+uint8_t*
+private_parse_read_authored_source(uint8_t* path)
+{
+    void* value_0 = compiler_parse_types_ParserScratchTake(&(read_lowered_source_scratch), sizeof(ReadLoweredSourceBuffers));
+    ReadLoweredSourceBuffers* buffers = (ReadLoweredSourceBuffers*)(value_0);
+    uint8_t* cleanup_return_0 = compiler_parse_discover_read_lowered_source_with_buffers(path, buffers, false);
+    compiler_parse_types_ParserScratchRelease(&(read_lowered_source_scratch), (void*)(buffers));
+    return cleanup_return_0;
 }

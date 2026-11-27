@@ -232,7 +232,6 @@ compiler_portable_body_PortableType(ZirModule* module, uint8_t* type, TypePath* 
     TypePath current = {.record = record, .parent = path};
     size_t offset = 0;
     ZirTypeField* field = (void *)0;
-    int64_t count = 0LL;
     int32_t status = zir_foreign_compiler_portable_body__CNextField(record, &(offset), &(field));
     while (status == 1) {
         uint8_t* field_type = &(field->type[0]);
@@ -240,10 +239,9 @@ compiler_portable_body_PortableType(ZirModule* module, uint8_t* type, TypePath* 
         if (!value_7 || StringEqual(compiler_ir_CText(field_type), StringLiteral("void"))) {
             return false;
         }
-        count = (int64_t)((uint64_t)count + UINT64_C(1));
         status = zir_foreign_compiler_portable_body__CNextField(record, &(offset), &(field));
     }
-    return status == 0 && count > 0LL;
+    return status == 0;
 }
 
 static bool

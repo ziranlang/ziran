@@ -275,7 +275,7 @@ CHECK_CORE_MODULES := check check_value check_statement check_expr check_text
 CHECK_PROGRAM_MODULES := check_function check_program check_link check_simd borrow
 CHECK_PORT_MODULES := check_types $(CHECK_CORE_MODULES) check_s12_types $(CHECK_PROGRAM_MODULES)
 S14_PARSE_MODULES := parse_declaration parse_eval parse_typed ir_cleanup
-PARSE_PORT_MODULES := parse_types parse_condition parse_discover parse_source \
+PARSE_PORT_MODULES := parse_types parse_condition parse_discover tsx parse_source \
     frontend_parse parse_s14_types $(S14_PARSE_MODULES)
 SUPPORT_PORT_MODULES := context document diagnostic files source_store overlay semantic sha256 profile
 PERSISTENCE_PORT_MODULES := zir_serial load package_resolve zx_assets
@@ -399,7 +399,7 @@ LEAN ?= lean
 # contains it. Every ordinary run executes the complete retained suite.
 CHECK_JOBS ?=
 CHECK_FILTER ?=
-all: $(BIN_DIR)/zi-edit $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/tsx2zi $(BIN_DIR)/zi2zx $(BIN_DIR)/zx2wasm $(BIN_DIR)/zx2native $(BIN_DIR)/zx $(BUILD_DIR)/libziran.a
+all: $(BIN_DIR)/zi-edit $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2zx $(BIN_DIR)/zx2wasm $(BIN_DIR)/zx2native $(BIN_DIR)/zx $(BUILD_DIR)/libziran.a
 
 proof-model: $(PROOF_KERNEL_OBJECT)
 	mkdir -p $(BUILD_DIR)/proofs
@@ -417,7 +417,7 @@ ZX_DESKTOP := org.ziran_lang.zx.desktop
 ZX_MIME := application/x-ziran-bundle
 install-user: all
 	mkdir -p $(USER_BIN) $(USER_SHARE)/build/bin
-	@set -e; for tool in ziran zi-fmt zi-edit zi2zir zi-api zi-inspect zi2c zi2go tsx2zi zi2zx zx2wasm zx2native zx; do \
+	@set -e; for tool in ziran zi-fmt zi-edit zi2zir zi-api zi-inspect zi2c zi2go zi2zx zx2wasm zx2native zx; do \
 		temporary=$$(mktemp "$(USER_SHARE)/build/bin/.$$tool.XXXXXX"); \
 		trap 'rm -f "$$temporary"' EXIT; \
 		cp "$(BIN_DIR)/$$tool" "$$temporary"; chmod 755 "$$temporary"; \
@@ -829,20 +829,6 @@ $(BIN_DIR)/zi2go: cmd/zi2go.zi cmd/compiler_cli.zi cmd/compiler_ir.zi $(BIN_DIR)
 	$(BIN_DIR)/zi2c --entry zi2go:main $(ZIRAN_DEFINES) --root cmd --module-path std -o $(ZI2GO_C) cmd/zi2go.zi
 	$(NICE) $(CC) $(CFLAGS) -I$(ZI2GO_C) -o $@ $(ZI2GO_C)/zi2go.c $(GO_PORT_OBJECTS) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) -lm
 
-# tsx2zi transpiles a supported TypeScript/TSX subset to ordinary Ziran,
-# built independently like zx: one generated tree whose std module copies
-# link alongside the driver.
-TSX2ZI_C := $(BUILD_DIR)/tsx2zi-c
-TSX2ZI_SOURCES := std/byte_text_linux.zi std/c_string.zi std/file.zi std/file_linux.zi \
-    std/number_text.zi std/result.zi std/stdio_linux.zi std/text_tools.zi std/vec.zi
-$(BIN_DIR)/tsx2zi: cmd/tsx2zi.zi cmd/tsx2zi/ast.zi cmd/tsx2zi/check.zi \
-    cmd/tsx2zi/diag.zi cmd/tsx2zi/emit.zi cmd/tsx2zi/lexer.zi cmd/tsx2zi/parser.zi \
-    $(TSX2ZI_SOURCES) $(BIN_DIR)/zi2c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	rm -rf $(TSX2ZI_C)
-	$(BIN_DIR)/zi2c --entry tsx2zi:main $(ZIRAN_DEFINES) --root cmd --module-path std -o $(TSX2ZI_C) cmd/tsx2zi.zi
-	$(NICE) $(CC) $(CFLAGS) -I$(TSX2ZI_C) -o $@ $(TSX2ZI_C)/*.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
-	chmod 755 $@
-
 # zi2zx runs revision-28 executable ZX on the portable instruction engine.
 # Its driver is Ziran; the generated copy uses the assembly set's own headers
 # (no engine defines), matching assembly-core.o's unprefixed entry points.
@@ -961,7 +947,8 @@ PARSE_PORT_HEADERS := $(IR_READY) $(call compiler-port-ready,parse_types)
 $(eval $(call compiler-port-rules,parse_types,$(IR_READY),cmd/compiler_ir.zi))
 $(eval $(call compiler-port-rules,parse_condition,$(PARSE_PORT_HEADERS) $(SOURCE_READY) $(TEXT_READY),$(PARSE_PORT_IMPORTS) cmd/compiler_source.zi cmd/compiler_text.zi cmd/compiler_scan.zi))
 $(eval $(call compiler-port-rules,parse_discover,$(PARSE_PORT_HEADERS) $(TYPE_READY),$(PARSE_PORT_IMPORTS) cmd/compiler_type.zi cmd/compiler_source.zi cmd/compiler_text.zi cmd/compiler_scan.zi))
-$(eval $(call compiler-port-rules,parse_source,$(PARSE_PORT_HEADERS),$(PARSE_PORT_IMPORTS)))
+$(eval $(call compiler-port-rules,tsx,$(IR_READY) $(SCANNER_READY) $(SERVICES_READY),cmd/compiler_ir.zi cmd/compiler_scan.zi cmd/compiler_services.zi std/vec.zi))
+$(eval $(call compiler-port-rules,parse_source,$(PARSE_PORT_HEADERS) $(call compiler-port-ready,tsx),$(PARSE_PORT_IMPORTS) cmd/compiler_tsx.zi))
 $(eval $(call compiler-port-rules,frontend_parse,$(PARSE_PORT_HEADERS) $(SOURCE_READY),$(PARSE_PORT_IMPORTS) cmd/compiler_source.zi cmd/compiler_scan.zi))
 S14_PARSE_IMPORTS := $(PARSE_PORT_IMPORTS) cmd/compiler_statement.zi cmd/compiler_declaration.zi \
     cmd/compiler_source.zi cmd/compiler_text.zi cmd/compiler_scan.zi

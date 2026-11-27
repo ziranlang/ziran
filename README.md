@@ -52,6 +52,7 @@ checks; `#checks` keeps bounds checks in selected source regions. See
 | [docs/USAGE.md](docs/USAGE.md) | The compiler and standard library guide |
 | [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) | Supported targets and limits |
 | [docs/PACKAGES.md](docs/PACKAGES.md) | Packages, projects, and lock files |
+| [docs/NATIVE_TYPESCRIPT.md](docs/NATIVE_TYPESCRIPT.md) | Native `.ts` / `.tsx` syntax, imports and current limits |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The compiler pipeline |
 | [docs/LANGUAGE_DIRECTION.md](docs/LANGUAGE_DIRECTION.md) | Language syntax and directives |
 | [docs/OWNED_VALUES.md](docs/OWNED_VALUES.md) | Owned values and recoverable failures |

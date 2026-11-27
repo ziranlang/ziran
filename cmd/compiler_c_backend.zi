@@ -313,7 +313,8 @@ MkdirParent :: (path: *u8) {
 
 StemFromSource :: (src: *u8, dst: *u8, dst_size: usize) {
     n := strlen(src)
-    if n > 3 && strcmp(PtrAdd(src, n - 3), CStr(".zi")) == 0 { n -= 3 }
+    if n > 4 && (strcmp(PtrAdd(src, n - 4), CStr(".tsx")) == 0 || strcmp(PtrAdd(src, n - 4), CStr(".zir")) == 0) { n -= 4 }
+    else if n > 3 && (strcmp(PtrAdd(src, n - 3), CStr(".zi")) == 0 || strcmp(PtrAdd(src, n - 3), CStr(".ts")) == 0) { n -= 3 }
     if n >= dst_size { n = dst_size - 1 }
     memcpy(cast(*void)dst, cast(*void)src, n)
     dst[n] = 0
@@ -2907,7 +2908,8 @@ CBuildSyms :: (program: *IR.ZirProgram, out: *ZirCModuleSyms) -> s32 {
     out.module_slash[n] = 0
     sp := *program.modules[0].source_path[0]
     sn := strlen(sp)
-    if sn > 3 && strcmp(PtrAdd(sp, sn - 3), CStr(".zi")) == 0 { sn -= 3 }
+    if sn > 4 && (strcmp(PtrAdd(sp, sn - 4), CStr(".tsx")) == 0 || strcmp(PtrAdd(sp, sn - 4), CStr(".zir")) == 0) { sn -= 4 }
+    else if sn > 3 && (strcmp(PtrAdd(sp, sn - 3), CStr(".zi")) == 0 || strcmp(PtrAdd(sp, sn - 3), CStr(".ts")) == 0) { sn -= 3 }
     if sn >= IR.ZIR_PATH_MAX { sn = IR.ZIR_PATH_MAX - 1 }
     memcpy(cast(*void)*out.module_stem[0], cast(*void)sp, sn)
     out.module_stem[sn] = 0

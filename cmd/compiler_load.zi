@@ -647,11 +647,13 @@ standard_module_name :: (context_local: *LoadContext, path: *u8, name: *u8, size
 
 
 #scope_file
+SourceCandidates :: struct { items: [7]*u8 }
+
 module_candidate :: (directory: *u8, target: *u8, path: *u8, size: usize) -> s32 {
-    suffixes: ParserArray3__u8 = .{items = .{ParserCString(".zi"), ParserCString(".zir"), ParserCString("/module.zi")}}
+    suffixes: SourceCandidates = .{items = .{ParserCString(".zi"), ParserCString(".ts"), ParserCString(".tsx"), ParserCString(".zir"), ParserCString("/module.zi"), ParserCString("/module.ts"), ParserCString("/module.tsx")}}
     {
         i: usize = cast(usize)(0)
-        while check_loop_15 := (i < (cast(usize)size_of(ParserArray3__u8) / cast(usize)size_of(*u8))) {
+        while check_loop_15 := (i < 7) {
             if ((snprintf(path, size, ParserCString("%s/%s%s"), directory, target, (suffixes).items[i]) < cast(s32)(size)) && (CompilerPathIsRegular(path) != 0)) {
                 return 1
             }
@@ -767,10 +769,10 @@ module_target :: (target: *u8) -> s32 {
 #scope_file
 try_module :: (context_local: *LoadContext, directory: *u8, load_root: *u8, target: *u8, prefer_ir: s32, import_local: *IR.ZirImport) -> s32 {
     candidate: ParserArray2048_u8
-    extensions: ParserArray2__u8 = .{items = .{(ifx (prefer_ir != 0) then ParserCString(".zir") else ParserCString(".zi")), (ifx (prefer_ir != 0) then ParserCString(".zi") else ParserCString(".zir"))}}
+    extensions: SourceCandidates = .{items = .{(ifx prefer_ir != 0 then ParserCString(".zir") else ParserCString(".zi")), ParserCString(".ts"), ParserCString(".tsx"), (ifx prefer_ir != 0 then ParserCString(".zi") else ParserCString(".zir")), ParserCString("/module.zi"), ParserCString("/module.ts"), ParserCString("/module.tsx")}}
     {
         i: s32 = 0
-        while check_loop_21 := (i < 2) {
+        while check_loop_21 := (i < 7) {
             if (snprintf(cast(*u8)(*((candidate).items)), cast(usize)size_of(ParserArray2048_u8), ParserCString("%s/%s%s"), directory, target, (extensions).items[i]) >= cast(s32)(cast(usize)size_of(ParserArray2048_u8))) {
                 PersistencePost1(*(i))
                 continue check_loop_21
@@ -2341,22 +2343,24 @@ frontend_cache_load :: (key: *CacheHex, source: *u8, root: *u8, text: *u8) -> *I
         return null
     }
     CompilerFree(cast(*void)(meta).text)
-    frontend_cache_reset_parsed(program)
+    source_text := IR.CText(source)
+    structured := (source_text.count >= 4 && source_text[source_text.count - 4:] == ".tsx") ||
+        (source_text.count >= 3 && source_text[source_text.count - 3:] == ".ts")
+    frontend_cache_reset_parsed(program, structured)
     return program
 }
 
 
-// Saved IR marks every function `from_ir`: the checked-.zir pipeline relies
-// on that to skip restructuring text an earlier check already rewrote. A
-// cache entry is a parse, not a check, so the loaded functions must run the
-// checker exactly like a fresh parse, whose expression graph the checker
-// rebuilds from the statement text.
-frontend_cache_reset_parsed :: (program: *IR.ZirProgram) {
+// Ziran parses must rebuild their statement graphs during checking. Native
+// TypeScript parses already supply structured expressions; restoring a cache
+// must preserve that graph instead of reparsing diagnostic text as Ziran.
+// Neither case bypasses the common type or ownership checks.
+frontend_cache_reset_parsed :: (program: *IR.ZirProgram, structured: bool) {
     for m: 0..(program).module_count-1 {
         module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(program).modules + cast(usize)(m) * size_of(IR.ZirModule))
         for f: 0..(module).function_count-1 {
             function: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)(module).functions + cast(usize)(f) * size_of(IR.ZirFunction))
-            (function).from_ir = 0
+            (function).from_ir = ifx structured then 1 else 0
         }
         for l: 0..(module).law_count-1 {
             law: *IR.ZirLaw = cast(*IR.ZirLaw)(cast(usize)(module).laws + cast(usize)(l) * size_of(IR.ZirLaw))
@@ -2514,9 +2518,10 @@ frontend_cache_store :: (key: *CacheHex, program: *IR.ZirProgram) {
 // from the cache or is parsed and, when the parse was clean and
 // self-contained, stored for the next build.
 frontend_load :: (context_local: *LoadContext, lexical: *u8, root: *u8, length: usize, canonical: *u8) -> *IR.ZirProgram {
-    if !((length > cast(usize)(3)) && (strcmp(cast(*u8)(cast(usize)(lexical) + (length - cast(usize)(3))), ParserCString(".zi")) == 0)) {
-        return Serial.ProgramLoad(lexical, root)
-    }
+    source_path := IR.CText(lexical)
+    authored := (source_path.count >= 4 && source_path[source_path.count - 4:] == ".tsx") ||
+        (source_path.count >= 3 && (source_path[source_path.count - 3:] == ".ts" || source_path[source_path.count - 3:] == ".zi"))
+    if !authored { return Serial.ProgramLoad(lexical, root) }
     text: *u8 = cache_source_text(lexical, canonical)
     defer CompilerFree(cast(*void)text)
     key: CacheHex

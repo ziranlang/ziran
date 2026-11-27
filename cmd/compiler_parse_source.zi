@@ -1,6 +1,7 @@
 // Source and import parsing.
 using IR :: #import "compiler_ir"
 using Parser :: #import "compiler_parse_types"
+TSX :: #import "compiler_tsx"
 
 #scope_file
 compiler :: #system_library "ziran";
@@ -114,6 +115,7 @@ parse_symbol_before_colons :: (s: *u8, out: *u8, out_size: usize) -> s32 #foreig
 parse_type_parameters :: (after: *u8, keyword: *u8, names: *u8, capacity: usize) -> s32 #foreign compiler "private_parse_parse_type_parameters";
 parse_using_modifiers :: (cursor: **u8, filter: *u8, filter_size: usize, path: *u8, line_no: s32) -> s32 #foreign compiler "private_parse_parse_using_modifiers";
 prepend_logical_line :: (queue: *ParserArray32768_u8, count: *s32, line: *u8, span: IR.ZirSourceSpan) #foreign compiler "private_parse_prepend_logical_line";
+read_authored_source :: (path: *u8) -> *u8 #foreign compiler "private_parse_read_authored_source";
 read_lowered_source :: (path: *u8) -> *u8 #foreign compiler "private_parse_read_lowered_source";
 read_source_line :: (line: *u8, size: usize, source: **u8, path: *u8, line_no: s32) -> *u8 #foreign compiler "private_parse_read_source_line";
 relative_path :: (root: *u8, path: *u8) -> *u8 #foreign compiler "private_parse_relative_path";
@@ -1506,7 +1508,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                                                                                 if ((((cast(u32)(mode) == cast(u32)(0)) && ((isalpha(cast(s32)(((cast(u8)((t)[0]))))) != 0) || (cast(s32)(cast(s8)((t)[0])) == 95))) && (strchr(t, 58) != cast(*u8)((null)))) && (code_colons(t) == cast(*u8)((null)))) {
                                                                                     parse_file_global(module, t, Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), scope_public, scope_file, null, cast(usize)(0))
                                                                                 } else {
-                                                                                    if (((cast(u32)(mode) == cast(u32)(0)) && (code_colons(t) != cast(*u8)((null)))) && (strstr(t, ParserCString("#type")) != cast(*u8)((null)))) {
+                                                                                    if (((cast(u32)(mode) == cast(u32)(0)) && (code_colons(t) != cast(*u8)((null)))) && (contains_source_directive(t, ParserCString("#type")) != 0)) {
                                                                                         die_at(Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), ParserCString("C declarator #type is not Jai syntax; use Name :: #type (arguments) -> Result;"))
                                                                                         unreachable
                                                                                     } else {
@@ -2505,6 +2507,18 @@ ParserParseOperationBody :: (path: *u8, root: *u8, source: *u8, resolver: ZirCom
     if source != null && DocumentRecord(path, source, strlen(source)) == null {
         die_at(Span(path, 0, 0), ParserCString("source document identity limit exceeded"))
         unreachable
+    }
+    path_text := IR.CText(path)
+    if (path_text.count >= 4 && path_text[path_text.count - 4:] == ".tsx") ||
+       (path_text.count >= 3 && path_text[path_text.count - 3:] == ".ts") {
+        authored := ifx source != null then CompilerStrdup(source) else read_authored_source(path)
+        if authored == null { return null }
+        defer CompilerFree(cast(*void)authored)
+        program := TSX.Parse(path, root, authored)
+        if program != null && program.module_count > 0 {
+            program.modules[0].document = DocumentFind(path)
+        }
+        return program
     }
     lowered := ifx source != null then lower_jai_multiline_strings(source, path) else read_lowered_source(path)
     // Recovery blanks declarations in the text the spans refer to.

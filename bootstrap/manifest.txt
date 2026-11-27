@@ -52,6 +52,7 @@ borrow	compiler	cmd/compiler_borrow.zi	compiler_borrow.c compiler_borrow.h
 parse_types	compiler	cmd/compiler_parse_types.zi	compiler_parse_types.c compiler_parse_types.h
 parse_condition	compiler	cmd/compiler_parse_condition.zi	compiler_parse_condition.c compiler_parse_condition.h
 parse_discover	compiler	cmd/compiler_parse_discover.zi	compiler_parse_discover.c compiler_parse_discover.h
+tsx	compiler	cmd/compiler_tsx.zi	compiler_tsx.c compiler_tsx.h vec.h
 parse_source	compiler	cmd/compiler_parse_source.zi	compiler_parse_source.c compiler_parse_source.h
 frontend_parse	compiler	cmd/compiler_frontend_parse.zi	compiler_frontend_parse.c compiler_frontend_parse.h
 parse_s14_types	compiler	cmd/compiler_parse_s14_types.zi	compiler_parse_s14_types.c compiler_parse_s14_types.h

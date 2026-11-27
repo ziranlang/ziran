@@ -2166,8 +2166,11 @@ ProgramLoad :: (path: *u8, root: *u8) -> *IR.ZirProgram {
     program: *IR.ZirProgram
     file: *void
     length: usize = (ifx (path != null) then strlen(path) else cast(usize)(0))
-    if (!(PathIsIR(path) != 0) && !((length > cast(usize)(3)) && (strcmp(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(path) + cast(usize)(length) * size_of(u8))) - cast(usize)(3) * size_of(u8)), ParserCString(".zi")) == 0))) {
-        Diagnostic(Span(path, 1, 1), ParserCString("module.extension"), ParserCString("module input must be .zi source or .zir IR"))
+    text := IR.CText(path)
+    source := (text.count >= 4 && text[text.count - 4:] == ".tsx") ||
+        (text.count >= 3 && (text[text.count - 3:] == ".ts" || text[text.count - 3:] == ".zi"))
+    if !(PathIsIR(path) != 0) && !source {
+        Diagnostic(Span(path, 1, 1), ParserCString("module.extension"), ParserCString("module input must be .zi, .ts or .tsx source, or checked .zir IR"))
         return null
     }
     if !(PathIsIR(path) != 0) {

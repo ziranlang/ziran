@@ -1,0 +1,215 @@
+// The native TSX frontend constructs the same checked IR as other sources.
+// Use library-neutral typed callables; no UI package is available to this test.
+#import "native_test"
+#import "check_support"
+#import "package_fixture_support"
+#import "std/path"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+TSX_DOMAIN :: #string ZI
+Model :: struct { value: float64; id: u64; }
+Snapshot :: () -> Model { return .{value = 42, id = 18446744073709551615} }
+Increment :: (id: u64) -> float64 { return ifx id == 18446744073709551615 then 1 else -1 }
+Action :: #type (value: float64) -> float64;
+Invoke :: (action: Action, value: float64) -> float64 { return action(value) }
+Parts :: (parts: [5]string) -> s32 {
+    if parts.count != 5 { return 1 }
+    if parts[0] != "Count: " || parts[1] != "7" || parts[2] != " " || parts[3] != "tail" || parts[4] != "!" { return 2 }
+    return 0
+}
+Report :: () { print("native TSX passed\n") }
+ZI
+
+TSX_LOGIC :: "function HalfImpl(value: number): number { return value / 2; }\nexport function Half(value: number): number { return HalfImpl(value); }\n"
+
+TSX_APP :: #string TSX
+import * as Domain from "domain";
+interface Props { value: number; other: number; }
+interface PartsProps { children: [string, string, string, string, string]; }
+interface EmptyProps {}
+type Transform = (value: number) => number;
+interface ActionProps { action: (value: number) => number; value: number; }
+function Echo(props: Props): number { return props.value + props.other; }
+function Tail(props: EmptyProps): string { return "tail"; }
+function Parts(props: PartsProps): s32 { return Domain.Parts(props.children); }
+function Apply(props: ActionProps): number { return props.action(props.value); }
+export function main(): s32 {
+    const snapshot: Domain.Model = Domain.Snapshot();
+    let value: number = <Echo other={0} value={snapshot.value}/>;
+    let count: number = 0;
+    while (count < 3) { count += 1; }
+    if (count !== 3) { return s32(4); }
+    let total: number = 0;
+    for (let index = 0; index < 9; index += 2) {
+        if (index === 2) { continue; }
+        if (index === 8) { break; }
+        total += index;
+        let inner = 0;
+        while (inner < 1) { inner += 1; continue; }
+    }
+    if (total !== 10) { return s32(8); }
+    if (Domain.Increment(u64(18446744073709551615n)) !== 1) { return s32(5); }
+    if (Divide(5) !== 2.5) { return s32(6); }
+    const half: Domain.Action = (value: number): number => value / 2;
+    const nested: Transform = (value: number): number => {
+        const inner: Transform = (value: number): number => value / 2;
+        return inner(value);
+    };
+    if (Domain.Invoke(half, 10) !== 5 || nested(10) !== 5) { return s32(9); }
+    if ((<Apply action={(value: number): number => { return value + 1; }} value={4}/>) !== 5) { return s32(10); }
+    if ((<Tail>
+    </Tail>) !== "tail") { return s32(11); }
+    if ((<Parts>Count: {"7"} <Tail/>!</Parts>) !== s32(0)) { return s32(7); }
+    Domain.Report();
+    return s32(Divide(value) - 21);
+}
+import { Half as Divide } from "logic";
+TSX
+
+TsxApplication :: () -> string {
+    // More callback declarations than the initial module allocation exercise
+    // relocation while the enclosing function is still being parsed.
+    callbacks := "let callbacksTotal: number = 0;\n"
+    for index: 0..39 {
+        name := CheckConcat("callback", CheckNumber(index))
+        callbacks = CheckConcat(callbacks, CheckConcat("const ", CheckConcat(name,
+            ": Transform = (value: number): number => value / 2;\n")))
+        callbacks = CheckConcat(callbacks, CheckConcat("callbacksTotal += ", CheckConcat(name, "(2);\n")))
+    }
+    callbacks = CheckConcat(callbacks, "if (callbacksTotal !== 40) { return s32(12); }\n")
+    return TextDetach(TextReplace(TSX_APP, "    const snapshot:", CheckConcat(callbacks, "    const snapshot:")))
+}
+
+TsxTargets :: (test: *NativeTest, source: string, root: string, label: string) -> bool {
+    expected := "native TSX passed\n"
+    targets := string.["c", "go"]
+    for target: targets {
+        directory := CheckPath(test.work, CheckConcat(label, CheckConcat("-", target)))
+        arguments := string.[test.ziran, "build", CheckConcat("--target=", target), "--exe",
+            "--entry", "native_app:main", "--root", root, "-o", directory]
+        command: Vec(string)
+        for argument: arguments { VecPush(command, argument) }
+        if target == "go" { VecPush(command, "--pkg"); VecPush(command, "main") }
+        VecPush(command, source)
+        unused NativeRun(test, command[:])
+        if test.failed { return false }
+        run: Vec(string)
+        if target == "c" { VecPush(run, CheckPath(directory, "native_app")) }
+        else {
+            VecPush(run, "go"); VecPush(run, "run")
+            files := NativeFiles(directory, ".go")
+            for file: files { VecPush(run, file) }
+        }
+        if !NativeExpect(test, run[:], expected) { return false }
+    }
+    bundle := CheckPath(test.work, CheckConcat(label, ".zx"))
+    build := string.[test.ziran, "bundle", "--entry", "native_app:main", "--root", root, "-o", bundle, source]
+    unused NativeRun(test, build[:])
+    tools := PathParent(test.ziran)
+    backends := string.["engine", "native"]
+    for backend: backends {
+        run := string.[CheckPath(tools, "zi2zx"), "run", "--backend", backend, bundle]
+        if test.failed || !NativeExpect(test, run[:], CheckConcat(expected, "0\n")) { return false }
+    }
+    executable := CheckPath(test.work, CheckConcat(label, "-native"))
+    native := string.[test.ziran, "build", "--entry", "native_app:main", "--root", root, "-o", executable, source]
+    unused NativeRun(test, native[:])
+    native_run := string.[executable]
+    if test.failed || !NativeExpect(test, native_run[:], expected) { return false }
+    wasm := CheckPath(test.work, CheckConcat(label, ".wasm"))
+    compile := string.[CheckPath(tools, "zx2wasm"), "-o", wasm, bundle]
+    unused NativeRun(test, compile[:])
+    run := string.["node", CheckPath(test.repo, "scripts/site_target_wasm.cjs"), wasm, "--output"]
+    return !test.failed && NativeExpect(test, run[:], expected)
+}
+
+TsxReject :: (test: *NativeTest, root: string, name: string, body: string, diagnostic: string) -> bool {
+    path := CheckPath(root, CheckConcat(name, ".tsx"))
+    if !NativeWrite(test, path, body) { return false }
+    command := string.[test.ziran, "check", "--root", root, path]
+    result := NativeInvoke(test, command[:])
+    return NativeAssert(test, result.code > 0 && result.code < 124 &&
+        TextContains(result.error, diagnostic) && TextContains(result.error, CheckConcat(name, ".tsx:")),
+        CheckConcat("missing authored TSX diagnostic: ", result.error))
+}
+
+// Exercise ordinary project discovery/self exports and dependency invalidation.
+// The fixture uses the normal development override for this in-flight toolchain;
+// released clean-project pins are verified separately by the migration campaign.
+TsxProject :: (test: *NativeTest) -> bool {
+    if !FixtureIsolation(test, test.work) { return false }
+    project := CheckPath(test.work, "project")
+    manifest := string.["[package]\nname = \"TSXProject\"\nentry = \"src/native_app.tsx\"\nmodule_roots = [\"src\"]\n[toolchain]\ngit = ",
+        FixtureQuote(FixtureUri(test.repo)), "\nref = \"master\"\n[exports]\nModel = \"src/domain.zi\"\nLogic = \"src/logic.ts\"\nComponents = \"src/label.tsx\"\n"]
+    aliases := string.["ziran"]; paths := string.[test.repo]
+    source := TextDetach(TextReplace(TsxApplication(), "from \"domain\"", "from \"TSXProject/Model\""))
+    source = TextDetach(TextReplace(source, "from \"logic\"", "from \"TSXProject/Logic\""))
+    source = CheckConcat("import { Label } from \"TSXProject/Components\";\n", source)
+    source = TextDetach(TextReplace(source, "<Echo other={0} value={snapshot.value}/>", "<Label value={snapshot.value}/>"))
+    logic := TSX_LOGIC
+    if !NativeWrite(test, CheckPath(project, "ziran.toml"), TextJoin(manifest[:], "")) ||
+        !FixtureOverrides(test, project, aliases[:], paths[:]) ||
+        !NativeWrite(test, CheckPath(project, "src/native_app.tsx"), source) ||
+        !NativeWrite(test, CheckPath(project, "src/domain.zi"), TSX_DOMAIN) ||
+        !NativeWrite(test, CheckPath(project, "src/logic.ts"), logic) ||
+        !NativeWrite(test, CheckPath(project, "src/label.tsx"), "export interface Props { value: number; } export function Label(props: Props): number { return props.value; }\n") { return false }
+    lock := string.["lock", "--offline"]; unused PackageCommand(test, project, lock[:])
+    check := string.["check", "--project", "--offline"]; unused PackageCommand(test, project, check[:])
+    build := string.["build", "--offline"]; unused PackageCommand(test, project, build[:])
+    run := string.[test.ziran, "run", "--offline"]
+    if test.failed || !NativeExpect(test, run[:], "native TSX passed\n", project) { return false }
+    script := string.[test.ziran, "run", "--target=c", "--offline"]
+    if !NativeExpect(test, script[:], "native TSX passed\n", project) { return false }
+    if !NativeWrite(test, CheckPath(project, "src/logic.ts"), TextReplace(logic, "value / 2", "value / 3")) { return false }
+    unused NativeRun(test, script[:], project, 6)
+    if !NativeWrite(test, CheckPath(project, "src/logic.ts"), logic) ||
+        !NativeWrite(test, CheckPath(project, "src/domain.zi"), TextReplace(TSX_DOMAIN, "value = 42", "value = 84")) { return false }
+    unused NativeRun(test, script[:], project, 21)
+    if !NativeWrite(test, CheckPath(project, "src/domain.zi"), TSX_DOMAIN) ||
+        !NativeExpect(test, script[:], "native TSX passed\n", project) { return false }
+    changed := TextDetach(TextReplace(TSX_DOMAIN, "value: float64", "value: bool"))
+    changed = TextDetach(TextReplace(changed, "value = 42", "value = true"))
+    if !NativeWrite(test, CheckPath(project, "src/domain.zi"), changed) { return false }
+    rejected := PackageCommand(test, project, check[:], false)
+    return !test.failed && NativeAssert(test, TextContains(rejected, "native_app.tsx:"),
+        "changed Ziran declarations did not invalidate checked TSX types")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "native-tsx-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    NativeSet(*test, "GO111MODULE", "off"); NativeSet(*test, "GOTOOLCHAIN", "local")
+    NativeSet(*test, "GOPROXY", "off"); NativeSet(*test, "GOSUMDB", "off")
+    root := CheckPath(test.work, "source")
+    source := CheckPath(root, "native_app.tsx")
+    saved_root := CheckPath(test.work, "ir")
+    if !NativeWrite(*test, source, TsxApplication()) ||
+        !NativeWrite(*test, CheckPath(root, "domain.zi"), TSX_DOMAIN) ||
+        !NativeWrite(*test, CheckPath(root, "logic.ts"), TSX_LOGIC) { return 1 }
+    warm := string.[test.ziran, "check", "--root", root, source]
+    unused NativeRun(*test, warm[:])
+    unused NativeRun(*test, warm[:])
+    save := string.[test.ziran, "ir", "--root", root, "-o", saved_root, source]
+    unused NativeRun(*test, save[:])
+    if test.failed || !TsxTargets(*test, source, root, "source") ||
+        !TsxTargets(*test, CheckPath(saved_root, "native_app.zir"), saved_root, "saved") { return 1 }
+    if !TsxReject(*test, root, "coercion", "export function main(): s32 { if (1 == 1) { return s32(0); } return s32(1); }", "coercive equality is unsupported") ||
+        !TsxReject(*test, root, "untyped", "interface Props { value: any; }", "no native checked representation") ||
+        !TsxReject(*test, root, "duplicate", "interface Props { value: number; } function Item(props: Props): number { return props.value; } export function main(): s32 { return s32(<Item value={1} value={2}/>); }", "duplicate JSX property") ||
+        !TsxReject(*test, root, "constant", "export function main(): s32 { const value = 1; value = 2; return s32(value); }", "cannot assign to a const binding") ||
+        !TsxReject(*test, root, "uninitialized", "export function main(): s32 { let value: number; return s32(value); }", "native bindings require an initializer") ||
+        !TsxReject(*test, root, "action", "import * as Domain from \"domain\"; export function main(): s32 { Domain.Increment(true); return s32(0); }", "argument") ||
+        !TsxReject(*test, root, "visibility", "import { HalfImpl } from \"logic\"; export function main(): s32 { return s32(HalfImpl(0)); }", "unresolved function:") ||
+        !TsxReject(*test, root, "capture", "type Action = () => number; export function main(): s32 { const value = 1; const action: Action = (): number => value; return s32(action()); }", "cannot capture a local") ||
+        !TsxReject(*test, root, "callback", "type Action = (value: number) => number; export function main(): s32 { const action: Action = (value: boolean): number => 1; return s32(0); }", "type") ||
+        !TsxReject(*test, root, "property", "interface Props { value: number; } function Item(props: Props): number { return props.value; } export function main(): s32 { return s32(<Item value={true}/>); }", "type") ||
+        !TsxReject(*test, root, "local_view", "import { Text, TextCopy } from \"std/vec\"; export function Leak(): string { const owned: Text = TextCopy(\"temporary\"); return TextView(owned); }", "returned text view borrows local or temporary storage") ||
+        !TsxReject(*test, root, "closing", "interface Props { children: string[]; } function Item(props: Props): s32 { return s32(0); } export function main(): s32 { return <Item>text</Other>; }", "closing component does not match") { return 1 }
+    if !TsxProject(*test) { return 1 }
+    print("native TSX: typed imports, JSX, cache/project invalidation and source/saved C, Go, engine, native executable and Wasm parity passed\n")
+    return 0
+}

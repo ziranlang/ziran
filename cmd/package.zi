@@ -433,7 +433,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     // root, as `ziran build FILE.zi` does.
     if check && !project && !PkgHasArgument(arguments, "--root") {
         for part: arguments {
-            if PkgEndsWith(part, ".zi") || PkgEndsWith(part, ".zir") {
+            if PkgCompilerInput(part) {
                 child[count] = "--root"
                 child[count + 1] = ParentDirectory(part)
                 count += 2
@@ -449,7 +449,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
                        part == "--target=wasm" || part == "--target=zx")) {
             child[count] = part
             count += 1
-            if PkgEndsWith(part, ".zi") || PkgEndsWith(part, ".zir") {
+            if PkgCompilerInput(part) {
                 has_source = true
             }
         }
@@ -507,7 +507,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
         }
         if native_build {
             for part: arguments {
-                if PkgEndsWith(part, ".zi") || PkgEndsWith(part, ".zir") { source = part }
+                if PkgCompilerInput(part) { source = part }
             }
             if source.count == 0 { return PkgFail("native build needs a source file") }
             add_output := output.count == 0
@@ -523,7 +523,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
             insertion: s32 = count
             index = 1
             while index < count {
-                if PkgEndsWith(child[index], ".zi") || PkgEndsWith(child[index], ".zir") {
+                if PkgCompilerInput(child[index]) {
                     insertion = index
                     break
                 }
@@ -590,7 +590,7 @@ PkgHasSource :: (arguments: []string) -> bool {
     while index < cast(s32)arguments.count {
         part: string = arguments[index]
         if part == "--" { return false }
-        if PkgEndsWith(part, ".zi") || PkgEndsWith(part, ".zir") ||
+        if PkgCompilerInput(part) ||
            PkgEndsWith(part, ".zx") { return true }
         index += 1
     }
@@ -624,7 +624,7 @@ PkgModuleName :: (path: string) -> string {
     start: s64 = cast(s64)path.count
     while start > 0 && path[start - 1] != cast(u8)47 { start -= 1 }
     name: string = path[start:]
-    if PkgEndsWith(name, ".zi") { name = name[0:cast(s64)name.count - 3] }
+    name = PkgSourceStem(name)
     return name
 }
 
@@ -872,7 +872,7 @@ PkgGeneratedRoots :: (root: string, locked: *PkgLock, current: *PkgManifest, fol
 // The status is 1 when any file fails, which stops make and CI on a red
 // test, and every file runs even after a failure.
 Test :: (launcher: string, arguments: []string) -> s32 {
-    usage := "usage: ziran test [--project] [--locked] [--offline] [--root DIR] [--module-path DIR] [--entry module:function] [--define NAME[=VALUE]] [--checks] [--no-cache] [--diagnostics=text|json] FILE.zi ...\n"
+    usage := "usage: ziran test [--project] [--locked] [--offline] [--root DIR] [--module-path DIR] [--entry module:function] [--define NAME[=VALUE]] [--checks] [--no-cache] [--diagnostics=text|json] FILE.zi|FILE.ts|FILE.tsx|FILE.zir ...\n"
     shared := PkgStrings(cast(s64)arguments.count)
     files := PkgStrings(cast(s64)arguments.count)
     if shared.count != cast(s64)arguments.count || files.count != cast(s64)arguments.count {
@@ -883,7 +883,7 @@ Test :: (launcher: string, arguments: []string) -> s32 {
     index: s64 = 0
     while index < cast(s64)arguments.count {
         part: string = arguments[index]
-        if PkgEndsWith(part, ".zi") || PkgEndsWith(part, ".zir") {
+        if PkgCompilerInput(part) {
             files[file_count] = part
             file_count += 1
         } else if part == "--root" || part == "--module-path" || part == "--entry" || part == "--define" {
@@ -948,7 +948,7 @@ PkgUsage :: (command: string) -> string {
     if command == "explain" { return "usage: ziran explain CODE [--json] | ziran explain --list [--json]\n" }
     if command == "learn" { return LearnUsage() }
     if command == "api" {
-        return "usage: ziran api [--json] [--diagnostics=text|json] [--target c|go|zx] [--target-os OS] [--target-cpu CPU] [--module NAME] [--symbol NAME|ID] [--imports-only] [--max-symbols N] [--max-bytes N] [--module-path DIR] [--define NAME] [--project [--current-toolchain] | --root DIR] file.zi|file.zir ...\n"
+        return "usage: ziran api [--json] [--diagnostics=text|json] [--target c|go|zx] [--target-os OS] [--target-cpu CPU] [--module NAME] [--symbol NAME|ID] [--imports-only] [--max-symbols N] [--max-bytes N] [--module-path DIR] [--define NAME] [--project [--current-toolchain] | --root DIR] file.zi|file.ts|file.tsx|file.zir ...\n"
     }
     if command == "new" {
         return "usage: ziran new DIR [--template SOURCE[:NAME]] [--ref REF] [--name NAME] [--overrides FILE]\n"
@@ -968,23 +968,23 @@ PkgUsage :: (command: string) -> string {
     if command == "tool" { return "usage: ziran tool PACKAGE COMMAND [ARGS]\n" }
     if command == "install" { return "usage: ziran install [--prefix DIR] [--locked] [--offline]\n" }
     if command == "check" {
-        return "usage: ziran check [--project] [--lint] [--root DIR] [--entry module:function] [--module-path DIR] [file.zi ...]\n"
+        return "usage: ziran check [--project] [--lint] [--root DIR] [--entry module:function] [--module-path DIR] [file.zi|file.ts|file.tsx|file.zir ...]\n"
     }
     if command == "ir" {
-        return "usage: ziran ir [--root DIR] [--entry module:function] [--module-path DIR] [-o FILE.zir] [file.zi ...]\n"
+        return "usage: ziran ir [--root DIR] [--entry module:function] [--module-path DIR] [-o FILE.zir] [file.zi|file.ts|file.tsx|file.zir ...]\n"
     }
     if command == "build" {
-        return "usage: ziran build [--target=c|go|wasm|zx] [--thorough|--quickest] [--exe --entry module:function] [--root DIR] [--module-path DIR] [-o FILE|DIR] [file.zi ...]; in a project: ziran build\n"
+        return "usage: ziran build [--target=c|go|wasm|zx] [--thorough|--quickest] [--exe --entry module:function] [--root DIR] [--module-path DIR] [-o FILE|DIR] [file.zi|file.ts|file.tsx|file.zir ...]; in a project: ziran build\n"
     }
     if command == "bundle" {
-        return "usage: ziran bundle --entry module:function [--zx-lock FILE] [--thorough|--quickest] [--root DIR] [--module-path DIR] [--bind CALLER:CAPABILITY=PROVIDER:FUNCTION] [-o FILE] [file.zi ...]\n       ziran bundle --library NAME --export module:function [--thorough|--quickest] [--require-module IFACE=NAME] [--import CALLER:FUNCTION=IFACE:EXPORT] [--root DIR] [--module-path DIR] [-o FILE] [file.zi ...]\n"
+        return "usage: ziran bundle --entry module:function [--zx-lock FILE] [--thorough|--quickest] [--root DIR] [--module-path DIR] [--bind CALLER:CAPABILITY=PROVIDER:FUNCTION] [-o FILE] [file.zi|file.ts|file.tsx|file.zir ...]\n       ziran bundle --library NAME --export module:function [--thorough|--quickest] [--require-module IFACE=NAME] [--import CALLER:FUNCTION=IFACE:EXPORT] [--root DIR] [--module-path DIR] [-o FILE] [file.zi|file.ts|file.tsx|file.zir ...]\n"
     }
     if command == "run" {
-        return "usage: ziran run [--zx-lock FILE] [--offline] FILE.zx | ziran run [--target=c [--no-cache] [--thorough|--quickest]] [--root DIR] [--entry module:function] [FILE.zi [-- ARGS]]; in a project: ziran run [-- ARGS]\n"
+        return "usage: ziran run [--zx-lock FILE] [--offline] FILE.zx | ziran run [--target=c [--no-cache] [--thorough|--quickest]] [--root DIR] [--entry module:function] [FILE.zi|FILE.ts|FILE.tsx [-- ARGS]]; in a project: ziran run [-- ARGS]\n"
     }
     if command == "fmt" { return "usage: ziran fmt [--check] FILE.zi ...\n" }
     if command == "test" {
-        return "usage: ziran test [--project] [--locked] [--offline] [--root DIR] [--module-path DIR] [--entry module:function] [--define NAME[=VALUE]] [--checks] [--no-cache] [--diagnostics=text|json] FILE.zi ...\n"
+        return "usage: ziran test [--project] [--locked] [--offline] [--root DIR] [--module-path DIR] [--entry module:function] [--define NAME[=VALUE]] [--checks] [--no-cache] [--diagnostics=text|json] FILE.zi|FILE.ts|FILE.tsx|FILE.zir ...\n"
     }
     if command == "serve" { return "usage: ziran serve\n" }
     if command == "inspect" {
@@ -1107,7 +1107,7 @@ Serve :: (launcher: string, arguments: []string) -> s32 {
 PackageMain :: (launcher: string, arguments: []string) -> s32 {
     // Source execution also supports #!/usr/bin/env ziran. Normalize before
     // parsing so every word after the filename belongs to the script.
-    if arguments.count > 0 && PkgEndsWith(arguments[0], ".zi") {
+    if arguments.count > 0 && PkgAuthoredSource(arguments[0]) {
         script: Vec(string)
         defer VecFree(script)
         if !VecPush(script, "run") || !VecPush(script, "--target=c") { return 2 }
@@ -1122,7 +1122,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         PkgPrint("usage: ziran version|guide|std|features|capabilities|explain|learn|api|new|init|lock|update|fetch|add|pkg|tool|install|check|test|serve|ir|build|bundle|run|fmt|inspect|compile-commands ...\n", false)
         PkgPrint("project commands: --project [--locked] [--offline]\n", false)
         PkgPrint("in a project, run, build, check, and install without a file work on its program\n", false)
-        PkgPrint("scripts: ziran FILE.zi [ARGS] | ziran run --target=c [--no-cache] FILE.zi -- ARGS\n", false)
+        PkgPrint("scripts: ziran FILE.zi|FILE.ts|FILE.tsx [ARGS] | ziran run --target=c [--no-cache] FILE.zi|FILE.ts|FILE.tsx -- ARGS\n", false)
         PkgPrint("new to Ziran? run ziran guide\n", false)
         return 0
     }
@@ -1244,7 +1244,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             continue
         }
         if command == "api" && index < separator && part.count > 0 && part[0] != #char "-" &&
-           !PkgEndsWith(part, ".zi") && !PkgEndsWith(part, ".zir") && !ApiOptionValue(arguments[index - 1]) {
+           !PkgCompilerInput(part) && !ApiOptionValue(arguments[index - 1]) {
             filtered[count] = "--module"
             count += 1
         }

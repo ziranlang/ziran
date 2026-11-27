@@ -2093,7 +2093,7 @@ InstantiateGenericRecordAt :: (instance: *IR.ZirType, generic: *IR.ZirType, owne
 }
 
 #scope_file
-read_lowered_source_with_buffers :: (path: *u8, buffers: *ReadLoweredSourceBuffers) -> *u8 {
+read_lowered_source_with_buffers :: (path: *u8, buffers: *ReadLoweredSourceBuffers, lower: bool = true) -> *u8 {
     if !(SourceOverlayAllowed(path) != 0) {
         die_at(Span(path, 0, 0), ParserCString("source import escapes the edit root and standard library"))
         unreachable
@@ -2105,6 +2105,7 @@ read_lowered_source_with_buffers :: (path: *u8, buffers: *ReadLoweredSourceBuffe
             die_at(Span(path, 0, 0), ParserCString("source document identity limit exceeded"))
             unreachable
         }
+        if !lower { return CompilerStrdup(overlay) }
         return lower_jai_multiline_strings(overlay, path)
     }
     in: *void = CompilerFopen(path, ParserCString("rb"))
@@ -2147,6 +2148,7 @@ read_lowered_source_with_buffers :: (path: *u8, buffers: *ReadLoweredSourceBuffe
         die_at(Span(path, 0, 0), ParserCString("source document identity limit exceeded"))
         unreachable
     }
+    if !lower { return (input_storage_0[0]).text }
     lowered: *u8 = lower_jai_multiline_strings((input_storage_0[0]).text, path)
     CompilerFree(cast(*void)((input_storage_0[0]).text))
     return lowered
@@ -2280,4 +2282,12 @@ compile_value_clear :: (value: *CompileValue) {
     (value).kept = null
     ((value).spelling).items[0] = cast(u8)(0)
     (value).type_owner = null
+}
+
+#scope_export
+#program_export "private_parse_read_authored_source"
+read_authored_source :: (path: *u8) -> *u8 {
+    buffers := cast(*ReadLoweredSourceBuffers)ParserScratchTake(*read_lowered_source_scratch, size_of(ReadLoweredSourceBuffers))
+    defer ParserScratchRelease(*read_lowered_source_scratch, cast(*void)buffers)
+    return read_lowered_source_with_buffers(path, buffers, false)
 }

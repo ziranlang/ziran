@@ -118,6 +118,14 @@ PkgPrefixShared :: (locked: *PkgLock, index: s32) -> bool {
 
 PkgScanModules :: (directory: string, manifest: *PkgManifest,
     output: *PkgModuleSet, extension: string = ".zi") -> bool {
+    if extension == ".zir" { return PkgScanModulesWithSuffix(directory, manifest, output, extension) }
+    return PkgScanModulesWithSuffix(directory, manifest, output, ".zi") &&
+        PkgScanModulesWithSuffix(directory, manifest, output, ".ts") &&
+        PkgScanModulesWithSuffix(directory, manifest, output, ".tsx")
+}
+
+PkgScanModulesWithSuffix :: (directory: string, manifest: *PkgManifest,
+    output: *PkgModuleSet, extension: string) -> bool {
     base: string = PkgCanonical(directory)
     if base.count == 0 { return false }
     root_index: s32 = 0
@@ -247,8 +255,8 @@ PkgFindExport :: (manifest: *PkgManifest, name: string) -> bool {
 
 PkgExportPath :: (root: string, path: string, checked: bool) -> string {
     if checked {
-        if !PkgEndsWith(path, ".zi") { return "" }
-        path = PkgJoin(path, "r")
+        if !PkgAuthoredSource(path) { return "" }
+        path = PkgJoin(PkgSourceStem(path), ".zir")
     }
     return PkgCanonical(PkgJoin3(root, "/", path))
 }

@@ -25,6 +25,9 @@ unique across source extensions. Package exports and lockfiles resolve imports
 in the same way as Ziran imports; an import of a Ziran module reads its actual
 checked declarations. Do not write a duplicate TypeScript interface for a
 Ziran record or action.</p>
+<p>Exported native globals retain their declaration's record and callable types,
+including pointers, arrays and generic storage, across different import aliases.
+Reading or updating that storage uses the same native ownership checks.</p>
 <pre><code class="language-tsx">import * as Model from &quot;model&quot;;
 import { Half } from &quot;arithmetic&quot;;
 
@@ -102,6 +105,8 @@ prevents rebinding; it does not freeze the fields of a record. Blocks, <code>if<
 <code>else</code>, <code>while</code>, C-style <code>for</code> with explicit assignment steps, <code>break</code>,
 <code>continue</code>, assignment and local compound assignment are supported. Loop steps
 execute before a matching <code>continue</code> and do not execute after <code>break</code>.
+Loop identities and continue steps belong to their function; nested callbacks
+start a separate loop scope and cannot target an enclosing function's loop.
 <code>for (const item of values)</code> and <code>for (let item of values)</code> iterate native
 arrays, slices, strings and vectors. The collection expression runs once.
 Existing storage is borrowed for the loop; a fresh owned result is kept in

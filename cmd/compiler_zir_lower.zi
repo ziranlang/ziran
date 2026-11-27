@@ -1867,8 +1867,24 @@ NamedValue :: (program: *AssemblyProgram, function: *AssemblyFunction,
         // A receiver that is not local is a module global slot.
         owner: *IR.ZirModule = null
         global: *IR.ZirGlobal = null
-        if ResolveGlobalAt(function.module, path, SVC.SpanPath(span), *owner, *global) != 1 {
-            return Fail(program, span, "callable receiver is not a lowered local or global binding")
+        // Resolve the longest global prefix before traversing record members:
+        // the first dot can qualify an imported slot, not a record field.
+        memcpy(cast(*void)path, cast(*void)name, length + 1)
+        prefix := length
+        while true {
+            path[prefix] = 0
+            if ResolveGlobalAt(function.module, path, SVC.SpanPath(span), *owner, *global) == 1 {
+                member = ifx prefix < length then cast(*u8)(cast(usize)path + prefix + 1) else null
+                break
+            }
+            path[prefix] = name[prefix]
+            while prefix > 0 {
+                prefix -= 1
+                if name[prefix] == #char "." { break }
+            }
+            if prefix == 0 {
+                return Fail(program, span, "callable receiver is not a lowered local or global binding")
+            }
         }
         address := GlobalAddress(program, function, path, span)
         if program.failed != 0 { return -1 }

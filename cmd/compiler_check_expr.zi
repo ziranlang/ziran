@@ -104,7 +104,6 @@ normalize_array :: (module: *IR.ZirModule, type: *u8, size: usize) #foreign comp
 normalized_array :: (module: *IR.ZirModule, type: *u8) -> *u8 #foreign compiler "private_check_normalized_array";
 numeric :: (type: *u8) -> s32 #foreign compiler "private_check_numeric";
 owned_transfer_shape :: (c: *Checker, index: s32) -> s32 #foreign compiler "private_check_owned_transfer_shape";
-qualified_global_type :: (module: *IR.ZirModule, name: *u8, owner: *IR.ZirModule, type: *u8, output: *u8, capacity: usize) -> s32 #foreign compiler "private_check_qualified_global_type";
 queue_specialization :: (c: *Checker, owner: *IR.ZirModule, instance_owner: *IR.ZirModule, fn: *IR.ZirFunction, type: *u8, name: *u8, name_size: usize, span: IR.ZirSourceSpan) -> s32 #foreign compiler "private_check_queue_specialization";
 record_field_type_at_use :: (module: *IR.ZirModule, record_owner: *IR.ZirModule, record_name: *u8, field_type: *u8, size: usize) -> s32 #foreign compiler "private_check_record_field_type_at_use";
 replace_template_type :: (target: *u8, capacity: usize, source: *u8, parameter: *u8, concrete: *u8) -> s32 #foreign compiler "private_check_replace_template_type";
@@ -2354,25 +2353,7 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                     }
                     type = lookup(c, (e).name)
                     (e).is_global_value = cast(s32)(!((lookup_lexical(c, (e).name))[0] != 0) && (global_binding(c, (e).name) != cast(*IR.ZirGlobal)((null))))
-                    if ((e).is_global_value != 0) {
-                        owner: *IR.ZirModule = null
-                        global: *IR.ZirGlobal = null
-                        if (ResolveGlobal((c).module, (e).name, *(owner), *(global)) == 1) {
-                            qualified_type_storage_15 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
-                            defer CompilerFree(cast(*void)qualified_type_storage_15)
-                            memset(cast(*void)qualified_type_storage_15, 0, size_of(CheckArray128_u8))
-                            copy_text(cast(*u8)(*((qualified_type_storage_15[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), (e).type)
-                            qualified: s32 = qualified_global_type((c).module, (e).name, owner, cast(*u8)(*((global).type)), cast(*u8)(*((qualified_type_storage_15[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)))
-                            (e).type = KeepName(cast(*u8)(*((qualified_type_storage_15[0]).items)))
-                            if (qualified < 0) {
-                                error(c, (e).span, CheckCString("qualified global type is too long"), (e).name)
-                            } else {
-                                if (qualified > 0) {
-                                    type = (e).type
-                                }
-                            }
-                        }
-                    }
+
                     {
                         i: s32 = ((c).count - 1)
                         while check_loop_249 := (i >= 0) {
@@ -3304,12 +3285,13 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
             }
             if (!(callee != null) && (slot == cast(*IR.ZirType)((null)))) {
                 if ((cast(s32)(cast(s8)(((e).name)[0])) == 0) && ((e).left >= 0)) {
-                    indirect: *IR.ZirType = FindType((c).module, left, null)
+                    indirect: *IR.ZirType = FindType((c).module, left, *slot_owner)
                     if ((indirect != cast(*IR.ZirType)((null))) && ((indirect).is_procedure_type != 0)) {
                         (e).slot_type = KeepName(left)
                         slot = indirect
                         args = cast(*u8)(*((indirect).body))
                         return_type = cast(*u8)(*((indirect).procedure_return_type))
+                        callee_owner = slot_owner
                     }
                 } else {
                     if (strchr((e).name, 46) != cast(*u8)((null))) {
@@ -3335,12 +3317,13 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                             defer CompilerFree(cast(*void)field_path_storage_39)
                             memset(cast(*void)field_path_storage_39, 0, size_of(CheckArray128_u8))
                             found: s32 = (ifx (strchr(field, 46) != cast(*u8)((null))) then RecordFieldPathType(field_owner, record, field, cast(*u8)(*((member_type_storage_38[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) else ResolveRecordField(field_owner, record, field, cast(*u8)(*((field_path_storage_39[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), cast(*u8)(*((member_type_storage_38[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))))
-                            field_slot: *IR.ZirType = (ifx ((cast(*u8)(*((member_type_storage_38[0]).items)))[0] != 0) then FindType((c).module, cast(*u8)(*((member_type_storage_38[0]).items)), null) else null)
+                            field_slot: *IR.ZirType = (ifx ((cast(*u8)(*((member_type_storage_38[0]).items)))[0] != 0) then FindType((c).module, cast(*u8)(*((member_type_storage_38[0]).items)), *slot_owner) else null)
                             if (((found > 0) && (field_slot != cast(*IR.ZirType)((null)))) && ((field_slot).is_procedure_type != 0)) {
                                 (e).slot_type = KeepName(cast(*u8)(*((member_type_storage_38[0]).items)))
                                 slot = field_slot
                                 args = cast(*u8)(*((field_slot).body))
                                 return_type = cast(*u8)(*((field_slot).procedure_return_type))
+                                callee_owner = slot_owner
                             }
                         }
                         target: s32 = (CompilerTargetFacts()).target

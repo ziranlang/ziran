@@ -134,6 +134,7 @@ struct Parser {
     __type_9f828aa1372cb21a captures;
     int64_t capture_base;
     __type_f7d3635871b7267e steps;
+    int64_t step_base;
 };
 #endif
 #ifndef ZIRAN_CONCRETE___type_131eebaaeb761e42

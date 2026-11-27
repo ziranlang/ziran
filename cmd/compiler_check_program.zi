@@ -701,7 +701,9 @@ CheckPrograms_with_buffers :: (programs: **IR.ZirProgram, count: s32, buffers: *
                                         node: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)(((buffers).expression).exprs) + cast(usize)(e) * size_of(IR.ZirExpr))
                                         owner: *IR.ZirModule = null
                                         referenced: *IR.ZirGlobal = null
-                                        if ((cast(s32)((node).kind) == 5) || ((cast(s32)((node).kind) == 1) && (ResolveGlobalAt(module, (node).name, SpanPath((global).span), *(owner), *(referenced)) == 1))) {
+                                        // Keep checked procedure addresses in the common IR instead of
+                                        // reparsing their spelling as an untyped constant in each backend.
+                                        if node.is_function_value != 0 || ((cast(s32)((node).kind) == 5) || ((cast(s32)((node).kind) == 1) && (ResolveGlobalAt(module, (node).name, SpanPath((global).span), *(owner), *(referenced)) == 1))) {
                                             runtime_initializer = 1
                                             break check_loop_72
                                         }

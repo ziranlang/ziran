@@ -29,6 +29,10 @@ WithDefaults :: (value: s32, extra: s32 = DefaultValue(), location: Source_Code_
 }
 Snapshot :: () -> Model { return .{value = 42, id = 18446744073709551615} }
 BorrowModel :: (model: *Model) { model.value += 1 }
+ModelAction :: #type (model: *Model) -> float64;
+HandlerHolder :: struct { action: ModelAction; }
+ReadModel :: (model: *Model) -> float64 { return model.value }
+Handlers :: () -> HandlerHolder { return .{action = ReadModel} }
 Wrapped :: () -> Box(float64) { return .{value = 6} }
 number_calls: s32;
 NumberCalls :: () -> s32 { return number_calls }
@@ -53,6 +57,18 @@ ZI
 
 TSX_PRIVATE_A :: "#scope_file\nCell :: struct($T: Type) { first: T; }\nLeaf :: struct { first: s32; }\n#scope_export\nPrivateA :: () -> s32 { item: Cell(Box(Leaf)) = .{first = .{value = .{first = 11}}}; return item.first.value.first }\n"
 TSX_PRIVATE_B :: "#scope_file\nCell :: struct($T: Type) { second: T; }\nLeaf :: struct { second: s32; }\n#scope_export\nPrivateB :: () -> s32 { item: Cell(Box(Leaf)) = .{second = .{value = .{second = 12}}}; return item.second.value.second }\n"
+
+TSX_GLOBAL_STATE :: #string ZI
+Native :: #import "domain";
+model: Native.Model;
+models: [2]Native.Model;
+model_ptr: *Native.Model;
+box: Native.Box(Native.Model);
+Step :: (value: float64) -> float64 { return value + 1 }
+action: Native.Action = Step;
+Callbacks :: struct { action: Native.Action; }
+callbacks: Callbacks = .{action = Step};
+ZI
 
 TSX_LOGIC :: #string TS
 export interface Box<T> { other: T; }
@@ -96,6 +112,7 @@ ZI
 TSX_APP :: #string TSX
 import * as Domain from "domain";
 import * as OtherAlias from "domain";
+import * as GlobalState from "global_state";
 import * as Facade from "generic_facade";
 import * as GenericProps from "generic_props";
 import { Scope } from "scope_component";
@@ -146,10 +163,32 @@ export function main(): s32 {
     const genericFrame: GenericFrame = {slot: s32(40)};
     if (Facade.Draw(genericFrame, {value: s32(1)}) !== s32(42)) { return s32(25); }
     const snapshot: Domain.Model = Domain.Snapshot();
+    GlobalState.model = snapshot;
+    GlobalState.models[s32(0)] = GlobalState.model;
+    GlobalState.model_ptr = &GlobalState.model;
+    GlobalState.box = {value: snapshot};
+    const globalModel: OtherAlias.Model = GlobalState.models[s32(0)];
+    if (globalModel.value !== snapshot.value || GlobalState.model.value !== snapshot.value ||
+        GlobalState.model_ptr.id !== snapshot.id || GlobalState.box.value.id !== snapshot.id ||
+        GlobalState.action(4) !== 5 || GlobalState.callbacks.action(5) !== 6) { return s32(38); }
+    if (Loop19() !== s32(1)) { return s32(39); }
+    let callbackLoops: s32 = s32(0);
+    for (let outer: s32 = s32(0); outer < s32(2); outer += s32(1)) {
+        const loop: Scoped<Domain.Action> = (value: number): number => {
+            let index: s32 = s32(0);
+            while (index < s32(2)) { index += s32(1); continue; }
+            return value + number(index);
+        };
+        if (Domain.InvokeScoped(loop, 0) !== 2) { return s32(40); }
+        callbackLoops += s32(1);
+    }
+    if (callbackLoops !== s32(2)) { return s32(41); }
     let borrowedModel: Domain.Model = snapshot;
     const modelPointer: *Domain.Model = &borrowedModel;
     Domain.BorrowModel(modelPointer);
     if ((*modelPointer).value !== snapshot.value + 1 || borrowedModel.value !== snapshot.value + 1) { return s32(32); }
+    const handler: Domain.HandlerHolder = Domain.Handlers();
+    if (handler.action(modelPointer) !== borrowedModel.value) { return s32(42); }
     if (Domain.WithDefaults(s32(2)) !== s32(9) || Domain.WithDefaults(s32(2), s32(3)) !== s32(5)) { return s32(26); }
     if (GenericProps.Read({model: snapshot, props: snapshot}) !== snapshot.value * 2) { return s32(27); }
     let genericBox: Domain.Box<number> = Domain.Wrapped();
@@ -257,7 +296,12 @@ TsxApplication :: () -> string {
         callbacks = CheckConcat(callbacks, CheckConcat("callbacksTotal += ", CheckConcat(name, "(2);\n")))
     }
     callbacks = CheckConcat(callbacks, "if (callbacksTotal !== 40) { return s32(12); }\n")
-    return TextDetach(TextReplace(TSX_APP, "    const snapshot:", CheckConcat(callbacks, "    const snapshot:")))
+    loops := ""
+    for index: 0..19 {
+        loops = CheckConcat(loops, CheckConcat("function Loop", CheckConcat(CheckNumber(index),
+            "(): s32 { let index: s32 = s32(0); while (index < s32(1)) { index += s32(1); } return index; }\n")))
+    }
+    return CheckConcat(loops, TextDetach(TextReplace(TSX_APP, "    const snapshot:", CheckConcat(callbacks, "    const snapshot:"))))
 }
 
 TsxTargets :: (test: *NativeTest, source: string, root: string, label: string) -> bool {
@@ -366,6 +410,7 @@ TsxProject :: (test: *NativeTest) -> bool {
         !FixtureOverrides(test, project, aliases[:], paths[:]) ||
         !NativeWrite(test, CheckPath(project, "src/native_app.tsx"), source) ||
         !NativeWrite(test, CheckPath(project, "src/domain.zi"), TSX_DOMAIN) ||
+        !NativeWrite(test, CheckPath(project, "src/global_state.zi"), TSX_GLOBAL_STATE) ||
         !NativeWrite(test, CheckPath(project, "src/private_a.zi"), TSX_PRIVATE_A) ||
         !NativeWrite(test, CheckPath(project, "src/private_b.zi"), TSX_PRIVATE_B) ||
         !NativeWrite(test, CheckPath(project, "src/generic_facade.zi"), TSX_FACADE) ||
@@ -389,8 +434,9 @@ TsxProject :: (test: *NativeTest) -> bool {
     unused NativeRun(test, script[:], project, 21)
     if !NativeWrite(test, CheckPath(project, "src/domain.zi"), TSX_DOMAIN) ||
         !NativeExpect(test, script[:], "native TSX passed\n", project) { return false }
-    changed := TextDetach(TextReplace(TSX_DOMAIN, "value: float64", "value: bool"))
-    changed = TextDetach(TextReplace(changed, "value = 42", "value = true"))
+    changed := TextDetach(TextReplace(TSX_DOMAIN,
+        "Snapshot :: () -> Model { return .{value = 42, id = 18446744073709551615} }",
+        "Snapshot :: () -> bool { return true }"))
     if !NativeWrite(test, CheckPath(project, "src/domain.zi"), changed) { return false }
     rejected := PackageCommand(test, project, check[:], false)
     return !test.failed && NativeAssert(test, TextContains(rejected, "native_app.tsx:"),
@@ -409,6 +455,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     saved_root := CheckPath(test.work, "ir")
     if !NativeWrite(*test, source, TsxApplication()) ||
         !NativeWrite(*test, CheckPath(root, "domain.zi"), TSX_DOMAIN) ||
+        !NativeWrite(*test, CheckPath(root, "global_state.zi"), TSX_GLOBAL_STATE) ||
         !NativeWrite(*test, CheckPath(root, "private_a.zi"), TSX_PRIVATE_A) ||
         !NativeWrite(*test, CheckPath(root, "private_b.zi"), TSX_PRIVATE_B) ||
         !NativeWrite(*test, CheckPath(root, "generic_facade.zi"), TSX_FACADE) ||

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Resolve imported global record and callable types in their declaration module,
+  including pointer, array and generic storage. Keep TSX loop identities and
+  continue steps local to each function and nested callback.
+
 - Add checked defaults to named TypeScript functions and preserve authored
   caller columns through native and saved IR, including JSX component calls.
   Rebuild checked IR with format 69 for the expanded source-location record.

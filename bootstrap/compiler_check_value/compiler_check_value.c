@@ -247,6 +247,11 @@ uint8_t* zir_foreign_compiler_check_value__import_type_alias(ZirModule* module, 
 uint8_t* zir_foreign_compiler_check_value__import_type_alias(ZirModule* module, ZirModule* owner) __asm__("private_check_import_type_alias");
 #endif
 #ifdef __APPLE__
+int32_t zir_foreign_compiler_check_value__qualified_global_type(ZirModule* module, uint8_t* name, ZirModule* owner, uint8_t* type, uint8_t* output, size_t capacity) __asm__("_private_check_qualified_global_type");
+#else
+int32_t zir_foreign_compiler_check_value__qualified_global_type(ZirModule* module, uint8_t* name, ZirModule* owner, uint8_t* type, uint8_t* output, size_t capacity) __asm__("private_check_qualified_global_type");
+#endif
+#ifdef __APPLE__
 int32_t zir_foreign_compiler_check_value__in_lookup_file(ZirModule* module, int32_t is_file_private, ZirSourceSpan span) __asm__("_private_check_in_lookup_file");
 #else
 int32_t zir_foreign_compiler_check_value__in_lookup_file(ZirModule* module, int32_t is_file_private, ZirSourceSpan span) __asm__("private_check_in_lookup_file");
@@ -466,17 +471,41 @@ private_check_lookup(Checker* c, uint8_t* name)
     }
     ZirGlobal* global = private_check_global_binding(c, name);
     if (global != (ZirGlobal*)(((void *)0))) {
-        return (uint8_t*)(&(global->type));
+        ZirModule* owner = (void *)0;
+        ZirGlobal* resolved = (void *)0;
+        bool value_0 = zir_foreign_compiler_check_value__ResolveGlobal(c->module, name, &(owner), &(resolved)) == 1;
+        if (value_0 && owner != c->module) {
+            uint8_t mapped[128] = {0};
+            int32_t status = zir_foreign_compiler_check_value__qualified_global_type(c->module, name, owner, &(global->type[0]), &(mapped[0]), (128) * (sizeof(uint8_t)));
+            if (status < 0) {
+                ZirSourceSpan value_1 = {0};
+                if (c->current_stmt != ((void *)0)) {
+                    value_1 = c->current_stmt->span;
+                } else {
+                    value_1 = c->fn->span;
+                }
+                ZirSourceSpan span = value_1;
+                Checker* value_2 = c;
+                ZirSourceSpan value_3 = span;
+                uint8_t* value_4 = compiler_check_types_CheckCString(StringLiteral("imported global type cannot be resolved at this use"));
+                zir_foreign_compiler_check_value__error(value_2, value_3, value_4, name);
+                return compiler_check_types_CheckCString(StringLiteral(""));
+            }
+            if (status > 0) {
+                return zir_foreign_compiler_check_value__KeepName(&(mapped[0]));
+            }
+        }
+        return &(global->type[0]);
     }
     ZirType* type = (void *)0;
     int32_t resolved = zir_foreign_compiler_check_value__resolve_using_enum(c, name, &(type), (void *)0, (size_t)(0LL));
     if (resolved < 0) {
-        Checker* value_0 = c;
-        ZirSourceSpan value_1 = c->fn->span;
-        uint8_t* value_2 = compiler_check_types_CheckCString(StringLiteral("ambiguous enum member"));
-        zir_foreign_compiler_check_value__error(value_0, value_1, value_2, name);
-        int32_t* value_3 = &(c->failed);
-        (*value_3) = 1;
+        Checker* value_5 = c;
+        ZirSourceSpan value_6 = c->fn->span;
+        uint8_t* value_7 = compiler_check_types_CheckCString(StringLiteral("ambiguous enum member"));
+        zir_foreign_compiler_check_value__error(value_5, value_6, value_7, name);
+        int32_t* value_8 = &(c->failed);
+        (*value_8) = 1;
     }
     if (resolved > 0) {
         return (uint8_t*)(&(type->name));

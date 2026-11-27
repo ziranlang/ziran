@@ -48,6 +48,7 @@ contains_vec :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 #foreign c
 copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
 error :: (c: *Checker, span: IR.ZirSourceSpan, message: *u8, detail: *u8) #foreign compiler "private_check_error";
 import_type_alias :: (module: *IR.ZirModule, owner: *IR.ZirModule) -> *u8 #foreign compiler "private_check_import_type_alias";
+qualified_global_type :: (module: *IR.ZirModule, name: *u8, owner: *IR.ZirModule, type: *u8, output: *u8, capacity: usize) -> s32 #foreign compiler "private_check_qualified_global_type";
 in_lookup_file :: (module: *IR.ZirModule, is_file_private: s32, span: IR.ZirSourceSpan) -> s32 #foreign compiler "private_check_in_lookup_file";
 is_ident_char :: (c: s32) -> s32 #foreign compiler "is_ident_char";
 isalnum :: (arg0: s32) -> s32 #foreign libc "isalnum";
@@ -115,7 +116,19 @@ lookup :: (c: *Checker, name: *u8) -> *u8 {
     }
     global: *IR.ZirGlobal = global_binding(c, name)
     if (global != cast(*IR.ZirGlobal)((null))) {
-        return cast(*u8)(*((global).type))
+        owner: *IR.ZirModule = null
+        resolved: *IR.ZirGlobal = null
+        if ResolveGlobal(c.module, name, *owner, *resolved) == 1 && owner != c.module {
+            mapped: [128]u8
+            status := qualified_global_type(c.module, name, owner, *global.type[0], *mapped[0], size_of([128]u8))
+            if status < 0 {
+                span := ifx c.current_stmt != null then c.current_stmt.span else c.fn.span
+                error(c, span, CheckCString("imported global type cannot be resolved at this use"), name)
+                return CheckCString("")
+            }
+            if status > 0 { return KeepName(*mapped[0]) }
+        }
+        return *global.type[0]
     }
     type: *IR.ZirType = null
     resolved: s32 = resolve_using_enum(c, name, *(type), null, cast(usize)(0))

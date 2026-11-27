@@ -34,6 +34,7 @@ ResolveDefine :: (module: *IR.ZirModule, name: *u8, definition: **IR.ZirDefine, 
 ResolveFunction :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunction";
 ResolveGlobal :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, global: **IR.ZirGlobal) -> s32 #foreign compiler "ResolveGlobal";
 ResolveRecordField :: (owner: *IR.ZirModule, record: *IR.ZirType, name: *u8, path: *u8, path_size: usize, type: *u8, type_size: usize) -> s32 #foreign compiler "ResolveRecordField";
+record_field_type_at_use :: (module: *IR.ZirModule, owner: *IR.ZirModule, name: *u8, type: *u8, size: usize) -> s32 #foreign compiler "private_check_record_field_type_at_use";
 SliceElementType :: (type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "SliceElementType";
 Span :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan #foreign compiler "Span";
 SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
@@ -1066,46 +1067,14 @@ import_type_alias :: (module: *IR.ZirModule, owner: *IR.ZirModule) -> *u8 {
 #scope_export
 #program_export "private_check_qualified_global_type"
 qualified_global_type :: (module: *IR.ZirModule, name: *u8, owner: *IR.ZirModule, type: *u8, output: *u8, capacity: usize) -> s32 {
-    base: *u8 = skip_ws(type)
-    dot: *u8 = strchr(name, 46)
-    alias: *u8 = null
-    type_owner: *IR.ZirModule = null
-    declared: *IR.ZirType
-    alias_length: s32
-    if ((owner == cast(*IR.ZirModule)((null))) || (owner == module)) {
-        return 0
-    }
-    while check_loop_40 := ((cast(s32)(cast(s8)((base)[0])) == 42) || (cast(s32)(cast(s8)((base)[0])) == 91)) {
-        if (cast(s32)(cast(s8)((base)[0])) == 42) {
-            base = skip_ws(cast(*u8)(cast(usize)(base) + cast(usize)(1) * size_of(u8)))
-            continue check_loop_40
-        }
-        close: *u8 = strchr(base, 93)
-        if (close == cast(*u8)((null))) {
-            return 0
-        }
-        base = skip_ws(cast(*u8)(cast(usize)(close) + cast(usize)(1) * size_of(u8)))
-    }
-    prefix_length: s32 = cast(s32)(((cast(s64)(cast(isize)(cast(usize)(base) - cast(usize)(type))) / cast(s64)size_of(u8))))
-    if (((ScalarType(base))[0] != 0) || (BuiltinType(base) != cast(*IR.ZirType)((null)))) {
-        return 0
-    }
-    declared = FindType(owner, base, *(type_owner))
-    if ((declared == cast(*IR.ZirType)((null))) || (FindType(module, base, null) == declared)) {
-        return 0
-    }
-    if ((type_owner == owner) && (dot != cast(*u8)((null)))) {
-        alias = name
-        alias_length = cast(s32)(((cast(s64)(cast(isize)(cast(usize)(dot) - cast(usize)(name))) / cast(s64)size_of(u8))))
-    } else {
-        alias = import_type_alias(module, type_owner)
-        if (alias == cast(*u8)((null))) {
-            return 0
-        }
-        alias_length = cast(s32)(CheckCStringLength(alias))
-    }
-    length: s32 = snprintf(output, capacity, CheckCString("%.*s%.*s.%s"), prefix_length, type, alias_length, alias, base)
-    return (ifx ((length >= 0) && (cast(usize)(length) < capacity)) then 1 else (-1))
+    if owner == null || owner == module { return 0 }
+    if CheckCStringLength(type) >= cast(u64)capacity { return -1 }
+    copy_text(output, capacity, type)
+    // A global's imported aliases belong to its declaration module, just as
+    // procedure parameters, results and record fields do. Reuse the checked
+    // identity mapping instead of prefixing the declaration's spelling.
+    if record_field_type_at_use(module, owner, name, output, capacity) == 0 { return -1 }
+    return 1
 }
 
 #scope_export

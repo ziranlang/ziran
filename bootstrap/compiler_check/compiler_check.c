@@ -178,6 +178,11 @@ int32_t zir_foreign_compiler_check__ResolveRecordField(ZirModule* owner, ZirType
 int32_t zir_foreign_compiler_check__ResolveRecordField(ZirModule* owner, ZirType* record, uint8_t* name, uint8_t* path, size_t path_size, uint8_t* type, size_t type_size) __asm__("ResolveRecordField");
 #endif
 #ifdef __APPLE__
+int32_t zir_foreign_compiler_check__record_field_type_at_use(ZirModule* module, ZirModule* owner, uint8_t* name, uint8_t* type, size_t size) __asm__("_private_check_record_field_type_at_use");
+#else
+int32_t zir_foreign_compiler_check__record_field_type_at_use(ZirModule* module, ZirModule* owner, uint8_t* name, uint8_t* type, size_t size) __asm__("private_check_record_field_type_at_use");
+#endif
+#ifdef __APPLE__
 int32_t zir_foreign_compiler_check__SliceElementType(uint8_t* type, uint8_t* element, size_t element_size) __asm__("_SliceElementType");
 #else
 int32_t zir_foreign_compiler_check__SliceElementType(uint8_t* type, uint8_t* element, size_t element_size) __asm__("SliceElementType");
@@ -2438,69 +2443,19 @@ private_check_import_type_alias(ZirModule* module, ZirModule* owner)
 int32_t
 private_check_qualified_global_type(ZirModule* module, uint8_t* name, ZirModule* owner, uint8_t* type, uint8_t* output, size_t capacity)
 {
-    uint8_t* base = zir_foreign_compiler_check__skip_ws(type);
-    uint8_t* dot = zir_foreign_compiler_check__strchr(name, 46);
-    uint8_t* alias = (void *)0;
-    ZirModule* type_owner = (void *)0;
-    ZirType* declared = (void *)0;
-    int32_t alias_length = 0;
-    if (owner == (ZirModule*)(((void *)0)) || owner == module) {
+    if (owner == ((void *)0) || owner == module) {
         return 0;
     }
-    while (true) {
-        {
-            bool check_loop_40 = (int32_t)((int8_t)(base[0])) == 42 || (int32_t)((int8_t)(base[0])) == 91;
-            if (!check_loop_40) {
-                break;
-            }
-            if ((int32_t)((int8_t)(base[0])) == 42) {
-                base = zir_foreign_compiler_check__skip_ws((uint8_t*)(((size_t)(base) + ((size_t)(1LL) * sizeof(uint8_t)))));
-                goto zir_loop_continue_1;
-            }
-            uint8_t* close = zir_foreign_compiler_check__strchr(base, 93);
-            if (close == (uint8_t*)(((void *)0))) {
-                return 0;
-            }
-            base = zir_foreign_compiler_check__skip_ws((uint8_t*)(((size_t)(close) + ((size_t)(1LL) * sizeof(uint8_t)))));
-        }
-        zir_loop_continue_1: ;
+    uint64_t value_0 = compiler_check_types_CheckCStringLength(type);
+    uint64_t value_1 = (uint64_t)(capacity);
+    if (value_0 >= value_1) {
+        return -1;
     }
-    zir_loop_break_1: ;
-    int32_t prefix_length = (int32_t)((ZiDivS64((int64_t)((ptrdiff_t)(((size_t)(base) - (size_t)(type)))), sizeof(uint8_t), INT64_MIN)));
-    uint8_t* value_0 = ScalarType(base);
-    bool value_1 = value_0[0] != 0;
-    bool value_2 = value_1;
-    if (!value_2) {
-        ZirType* value_3 = zir_foreign_compiler_check__BuiltinType(base);
-        value_2 = (value_3 != (ZirType*)(((void *)0)));
+    zir_foreign_compiler_check__copy_text(output, capacity, type);
+    if (zir_foreign_compiler_check__record_field_type_at_use(module, owner, name, output, capacity) == 0) {
+        return -1;
     }
-    if (value_2) {
-        return 0;
-    }
-    declared = zir_foreign_compiler_check__FindType(owner, base, &(type_owner));
-    bool value_4 = declared == (ZirType*)(((void *)0));
-    if (value_4 || zir_foreign_compiler_check__FindType(module, base, (void *)0) == declared) {
-        return 0;
-    }
-    if (type_owner == owner && dot != (uint8_t*)(((void *)0))) {
-        alias = name;
-        alias_length = (int32_t)((ZiDivS64((int64_t)((ptrdiff_t)(((size_t)(dot) - (size_t)(name)))), sizeof(uint8_t), INT64_MIN)));
-    } else {
-        alias = private_check_import_type_alias(module, type_owner);
-        if (alias == (uint8_t*)(((void *)0))) {
-            return 0;
-        }
-        uint64_t value_5 = compiler_check_types_CheckCStringLength(alias);
-        alias_length = (int32_t)(value_5);
-    }
-    int32_t length = zir_foreign_compiler_check__snprintf(output, capacity, compiler_check_types_CheckCString(StringLiteral("%.*s%.*s.%s")), prefix_length, type, alias_length, alias, base);
-    int32_t value_6 = 0;
-    if (length >= 0 && (size_t)(length) < capacity) {
-        value_6 = 1;
-    } else {
-        value_6 = -1;
-    }
-    return value_6;
+    return 1;
 }
 
 void

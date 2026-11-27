@@ -41,6 +41,7 @@ Parser :: struct {
     captures: Vec(string)
     capture_base: s64
     steps: Vec(LoopStep)
+    step_base: s64
 }
 
 Join :: (a: string, b: string, c: string = "") -> string {
@@ -404,8 +405,12 @@ Arrow :: (p: *Parser) -> s32 {
     capture_start := p.captures.count
     p.capture_base = capture_start
     previous_loop := p.loop
+    previous_loop_serial := p.loop_serial
+    previous_step_base := p.step_base
     p.local_base = previous
     p.loop = 0
+    p.loop_serial = 0
+    p.step_base = p.steps.count
     args := Parameters(p, true)
     Expect(p, ":")
     result := TypeName(p)
@@ -426,10 +431,11 @@ Arrow :: (p: *Parser) -> s32 {
         }
     }
     return FinishArrow(p, parent, previous, previous_base, previous_capture_base,
-        capture_start, previous_loop, name, span)
+        capture_start, previous_loop, previous_loop_serial, previous_step_base, name, span)
 }
 FinishArrow :: (p: *Parser, parent: usize, previous: s64, previous_base: s64,
                 previous_capture_base: s64, capture_start: s64, previous_loop: s32,
+                previous_loop_serial: s32, previous_step_base: s64,
                 name: string, span: IR.ZirSourceSpan) -> s32 {
     capture_count := p.captures.count - capture_start
     capture_names := ""
@@ -449,6 +455,8 @@ FinishArrow :: (p: *Parser, parent: usize, previous: s64, previous_base: s64,
     p.fn = cast(*IR.ZirFunction)(cast(usize)p.module.functions + parent * size_of(IR.ZirFunction))
     p.local_base = previous_base
     p.loop = previous_loop
+    p.loop_serial = previous_loop_serial
+    p.step_base = previous_step_base
     unused VecResize(p.locals, previous)
     p.capture_base = previous_capture_base
     if p.failed { return -1 }
@@ -759,9 +767,13 @@ JSXChildren :: (p: *Parser, component: string) -> s32 {
     previous_capture_base := p.capture_base
     capture_start := p.captures.count
     previous_loop := p.loop
+    previous_loop_serial := p.loop_serial
+    previous_step_base := p.step_base
     p.local_base = previous
     p.capture_base = capture_start
     p.loop = 0
+    p.loop_serial = 0
+    p.step_base = p.steps.count
     p.fn = ModuleAddFunction(p.module, Services.KeepName(name), Services.KeepParameters(""),
         Services.KeepName("void"), 0, span)
     if p.fn == null { Fail(p, "cannot allocate JSX child body"); return -1 }
@@ -771,7 +783,7 @@ JSXChildren :: (p: *Parser, component: string) -> s32 {
     child_function := (cast(usize)p.fn - cast(usize)p.module.functions) / size_of(IR.ZirFunction)
     empty := values < 0 || p.fn.exprs[values].first_child < 0
     callable := FinishArrow(p, parent, previous, previous_base, previous_capture_base,
-        capture_start, previous_loop, name, span)
+        capture_start, previous_loop, previous_loop_serial, previous_step_base, name, span)
     if p.failed { return -1 }
     source := cast(*IR.ZirFunction)(cast(usize)p.module.functions + child_function * size_of(IR.ZirFunction))
     if empty { source.stmt_count = 0; source.expr_count = 0; return -1 }
@@ -1073,7 +1085,8 @@ ParseStatement :: (p: *Parser) {
         Advance(p)
         if p.loop == 0 { Fail(p, "loop control requires an enclosing loop"); return }
         if keyword == "continue" {
-            for step: p.steps {
+            for index: p.step_base..p.steps.count - 1 {
+                step := p.steps[index]
                 if step.loop == p.loop {
                     appended := Statement(p, step.statement.kind, IR.CText(step.statement.text), span)
                     if appended != null { appended[0] = step.statement; appended.span = span }
@@ -1125,6 +1138,9 @@ Function :: (p: *Parser, public: bool) {
     span := Location(p)
     name := Identifier(p)
     previous := p.locals.count
+    p.loop = 0
+    p.loop_serial = 0
+    p.step_base = p.steps.count
     defaults := ""
     declaration: IR.ZirFunction
     unused IR.CopyText(declaration.name[:], name)
@@ -1187,6 +1203,9 @@ ModuleBinding :: (p: *Parser, public: bool) {
         // Emit the same startup routine as a native runtime initializer, with
         // the authored expression graph and span already attached.
         startup := GeneratedName("global_init", span)
+        p.loop = 0
+        p.loop_serial = 0
+        p.step_base = p.steps.count
         p.fn = ModuleAddFunction(p.module, Services.KeepName(startup), Services.KeepParameters(""), Services.KeepName("void"), 0, initializer)
         if p.fn == null { Fail(p, "cannot allocate global initializer"); return }
         p.fn.from_ir = 1

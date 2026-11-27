@@ -627,6 +627,8 @@ static int32_t* compiler_c_backend_IncludeScope(ZirProgram* program, ZirModule* 
 static void compiler_c_backend_PruneScopes(ZirProgram* program, ZirModule* m, ZirCPruneModule* prune) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_c_backend_WritePrunedProgram(ZirProgram* program, uint8_t* out_dir) ZIRAN_MAYBE_UNUSED;
 static ZirProgram* g_lowering_program = NULL;
+static ZirCModuleSyms* g_lowering_symbols = NULL;
+static int32_t g_lowering_symbol_count = 0;
 static ZirSimdUses* g_lowering_simd = NULL;
 static ZirCPruneModule* g_lowering_prune = NULL;
 static ZirFunction* g_lowering_entry = NULL;
@@ -1357,59 +1359,106 @@ compiler_c_backend_BoundProviderCName(ZirImport* imp, uint8_t* dst, size_t dst_s
     if (value_1 || (imp->extern_symbol)[0] == 0) {
         return false;
     }
+    {
+        int32_t range_first_3 = 0;
+        int32_t range_last_3 = (int32_t)((uint32_t)g_lowering_symbol_count - 1u);
+        int32_t m = range_first_3;
+        if (m <= range_last_3) for (;;) {
+            ZirCModuleSyms* symbols = &(g_lowering_symbols[m]);
+            bool value_6 = ((ZirModule*)symbols->module) == ((void *)0);
+            bool value_7 = value_6;
+            if (!value_7) {
+                uint8_t* value_8 = &(imp->target[0]);
+                uint8_t* value_9 = (void *)0;
+                {
+                    uint8_t* base = value_8;
+                    size_t offset = 6;
+                    value_9 = (uint8_t*)(((size_t)(base) + offset));
+                }
+                bool value_11 = zir_foreign_compiler_c_backend__strcmp((uint8_t*)(&(symbols->module->name[0])), value_9) != 0;
+                value_7 = value_11;
+            }
+            if (value_7) {
+                if (m == range_last_3) {
+                    break;
+                }
+                m = (int32_t)((uint32_t)m + 1u);
+                continue;
+            }
+            {
+                int32_t range_first_8 = 0;
+                int32_t range_last_8 = (int32_t)((uint32_t)(symbols->fn_count) - 1u);
+                int32_t f = range_first_8;
+                if (f <= range_last_8) for (;;) {
+                    if (zir_foreign_compiler_c_backend__strcmp(&(((symbols->fns[f]).source)[0]), &(imp->extern_symbol[0])) == 0) {
+                        zir_foreign_compiler_c_backend__copy_text(dst, dst_size, &(((symbols->fns[f]).c)[0]));
+                        return true;
+                    }
+                    if (f == range_last_8) {
+                        break;
+                    }
+                    f = (int32_t)((uint32_t)f + 1u);
+                }
+            }
+            if (m == range_last_3) {
+                break;
+            }
+            m = (int32_t)((uint32_t)m + 1u);
+        }
+    }
     if (g_lowering_program != ((void *)0)) {
         {
-            int32_t range_first_4 = 0;
-            int32_t range_last_4 = (int32_t)((uint32_t)(g_lowering_program->module_count) - 1u);
-            int32_t m = range_first_4;
-            if (m <= range_last_4) for (;;) {
+            int32_t range_first_16 = 0;
+            int32_t range_last_16 = (int32_t)((uint32_t)(g_lowering_program->module_count) - 1u);
+            int32_t m = range_first_16;
+            if (m <= range_last_16) for (;;) {
                 ZirModule* module = &(g_lowering_program->modules[m]);
-                uint8_t* value_6 = &(imp->target[0]);
-                uint8_t* value_7 = (void *)0;
+                uint8_t* value_12 = &(imp->target[0]);
+                uint8_t* value_13 = (void *)0;
                 {
-                    uint8_t* base = value_6;
+                    uint8_t* base = value_12;
                     size_t offset = 6;
-                    value_7 = (uint8_t*)(((size_t)(base) + offset));
+                    value_13 = (uint8_t*)(((size_t)(base) + offset));
                 }
-                if (zir_foreign_compiler_c_backend__strcmp(&(module->name[0]), value_7) != 0) {
-                    if (m == range_last_4) {
+                if (zir_foreign_compiler_c_backend__strcmp(&(module->name[0]), value_13) != 0) {
+                    if (m == range_last_16) {
                         break;
                     }
                     m = (int32_t)((uint32_t)m + 1u);
                     continue;
                 }
                 {
-                    int32_t range_first_9 = 0;
-                    int32_t range_last_9 = (int32_t)((uint32_t)(module->function_count) - 1u);
-                    int32_t f = range_first_9;
-                    if (f <= range_last_9) for (;;) {
-                        bool value_9 = (module->functions[f]).is_extern == 0;
-                        if (value_9 && zir_foreign_compiler_c_backend__strcmp(&(((module->functions[f]).name)[0]), &(imp->extern_symbol[0])) == 0) {
+                    int32_t range_first_21 = 0;
+                    int32_t range_last_21 = (int32_t)((uint32_t)(module->function_count) - 1u);
+                    int32_t f = range_first_21;
+                    if (f <= range_last_21) for (;;) {
+                        bool value_15 = (module->functions[f]).is_extern == 0;
+                        if (value_15 && zir_foreign_compiler_c_backend__strcmp(&(((module->functions[f]).name)[0]), &(imp->extern_symbol[0])) == 0) {
                             zir_foreign_compiler_c_backend__NativeCFunctionName(module, &(module->functions[f]), dst, dst_size);
                             return true;
                         }
-                        if (f == range_last_9) {
+                        if (f == range_last_21) {
                             break;
                         }
                         f = (int32_t)((uint32_t)f + 1u);
                     }
                 }
-                if (m == range_last_4) {
+                if (m == range_last_16) {
                     break;
                 }
                 m = (int32_t)((uint32_t)m + 1u);
             }
         }
     }
-    uint8_t* value_10 = dst;
-    size_t value_11 = dst_size;
-    String value_12 = StringLiteral("%s");
-    uint8_t* value_13 = (void *)0;
+    uint8_t* value_16 = dst;
+    size_t value_17 = dst_size;
+    String value_18 = StringLiteral("%s");
+    uint8_t* value_19 = (void *)0;
     {
-        String s = value_12;
-        value_13 = ((compiler_c_backend_StaticText*)(&(s)))->data;
+        String s = value_18;
+        value_19 = ((compiler_c_backend_StaticText*)(&(s)))->data;
     }
-    zir_foreign_compiler_c_backend__snprintf(value_10, value_11, value_13, &(imp->extern_symbol[0]));
+    zir_foreign_compiler_c_backend__snprintf(value_16, value_17, value_19, &(imp->extern_symbol[0]));
     return true;
 }
 
@@ -10075,6 +10124,8 @@ c_lower_in_context(ZirProgram* program, uint8_t* root, uint8_t* out_dir, ZirCMod
     }
     ZirSimdUses simd = {0};
     g_lowering_program = program;
+    g_lowering_symbols = restab;
+    g_lowering_symbol_count = restab_count;
     g_lowering_simd = &(simd);
     if (entry != ((void *)0)) {
         size_t value_13 = 0;
@@ -10094,15 +10145,15 @@ c_lower_in_context(ZirProgram* program, uint8_t* root, uint8_t* out_dir, ZirCMod
     compiler_c_backend_HeaderTableOpen(restab, restab_count);
     int32_t lowered = 1;
     {
-        int32_t range_first_27 = 0;
-        int32_t range_last_27 = (int32_t)((uint32_t)(program->module_count) - 1u);
-        int32_t i = range_first_27;
-        if (i <= range_last_27) for (;;) {
+        int32_t range_first_29 = 0;
+        int32_t range_last_29 = (int32_t)((uint32_t)(program->module_count) - 1u);
+        int32_t i = range_first_29;
+        if (i <= range_last_29) for (;;) {
             if (lowered == 0) {
                 break;
             }
             lowered = compiler_c_backend_LowerModule(&(program->modules[i]), restab, restab_count, out_dir);
-            if (i == range_last_27) {
+            if (i == range_last_29) {
                 break;
             }
             i = (int32_t)((uint32_t)i + 1u);
@@ -10114,12 +10165,12 @@ c_lower_in_context(ZirProgram* program, uint8_t* root, uint8_t* out_dir, ZirCMod
     compiler_c_backend_HeaderTableClose();
     if (g_lowering_prune != ((void *)0)) {
         {
-            int32_t range_first_38 = 0;
-            int32_t range_last_38 = (int32_t)((uint32_t)(program->module_count) - 1u);
-            int32_t i = range_first_38;
-            if (i <= range_last_38) for (;;) {
+            int32_t range_first_40 = 0;
+            int32_t range_last_40 = (int32_t)((uint32_t)(program->module_count) - 1u);
+            int32_t i = range_first_40;
+            if (i <= range_last_40) for (;;) {
                 zir_foreign_compiler_c_backend__PruneModuleFree(&(g_lowering_prune[i]));
-                if (i == range_last_38) {
+                if (i == range_last_40) {
                     break;
                 }
                 i = (int32_t)((uint32_t)i + 1u);
@@ -10131,6 +10182,8 @@ c_lower_in_context(ZirProgram* program, uint8_t* root, uint8_t* out_dir, ZirCMod
     g_lowering_entry = (void *)0;
     g_lowering_main = (void *)0;
     g_lowering_program = (void *)0;
+    g_lowering_symbols = (void *)0;
+    g_lowering_symbol_count = 0;
     g_lowering_simd = (void *)0;
     bool value_15 = lowered != 0 && simd.header != 0;
     bool value_16 = value_15;

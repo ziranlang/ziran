@@ -10,6 +10,25 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+typedef int64_t BorrowTypeKind;
+#ifdef ZIRAN_COMPILER_BORROW_H_PRIVATE
+typedef struct BorrowTypePath BorrowTypePath;
+#endif
+#ifdef ZIRAN_COMPILER_BORROW_H_PRIVATE
+
+enum {
+    BorrowTypeKind_SCOPED = 0,
+    BorrowTypeKind_VIEW = 1,
+    BorrowTypeKind_TEXT = 2,
+};
+#endif
+#ifdef ZIRAN_COMPILER_BORROW_H_PRIVATE
+
+struct BorrowTypePath {
+    ZirType* record;
+    struct BorrowTypePath* parent;
+};
+#endif
 int32_t CheckSliceLifetimes(ZirProgram** programs, int32_t count);
 
 #ifdef __cplusplus

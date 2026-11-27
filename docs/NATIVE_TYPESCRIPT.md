@@ -166,6 +166,10 @@ capture is rejected. Owned callbacks cannot capture Scoped values. Foreign
 procedures cannot take Scoped parameters because their bodies have no checked
 no-escape guarantee.
 
+These restrictions follow nested records, arrays and collection element types
+without a nesting cutoff. Recursive declarations are checked by their identity;
+adding another record layer cannot make a borrowed callback safe to retain.
+
 Classes, promises, async functions and type unions are not implemented yet. Generic record applications retain their declaring module
 and file scope: a local `Box<T>` and an imported `Domain.Box<T>` remain
 distinct, including inside nested applications. Import aliases for the same

@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Check borrowed callbacks and views through deeply nested and recursive record
+  declarations without a depth cutoff. Keep bound native provider names when
+  saved modules are emitted as separate C programs, including a TSX `main`
+  provider alongside the process entry.
+
 - Add checked stack-borrowed `Scoped<Signature>` native callbacks and defer JSX
   children according to their declared props type. Keep aggregate child values,
   nested container ordering and authored source locations through saved IR.

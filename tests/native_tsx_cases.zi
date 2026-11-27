@@ -302,6 +302,41 @@ TsxReject :: (test: *NativeTest, root: string, name: string, body: string, diagn
         CheckConcat("missing authored TSX diagnostic: ", result.error))
 }
 
+TsxNestedRecord :: (leaf: string, value: string) -> string {
+    source := CheckConcat("import { Scoped } from \"std/callable\";\ntype Action = () => s32;\ninterface Box0 { value: ",
+        CheckConcat(leaf, "; }\n"))
+    // Go past the old borrow walk's depth cap without changing the leaf's type.
+    for index: 1..34 {
+        source = CheckConcat(source, CheckConcat("interface Box", CheckConcat(CheckNumber(index),
+            CheckConcat(" { value: Box", CheckConcat(CheckNumber(index - 1), "; }\n")))))
+    }
+    source = CheckConcat(source, CheckConcat("export function Escape(): Box34 {\n", value))
+    source = CheckConcat(source, "const box0: Box0 = {value: value};\n")
+    for index: 1..34 {
+        number := CheckNumber(index)
+        source = CheckConcat(source, CheckConcat("const box", CheckConcat(number,
+            CheckConcat(": Box", CheckConcat(number, CheckConcat(" = {value: box",
+            CheckConcat(CheckNumber(index - 1), "};\n")))))))
+    }
+    return CheckConcat(source, "return box34;\n}\n")
+}
+
+TsxNestedBorrows :: (test: *NativeTest, root: string) -> bool {
+    valid := CheckPath(root, "nested_scalar.tsx")
+    source := CheckConcat(TsxNestedRecord("s32", "const value = s32(7);\n"),
+        "interface Branch { children: Branch[]; value: s32; }\nexport function Read(branch: Branch): s32 { return branch.value; }\n")
+    if !NativeWrite(test, valid, source) { return false }
+    command := string.[test.ziran, "check", "--root", root, valid]
+    unused NativeRun(test, command[:])
+    if test.failed { return false }
+    return TsxReject(test, root, "nested_scoped_escape",
+        TsxNestedRecord("Scoped<Action>", "const captured = s32(7);\nconst value: Scoped<Action> = (): s32 => captured;\n"),
+        "Scoped callable cannot be returned or retained") &&
+        TsxReject(test, root, "recursive_scoped_escape",
+        "import { Scoped } from \"std/callable\";\ntype Action = () => s32;\ninterface Branch { children: Branch[]; action: Scoped<Action>; }\nexport function Escape(branch: Branch): Branch { return branch; }\n",
+        "Scoped callable cannot be returned or retained")
+}
+
 // Exercise ordinary project discovery/self exports and dependency invalidation.
 // The fixture uses the normal development override for this in-flight toolchain;
 // released clean-project pins are verified separately by the migration campaign.
@@ -410,7 +445,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !NativeAssert(*test, foreign_result.code > 0 && foreign_result.code < 124 &&
         TextContains(foreign_result.error, "Scoped parameters require a checked nonescaping procedure body") &&
         TextContains(foreign_result.error, "foreign_scoped.zi:"), "foreign procedure accepted a scoped callback without a checked body") { return 1 }
-    if !TsxProject(*test) { return 1 }
+    if !TsxNestedBorrows(*test, root) || !TsxProject(*test) { return 1 }
     print("native TSX: typed imports, JSX, cache/project invalidation and source/saved C, Go, engine, native executable and Wasm parity passed\n")
     return 0
 }

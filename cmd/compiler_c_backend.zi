@@ -379,6 +379,8 @@ CEnumMember :: (m: *IR.ZirModule, type: *IR.ZirType, member: *u8, out: *u8, size
 }
 
 g_lowering_program: *IR.ZirProgram = null;
+g_lowering_symbols: *ZirCModuleSyms = null;
+g_lowering_symbol_count: s32 = 0;
 g_lowering_simd: *Runtime.ZirSimdUses = null;
 g_lowering_prune: *ZirCPruneModule = null;
 g_lowering_entry: *IR.ZirFunction = null;
@@ -424,6 +426,18 @@ BoundProviderCName :: (imp: *IR.ZirImport, dst: *u8, dst_size: usize) -> bool {
     if imp.extern_kind != .HOST || strncmp(*imp.target[0], CStr("ziran:"), 6) != 0 ||
        imp.extern_symbol[0] == 0 {
         return false
+    }
+    // Saved modules can be lowered as separate programs. The shared table
+    // carries the provider's actual C name across those program boundaries.
+    for m: cast(s32)0..g_lowering_symbol_count - 1 {
+        symbols := *g_lowering_symbols[m]
+        if symbols.module == null || strcmp(cast(*u8)*symbols.module.name[0], PtrAdd(*imp.target[0], 6)) != 0 { continue }
+        for f: cast(s32)0..symbols.fn_count - 1 {
+            if strcmp(*symbols.fns[f].source[0], *imp.extern_symbol[0]) == 0 {
+                copy_text(dst, dst_size, *symbols.fns[f].c[0])
+                return true
+            }
+        }
     }
     if g_lowering_program != null {
         for m: cast(s32)0..g_lowering_program.module_count - 1 {
@@ -2861,6 +2875,8 @@ CLowerInContext :: (program: *IR.ZirProgram, root: *u8, out_dir: *u8,
     }
     simd: Runtime.ZirSimdUses
     g_lowering_program = program
+    g_lowering_symbols = restab
+    g_lowering_symbol_count = restab_count
     g_lowering_simd = *simd
     if entry != null {
         n: usize = ifx program.module_count > 0 then cast(usize)program.module_count else 1
@@ -2890,6 +2906,8 @@ CLowerInContext :: (program: *IR.ZirProgram, root: *u8, out_dir: *u8,
     g_lowering_entry = null
     g_lowering_main = null
     g_lowering_program = null
+    g_lowering_symbols = null
+    g_lowering_symbol_count = 0
     g_lowering_simd = null
     if lowered != 0 && simd.header != 0 && !EmitSimdOps(ToZirString(out_dir), *simd) {
         Diagnostic(program.modules[0].span, CStr("zir_c.global"), CStr("cannot write ziran_simd_ops.h in %s"), out_dir)

@@ -80,6 +80,54 @@ BindingDiagnostics :: (test: *NativeTest) -> bool {
     return true
 }
 
+// An authored provider named main is an ordinary module procedure. Its C
+// symbol must also survive lowering saved modules as separate programs.
+SavedNativeProvider :: (test: *NativeTest) -> bool {
+    root := CheckPath(test.work, "native-provider")
+    source := CheckPath(root, "main.zi")
+    bridge := CheckPath(root, "bridge.zi")
+    selected := CheckPath(root, "selected.tsx")
+    if !NativeWrite(test, source,
+        "using Bridge :: #import \"bridge\";\n#program_export\nmain :: (argc: s32, argv: **u8) -> s32 { unused argc; unused argv; return Bridge.Call() }\n") ||
+       !NativeWrite(test, bridge,
+        "host :: #system_library \"host_api\";\nRun :: () -> s32 #foreign host;\nCall :: () -> s32 { return Run() }\n") ||
+       !NativeWrite(test, selected, "export function main(): s32 { return s32(7); }\n") { return false }
+    ir := CheckPath(root, "ir")
+    save := string.[test.ziran, "ir", "--target=c", "--entry", "main:main",
+        "--bind", "bridge:Run=selected:main", "--root", root, "-o", ir, source, bridge, selected]
+    unused NativeRun(test, save[:])
+    forms := string.["source", "saved"]
+    for form: forms {
+        output := CheckPath(root, form)
+        command: Vec(string)
+        build := string.[test.ziran, "build", "--target=c", "--no-main"]
+        for argument: build { VecPush(command, argument) }
+        if form == "source" {
+            inputs := string.["--entry", "main:main", "--bind", "bridge:Run=selected:main",
+                "--root", root, "-o", output, source, bridge, selected]
+            for argument: inputs { VecPush(command, argument) }
+        } else {
+            inputs := string.["--root", ir, "-o", output]
+            for argument: inputs { VecPush(command, argument) }
+            files := NativeFiles(ir, ".zir")
+            for file: files { VecPush(command, file) }
+        }
+        unused NativeRun(test, command[:])
+        executable := CheckPath(root, CheckConcat(form, "-native"))
+        compile: Vec(string)
+        compiler := string.["cc", "-std=c11", "-O2", "-o", executable]
+        for argument: compiler { VecPush(compile, argument) }
+        files := NativeFiles(output, ".c")
+        for file: files { VecPush(compile, file) }
+        VecPush(compile, "-lm")
+        unused NativeRun(test, compile[:])
+        run := string.[executable]
+        unused NativeRun(test, run[:], expected = 7)
+        if test.failed { return false }
+    }
+    return true
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "host-bindings-")
@@ -140,7 +188,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         unused NativeRun(*test, run[:])
     }
     if !NativeAssert(*test, NativeSameFile(CheckPath(test.work, "single-source.zx"), CheckPath(test.work, "single-saved.zx")), "single host bundles differ") { return 1 }
-    if !QualifiedHostCalls(*test) || !BindingDiagnostics(*test) { return 1 }
+    if !QualifiedHostCalls(*test) || !BindingDiagnostics(*test) || !SavedNativeProvider(*test) { return 1 }
     // A host result record whose name is longer than eight bytes, as
     // Kryon's ReadBundleInput returns BundleInput: lowering keeps the whole
     // name and resolves the record.

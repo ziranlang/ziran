@@ -584,89 +584,65 @@ binding :: (check: *BorrowCheck, name: *u8) -> *BorrowBinding {
 }
 
 #scope_file
-contains_scoped :: (module: *IR.ZirModule, type: *u8, depth: s32) -> bool {
-    if depth > 32 || type == null || type[0] == 0 || type[0] == #char "*" { return false }
+BorrowTypeKind :: enum { SCOPED, VIEW, TEXT }
+
+#scope_file
+BorrowTypePath :: struct {
+    record: *IR.ZirType
+    parent: *BorrowTypePath
+}
+
+#scope_file
+contains_borrow_type :: (module: *IR.ZirModule, type: *u8, kind: BorrowTypeKind, path: *BorrowTypePath) -> bool {
+    if type == null || type[0] == 0 || type[0] == #char "*" { return false }
+    if kind != .SCOPED && strcmp(type, CheckCString("string")) == 0 { return true }
     element: [128]u8
+    if SliceElementType(type, *element[0], size_of(type_of(element))) != 0 {
+        return kind == .VIEW || contains_borrow_type(module, *element[0], kind, path)
+    }
     if ArrayElementType(type, *element[0], size_of(type_of(element)), null) != 0 ||
-       SliceElementType(type, *element[0], size_of(type_of(element))) != 0 ||
-       VecElementType(module, type, *element[0], size_of(type_of(element))) != 0 {
-        return contains_scoped(module, *element[0], depth + 1)
+       (kind == .SCOPED && VecElementType(module, type, *element[0], size_of(type_of(element))) != 0) {
+        return contains_borrow_type(module, *element[0], kind, path)
     }
     owner: *IR.ZirModule = null
     record := FindType(module, type, *owner)
     if record == null { return false }
-    if record.is_scoped_callable != 0 { return true }
+    if kind != .TEXT && record.is_scoped_callable != 0 { return true }
     if record.is_enum != 0 || record.is_procedure_type != 0 || record.is_record_template != 0 || record.is_extern != 0 { return false }
+    // Revisit no declaration on the active path. A nesting limit could hide
+    // borrowed fields in a deep record and incorrectly permit their escape.
+    seen := path
+    while seen != null {
+        if seen.record == record { return false }
+        seen = seen.parent
+    }
+    current := BorrowTypePath.{record, path}
     offset: usize = 0
     field: IR.ZirTypeField
     while TypeNextField(record, *offset, *field) == 1 {
-        if contains_scoped(ifx owner != null then owner else module, *field.type[0], depth + 1) { return true }
+        if contains_borrow_type(ifx owner != null then owner else module, *field.type[0], kind, *current) { return true }
     }
     return false
 }
 
 #scope_file
-contains_view :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 {
-    if ((((depth > 32) || (type == cast(*u8)((null)))) || !((type)[0] != 0)) || (cast(s32)(cast(s8)((type)[0])) == 42)) {
-        return 0
-    }
-    if (!(strcmp(type, CheckCString("string")) != 0) || (SliceElementType(type, null, cast(usize)(0)) != 0)) {
-        return 1
-    }
-    element_storage_0 := cast(*S12Array128_u8)AllocateOrExit(size_of(S12Array128_u8))
-    defer CompilerFree(cast(*void)element_storage_0)
-    memset(cast(*void)element_storage_0, 0, size_of(S12Array128_u8))
-    if (ArrayElementType(type, cast(*u8)(*((element_storage_0[0]).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), null) != 0) {
-        return contains_view(module, cast(*u8)(*((element_storage_0[0]).items)), (depth + 1))
-    }
-    owner: *IR.ZirModule = null
-    record: *IR.ZirType = FindType(module, type, *(owner))
-    if record != null && record.is_scoped_callable != 0 { return 1 }
-    if (((((record == cast(*IR.ZirType)((null))) || ((record).is_enum != 0)) || ((record).is_procedure_type != 0)) || ((record).is_record_template != 0)) || ((record).is_extern != 0)) {
-        return 0
-    }
-    offset: usize = cast(usize)(0)
-    field: IR.ZirTypeField
-    while check_loop_216 := (TypeNextField(record, *(offset), *(field)) == 1) {
-        if (contains_view((ifx (owner != null) then owner else module), cast(*u8)(*((field).type)), (depth + 1)) != 0) {
-            return 1
-        }
-    }
-    return 0
+contains_scoped :: (module: *IR.ZirModule, type: *u8) -> bool {
+    return contains_borrow_type(module, type, .SCOPED, null)
+}
+
+#scope_file
+contains_view :: (module: *IR.ZirModule, type: *u8) -> s32 {
+    return ifx contains_borrow_type(module, type, .VIEW, null) then 1 else 0
 }
 
 #scope_file
 view_type :: (check: *BorrowCheck, type: *u8) -> s32 {
-    return contains_view(((check).current).module, type, 0)
+    return contains_view(((check).current).module, type)
 }
 
 #scope_file
-contains_text :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 {
-    if ((((depth > 32) || (type == cast(*u8)((null)))) || !((type)[0] != 0)) || (cast(s32)(cast(s8)((type)[0])) == 42)) {
-        return 0
-    }
-    if !(strcmp(type, CheckCString("string")) != 0) {
-        return 1
-    }
-    element_storage_0 := cast(*S12Array128_u8)AllocateOrExit(size_of(S12Array128_u8))
-    defer CompilerFree(cast(*void)element_storage_0)
-    memset(cast(*void)element_storage_0, 0, size_of(S12Array128_u8))
-    if ((SliceElementType(type, cast(*u8)(*((element_storage_0[0]).items)), cast(usize)(cast(u64)size_of(S12Array128_u8))) != 0) || (ArrayElementType(type, cast(*u8)(*((element_storage_0[0]).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), null) != 0)) {
-        return contains_text(module, cast(*u8)(*((element_storage_0[0]).items)), (depth + 1))
-    }
-    owner: *IR.ZirModule = null
-    record: *IR.ZirType = FindType(module, type, *(owner))
-    if (((((record == cast(*IR.ZirType)((null))) || ((record).is_enum != 0)) || ((record).is_procedure_type != 0)) || ((record).is_record_template != 0)) || ((record).is_extern != 0)) {
-        return 0
-    }
-    offset: usize = cast(usize)(0)
-    field: IR.ZirTypeField
-    while check_loop_217 := (TypeNextField(record, *(offset), *(field)) == 1) {
-        if (contains_text((ifx (owner != null) then owner else module), cast(*u8)(*((field).type)), (depth + 1)) != 0) {
-            return 1
-        }
-    }
-    return 0
+contains_text :: (module: *IR.ZirModule, type: *u8) -> s32 {
+    return ifx contains_borrow_type(module, type, .TEXT, null) then 1 else 0
 }
 
 #scope_file
@@ -685,16 +661,16 @@ text_type_hash :: (module: *IR.ZirModule, type: *u8) -> u64 {
 #scope_file
 cached_contains_text :: (check: *BorrowCheck, module: *IR.ZirModule, type: *u8) -> s32 {
     if ((module == cast(*IR.ZirModule)((null))) || (type == cast(*u8)((null)))) {
-        return contains_text(module, type, 0)
+        return contains_text(module, type)
     }
     if (cast(u64)(strlen(type)) >= cast(u64)(128)) {
-        return contains_text(module, type, 0)
+        return contains_text(module, type)
     }
     if (((((check).text_type_count + cast(usize)(1))) * cast(usize)(4)) > ((check).text_type_capacity * cast(usize)(3))) {
         capacity: usize = (ifx ((check).text_type_capacity != 0) then ((check).text_type_capacity * cast(usize)(2)) else cast(usize)(1024))
         grown: *TextTypeAnswer = cast(*TextTypeAnswer)(CompilerCalloc(capacity, cast(usize)(cast(u64)size_of(TextTypeAnswer))))
         if (grown == cast(*TextTypeAnswer)((null))) {
-            return contains_text(module, type, 0)
+            return contains_text(module, type)
         }
         {
             i: usize = cast(usize)(0)
@@ -728,7 +704,7 @@ cached_contains_text :: (check: *BorrowCheck, module: *IR.ZirModule, type: *u8) 
     answer: *TextTypeAnswer = cast(*TextTypeAnswer)(cast(usize)((check).text_types) + cast(usize)(slot) * size_of(TextTypeAnswer))
     (answer).module = module
     copy_text(cast(*u8)(*(((answer).type).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), type)
-    (answer).holds_text = contains_text(module, type, 0)
+    (answer).holds_text = contains_text(module, type)
     S12Post5(*((check).text_type_count))
     return (answer).holds_text
 }
@@ -1123,7 +1099,7 @@ check_call_mutations :: (check: *BorrowCheck, expression: *IR.ZirExpr) {
     if (((callee != cast(*IR.ZirFunction)((null))) && ((callee).is_extern != 0)) || (((callee == cast(*IR.ZirFunction)((null))) && (binding(check, name) == cast(*BorrowBinding)((null)))) && (foreign_call(check, ((check).current).module, name) != 0))) {
         argument := expression.first_child
         while argument >= 0 {
-            if contains_scoped(check.current.module, fn.exprs[argument].type, 0) {
+            if contains_scoped(check.current.module, fn.exprs[argument].type) {
                 reject(check, fn.exprs[argument].span,
                     CheckCString("Scoped arguments require a checked nonescaping procedure body"))
             }
@@ -1728,7 +1704,7 @@ check_ranges :: (check: *BorrowCheck, index: s32) {
         reject(check, (expression).span, CheckCString("slice range requires live owned backing storage"))
     }
     if expression.kind == .UNARY && IR.CText(*expression.op[0]) == "&" && expression.right >= 0 &&
-       contains_scoped(check.current.module, check.current.fn.exprs[expression.right].type, 0) {
+       contains_scoped(check.current.module, check.current.fn.exprs[expression.right].type) {
         allowed := false
         fn := check.current.fn
         for i: cast(s32)0..fn.expr_count - 1 {
@@ -1743,7 +1719,7 @@ check_ranges :: (check: *BorrowCheck, index: s32) {
         if !allowed { reject(check, expression.span, CheckCString("cannot take the address of Scoped callable storage")) }
     }
     if expression.kind == .MEMBER && IR.CText(expression.name) == "data" && expression.left >= 0 &&
-       contains_scoped(check.current.module, check.current.fn.exprs[expression.left].type, 0) {
+       contains_scoped(check.current.module, check.current.fn.exprs[expression.left].type) {
         reject(check, expression.span, CheckCString("cannot expose an address of Scoped callable storage"))
     }
     if expression.is_move != 0 {
@@ -1771,14 +1747,14 @@ check_ranges :: (check: *BorrowCheck, index: s32) {
         while check_loop_243 := (child >= 0) {
             check_ranges(check, child)
             type: *u8 = (((((check).current).fn).exprs)[child]).type
-            if (((((cast(s32)((expression).kind) == 5) && (cast(s32)(cast(s8)((type)[0])) != 42)) && !(SliceElementType(type, null, cast(usize)(0)) != 0)) && !(VecElementType(((check).current).module, type, null, cast(usize)(0)) != 0)) && (text_view_type(check, type) != 0 || contains_scoped(check.current.module, type, 0))) {
+            if (((((cast(s32)((expression).kind) == 5) && (cast(s32)(cast(s8)((type)[0])) != 42)) && !(SliceElementType(type, null, cast(usize)(0)) != 0)) && !(VecElementType(((check).current).module, type, null, cast(usize)(0)) != 0)) && (text_view_type(check, type) != 0 || contains_scoped(check.current.module, type))) {
                 add_active_text_borrows(check, text_view_backings(check, child), (check).depth)
             }
             child = (((((check).current).fn).exprs)[child]).next_sibling
         }
     }
     if expression.kind == .CALL && IR.CText(expression.name) == "VecPush" && expression.first_child >= 0 &&
-       contains_scoped(check.current.module, check.current.fn.exprs[expression.first_child].type, 0) {
+       contains_scoped(check.current.module, check.current.fn.exprs[expression.first_child].type) {
         reject(check, expression.span, CheckCString("Scoped callable cannot be retained in owned collection storage"))
     }
     if (cast(s32)((expression).kind) == 5) {
@@ -2003,7 +1979,7 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                 S12Post2(*(i))
                 continue check_loop_248
             }
-            if statement.kind == .RETURN && contains_scoped(function.module, *fn.return_type[0], 0) {
+            if statement.kind == .RETURN && contains_scoped(function.module, *fn.return_type[0]) {
                 reject(check, statement.span, CheckCString("a Scoped callable cannot be returned or retained"))
             }
             check_ranges(check, (statement).lhs_root)
@@ -2045,7 +2021,7 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                     declared.address_backing = root_place(declared)
                 }
                 if reference_fields { protect_owned_reference(check, declared, statement.span) }
-                if (text_view_type(check, (statement).type) != 0 || contains_scoped(check.current.module, statement.type, 0)) {
+                if (text_view_type(check, (statement).type) != 0 || contains_scoped(check.current.module, statement.type)) {
                     add_active_text_borrows(check, (declared).text_backings, (check).depth)
                 }
                 add_active_vec_borrow(check, (statement).expr_root, (check).depth)
@@ -2053,7 +2029,7 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                 if ((cast(s32)((statement).kind) == 4) && ((statement).lhs_root >= 0)) {
                     destination: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)((statement).lhs_root) * size_of(IR.ZirExpr))
                     assignment_root: *IR.ZirExpr = destination_root(fn, (statement).lhs_root)
-                    if contains_scoped(function.module, destination.type, 0) {
+                    if contains_scoped(function.module, destination.type) {
                         target := ifx assignment_root == null then null else binding(check, assignment_root.name)
                         if target == null || target.global_index >= 0 || target.captured != 0 ||
                            target.type.items[0] == #char "*" {
@@ -2135,7 +2111,7 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                                 }
                             }
                         }
-                        if (text_view_type(check, destination.type) != 0 || contains_scoped(function.module, destination.type, 0)) &&
+                        if (text_view_type(check, destination.type) != 0 || contains_scoped(function.module, destination.type)) &&
                            (static_storage == 0 || source_storage_4.globals != null) && target != null &&
                            !(target.captured != 0 && target.global_index < 0) {
                             add_active_text_borrows(check, text_view_backings(check, (statement).expr_root), (target).depth)
@@ -2230,7 +2206,7 @@ check_slice_lifetimes :: (programs: **IR.ZirProgram, count: s32) -> s32 {
                         if foreign.kind != .EXTERN { continue }
                         parameters := ParametersOf(*foreign.args[0])
                         for parameter: cast(s32)0..parameters.count - 1 {
-                            if contains_scoped(module, parameters.items.items[parameter].type, 0) {
+                            if contains_scoped(module, parameters.items.items[parameter].type) {
                                 Diagnostic(foreign.span, CheckCString("check.capture_lifetime"),
                                     CheckCString("Scoped parameters require a checked nonescaping procedure body"))
                                 check_storage_0.failed = 1
@@ -2245,7 +2221,7 @@ check_slice_lifetimes :: (programs: **IR.ZirProgram, count: s32) -> s32 {
                             (item).global = cast(*IR.ZirGlobal)(cast(usize)((module).globals) + cast(usize)(g) * size_of(IR.ZirGlobal))
                             copy_text(cast(*u8)(*(((item).name).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), cast(*u8)(*((((module).globals)[g]).name)))
                             copy_text(cast(*u8)(*(((item).type).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), cast(*u8)(*((((module).globals)[g]).type)))
-                            if contains_scoped(module, *module.globals[g].type[0], 0) {
+                            if contains_scoped(module, *module.globals[g].type[0]) {
                                 Diagnostic(module.globals[g].span, CheckCString("check.capture_lifetime"),
                                     CheckCString("Scoped callable storage cannot be global"))
                                 check_storage_0.failed = 1
@@ -2283,7 +2259,7 @@ check_slice_lifetimes :: (programs: **IR.ZirProgram, count: s32) -> s32 {
                             if function.fn.is_extern != 0 {
                                 parameters := ParametersOf(FunctionArgs(function.fn))
                                 for parameter: cast(s32)0..parameters.count - 1 {
-                                    if contains_scoped(module, parameters.items.items[parameter].type, 0) {
+                                    if contains_scoped(module, parameters.items.items[parameter].type) {
                                         Diagnostic(function.fn.span, CheckCString("check.capture_lifetime"),
                                             CheckCString("Scoped parameters require a checked nonescaping procedure body"))
                                         check_storage_0.failed = 1

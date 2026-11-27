@@ -9,6 +9,9 @@
 
 - Accept `.ts` and `.tsx` sources directly in the compiler and package tools
   for the supported native TypeScript subset, replacing the `tsx2zi` prototype.
+  Native generic record types share Ziran's checked specializations. Collection
+  `for...of` evaluates its source once, borrows named storage and releases a
+  fresh owned collection on exit through the ordinary checked IR.
 
 - Keep small loaded records in scalar registers through member updates,
   stores and block transfers on native targets, avoiding temporary record

@@ -9,8 +9,19 @@
 using Vectors :: #import "std/vec"
 
 TSX_DOMAIN :: #string ZI
+using Vectors :: #import "std/vec"
 Model :: struct { value: float64; id: u64; }
+Box :: struct($T: Type) { value: T; }
 Snapshot :: () -> Model { return .{value = 42, id = 18446744073709551615} }
+Wrapped :: () -> Box(float64) { return .{value = 6} }
+number_calls: s32;
+NumberCalls :: () -> s32 { return number_calls }
+Numbers :: () -> Vec(float64) {
+    number_calls += 1
+    values: Vec(float64)
+    unused VecPush(values, 1.0); unused VecPush(values, 2.0); unused VecPush(values, 3.0)
+    return values
+}
 Increment :: (id: u64) -> float64 { return ifx id == 18446744073709551615 then 1 else -1 }
 Action :: #type (value: float64) -> float64;
 Invoke :: (action: Action, value: float64) -> float64 { return action(value) }
@@ -26,15 +37,19 @@ TSX_LOGIC :: "function HalfImpl(value: number): number { return value / 2; }\nex
 
 TSX_APP :: #string TSX
 import * as Domain from "domain";
+import { Vec } from "std/vec";
 interface Props { value: number; other: number; }
 interface PartsProps { children: [string, string, string, string, string]; }
 interface EmptyProps {}
 type Transform = (value: number) => number;
 interface ActionProps { action: (value: number) => number; value: number; }
+interface Holder<T> { value: T; }
+type Factory = (value: number) => Holder<number>;
 function Echo(props: Props): number { return props.value + props.other; }
 function Tail(props: EmptyProps): string { return "tail"; }
 function Parts(props: PartsProps): s32 { return Domain.Parts(props.children); }
 function Apply(props: ActionProps): number { return props.action(props.value); }
+function Wrap(value: number): Holder<number> { return {value: value}; }
 export function main(): s32 {
     const snapshot: Domain.Model = Domain.Snapshot();
     let value: number = <Echo other={0} value={snapshot.value}/>;
@@ -50,6 +65,26 @@ export function main(): s32 {
         while (inner < 1) { inner += 1; continue; }
     }
     if (total !== 10) { return s32(8); }
+    const values: [number, number, number, number] = [1, 2, 3, 4];
+    total = 0;
+    for (const value of values) {
+        if (value === 2) { continue; }
+        if (value === 4) { break; }
+        for (let index = 0; index < 2; index += 1) { if (index === 0) { continue; } }
+        total += value;
+    }
+    if (total !== 4 || values[s64(1)] !== 2) { return s32(13); }
+    const owned: Vec<number> = Domain.Numbers();
+    total = 0;
+    for (let value of owned) { value += 1; total += value; }
+    for (const value of Domain.Numbers()) { total += value; }
+    if (total !== 15 || owned.count !== s64(3) || Domain.NumberCalls() !== s32(2)) { return s32(14); }
+    if (!VecPush(owned, 4)) { return s32(16); }
+    const make: Factory = (value: number): Holder<number> => Wrap(value);
+    if (make(4).value !== 4 || owned.count !== s64(4)) { return s32(17); }
+    const wrapped: Domain.Box<number> = Domain.Wrapped();
+    const nestedBox: Holder<Holder<number>>={value: {value: wrapped.value}};
+    if (nestedBox.value.value !== 6) { return s32(15); }
     if (Domain.Increment(u64(18446744073709551615n)) !== 1) { return s32(5); }
     if (Divide(5) !== 2.5) { return s32(6); }
     const half: Domain.Action = (value: number): number => value / 2;
@@ -202,6 +237,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
         !TsxReject(*test, root, "duplicate", "interface Props { value: number; } function Item(props: Props): number { return props.value; } export function main(): s32 { return s32(<Item value={1} value={2}/>); }", "duplicate JSX property") ||
         !TsxReject(*test, root, "constant", "export function main(): s32 { const value = 1; value = 2; return s32(value); }", "cannot assign to a const binding") ||
         !TsxReject(*test, root, "uninitialized", "export function main(): s32 { let value: number; return s32(value); }", "native bindings require an initializer") ||
+        !TsxReject(*test, root, "collection_const", "export function main(): s32 { const values: [number] = [1]; for (const value of values) { value = 2; } return s32(0); }", "cannot assign to a const binding") ||
+        !TsxReject(*test, root, "collection_borrow", "import * as Domain from \"domain\"; import { Vec } from \"std/vec\"; export function main(): s32 { const values: Vec<number> = Domain.Numbers(); for (const value of values) { VecPush(values, value); } return s32(0); }", "borrow") ||
+        !TsxReject(*test, root, "generic_type", "interface Box<T> { value: T; } export function main(): s32 { const box: Box<number> = {value: true}; return s32(box.value); }", "type") ||
         !TsxReject(*test, root, "action", "import * as Domain from \"domain\"; export function main(): s32 { Domain.Increment(true); return s32(0); }", "argument") ||
         !TsxReject(*test, root, "visibility", "import { HalfImpl } from \"logic\"; export function main(): s32 { return s32(HalfImpl(0)); }", "unresolved function:") ||
         !TsxReject(*test, root, "capture", "type Action = () => number; export function main(): s32 { const value = 1; const action: Action = (): number => value; return s32(action()); }", "cannot capture a local") ||

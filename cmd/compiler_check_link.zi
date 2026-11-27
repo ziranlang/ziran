@@ -437,6 +437,28 @@ rewrite_function_type_applications_with_buffers :: (module: *IR.ZirModule, fn: *
         return 0
     }
     copy_text(cast(*u8)(*((fn).return_type)), cast(usize)(cast(u64)size_of(S12Array128_u8)), cast(*u8)(*(((buffers).expanded).items)))
+    if fn.from_ir != 0 {
+        // Structured frontends and saved IR already own their expression
+        // graphs. Specialize their type slots through the common machinery;
+        // never reconstruct a body from its diagnostic statement text.
+        expanded := cast(*u8)(*buffers.expanded.items)
+        for s: cast(s32)0..fn.stmt_count - 1 {
+            statement := *fn.stmts[s]
+            if statement.kind != .DECL || statement.type == null || statement.type[0] == 0 { continue }
+            if rewrite_type_applications(module, statement.type, expanded,
+                size_of(S12Array8192_u8), statement.span, 0) == 0 { return 0 }
+            fn.stmts[s].type = KeepName(expanded)
+        }
+        for e: cast(s32)0..fn.expr_count - 1 {
+            expression := *fn.exprs[e]
+            if expression.kind != .CAST && expression.kind != .COMPOUND && expression.kind != .SIZE_OF { continue }
+            if expression.name == null || expression.name[0] == 0 { continue }
+            if rewrite_type_applications(module, expression.name, expanded,
+                size_of(S12Array8192_u8), expression.span, 0) == 0 { return 0 }
+            fn.exprs[e].name = KeepName(expanded)
+        }
+        return 1
+    }
     {
         s: s32 = 0
         while check_loop_155 := (s < (fn).stmt_count) {
@@ -504,6 +526,11 @@ normalize_type_applications_with_buffers :: (module: *IR.ZirModule, buffers: *No
                     copy_text(cast(*u8)(*((((module).types)[t]).body)), cast(usize)(cast(u64)size_of(S12Array8192_u8)), cast(*u8)(*(((buffers).expanded).items)))
                 }
             }
+            if module.types[t].is_procedure_type != 0 {
+                if rewrite_type_applications(module, cast(*u8)(*module.types[t].procedure_return_type),
+                    cast(*u8)(*buffers.expanded.items), size_of(S12Array8192_u8), module.types[t].span, 0) == 0 { return 0 }
+                if !IR.CopyText(module.types[t].procedure_return_type[:], IR.CText(cast(*u8)(*buffers.expanded.items))) { return 0 }
+            }
             S12Post2(*(t))
         }
     }
@@ -550,7 +577,7 @@ normalize_type_applications_with_buffers :: (module: *IR.ZirModule, buffers: *No
         f: s32 = 0
         while check_loop_159 := (f < (module).function_count) {
             fn: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)((module).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
-            if (((fn).from_ir != 0) || ((fn).is_template != 0)) {
+            if ((fn).is_template != 0) {
                 S12Post2(*(f))
                 continue check_loop_159
             }

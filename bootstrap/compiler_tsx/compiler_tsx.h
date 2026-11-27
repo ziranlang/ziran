@@ -28,6 +28,10 @@ typedef struct LoopStep LoopStep;
 typedef struct __type_a0b5f48c67108554 __type_a0b5f48c67108554;
 #endif
 #endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
+#define ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
+typedef struct __type_c53c2d7c4913dc02 __type_c53c2d7c4913dc02;
+#endif
 #ifdef ZIRAN_COMPILER_TSX_H_PRIVATE
 #ifndef ZIRAN_CONCRETE_FORWARD___type_57ca95b2d7309e4b
 #define ZIRAN_CONCRETE_FORWARD___type_57ca95b2d7309e4b
@@ -46,10 +50,6 @@ typedef struct Parser Parser;
 #ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
 #define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
 typedef struct __type_838711075b90279a __type_838711075b90279a;
-#endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE_FORWARD___type_c53c2d7c4913dc02
-typedef struct __type_c53c2d7c4913dc02 __type_c53c2d7c4913dc02;
 #endif
 #ifdef ZIRAN_COMPILER_TSX_H_PRIVATE
 
@@ -82,6 +82,15 @@ struct __type_a0b5f48c67108554 {
     int64_t capacity;
 };
 #endif
+#endif
+#ifndef ZIRAN_CONCRETE___type_c53c2d7c4913dc02
+#define ZIRAN_CONCRETE___type_c53c2d7c4913dc02
+
+struct __type_c53c2d7c4913dc02 {
+    String* data;
+    int64_t count;
+    int64_t capacity;
+};
 #endif
 #ifdef ZIRAN_COMPILER_TSX_H_PRIVATE
 #ifndef ZIRAN_CONCRETE___type_57ca95b2d7309e4b
@@ -119,6 +128,7 @@ struct Parser {
     int32_t loop;
     int64_t consumed;
     __type_a0b5f48c67108554 imports;
+    __type_c53c2d7c4913dc02 type_parameters;
     __type_57ca95b2d7309e4b locals;
     int64_t local_base;
     __type_4ff841a7488d78e7 steps;
@@ -129,15 +139,6 @@ struct Parser {
 
 struct __type_838711075b90279a {
     uint8_t* data;
-    int64_t count;
-    int64_t capacity;
-};
-#endif
-#ifndef ZIRAN_CONCRETE___type_c53c2d7c4913dc02
-#define ZIRAN_CONCRETE___type_c53c2d7c4913dc02
-
-struct __type_c53c2d7c4913dc02 {
-    String* data;
     int64_t count;
     int64_t capacity;
 };

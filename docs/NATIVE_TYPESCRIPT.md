@@ -71,6 +71,11 @@ re-exports and JavaScript packages are unsupported.
 - A homogeneous tuple such as `[string, string]` is a fixed native array.
   `T[]` names a borrowed native slice. Slice literals need backing storage;
   general owned-array and JSX child-range construction is still open work.
+- Native generic records use `Vec<number>` or `Domain.Box<number>` at type
+  positions and retain the actual checked Ziran declaration and specialization.
+  An `interface Holder<T> { value: T; }` declares a native generic record.
+  Nested type arguments are supported. Generic functions, constraints and
+  defaults are not implemented in the TSX frontend yet.
 - `any`, `unknown`, `never`, `undefined` and `null` are rejected. Optional values,
   errors and resources must have explicit native declarations. The frontend
   does not invent a nullable or serialized representation for them.
@@ -89,6 +94,13 @@ prevents rebinding; it does not freeze the fields of a record. Blocks, `if` /
 `else`, `while`, C-style `for` with explicit assignment steps, `break`,
 `continue`, assignment and local compound assignment are supported. Loop steps
 execute before a matching `continue` and do not execute after `break`.
+`for (const item of values)` and `for (let item of values)` iterate native
+arrays, slices, strings and vectors. The collection expression runs once.
+Existing storage is borrowed for the loop; a fresh owned result is kept in
+the loop's scope and released on exit. Mutating or moving a borrowed vector
+is rejected. The iteration binding holds an element value; changing a `let`
+binding does not replace the element in its collection. Array literals
+currently require a typed backing binding before iteration.
 
 Native procedure signatures can appear as field/parameter types or named aliases:
 
@@ -110,8 +122,10 @@ Capturing an enclosing local is rejected: owned capture storage and callback
 cleanup remain required migration work. The `__tsx_` identifier prefix is
 reserved for generated IR declarations.
 
-Captured callbacks, classes, promises, async functions, generics, collection
-`for ... of` and type unions are not implemented yet.
+Captured callbacks, classes, promises, async functions and type unions are not
+implemented yet. Native specialization currently rejects colliding generic
+declaration names in a module; resolving distinct template identities is open
+compiler work.
 
 JSX calls an ordinary typed component value with one props record. The compiler
 knows no widget names and does not choose a UI library. Qualified component

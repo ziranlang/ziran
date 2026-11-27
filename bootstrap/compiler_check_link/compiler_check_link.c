@@ -938,6 +938,69 @@ compiler_check_link_rewrite_function_type_applications_with_buffers(ZirModule* m
         return 0;
     }
     zir_foreign_compiler_check_link__copy_text((uint8_t*)(&(fn->return_type)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), (uint8_t*)(&(buffers->expanded.items)));
+    if (fn->from_ir != 0) {
+        uint8_t* expanded = (uint8_t*)(&(buffers->expanded.items));
+        {
+            int32_t range_first_25 = 0;
+            int32_t range_last_25 = (int32_t)((uint32_t)(fn->stmt_count) - 1u);
+            int32_t s = range_first_25;
+            while (s <= range_last_25) {
+                ZirStmt* statement = &(fn->stmts[s]);
+                bool value_19 = ((ZirStmtKind)(statement->kind)) != ((ZirStmtKind)(3)) || ((uint8_t*)statement->type) == ((void *)0);
+                if (value_19 || statement->type[0] == 0) {
+                    if (s == range_last_25) {
+                        break;
+                    }
+                    s = (int32_t)((uint32_t)s + 1u);
+                    continue;
+                }
+                if (private_check_rewrite_type_applications(module, (uint8_t*)statement->type, expanded, sizeof(S12Array8192_u8), statement->span, 0) == 0) {
+                    return 0;
+                }
+                const char ** value_20 = &((fn->stmts[s]).type);
+                uint8_t* value_21 = zir_foreign_compiler_check_link__KeepName(expanded);
+                (*value_20) = (const char *)(value_21);
+                if (s == range_last_25) {
+                    break;
+                }
+                s = (int32_t)((uint32_t)s + 1u);
+            }
+        }
+        {
+            int32_t range_first_35 = 0;
+            int32_t range_last_35 = (int32_t)((uint32_t)(fn->expr_count) - 1u);
+            int32_t e = range_first_35;
+            if (e <= range_last_35) for (;;) {
+                ZirExpr* expression = &(fn->exprs[e]);
+                bool value_22 = ((ZirExprKind)(expression->kind)) != ((ZirExprKind)(11)) && ((ZirExprKind)(expression->kind)) != ((ZirExprKind)(12));
+                if (value_22 && ((ZirExprKind)(expression->kind)) != ((ZirExprKind)(13))) {
+                    if (e == range_last_35) {
+                        break;
+                    }
+                    e = (int32_t)((uint32_t)e + 1u);
+                    continue;
+                }
+                if (((uint8_t*)expression->name) == ((void *)0) || expression->name[0] == 0) {
+                    if (e == range_last_35) {
+                        break;
+                    }
+                    e = (int32_t)((uint32_t)e + 1u);
+                    continue;
+                }
+                if (private_check_rewrite_type_applications(module, (uint8_t*)expression->name, expanded, sizeof(S12Array8192_u8), expression->span, 0) == 0) {
+                    return 0;
+                }
+                const char ** value_23 = &((fn->exprs[e]).name);
+                uint8_t* value_24 = zir_foreign_compiler_check_link__KeepName(expanded);
+                (*value_23) = (const char *)(value_24);
+                if (e == range_last_35) {
+                    break;
+                }
+                e = (int32_t)((uint32_t)e + 1u);
+            }
+        }
+        return 1;
+    }
     {
         int32_t s = 0;
         while (true) {
@@ -947,28 +1010,28 @@ compiler_check_link_rewrite_function_type_applications_with_buffers(ZirModule* m
                     break;
                 }
                 ZirStmt* statement = (ZirStmt*)(((size_t)(fn->stmts) + ((size_t)(s) * sizeof(ZirStmt))));
-                uint8_t* value_19 = zir_foreign_compiler_check_link__strchr((uint8_t*)statement->text, 40);
-                if (value_19 == (uint8_t*)(((void *)0))) {
+                uint8_t* value_25 = zir_foreign_compiler_check_link__strchr((uint8_t*)statement->text, 40);
+                if (value_25 == (uint8_t*)(((void *)0))) {
                     compiler_check_s12_types_S12Post2(&(s));
-                    goto zir_loop_continue_1;
+                    goto zir_loop_continue_3;
                 }
-                size_t value_20 = zir_foreign_compiler_check_link__strlen((uint8_t*)statement->text);
-                size_t length = (size_t)((uint64_t)(value_20));
+                size_t value_26 = zir_foreign_compiler_check_link__strlen((uint8_t*)statement->text);
+                size_t length = (size_t)((uint64_t)(value_26));
                 size_t capacity = (size_t)((uint64_t)(sizeof(S12Array8192_u8)));
                 uint8_t* expanded = (uint8_t*)(&(buffers->expanded.items));
                 if ((length * (size_t)(2LL)) + (size_t)(256LL) > capacity) {
                     capacity = (length * (size_t)(2LL)) + (size_t)(256LL);
-                    void* value_21 = zir_foreign_compiler_check_link__CompilerMalloc(capacity);
-                    expanded = (uint8_t*)(value_21);
+                    void* value_27 = zir_foreign_compiler_check_link__CompilerMalloc(capacity);
+                    expanded = (uint8_t*)(value_27);
                     if (expanded == (uint8_t*)(((void *)0))) {
                         return 0;
                     }
                 }
                 int32_t ok = private_check_rewrite_type_applications(module, (uint8_t*)statement->text, expanded, capacity, statement->span, 0);
                 if (ok != 0) {
-                    const char ** value_22 = &(statement->text);
-                    uint8_t* value_23 = zir_foreign_compiler_check_link__KeepText(expanded);
-                    (*value_22) = (const char *)(value_23);
+                    const char ** value_28 = &(statement->text);
+                    uint8_t* value_29 = zir_foreign_compiler_check_link__KeepText(expanded);
+                    (*value_28) = (const char *)(value_29);
                 }
                 if (expanded != (uint8_t*)(&(buffers->expanded.items))) {
                     zir_foreign_compiler_check_link__CompilerFree((void*)(expanded));
@@ -978,9 +1041,9 @@ compiler_check_link_rewrite_function_type_applications_with_buffers(ZirModule* m
                 }
                 compiler_check_s12_types_S12Post2(&(s));
             }
-            zir_loop_continue_1: ;
+            zir_loop_continue_3: ;
         }
-        zir_loop_break_1: ;
+        zir_loop_break_3: ;
     }
     compiler_check_link_StructureFunction(fn, module);
     return 1;
@@ -1029,6 +1092,17 @@ compiler_check_link_normalize_type_applications_with_buffers(ZirModule* module, 
                     zir_foreign_compiler_check_link__copy_text((uint8_t*)(&((module->types[t]).body)), (size_t)((uint64_t)(sizeof(S12Array8192_u8))), (uint8_t*)(&(buffers->expanded.items)));
                 }
             }
+            if ((module->types[t]).is_procedure_type != 0) {
+                if (private_check_rewrite_type_applications(module, (uint8_t*)(&((module->types[t]).procedure_return_type)), (uint8_t*)(&(buffers->expanded.items)), sizeof(S12Array8192_u8), (module->types[t]).span, 0) == 0) {
+                    return 0;
+                }
+                Slice value_3 = {(module->types[t]).procedure_return_type, 128};
+                Slice value_4 = value_3;
+                bool value_5 = compiler_ir_CopyText(value_4, compiler_ir_CText((uint8_t*)(&(buffers->expanded.items))));
+                if (!value_5) {
+                    return 0;
+                }
+            }
             compiler_check_s12_types_S12Post2(&(t));
         }
     }
@@ -1040,14 +1114,14 @@ compiler_check_link_normalize_type_applications_with_buffers(ZirModule* module, 
                 break;
             }
             ZirGlobal* global = (ZirGlobal*)(((size_t)(module->globals) + ((size_t)(g) * sizeof(ZirGlobal))));
-            bool value_3 = private_check_rewrite_type_applications(module, (uint8_t*)(&(global->type)), (uint8_t*)(&(buffers->expanded.items)), (size_t)((uint64_t)(sizeof(S12Array8192_u8))), global->span, 0) != 0;
-            if (!value_3) {
+            bool value_6 = private_check_rewrite_type_applications(module, (uint8_t*)(&(global->type)), (uint8_t*)(&(buffers->expanded.items)), (size_t)((uint64_t)(sizeof(S12Array8192_u8))), global->span, 0) != 0;
+            if (!value_6) {
                 return 0;
             }
-            size_t value_4 = zir_foreign_compiler_check_link__strlen((uint8_t*)(&(buffers->expanded.items)));
-            uint64_t value_5 = (uint64_t)(value_4);
-            uint64_t value_6 = (uint64_t)(sizeof(S12Array4096_u8));
-            if (value_5 >= value_6) {
+            size_t value_7 = zir_foreign_compiler_check_link__strlen((uint8_t*)(&(buffers->expanded.items)));
+            uint64_t value_8 = (uint64_t)(value_7);
+            uint64_t value_9 = (uint64_t)(sizeof(S12Array4096_u8));
+            if (value_8 >= value_9) {
                 return 0;
             }
             zir_foreign_compiler_check_link__copy_text((uint8_t*)(&(global->type)), (size_t)((uint64_t)(sizeof(S12Array4096_u8))), (uint8_t*)(&(buffers->expanded.items)));
@@ -1067,25 +1141,25 @@ compiler_check_link_normalize_type_applications_with_buffers(ZirModule* module, 
                     compiler_check_s12_types_S12Post2(&(i));
                     goto zir_loop_continue_3;
                 }
-                bool value_7 = private_check_rewrite_type_applications(module, (uint8_t*)(&(binding->args)), (uint8_t*)(&(buffers->expanded.items)), (size_t)((uint64_t)(sizeof(S12Array8192_u8))), binding->span, 0) != 0;
-                if (!value_7) {
+                bool value_10 = private_check_rewrite_type_applications(module, (uint8_t*)(&(binding->args)), (uint8_t*)(&(buffers->expanded.items)), (size_t)((uint64_t)(sizeof(S12Array8192_u8))), binding->span, 0) != 0;
+                if (!value_10) {
                     return 0;
                 }
-                size_t value_8 = zir_foreign_compiler_check_link__strlen((uint8_t*)(&(buffers->expanded.items)));
-                uint64_t value_9 = (uint64_t)(value_8);
-                uint64_t value_10 = (uint64_t)(sizeof(S12Array4096_u8));
-                if (value_9 >= value_10) {
+                size_t value_11 = zir_foreign_compiler_check_link__strlen((uint8_t*)(&(buffers->expanded.items)));
+                uint64_t value_12 = (uint64_t)(value_11);
+                uint64_t value_13 = (uint64_t)(sizeof(S12Array4096_u8));
+                if (value_12 >= value_13) {
                     return 0;
                 }
                 zir_foreign_compiler_check_link__copy_text((uint8_t*)(&(binding->args)), (size_t)((uint64_t)(sizeof(S12Array4096_u8))), (uint8_t*)(&(buffers->expanded.items)));
-                bool value_11 = private_check_rewrite_type_applications(module, (uint8_t*)(&(binding->return_type)), (uint8_t*)(&(buffers->expanded.items)), (size_t)((uint64_t)(sizeof(S12Array8192_u8))), binding->span, 0) != 0;
-                if (!value_11) {
+                bool value_14 = private_check_rewrite_type_applications(module, (uint8_t*)(&(binding->return_type)), (uint8_t*)(&(buffers->expanded.items)), (size_t)((uint64_t)(sizeof(S12Array8192_u8))), binding->span, 0) != 0;
+                if (!value_14) {
                     return 0;
                 }
-                size_t value_12 = zir_foreign_compiler_check_link__strlen((uint8_t*)(&(buffers->expanded.items)));
-                uint64_t value_13 = (uint64_t)(value_12);
-                uint64_t value_14 = (uint64_t)(sizeof(S12Array128_u8));
-                if (value_13 >= value_14) {
+                size_t value_15 = zir_foreign_compiler_check_link__strlen((uint8_t*)(&(buffers->expanded.items)));
+                uint64_t value_16 = (uint64_t)(value_15);
+                uint64_t value_17 = (uint64_t)(sizeof(S12Array128_u8));
+                if (value_16 >= value_17) {
                     return 0;
                 }
                 zir_foreign_compiler_check_link__copy_text((uint8_t*)(&(binding->return_type)), (size_t)((uint64_t)(sizeof(S12Array128_u8))), (uint8_t*)(&(buffers->expanded.items)));
@@ -1104,12 +1178,12 @@ compiler_check_link_normalize_type_applications_with_buffers(ZirModule* module, 
                     break;
                 }
                 ZirFunction* fn = (ZirFunction*)(((size_t)(module->functions) + ((size_t)(f) * sizeof(ZirFunction))));
-                if (fn->from_ir != 0 || fn->is_template != 0) {
+                if (fn->is_template != 0) {
                     compiler_check_s12_types_S12Post2(&(f));
                     goto zir_loop_continue_4;
                 }
-                bool value_15 = compiler_check_link_rewrite_function_type_applications(module, fn) != 0;
-                if (!value_15) {
+                bool value_18 = compiler_check_link_rewrite_function_type_applications(module, fn) != 0;
+                if (!value_18) {
                     return 0;
                 }
                 compiler_check_s12_types_S12Post2(&(f));

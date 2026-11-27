@@ -32,6 +32,7 @@ Parser :: struct {
     loop: s32
     consumed: s64
     imports: Vec(ImportedName)
+    type_parameters: Vec(string)
     locals: Vec(LocalBinding)
     local_base: s64
     steps: Vec(LoopStep)
@@ -156,6 +157,22 @@ TypeAlias :: (p: *Parser, public: bool) {
     unused Take(p, ";")
 }
 TypeName :: (p: *Parser) -> string {
+    p.depth += 1
+    if p.depth > 128 { Fail(p, "type nesting exceeds 128"); p.depth -= 1; return "" }
+    result := TypePrimary(p)
+    p.depth -= 1
+    if result.count >= IR.ZIR_NAME_MAX { Fail(p, "type exceeds the native IR name limit") }
+    return result
+}
+TypeClose :: (p: *Parser) {
+    // A nested type can end in >> or >>= without whitespace. Consume one
+    // delimiter, leaving the remaining token at its authored byte/column.
+    text := Token(p)
+    if text.count == 0 || text[0] != #char ">" { Fail(p, "expected > after native type arguments"); return }
+    if text.count == 1 { Advance(p) }
+    else { p.token.begin += 1; p.token.column += 1 }
+}
+TypePrimary :: (p: *Parser) -> string {
     if Token(p) == "(" {
         span := Location(p)
         name := GeneratedName("type", span)
@@ -176,9 +193,21 @@ TypeName :: (p: *Parser) -> string {
     }
     name := Identifier(p)
     if name == "any" || name == "unknown" || name == "never" { Fail(p, "this type has no native checked representation"); return "" }
-    name = IR.CText(ResolveName(p, name))
+    parameter := false
+    for item: p.type_parameters { if item == name { parameter = true } }
+    if !parameter { name = IR.CText(ResolveImportedName(p, name)) }
     while Take(p, ".") { name = Join(name, ".", Identifier(p)) }
     name = NativeType(name)
+    if Take(p, "<") {
+        name = Join(name, "(")
+        while !p.failed {
+            name = Join(name, TypeName(p))
+            if !Take(p, ",") { break }
+            name = Join(name, ", ")
+        }
+        TypeClose(p)
+        name = Join(name, ")")
+    }
     while Take(p, "[") { Expect(p, "]"); name = Join("[]", name) }
     return name
 }
@@ -203,6 +232,9 @@ ResolveName :: (p: *Parser, name: string) -> *u8 {
             return Services.KeepName(name)
         }
     }
+    return ResolveImportedName(p, name)
+}
+ResolveImportedName :: (p: *Parser, name: string) -> *u8 {
     for imported: p.imports { if imported.alias == name { return imported.path } }
     return Services.KeepName(name)
 }
@@ -652,6 +684,90 @@ Block :: (p: *Parser) {
     Expect(p, "}")
     unused VecResize(p.locals, previous)
 }
+Declare :: (p: *Parser, name: string, type: string, expr: s32, span: IR.ZirSourceSpan) {
+    text := Join(name, ifx type.count == 0 then " := " else Join(": ", type, " = "), TextOf(p, expr))
+    st := Statement(p, .DECL, text, span)
+    if st != null { st.names = .{name = Services.KeepName(name)}; st.type = Services.KeepName(type); st.expr_root = expr }
+}
+ForOfAhead :: (p: *Parser) -> bool {
+    if Token(p) != "const" && Token(p) != "let" { return false }
+    name := Scan.NextCodeToken(p.source, p.token.end, p.token.after_line, p.token.after_column)
+    if name.kind != .Ident { return false }
+    keyword := Scan.NextCodeToken(p.source, name.end, name.after_line, name.after_column)
+    return p.source[keyword.begin:keyword.end] == "of"
+}
+PersistentPlace :: (p: *Parser, expr: s32) -> bool {
+    if expr < 0 { return false }
+    kind := p.fn.exprs[expr].kind
+    if kind == .IDENT { return true }
+    if kind == .MEMBER || kind == .INDEX { return PersistentPlace(p, p.fn.exprs[expr].left) }
+    return false
+}
+ForOf :: (p: *Parser, span: IR.ZirSourceSpan) {
+    previous := p.locals.count
+    previous_loop := p.loop
+    immutable := Take(p, "const")
+    if !immutable { Expect(p, "let") }
+    name := Identifier(p)
+    Expect(p, "of")
+    collection := Expression(p)
+    Expect(p, ")")
+    if p.failed { return }
+    unused Statement(p, .BLOCK_OPEN, "{", span)
+    // Borrow an existing place, never move the application's named owner.
+    // A fresh owned result instead lives in this block and drops after the
+    // loop, including on return. Checking retains the usual mutation rules.
+    if !PersistentPlace(p, collection) {
+        items := GeneratedName("items", span)
+        Declare(p, items, "", collection, span)
+        collection = NameNode(p, items, span)
+    }
+    view_name := GeneratedName("view", span)
+    view := Node(p, .SLICE, Join(TextOf(p, collection), "[:]"), span, collection)
+    Declare(p, view_name, "", view, span)
+    count_name := GeneratedName("count", span)
+    view_place := NameNode(p, view_name, span)
+    count := Node(p, .MEMBER, Join(view_name, ".count"), span, view_place)
+    if count >= 0 { p.fn.exprs[count].name = Services.KeepName("count"); unused IR.CopyText(p.fn.exprs[count].op[:], ".") }
+    Declare(p, count_name, "s64", count, span)
+    index_name := GeneratedName("index", span)
+    zero := Node(p, .INT, "0", span)
+    Declare(p, index_name, "s64", zero, span)
+    index := NameNode(p, index_name, span)
+    bound := NameNode(p, count_name, span)
+    condition := Node(p, .BINARY, Join(index_name, " < ", count_name), span, index, bound)
+    if condition >= 0 { unused IR.CopyText(p.fn.exprs[condition].op[:], "<") }
+    p.loop_serial += 1
+    p.loop = p.loop_serial
+    loop := Statement(p, .WHILE, Join("while ", TextOf(p, condition), " {"), span)
+    if loop != null { loop.expr_root = condition; loop.loop_id = p.loop }
+    // Build a detached integer increment once, then use the same matching
+    // continue handling as a C-style for. Nested loops keep their own step.
+    one := Node(p, .INT, "1", span)
+    step_value := Node(p, .BINARY, Join(index_name, " + 1"), span, index, one)
+    if step_value >= 0 { unused IR.CopyText(p.fn.exprs[step_value].op[:], "+") }
+    step_at := p.fn.stmt_count
+    step_slot := Statement(p, .ASSIGN, Join(index_name, " = ", TextOf(p, step_value)), span)
+    if step_slot == null { Fail(p, "cannot allocate collection loop step"); return }
+    step_slot.lhs_root = index
+    step_slot.expr_root = step_value
+    unused IR.CopyText(step_slot.assignment_op[:], "=")
+    step := p.fn.stmts[step_at]
+    p.fn.stmt_count = step_at
+    previous_steps := p.steps.count
+    if !VecPush(p.steps, .{loop = p.loop, statement = step}) { Fail(p, "cannot allocate collection loop step"); return }
+    item := Node(p, .INDEX, Join(view_name, "[", Join(index_name, "]")), span, view_place, index)
+    Declare(p, name, "", item, span)
+    if !VecPush(p.locals, .{name = name, immutable = immutable}) { Fail(p, "cannot allocate collection binding"); return }
+    Block(p)
+    appended := Statement(p, step.kind, IR.CText(step.text), step.span)
+    if appended != null { appended[0] = step }
+    unused VecResize(p.steps, previous_steps)
+    unused Statement(p, .BLOCK_CLOSE, "}", Location(p))
+    unused Statement(p, .BLOCK_CLOSE, "}", Location(p))
+    p.loop = previous_loop
+    unused VecResize(p.locals, previous)
+}
 ParseStatement :: (p: *Parser) {
     span := Location(p)
     if Take(p, ";") { return }
@@ -676,10 +792,11 @@ ParseStatement :: (p: *Parser) {
         st := Statement(p, .DECL, text, span)
         if st != null { st.names = .{name = Services.KeepName(name)}; st.type = Services.KeepName(type); st.expr_root = expr }
     } else if Take(p, "for") {
+        Expect(p, "(")
+        if ForOfAhead(p) { ForOf(p, span); return }
         locals := p.locals.count
         previous_loop := p.loop
         unused Statement(p, .BLOCK_OPEN, "{", span)
-        Expect(p, "(")
         if !Take(p, ";") { ParseStatement(p) }
         condition: s32
         if Token(p) == ";" {
@@ -817,6 +934,21 @@ Function :: (p: *Parser, public: bool) {
 Interface :: (p: *Parser, public: bool) {
     span := Location(p)
     name := Identifier(p)
+    previous := p.type_parameters.count
+    parameters := ""
+    if Take(p, "<") {
+        while !p.failed {
+            parameter := Identifier(p)
+            for at: previous..p.type_parameters.count - 1 {
+                if p.type_parameters[at] == parameter { Fail(p, "duplicate native type parameter"); return }
+            }
+            if !VecPush(p.type_parameters, parameter) { Fail(p, "cannot allocate type parameter"); return }
+            if parameters.count > 0 { parameters = Join(parameters, ",") }
+            parameters = Join(parameters, parameter)
+            if !Take(p, ",") { break }
+        }
+        TypeClose(p)
+    }
     Expect(p, "{")
     fields := ""
     while !p.failed && Token(p) != "}" {
@@ -833,6 +965,11 @@ Interface :: (p: *Parser, public: bool) {
     if record == null { Fail(p, "cannot allocate record"); return }
     unused IR.CopyText(record.body[:], fields)
     record.is_public = ifx public then 1 else 0
+    if parameters.count > 0 {
+        record.is_record_template = 1
+        if !IR.CopyText(record.template_params[:], parameters) { Fail(p, "type parameters exceed the native IR name limit") }
+    }
+    unused VecResize(p.type_parameters, previous)
 }
 Import :: (p: *Parser, collect: bool = true) {
     span := Location(p)

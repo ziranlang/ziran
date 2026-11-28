@@ -36,10 +36,9 @@ Node :: struct { bytes: [2]u8; other: [2]u8; result: s32 }
 Write :: (node: *Node) { node.bytes[0] = cast(u8)98 }
 
 Input :: struct { text: string }
-Context :: struct { input: Input; sibling: Input; mode: s32 }
+Context :: struct { input: Input; sibling: Input; codec: Input; mode: s32 }
 context: Context;
 input_bytes: [2]u8;
-ClearInput :: () { context.input = .{} }
 ResetMode :: (state: *Context, depth: s32) {
     if depth > 0 { ResetMode(state, depth - 1) }
     state.mode = 0
@@ -52,14 +51,18 @@ Sample :: (bytes: []u8) -> Input {
     }
     return Input.{text = TextView(bytes)}
 }
+PlatformInput :: () -> Input { return Sample(input_bytes[:]) }
 InputCycle :: () -> s32 {
     ResetMode(*context, 2)
-    ClearInput()
-    context.input = Sample(input_bytes[:])
+    ClearInput(*context)
+    context.input = PlatformInput()
+    context.codec = context.input
     result := cast(s32)context.input.text[0]
-    ClearInput()
+    ClearInput(*context)
+    ResetMode(*context, 2)
     return result
 }
+ClearInput :: (state: *Context) { state.input = .{}; state.codec = .{} }
 
 global_bytes: [2]u8 = .[97, 98];
 global_view: string;

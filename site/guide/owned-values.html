@@ -53,8 +53,16 @@ aggregate replacement are rejected. A view-bearing global retains its tracked
 global backing aliases until a checked path proves they have ended. Before
 mutating that backing, every relevant path must replace the whole owner, or a
 named enclosing field covering all of that backing's retained views, with an
-empty or static value. Checked helper calls participate in this proof. Clearing a sibling,
-one element of an array, or an unresolved pointer alias grants no such proof;
+empty or static value. Checked helper calls participate in this proof, including
+helpers receiving an unchanged pointer to the whole owner. Each retained field
+is tracked separately, so clearing several fields in sequence can end all of the
+owner's loans. A loan cannot survive a call boundary when every checked body
+that installs it clears it on every return; mutations within those bodies still
+require the clear before the write. An unresolved callback may reenter a global
+writer even without reference arguments, so it cannot run while that loan is
+live in a body claiming this boundary proof. These proofs use converged effect summaries
+and do not depend on declaration order. Clearing a sibling, one element of an
+array, a value copy, or an unresolved or rebound pointer grants no such proof;
 other live views still protect the backing independently. Assignment from local
 or parameter-backed storage into a global is rejected. A view reached through a local pointer created
 with Jai <code>*value</code> protects its pointee binding and pointer aliases while live.

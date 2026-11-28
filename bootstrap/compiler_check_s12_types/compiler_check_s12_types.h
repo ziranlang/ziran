@@ -335,6 +335,7 @@ struct BorrowCheck {
     ZirExpr* loan_call;
     BorrowLoanProof* loan_proofs;
     BorrowRetainedLoan* retained_loans;
+    bool global_loans_ready;
 };
 
 struct IndexList {
@@ -359,6 +360,7 @@ struct BorrowFunction {
     int32_t scanned_views;
     int32_t stale;
     uint64_t summary_changed_at;
+    bool global_callbacks;
     uint64_t listed_by;
 };
 
@@ -380,6 +382,8 @@ struct BorrowLoanFrame {
     uint64_t backing_parameters;
     int32_t stop_statement;
     int32_t stop_expression;
+    BorrowPath* path;
+    uint64_t whole_view_parameters;
 };
 
 struct BorrowLoanProof {
@@ -394,6 +398,7 @@ struct BorrowRetainedLoan {
     int32_t view;
     int32_t backing;
     BorrowPath* path;
+    IndexList retainers;
     struct BorrowRetainedLoan* next;
 };
 

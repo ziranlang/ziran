@@ -9,7 +9,7 @@ MutationFixture :: (test: *NativeTest, name: string) -> string { return NativeRe
 
 MutationTests :: (test: *NativeTest) -> bool {
     fixtures: JsonDocument
-    if !NativeAssert(test, JsonRead(*fixtures, MutationFixture(test, "negative.json")) && JsonCount(*fixtures, fixtures.root) == 14, "invalid text mutation rejection fixtures") { return false }
+    if !NativeAssert(test, JsonRead(*fixtures, MutationFixture(test, "negative.json")) && JsonCount(*fixtures, fixtures.root) == 15, "invalid text mutation rejection fixtures") { return false }
     node := MutationFixture(test, "node.zi.in"); item := JsonFirst(*fixtures, fixtures.root)
     while item >= 0 {
         name := TextDetach(JsonKey(*fixtures, item)); source := CheckPath(test.work, CheckConcat(name, ".zi"))
@@ -58,7 +58,7 @@ MutationTests :: (test: *NativeTest) -> bool {
     if test.failed || !NativeAssert(test, NativeSameFile(source_bundle, CheckPath(test.work, "saved.zx")), "source and saved IR changed the borrow-safe portable program") { return false }
     run := string.[test.ziran, "run", source_bundle]
     if !NativeExpect(test, run[:], "42\n") { return false }
-    print("text mutation: 14 unsafe aliases rejected; descriptor copies, siblings and identity callbacks execute from source and saved IR in local tests\n")
+    print("text mutation: 15 unsafe aliases rejected; descriptor copies, siblings and identity callbacks execute from source and saved IR in local tests\n")
     return true
 }
 

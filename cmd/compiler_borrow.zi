@@ -517,7 +517,7 @@ loan_static :: (fn: *IR.ZirFunction, index: s32) -> bool {
 readonly_builtin :: (name: *u8) -> bool {
     text := IR.CText(name)
     return text == "print" || text == "assert" || text == "TextView" ||
-        text == "VecSlice" || text == "VecGet" || text == "zi_sqrt" || BitBuiltin(name) != 0
+    text == "VecSlice" || text == "VecGet" || text == "zi_sqrt" || BitBuiltin(name) != 0
 }
 
 // Root masks: owning view cell, backing storage, unresolved reference. Local
@@ -579,7 +579,7 @@ loan_roots :: (check: *BorrowCheck, frame: BorrowLoanFrame, index: s32, statemen
             if previous.kind == .ASSIGN && previous.lhs_root >= 0 {
                 lhs := *fn.exprs[previous.lhs_root]
                 if lhs.kind == .IDENT && strcmp(lhs.name, expression.name) == 0 &&
-                   (lhs.type[0] == #char "*" || SliceElementType(lhs.type, null, 0) != 0) {
+                (lhs.type[0] == #char "*" || SliceElementType(lhs.type, null, 0) != 0) {
                     aliases |= loan_roots(check, frame, previous.expr_root, at)
                 }
             }
@@ -640,47 +640,59 @@ loan_whole_global :: (check: *BorrowCheck, frame: BorrowLoanFrame, index: s32, s
     return loan_global(check, frame.function.module, name)
 }
 
-#scope_file
-retained_loan :: (check: *BorrowCheck, view: s32, backing: s32) -> *BorrowRetainedLoan {
-    loan := check.retained_loans
-    while loan != null {
-        if loan.view == view && loan.backing == backing { return loan }
-        loan = loan.next
-    }
-    return null
-}
-
-// May-origins only grow. Join destination paths toward their common ancestor
-// as further assignments are discovered, independently for each backing.
+// May-origins and retaining bodies only grow. Distinct fields must retain
+// distinct obligations instead of merging to an uncleared common ancestor.
 #scope_file
 retain_global_loans :: (check: *BorrowCheck, view: *BorrowBinding, destination: BorrowPlace, origin: Origin) {
     if origin.globals == null { return }
     path := ifx destination.root == view then destination.path else null
     for backing: cast(s32)0..check.global_count - 1 {
         if has_global(origin, backing) == 0 { continue }
-        loan := retained_loan(check, view.global_index, backing)
+        loan := check.retained_loans
+        while loan != null {
+            if loan.view == view.global_index && loan.backing == backing && same_path(loan.path, path) != 0 { break }
+            loan = loan.next
+        }
         if loan == null {
             loan = cast(*BorrowRetainedLoan)AllocateOrExit(size_of(BorrowRetainedLoan))
-            loan[0] = BorrowRetainedLoan.{view.global_index, backing, path, check.retained_loans}
+            loan[0] = BorrowRetainedLoan.{view.global_index, backing, path, .{}, check.retained_loans}
             check.retained_loans = loan
-        } else {
-            common := loan.path
-            other := path
-            while common != null && other != null && common.depth > other.depth { common = common.parent }
-            while common != null && other != null && other.depth > common.depth { other = other.parent }
-            while common != null && other != null && same_path(common, other) == 0 {
-                common = common.parent
-                other = other.parent
-            }
-            if other == null { common = null }
-            if same_path(common, loan.path) != 0 { continue }
-            loan.path = common
         }
+        function := pointer_index_get(*check.function_index, cast(*void)check.current.fn, null)
+        found := false
+        for index: cast(s32)0..loan.retainers.count - 1 {
+            if loan.retainers.items[index] == function { found = true; break }
+        }
+        if found { continue }
+        list_index(check, *loan.retainers, function)
         check.changed = 1
         check.clock += 1
         view.changed_at = check.clock
         check.views_changed_at = check.clock
     }
+}
+
+// A parameter can stand for the whole owner only while it keeps the exact
+// incoming reference. Rebinding or shadowing it invalidates that identity.
+#scope_file
+loan_stable_parameter :: (fn: *IR.ZirFunction, name: *u8) -> bool {
+    for at: cast(s32)0..fn.stmt_count - 1 {
+        statement := *fn.stmts[at]
+        if statement.kind == .DECL && strcmp(statement.names.name, name) == 0 { return false }
+        if statement.kind == .ASSIGN && statement.lhs_root >= 0 {
+            lhs := *fn.exprs[statement.lhs_root]
+            if lhs.kind == .IDENT && strcmp(lhs.name, name) == 0 { return false }
+        }
+    }
+    for index: cast(s32)0..fn.expr_count - 1 {
+        expression := *fn.exprs[index]
+        if expression.kind == .UNARY && expression.right >= 0 &&
+        (IR.CText(*expression.op[0]) == "*" || IR.CText(*expression.op[0]) == "&") {
+            operand := *fn.exprs[expression.right]
+            if operand.kind == .IDENT && strcmp(operand.name, name) == 0 { return false }
+        }
+    }
+    return true
 }
 
 // Only direct named fields establish a partial clear. An indexed write may
@@ -689,8 +701,24 @@ retain_global_loans :: (check: *BorrowCheck, view: *BorrowBinding, destination: 
 loan_global_place :: (check: *BorrowCheck, frame: BorrowLoanFrame, index: s32, statement: s32) -> BorrowPlace {
     if index < 0 { return .{} }
     expression := *frame.function.fn.exprs[index]
-    if expression.kind == .MEMBER {
-        return append_place(check, loan_global_place(check, frame, expression.left, statement), expression.name, 0)
+    if expression.kind == .MEMBER || expression.kind == .POINTER_MEMBER {
+        owner := loan_global_place(check, frame, expression.left, statement)
+        // A pointer stored inside the owner may point to a different record.
+        if owner.path != null && frame.function.fn.exprs[expression.left].type[0] == #char "*" { return .{} }
+        return append_place(check, owner, expression.name, 0)
+    }
+    if expression.kind == .UNARY && (IR.CText(*expression.op[0]) == "*" || IR.CText(*expression.op[0]) == "&") {
+        return loan_global_place(check, frame, expression.right, statement)
+    }
+    if expression.kind == .IDENT {
+        parameters := ParametersOf(FunctionArgs(frame.function.fn))
+        for parameter: cast(s32)0..parameters.count - 1 {
+            if parameter < 64 && (frame.whole_view_parameters & (1 << cast(u64)parameter)) != 0 &&
+            strcmp(parameters.items.items[parameter].name, expression.name) == 0 &&
+            loan_stable_parameter(frame.function.fn, expression.name) {
+                return root_place(*check.globals[frame.view])
+            }
+        }
     }
     global := loan_whole_global(check, frame, index, statement)
     if global != frame.view { return .{} }
@@ -702,8 +730,7 @@ loan_clears_owner :: (check: *BorrowCheck, frame: BorrowLoanFrame, index: s32, s
     destination := loan_global_place(check, frame, index, statement)
     if destination.root == null { return false }
     if destination.path == null { return true }
-    loan := retained_loan(check, frame.view, frame.backing)
-    return loan != null && path_within(destination.path, loan.path) != 0
+    return path_within(destination.path, frame.path) != 0
 }
 
 #scope_file
@@ -722,10 +749,15 @@ loan_merge :: (first: BorrowLoanFlow, second: BorrowLoanFlow) -> BorrowLoanFlow 
 loan_relevant :: (summary: *BorrowFunction, frame: BorrowLoanFrame, mask: s32) -> bool {
     item := summary.mutations
     while item != null {
-        if ((mask & 1) != 0 && (item.global == frame.view ||
-            (item.parameter >= 0 && item.parameter < 64 && (frame.view_parameters & (1 << cast(u64)item.parameter)) != 0))) ||
-           ((mask & 2) != 0 && (item.global == frame.backing ||
-            (item.parameter >= 0 && item.parameter < 64 && (frame.backing_parameters & (1 << cast(u64)item.parameter)) != 0))) { return true }
+        if (mask & 1) != 0 {
+            direct := item.global == frame.view
+            parameter := item.parameter >= 0 && item.parameter < 64 &&
+                (frame.view_parameters & (1 << cast(u64)item.parameter)) != 0
+            exact := direct || (parameter && (frame.whole_view_parameters & (1 << cast(u64)item.parameter)) != 0)
+            if (direct || parameter) && (!exact || paths_overlap(item.path, frame.path) != 0) { return true }
+        }
+        if (mask & 2) != 0 && (item.global == frame.backing ||
+            (item.parameter >= 0 && item.parameter < 64 && (frame.backing_parameters & (1 << cast(u64)item.parameter)) != 0)) { return true }
         item = item.next
     }
     return false
@@ -739,7 +771,7 @@ loan_apply_call :: (check: *BorrowCheck, frame: BorrowLoanFrame, index: s32, sta
     callee: *IR.ZirFunction
     ResolveFunction(frame.function.module, expression.name, *owner, *callee)
     summary := function_summary(check, callee)
-    nested := BorrowLoanFrame.{summary, frame.view, frame.backing, 0, 0, -1, -1}
+    nested := BorrowLoanFrame.{summary, frame.view, frame.backing, 0, 0, -1, -1, frame.path, 0}
     unknown: bool = false
     child := expression.first_child
     while child >= 0 {
@@ -747,6 +779,14 @@ loan_apply_call :: (check: *BorrowCheck, frame: BorrowLoanFrame, index: s32, sta
         roots := loan_roots(check, frame, child, statement)
         if parameter >= 0 && parameter < 64 {
             if (roots & 5) != 0 { nested.view_parameters |= 1 << cast(u64)parameter }
+            owner_place := loan_global_place(check, frame, child, statement)
+            if owner_place.root != null && owner_place.path == null &&
+            frame.function.fn.exprs[child].type[0] == #char "*" && callee != null {
+                parameters := ParametersOf(FunctionArgs(callee))
+                if parameter < parameters.count && loan_stable_parameter(callee, parameters.items.items[parameter].name) {
+                    nested.whole_view_parameters |= 1 << cast(u64)parameter
+                }
+            }
             if (roots & 6) != 0 { nested.backing_parameters |= 1 << cast(u64)parameter }
         } else if roots != 0 { unknown = true }
         if (roots & 4) != 0 { unknown = true }
@@ -756,13 +796,17 @@ loan_apply_call :: (check: *BorrowCheck, frame: BorrowLoanFrame, index: s32, sta
     if summary == null || callee.is_extern != 0 {
         // Opaque effects cannot establish a clear. References to the owner may
         // replace it, and references to backing may write immediately.
-        if nested.backing_parameters != 0 || unknown { result.safe = result.safe && result.clear; result.touched = true }
+        // An indirect callback can reenter a global writer even with no
+        // reference arguments. Direct native foreign calls keep their explicit
+        // caller-managed memory contract.
+        callback := expression.slot_type != null && expression.slot_type[0] != 0
+        if nested.backing_parameters != 0 || unknown || callback { result.safe = result.safe && result.clear; result.touched = true }
         if nested.view_parameters != 0 || unknown { result.clear = false }
         if unknown { result.safe = false }
         return result
     }
     if callee.checked == 0 { result.safe = false; result.clear = false; return result }
-    if !loan_relevant(summary, nested, 3) { return result }
+    if !loan_relevant(summary, nested, 3) && !summary.global_callbacks { return result }
     effect := loan_function(check, nested, flow.clear)
     result.safe = result.safe && effect.safe
     result.touched = result.touched || effect.touched
@@ -875,8 +919,12 @@ loan_sequence :: (check: *BorrowCheck, frame: BorrowLoanFrame, begin: s32, end: 
             roots := loan_roots(check, frame, statement.lhs_root, at)
             if (roots & 2) != 0 { result.safe = result.safe && result.clear; result.touched = true }
             if (roots & 1) != 0 {
-                result.clear = loan_clears_owner(check, frame, statement.lhs_root, at) &&
+                destination := loan_global_place(check, frame, statement.lhs_root, at)
+                // A write to a disjoint named field cannot reinstall this loan.
+                if destination.root == null || paths_overlap(destination.path, frame.path) != 0 {
+                    result.clear = loan_clears_owner(check, frame, statement.lhs_root, at) &&
                     IR.CText(*statement.assignment_op[0]) == "=" && loan_static(fn, statement.expr_root)
+                }
             }
             if (roots & 4) != 0 {
                 if loan_relevant(frame.function, frame, 2) { result.safe = false }
@@ -911,11 +959,14 @@ loan_function :: (check: *BorrowCheck, frame: BorrowLoanFrame, clear: bool) -> B
     while proof != null {
         previous := proof.frame
         if previous.function == frame.function && previous.view == frame.view && previous.backing == frame.backing &&
-           previous.view_parameters == frame.view_parameters && previous.backing_parameters == frame.backing_parameters && proof.input_clear == clear {
+        previous.view_parameters == frame.view_parameters && previous.backing_parameters == frame.backing_parameters && previous.whole_view_parameters == frame.whole_view_parameters &&
+        same_path(previous.path, frame.path) != 0 && proof.input_clear == clear {
             if proof.complete { return proof.result }
             // A recursive edge cannot prove a clear. Its checked mutation
             // summary still proves safety when it cannot write this backing.
-            return BorrowLoanFlow.{false, !loan_relevant(frame.function, frame, 2), true, false, true, false, false}
+            return BorrowLoanFlow.{clear && !loan_relevant(frame.function, frame, 1),
+                !loan_relevant(frame.function, frame, 2) && (!frame.function.global_callbacks || clear),
+                true, false, true, false, false}
         }
         proof = proof.next
     }
@@ -929,20 +980,53 @@ loan_function :: (check: *BorrowCheck, frame: BorrowLoanFrame, clear: bool) -> B
     return result
 }
 
+// A retained view cannot cross a call boundary when every checked body that
+// installs it ends that exact loan on every return. Writes inside those bodies
+// still run the ordered prefix proof; clearing after a write cannot excuse it.
 #scope_file
-global_loan_ended :: (check: *BorrowCheck, view: s32, destination: BorrowPlace) -> bool {
-    if view < 0 || destination.root == null || destination.root.global_index < 0 { return false }
-    frame := BorrowLoanFrame.{check.current, view, destination.root.global_index, 0, 0, check.loan_statement, -1}
+loan_entry_clear :: (check: *BorrowCheck, loan: *BorrowRetainedLoan) -> bool {
+    if loan.retainers.count == 0 { return false }
+    for index: cast(s32)0..loan.retainers.count - 1 {
+        retainer := *check.functions[loan.retainers.items[index]]
+        unused function_summary(check, retainer.fn)
+        frame := BorrowLoanFrame.{retainer, loan.view, loan.backing, 0, 0, -1, -1, loan.path, 0}
+        effect := loan_function(check, frame, true)
+        if !effect.clear || !effect.safe { return false }
+    }
+    return true
+}
+
+#scope_file
+global_loan_path_ended :: (check: *BorrowCheck, loan: *BorrowRetainedLoan) -> bool {
+    frame := BorrowLoanFrame.{check.current, loan.view, loan.backing, 0, 0, check.loan_statement, -1, loan.path, 0}
     if check.loan_move >= 0 { frame.stop_expression = check.loan_move }
     if check.loan_call != null {
         frame.stop_expression = cast(s32)((cast(usize)check.loan_call - cast(usize)check.current.fn.exprs) / size_of(IR.ZirExpr))
     }
     prefix := loan_sequence(check, frame, 0, check.current.fn.stmt_count, BorrowLoanFlow.{false, true, true, false, true, false, false})
     if !prefix.stopped { return false }
+    if !prefix.clear && loan_entry_clear(check, loan) {
+        prefix = loan_sequence(check, frame, 0, check.current.fn.stmt_count, BorrowLoanFlow.{true, true, true, false, true, false, false})
+    }
     if check.loan_call == null { return prefix.clear }
     effect := loan_apply_call(check, frame, frame.stop_expression, check.loan_statement,
         BorrowLoanFlow.{prefix.clear, true, true, false, true, false, false})
     return effect.safe && effect.touched
+}
+
+#scope_file
+global_loan_ended :: (check: *BorrowCheck, view: s32, destination: BorrowPlace) -> bool {
+    if view < 0 || destination.root == null || destination.root.global_index < 0 { return false }
+    loan := check.retained_loans
+    found := false
+    while loan != null {
+        if loan.view == view && loan.backing == destination.root.global_index {
+            found = true
+            if !global_loan_path_ended(check, loan) { return false }
+        }
+        loan = loan.next
+    }
+    return found
 }
 
 #scope_file
@@ -952,6 +1036,7 @@ text_backing_conflict :: (check: *BorrowCheck, destination: BorrowPlace) -> s32 
         while check_loop_210 := (i < (check).active_count) {
             if (!((((check).active)[i]).vec != 0) && (places_overlap((((check).active)[i]).backing, destination) != 0) &&
                 !exclusive_borrow_branch(check, check.active[i].branch) &&
+                (check.global_loans_ready || check.active[i].owner_global < 0) &&
                 !global_loan_ended(check, check.active[i].owner_global, destination)) {
                 return 1
             }
@@ -1097,7 +1182,7 @@ contains_borrow_type :: (module: *IR.ZirModule, type: *u8, kind: BorrowTypeKind,
         return kind == .VIEW || contains_borrow_type(module, *element[0], kind, path)
     }
     if ArrayElementType(type, *element[0], size_of(type_of(element)), null) != 0 ||
-       (kind == .SCOPED && VecElementType(module, type, *element[0], size_of(type_of(element))) != 0) {
+    (kind == .SCOPED && VecElementType(module, type, *element[0], size_of(type_of(element))) != 0) {
         return contains_borrow_type(module, *element[0], kind, path)
     }
     owner: *IR.ZirModule = null
@@ -1251,7 +1336,7 @@ storage_place :: (check: *BorrowCheck, index: s32, follow_address: s32) -> Borro
         return storage_place(check, (expression).left, 1)
     }
     if expression.kind == .CAST && expression.type != null && expression.type[0] == #char "*" &&
-        expression.right >= 0 && check.current.fn.exprs[expression.right].type[0] == #char "*" {
+    expression.right >= 0 && check.current.fn.exprs[expression.right].type[0] == #char "*" {
         return storage_place(check, expression.right, follow_address)
     }
     return BorrowPlace.{}
@@ -1425,10 +1510,10 @@ record_mutation :: (check: *BorrowCheck, place: BorrowPlace, owned_transfer: s32
 
 #scope_file
 check_mutation :: (check: *BorrowCheck, destination: BorrowPlace, span: IR.ZirSourceSpan,
-                   expression: s32) {
+    expression: s32) {
     if destination.root != null && destination.root.local == 0 &&
-       IR.CaptureEnvironmentBinding(check.current.fn) &&
-       !borrowed_capture_place(check.current.fn, expression) {
+    IR.CaptureEnvironmentBinding(check.current.fn) &&
+    !borrowed_capture_place(check.current.fn, expression) {
         reject(check, span, CheckCString("callback captures are immutable snapshots"))
         return
     }
@@ -1441,7 +1526,16 @@ check_mutation :: (check: *BorrowCheck, destination: BorrowPlace, span: IR.ZirSo
         return
     }
     if (text_backing_conflict(check, destination) != 0) {
-        reject(check, span, CheckCString("mutating text backing storage while its view is live"))
+        if destination.root != null {
+            message: [384]u8
+            module := ifx destination.root.module != null then destination.root.module else check.current.module
+            unused snprintf(*message[0], size_of([384]u8),
+                CheckCString("mutating text backing storage while its view is live (backing %s.%s)"),
+                *module.name[0], *destination.root.name.items[0])
+            reject(check, span, *message[0])
+        } else {
+            reject(check, span, CheckCString("mutating text backing storage while its view is live"))
+        }
         return
     }
     backing_global: s32 = ((destination).root).global_index
@@ -1449,6 +1543,9 @@ check_mutation :: (check: *BorrowCheck, destination: BorrowPlace, span: IR.ZirSo
         return
     }
     ((check).current).scanned_views = 1
+    // Must-clear proofs consume complete may-effect and retaining-body facts.
+    // Diagnose them after the summaries converge, independent of source order.
+    if !check.global_loans_ready { return }
     {
         v: s32 = 0
         while check_loop_229 := (v < (check).view_global_count) {
@@ -1584,7 +1681,7 @@ reads_byte_argument :: (check: *BorrowCheck, call: *IR.ZirExpr, argument: s32) -
     parameter := (cast(*State.ZirParameter)(*parameters.items.items[0]))[index]
     type := ifx parameter.value_type != null then parameter.value_type else parameter.type
     return IR.CText(type) == "*u8" || IR.CText(type) == "*s8" ||
-           IR.CText(type) == "[]u8" || IR.CText(type) == "[]s8"
+    IR.CText(type) == "[]u8" || IR.CText(type) == "[]s8"
 }
 
 #scope_file
@@ -1592,6 +1689,11 @@ check_call_mutations :: (check: *BorrowCheck, expression: *IR.ZirExpr) {
     fn: *IR.ZirFunction = ((check).current).fn
     name: *u8 = (expression).name
     if readonly_builtin(name) { return }
+    if expression.slot_type != null && expression.slot_type[0] != 0 && !check.current.global_callbacks {
+        check.current.global_callbacks = true
+        check.changed = 1
+        summary_changed(check)
+    }
     if (SimdOpChecked(cast(*u8)((name))) != cast(*SimdOp)((null))) {
         op: *SimdOp = SimdOpChecked(cast(*u8)((name)))
         if ((op).shape == 14) {
@@ -1623,6 +1725,11 @@ check_call_mutations :: (check: *BorrowCheck, expression: *IR.ZirExpr) {
         return
     }
     summary: *BorrowFunction = function_summary(check, callee)
+    if summary != null && summary.global_callbacks && !check.current.global_callbacks {
+        check.current.global_callbacks = true
+        check.changed = 1
+        summary_changed(check)
+    }
     if ((summary != cast(*BorrowFunction)((null))) && !((callee).is_extern != 0)) {
         {
             item: *BorrowMutation = (summary).mutations
@@ -1670,7 +1777,7 @@ check_call_mutations :: (check: *BorrowCheck, expression: *IR.ZirExpr) {
         child: s32 = (expression).first_child
         while check_loop_236 := (child >= 0) {
             if !reads_byte_argument(check, expression, child) &&
-               (fn.exprs[child].type[0] == #char "*" || SliceElementType(fn.exprs[child].type, null, 0) != 0) {
+            (fn.exprs[child].type[0] == #char "*" || SliceElementType(fn.exprs[child].type, null, 0) != 0) {
                 check_mutation(check, storage_place(check, child, 1), (expression).span, child)
             }
             child = (((fn).exprs)[child]).next_sibling
@@ -1688,7 +1795,7 @@ address_backing :: (check: *BorrowCheck, index: s32, known: *s32) -> BorrowPlace
     // A pointer cast changes its view of the pointee, not the lent storage's
     // lifetime or identity. Opaque call results still have no known backing.
     if expression.kind == .CAST && expression.type != null && expression.type[0] == #char "*" &&
-        expression.right >= 0 && check.current.fn.exprs[expression.right].type[0] == #char "*" {
+    expression.right >= 0 && check.current.fn.exprs[expression.right].type[0] == #char "*" {
         return address_backing(check, expression.right, known)
     }
     if ((cast(s32)((expression).kind) == 7) && !(strcmp(cast(*u8)(*((expression).op)), CheckCString("&")) != 0)) {
@@ -1955,7 +2062,7 @@ record_returned_backing :: (check: *BorrowCheck, parameter: s32, global: s32, pa
     known := function.returned_backings
     while known != null {
         if known.parameter == parameter && known.global == global &&
-           (known.path == null || same_path(known.path, path) != 0) { return }
+        (known.path == null || same_path(known.path, path) != 0) { return }
         known = known.next
     }
     item := cast(*BorrowReturnedBacking)AllocateOrExit(size_of(BorrowReturnedBacking))
@@ -2143,7 +2250,7 @@ readonly_pointer_destination :: (check: *BorrowCheck, index: s32) -> bool {
     if expression.kind == .INDEX || expression.kind == .POINTER_MEMBER {
         if pointer_view_origin(check, expression.left).readonly_bytes != 0 { return true }
         if expression.kind == .INDEX &&
-           expression_origin(check, expression.left).readonly_bytes != 0 { return true }
+        expression_origin(check, expression.left).readonly_bytes != 0 { return true }
         return readonly_pointer_destination(check, expression.left)
     }
     if expression.kind == .UNARY && IR.CText(*expression.op[0]) == "*" {
@@ -2173,7 +2280,7 @@ storage_origin :: (check: *BorrowCheck, index: s32) -> Origin {
     // Indexing a slice reaches its borrowed elements, including through an
     // address alias. It does not borrow the local slice descriptor itself.
     if place_storage_1[0].path != null &&
-       SliceElementType(*source.type.items[0], null, 0) != 0 {
+    SliceElementType(*source.type.items[0], null, 0) != 0 {
         return ifx source.local >= 0 then check.current.locals[source.local] else source.origin
     }
     origin_storage_2 := cast(*Origin)AllocateOrExit(size_of(Origin))
@@ -2362,16 +2469,16 @@ borrowed_capture_place :: (fn: *IR.ZirFunction, index: s32, depth: s32 = 0) -> b
     if index < 0 || depth > 64 || fn.capture_environment[0] == 0 { return false }
     expression := fn.exprs[index]
     if expression.kind == .UNARY && expression.right >= 0 &&
-       (IR.CText(*expression.op[0]) == "*" || IR.CText(*expression.op[0]) == "&") {
+    (IR.CText(*expression.op[0]) == "*" || IR.CText(*expression.op[0]) == "&") {
         field := fn.exprs[expression.right]
         if IR.CText(*expression.op[0]) == "*" &&
-           (field.kind == .MEMBER || field.kind == .POINTER_MEMBER) &&
-           field.left >= 0 && fn.exprs[field.left].kind == .IDENT &&
-           IR.CText(fn.exprs[field.left].name) == "__tsx_environment" { return true }
+        (field.kind == .MEMBER || field.kind == .POINTER_MEMBER) &&
+        field.left >= 0 && fn.exprs[field.left].kind == .IDENT &&
+        IR.CText(fn.exprs[field.left].name) == "__tsx_environment" { return true }
         return borrowed_capture_place(fn, expression.right, depth + 1)
     }
     if expression.kind == .MEMBER || expression.kind == .POINTER_MEMBER ||
-       expression.kind == .INDEX || expression.kind == .SLICE {
+    expression.kind == .INDEX || expression.kind == .SLICE {
         return borrowed_capture_place(fn, expression.left, depth + 1)
     }
     return false
@@ -2390,7 +2497,7 @@ check_ranges :: (check: *BorrowCheck, index: s32) {
         reject(check, (expression).span, CheckCString("slice range requires live owned backing storage"))
     }
     if expression.kind == .UNARY && IR.CText(*expression.op[0]) == "&" && expression.right >= 0 &&
-       contains_scoped(check.current.module, check.current.fn.exprs[expression.right].type) {
+    contains_scoped(check.current.module, check.current.fn.exprs[expression.right].type) {
         allowed := false
         fn := check.current.fn
         for i: cast(s32)0..fn.expr_count - 1 {
@@ -2405,7 +2512,7 @@ check_ranges :: (check: *BorrowCheck, index: s32) {
         if !allowed { reject(check, expression.span, CheckCString("cannot take the address of Scoped callable storage")) }
     }
     if expression.kind == .MEMBER && IR.CText(expression.name) == "data" && expression.left >= 0 &&
-       contains_scoped(check.current.module, check.current.fn.exprs[expression.left].type) {
+    contains_scoped(check.current.module, check.current.fn.exprs[expression.left].type) {
         reject(check, expression.span, CheckCString("cannot expose an address of Scoped callable storage"))
     }
     if expression.is_move != 0 {
@@ -2442,7 +2549,7 @@ check_ranges :: (check: *BorrowCheck, index: s32) {
         }
     }
     if expression.kind == .CALL && IR.CText(expression.name) == "VecPush" && expression.first_child >= 0 &&
-       contains_scoped(check.current.module, check.current.fn.exprs[expression.first_child].type) {
+    contains_scoped(check.current.module, check.current.fn.exprs[expression.first_child].type) {
         reject(check, expression.span, CheckCString("Scoped callable cannot be retained in owned collection storage"))
     }
     if (cast(s32)((expression).kind) == 5) {
@@ -2555,8 +2662,8 @@ check_reference_owned_field :: (check: *BorrowCheck, index: s32) {
 protect_owned_reference :: (check: *BorrowCheck, reference: *BorrowBinding,
     span: IR.ZirSourceSpan) {
     if reference == null || reference.type.items[0] != #char "*" ||
-        contains_vec(check.current.module, *reference.type.items[1], 0) == 0 ||
-        reference.address_known == 0 || reference.address_backing.root == null { return }
+    contains_vec(check.current.module, *reference.type.items[1], 0) == 0 ||
+    reference.address_known == 0 || reference.address_backing.root == null { return }
     backing := reference.address_backing
     if backing.root == reference { return }
     if backing.root.depth > reference.depth {
@@ -2783,7 +2890,7 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                     if contains_scoped(function.module, destination.type) {
                         target := ifx assignment_root == null then null else binding(check, assignment_root.name)
                         if target == null || target.global_index >= 0 || target.captured != 0 ||
-                           target.type.items[0] == #char "*" {
+                        target.type.items[0] == #char "*" {
                             reject(check, statement.span, CheckCString("a Scoped callable cannot be retained through global or reference storage"))
                         }
                     }
@@ -2866,8 +2973,8 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                             }
                         }
                         if (text_view_type(check, destination.type) != 0 || contains_scoped(function.module, destination.type)) &&
-                           (static_storage == 0 || source_storage_4.globals != null) && target != null &&
-                           !(target.captured != 0 && target.global_index < 0) {
+                        (static_storage == 0 || source_storage_4.globals != null) && target != null &&
+                        !(target.captured != 0 && target.global_index < 0) {
                             first_loan := check.active_count
                             add_active_text_borrows(check, text_view_backings(check, (statement).expr_root), (target).depth)
                             for loan: first_loan..check.active_count - 1 { check.active[loan].owner_global = target.global_index }
@@ -3065,7 +3172,11 @@ check_slice_lifetimes :: (programs: **IR.ZirProgram, count: s32) -> s32 {
                 S12Post2(*(i))
             }
         }
-        if !(((check_storage_0[0]).changed != 0) && !((check_storage_0[0]).failed != 0)) { break check_loop_261 }
+        if check_storage_0.failed != 0 { break check_loop_261 }
+        if check_storage_0.changed != 0 { continue check_loop_261 }
+        if check_storage_0.global_loans_ready { break check_loop_261 }
+        check_storage_0.global_loans_ready = true
+        for i: cast(s32)0..check_storage_0.count - 1 { check_storage_0.functions[i].stale = 1 }
     }
     {
         i: s32 = 0
@@ -3095,6 +3206,7 @@ check_slice_lifetimes :: (programs: **IR.ZirProgram, count: s32) -> s32 {
     while check_storage_0.retained_loans != null {
         loan := check_storage_0.retained_loans
         check_storage_0.retained_loans = loan.next
+        CompilerFree(cast(*void)loan.retainers.items)
         CompilerFree(cast(*void)loan)
     }
     while check_loop_266 := ((check_storage_0[0]).paths != cast(*BorrowPath)((null))) {

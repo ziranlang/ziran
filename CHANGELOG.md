@@ -5,6 +5,8 @@
 - Keep project source entry identities separate from declared package modules.
   Preserve authored entry spellings and checked IR filenames, disambiguate actual
   output collisions, and retain relative saved imports independently of identity.
+  Preserve internal open-import aliases when saving those locations so checking
+  saved modules does not create duplicate aliases.
 
 - Share native assets, clock, process and file services between portable-program
   hosts through `std/guest_host`, with reply storage owned by each instance.
@@ -24,6 +26,9 @@
   views through calls and joins; share read-only intrinsic effects with the
   ordinary mutation checker. Recursive cleanup that cannot write the backing
   preserves safety without establishing a clear.
+  Track retaining fields through nested calls and typed owner-clearing helpers,
+  including forward declarations, while keeping opaque callbacks, pointer
+  rebinding and interior pointers conservative.
 
 - Preserve named string and real constants in compound global initializers
   through generated C/Go, portable and direct native output.

@@ -106,6 +106,7 @@ BorrowCheck :: struct {
     loan_call: *IR.ZirExpr
     loan_proofs: *BorrowLoanProof
     retained_loans: *BorrowRetainedLoan
+    global_loans_ready: bool
 }
 
 IndexList :: struct {
@@ -130,6 +131,7 @@ BorrowFunction :: struct {
     scanned_views: s32
     stale: s32
     summary_changed_at: u64
+    global_callbacks: bool
     listed_by: u64
 }
 
@@ -154,6 +156,8 @@ BorrowLoanFrame :: struct {
     backing_parameters: u64
     stop_statement: s32
     stop_expression: s32
+    path: *BorrowPath
+    whole_view_parameters: u64
 }
 
 BorrowLoanProof :: struct {
@@ -164,12 +168,13 @@ BorrowLoanProof :: struct {
     next: *BorrowLoanProof
 }
 
-// Common destination ancestor of every view of one backing held by a global.
-// A null path requires replacing the whole owner before its loan can end.
+// One retained destination path and the checked bodies that install it.
+// Keep sibling paths separate: each must end, possibly in separate statements.
 BorrowRetainedLoan :: struct {
     view: s32
     backing: s32
     path: *BorrowPath
+    retainers: IndexList
     next: *BorrowRetainedLoan
 }
 

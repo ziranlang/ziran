@@ -101,6 +101,9 @@ PrepareOutput :: (program: *IR.ZirProgram) -> s32 {
         for i: 0..owner.import_count - 1 {
             imported := *owner.imports[i]
             if imported.kind != .MODULE && imported.kind != .OPEN { continue }
+            // Open-import aliases retain their checker marker. The original
+            // open import carries the saved location of the same module.
+            if imported.kind == .MODULE && IR.BufferText(imported.signature[:]) == "internal-open" { continue }
             for n: 0..program.module_count - 1 {
                 target := *program.modules[n]
                 if strcmp(*imported.target[0], *target.name[0]) != 0 { continue }

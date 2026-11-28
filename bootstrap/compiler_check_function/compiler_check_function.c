@@ -980,6 +980,7 @@ compiler_check_function_check_function_with_buffers(Checker* c, ZirFunction* fn,
     int32_t n = 0;
     ZirFunction** value_0 = &(c->fn);
     (*value_0) = fn;
+    zir_foreign_compiler_check_function__select_lookup_file(c->module, fn->span);
     bool value_1 = (fn->capture_environment)[0] != 0;
     bool value_2 = value_1;
     if (value_2) {
@@ -1003,7 +1004,6 @@ compiler_check_function_check_function_with_buffers(Checker* c, ZirFunction* fn,
         ZirSourceSpan value_10 = fn->span;
         zir_foreign_compiler_check_function__error(value_9, value_10, compiler_check_types_CheckCString(StringLiteral("Vec cannot cross an extern signature")), (uint8_t*)(&(fn->name)));
     }
-    zir_foreign_compiler_check_function__select_lookup_file(c->module, fn->span);
     bool value_11 = zir_foreign_compiler_check_function__CheckAssembly(c->module, fn) != 0;
     if (!value_11) {
         return 0;

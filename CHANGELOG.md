@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Validate generated callback environments after signature normalization and in
+  their declaration's module context. Preserve checked scoped borrows when
+  linking or loading IR, including callbacks that update caller-owned views.
+
 - Include native C module headers by their checked output filename, keeping
   private file-import identities independent of authored source filenames.
 

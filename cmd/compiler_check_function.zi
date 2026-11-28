@@ -337,6 +337,7 @@ check_function_with_buffers :: (c: *State.Checker, fn: *IR.ZirFunction, buffers:
     errors_before: s32 = (c).errors
     n: s32
     (c).fn = fn
+    select_lookup_file((c).module, (fn).span)
     if fn.capture_environment[0] != 0 &&
        (!IR.CaptureEnvironmentBinding(fn) ||
         FindType(c.module, *fn.capture_environment[0], null) == null) {
@@ -346,7 +347,6 @@ check_function_with_buffers :: (c: *State.Checker, fn: *IR.ZirFunction, buffers:
     if ((contains_vec((c).module, cast(*u8)(*((fn).return_type)), 0) != 0) && ((fn).is_extern != 0)) {
         error(c, (fn).span, CheckCString("Vec cannot cross an extern signature"), cast(*u8)(*((fn).name)))
     }
-    select_lookup_file((c).module, (fn).span)
     if !(CheckAssembly((c).module, fn) != 0) {
         return 0
     }

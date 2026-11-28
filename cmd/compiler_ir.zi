@@ -536,18 +536,25 @@ PackageVisible :: (viewer: *ZirModule, owner: *ZirModule, is_public: s32,
     return is_package_private != 0 && SamePackage(viewer, owner)
 }
 
-// Only generated owned invokes may give erased state a typed, invocation-local
+// Only generated callback invokes may give erased state a typed, invocation-local
 // lifetime. Persist and validate this provenance with the binding it describes.
 CaptureEnvironmentBinding :: (function: *ZirFunction) -> bool {
     if function.capture_environment[0] == 0 { return false }
     if function.is_native_arrow != 1 || function.is_file_private != 1 ||
        function.is_extern != 0 || function.is_template != 0 ||
        function.stmt_count == 0 || function.args_text == null { return false }
-    prefix := "__tsx_state: *u8"
+    // Signature canonicalization changes whitespace when a checked graph is
+    // linked or loaded. Validate the hidden parameter's tokens in either form.
+    prefix := "__tsx_state:*u8"
     args := CText(function.args_text)
-    if args.count < prefix.count { return false }
-    for i: 0..prefix.count - 1 { if args[i] != prefix[i] { return false } }
-    if args.count > prefix.count && args[prefix.count] != #char "," { return false }
+    matched: s64 = 0
+    for byte: args {
+        if byte == #char "," { break }
+        if byte == #char " " || (byte >= 9 && byte <= 13) { continue }
+        if matched >= prefix.count || byte != prefix[matched] { return false }
+        matched += 1
+    }
+    if matched != prefix.count { return false }
     declaration := function.stmts[0]
     if declaration.kind != .DECL || CText(declaration.names.name) != "__tsx_environment" ||
        declaration.type[0] != #char "*" || CText(cast(*u8)*declaration.type[1]) != CText(*function.capture_environment[0]) ||

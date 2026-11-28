@@ -137,26 +137,23 @@ compiler_ir_CaptureEnvironmentBinding(ZirFunction* function)
     if (value_0 || function->stmt_count == 0 || ((uint8_t*)function->args_text) == ((void *)0)) {
         return false;
     }
-    String prefix = StringLiteral("__tsx_state: *u8");
+    String prefix = StringLiteral("__tsx_state:*u8");
     String args = compiler_ir_CText((uint8_t*)function->args_text);
-    if ((int64_t)(args).length < (int64_t)(prefix).length) {
-        return false;
-    }
-    {
-        int64_t range_first_11 = 0LL;
-        int64_t range_last_11 = (int64_t)((uint64_t)((int64_t)(prefix).length) - UINT64_C(1));
-        int64_t i = range_first_11;
-        if (i <= range_last_11) for (;;) {
-            if ((uint8_t)args.data[i] != (uint8_t)prefix.data[i]) {
-                return false;
-            }
-            if (i == range_last_11) {
-                break;
-            }
-            i = (int64_t)((uint64_t)i + UINT64_C(1));
+    int64_t matched = 0LL;
+    for (int64_t it_index = 0LL; it_index < (int64_t)(args).length; it_index++) {
+        uint8_t byte = (uint8_t)args.data[it_index];
+        if (byte == 44) {
+            break;
         }
+        if (byte == 32 || (byte >= 9 && byte <= 13)) {
+            continue;
+        }
+        if (matched >= (int64_t)(prefix).length || byte != (uint8_t)prefix.data[matched]) {
+            return false;
+        }
+        matched = (int64_t)((uint64_t)matched + UINT64_C(1));
     }
-    if ((int64_t)(args).length > (int64_t)(prefix).length && (uint8_t)args.data[(int64_t)(prefix).length] != 44) {
+    if (matched != (int64_t)(prefix).length) {
         return false;
     }
     ZirStmt declaration = function->stmts[0];

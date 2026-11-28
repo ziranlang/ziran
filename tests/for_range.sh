@@ -92,6 +92,29 @@ WideAnswer :: () -> int {
     return 42
 }
 #program_export
+NestedIndices :: () -> s32 {
+    values: [2]s32
+    values[0] = 1
+    values[1] = 2
+    total: s32 = 0
+    for row: cast(s32)0..1 {
+        for value: values {
+            total += row + value
+        }
+    }
+    if total != 8 { return 0 }
+    total = 0
+    for row: cast(s32)0..1 {
+        total += cast(s32)it_index
+        for value: values {
+            total += row + value
+        }
+        total += cast(s32)it_index
+    }
+    if total != 10 { return 0 }
+    return 42
+}
+#program_export
 NamedControl :: () -> s32 {
     total: s32 = 0
     for outer: 1..3 {
@@ -141,6 +164,9 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry ranges:NamedControl \
         -o "$work/$input-named.zx" "$file"
     test "$("$ziran" run "$work/$input-named.zx")" = 42
+    "$ziran" bundle --root "$root" --entry ranges:NestedIndices \
+        -o "$work/$input-nested.zx" "$file"
+    test "$("$ziran" run "$work/$input-nested.zx")" = 42
     for target in c go; do
         out=$work/$input-$target
         if test "$target" = go; then
@@ -152,6 +178,7 @@ func main() {
     if Ranges_Answer() != 42 { panic("Jai range loop") }
     if Ranges_SingleBody() != 42 { panic("Jai single-statement bodies") }
     if Ranges_NamedControl() != 42 { panic("Jai named loop control") }
+    if Ranges_NestedIndices() != 42 { panic("nested loop index scope") }
 }
 GO
             GO111MODULE=off go run "$out/ranges.go" "$out/main.go"
@@ -159,9 +186,9 @@ GO
             "$ziran" build --target=c --root "$root" -o "$out" "$file"
             cat > "$out/main.c" <<'C'
 #include "ranges.h"
-int main(void) { return Answer() == 42 && SingleBody() == 42 && NamedControl() == 42 ? 0 : 1; }
+int main(void) { return Answer() == 42 && SingleBody() == 42 && NamedControl() == 42 && NestedIndices() == 42 ? 0 : 1; }
 C
-            "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
+            "${CC:-cc}" -std=c11 -Wall -Wextra -Werror=unused-variable -I"$repo/include" -I"$out" \
                 "$out/ranges.c" "$out/main.c" -o "$out/app"
             "$out/app"
         fi

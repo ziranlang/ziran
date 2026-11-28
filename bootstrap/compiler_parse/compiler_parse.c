@@ -357,7 +357,6 @@ ExpressionOwners(ZirFunction* fn)
         int32_t range_last_20 = (int32_t)((uint32_t)(fn->stmt_count) - 1u);
         int32_t index = range_first_20;
         if (index <= range_last_20) for (;;) {
-            int64_t it_index = (int64_t)(((int32_t)((uint32_t)index - (uint32_t)range_first_20)));
             ZirStmt* stmt = &(fn->stmts[index]);
             int32_t top = 0;
             int32_t* value_3 = owners;

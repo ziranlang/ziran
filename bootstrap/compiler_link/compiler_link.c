@@ -956,7 +956,6 @@ compiler_link_RenameCalls(ZirModule* module, Slice renames)
         int32_t range_last_0 = (int32_t)((uint32_t)(module->function_count) - 1u);
         int32_t f = range_first_0;
         if (f <= range_last_0) for (;;) {
-            int64_t it_index = (int64_t)(((int32_t)((uint32_t)f - (uint32_t)range_first_0)));
             ZirFunction* caller = &(module->functions[f]);
             uint8_t* path = compiler_services_SpanPath(caller->span);
             {
@@ -964,7 +963,6 @@ compiler_link_RenameCalls(ZirModule* module, Slice renames)
                 int32_t range_last_3 = (int32_t)((uint32_t)(caller->expr_count) - 1u);
                 int32_t x = range_first_3;
                 if (x <= range_last_3) for (;;) {
-                    int64_t it_index = (int64_t)(((int32_t)((uint32_t)x - (uint32_t)range_first_3)));
                     ZirExpr* expression = &(caller->exprs[x]);
                     bool value_0 = ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(5));
                     bool value_1 = value_0;

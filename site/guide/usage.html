@@ -693,6 +693,21 @@ false on allocation failure or a missing/wrong-kind node. <code>JsonWriteInto</c
 <code>JsonQuoteInto</code> also return false on allocation failure; discard partial output
 on failure. Their output must not alias the document's input or owned buffers.
 <code>JsonWrite</code> and <code>JsonQuote</code> detach owned strings.</p>
+<p><code>std/json_python.zi</code> provides a separate <code>Read(*doc, text, integer_digits=4300)</code>
+for Python 3.13 <code>json.loads(str)</code> inputs. Its result contains <code>ok</code>, owned <code>error</code>
+text and the byte <code>error_at</code>; syntax messages report Unicode character positions,
+lines and columns. It accepts <code>NaN</code>, <code>Infinity</code> and <code>-Infinity</code>, rounds decoded
+floats to binary64, normalizes integer <code>-0</code>, and keeps the last duplicate member
+in its original position. Set <code>integer_digits=0</code> to disable the decimal integer
+conversion limit. Containers use a dynamic stack rather than inheriting a Python
+interpreter's recursion limit. Successful documents own every retained token and
+key; failure clears the tree. Input is Unicode in UTF-8/WTF-8 form: callers must
+decode network bytes first. This API does not change <code>JsonRead</code>'s strict default,
+its depth limit, or the writer's depth limit. The JSON conformance matrix includes
+264 frozen CPython text results, 789 strict UTF-8 byte cases, 2,000 nested
+containers and input-lifetime checks. <code>ReadUtf8(*doc, bytes, integer_digits=4300)</code>
+matches <code>json.loads(bytes.decode('utf-8'))</code>, including exact decoding errors;
+it does not remove a BOM or detect another encoding.</p>
 <p>For private data, pass <code>JsonRead(document, text, erase, context)</code> or register
 <code>JsonSetEraser(document, erase, context)</code> before constructing a document. The
 crypto-independent callback <code>(context: *void, bytes: []u8) -&gt; void</code> must overwrite

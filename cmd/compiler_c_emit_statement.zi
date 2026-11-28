@@ -876,6 +876,31 @@ LoopBodyReads :: (e: *Emitter, begin: s32, end: s32, loop: s32, name: *u8) -> bo
     return false
 }
 
+BindingReadInScope :: (fn: *IR.ZirFunction, begin: s32, end: s32, name: *u8) -> bool {
+    index := begin
+    while index < end {
+        st := *fn.stmts[index]
+        if st.kind == .BLOCK_CLOSE { return false }
+        root := st.expr_root
+        while root >= 0 {
+            if ExpressionReads(fn, root, name) { return true }
+            root = fn.exprs[root].next_sibling
+        }
+        if st.lhs_root >= 0 && ExpressionReads(fn, st.lhs_root, name) { return true }
+        // A declaration hides the outer binding only in this lexical scope.
+        // Its initializer is still evaluated before the new binding exists.
+        if st.kind == .DECL && strcmp(st.name, name) == 0 { return false }
+        if st.kind == .IF || st.kind == .WHILE || st.kind == .FOR ||
+           st.kind == .BLOCK_OPEN || st.kind == .IF_CASE {
+            close := BlockEnd(fn, index, end)
+            if BindingReadInScope(fn, index + 1, close, name) { return true }
+            index = close
+        }
+        index += 1
+    }
+    return false
+}
+
 LiteralOperand :: (fn: *IR.ZirFunction, index: s32, value: *s64) -> bool {
     expr := *fn.exprs[index]
     bits: u64 = 0
@@ -955,6 +980,26 @@ RangeTestsOnce :: (fn: *IR.ZirFunction, loop: s32, close: s32) -> bool {
     }
     return steps > 0 && fn.stmts[close - 1].kind == .ASSIGN &&
            NamesIdent(fn, fn.stmts[close - 1].lhs_root, cursor)
+}
+
+UnusedRangeIndex :: (fn: *IR.ZirFunction, declaration: s32) -> bool {
+    if declaration < 4 || fn.stmts[declaration - 1].kind != .WHILE { return false }
+    loop := declaration - 1
+    close := BlockEnd(fn, loop, fn.stmt_count)
+    if !RangeTestsOnce(fn, loop, close) { return false }
+    st := *fn.stmts[declaration]
+    if st.expr_root < 0 { return false }
+    value := *fn.exprs[st.expr_root]
+    if value.kind == .CAST { value = *fn.exprs[value.right] }
+    if value.kind != .BINARY || strcmp(*value.op[0], CStr("-")) != 0 { return false }
+    condition := *fn.exprs[fn.stmts[loop].expr_root]
+    cursor := fn.exprs[condition.left].name
+    first := fn.stmts[loop - 3].name
+    if !(NamesIdent(fn, value.left, cursor) && NamesIdent(fn, value.right, first)) &&
+       !(NamesIdent(fn, value.left, first) && NamesIdent(fn, value.right, cursor)) {
+        return false
+    }
+    return !BindingReadInScope(fn, declaration + 1, close, st.name)
 }
 
 InlineValueTypeIn :: (m: *IR.ZirModule, type_in: *u8, depth: s32) -> bool {
@@ -1417,6 +1462,10 @@ EmitSequence :: (e: *Emitter, begin: s32, end: s32) {
         st := *e.fn.stmts[i]
         if st.kind == .ASSIGN && NativeStep(e, st) { i += 1; continue }
         if st.kind == .DECL {
+            if e.target == .ZIR_C && UnusedRangeIndex(e.fn, i) {
+                i += 1
+                continue
+            }
             switch_end := EmitSwitch(e, i, end)
             if switch_end >= 0 { i = switch_end + 1; continue }
             if st.expr_root >= 0 && ArrayResultInPlace(e, st.expr_root, st.type, st.name) {

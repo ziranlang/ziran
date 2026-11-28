@@ -144,7 +144,6 @@ emit_SplitMacros(__type_131eebaaeb761e42* output, Slice helpers, String* marker)
         int64_t range_last_3 = 2LL;
         int64_t i = range_first_3;
         if (i <= range_last_3) for (;;) {
-            int64_t it_index = (int64_t)((uint64_t)i - (uint64_t)range_first_3);
             emit_Marker(output, marker, StringLiteral(""));
             String value_1 = StringView(NULL, 0);
             if (i == 0LL) {

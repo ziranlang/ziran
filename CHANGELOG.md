@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Omit unused native C range indices when a nested loop shadows the index,
+  while retaining reads of the outer index before and after the nested scope.
+
 - Allow request-local native HTTP TLS context configuration and CA files. Keep custom TLS connections private so borrowed callback state and trust settings cannot leak into pooled requests.
 
 - Preserve imported record identities when borrowing or indexing vectors through

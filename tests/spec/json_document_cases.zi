@@ -63,5 +63,23 @@ DocumentCases :: () -> s32 {
         JsonRead(*bad, "\"open") || JsonRead(*bad, "{\"a\" 1}") || JsonRead(*bad, "") { return 26 }
     if JsonRead(*bad, "[1, 2") || bad.error.count == 0 || bad.root != -1 { return 27 }
     if !JsonRead(*bad, " \n[ ]\t") || JsonCount(*bad, bad.root) != 0 { return 28 }
+
+    // Compatibility is per read, never inherited by the next strict call.
+    tokens: [3]string = .["NaN", "Infinity", "-Infinity"]
+    for token: tokens[:] {
+        if JsonRead(*bad, token) || !JsonRead(*bad, token, allow_nonfinite=true) { return 29 }
+        if JsonKindOf(*bad,bad.root) != .Number || JsonNumberText(*bad,bad.root) != token { return 30 }
+        value, integer := JsonInteger(*bad,bad.root); unused value
+        if integer || !Same(*bad,bad.root,JsonCompactStyle(),token) { return 31 }
+        copied: JsonDocument; defer JsonReset(*copied)
+        copied.root = JsonCopy(*copied,*bad,bad.root); JsonReset(*bad)
+        if !Same(*copied,copied.root,JsonPythonStyle(-1,true,false,true),token) { return 32 }
+        if JsonRead(*bad,token) { return 33 }
+    }
+    constants := "{\"x\":[NaN,Infinity,-Infinity],\"NaN\":\"Infinity\"}"
+    if JsonRead(*bad,constants) || !JsonRead(*bad,constants,allow_nonfinite=true) { return 34 }
+    if !Same(*bad,bad.root,JsonCompactStyle(),constants) { return 35 }
+    invalid: [10]string = .["nan","inf","+Infinity","-NaN","NaNx","Infinity0","[NaN,]","[Infinity -Infinity]","{NaN:0}","-Infinity.0"]
+    for text: invalid[:] { if JsonRead(*bad,text,allow_nonfinite=true) || bad.root != -1 { return 36 } }
     return 0
 }

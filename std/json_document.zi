@@ -96,6 +96,7 @@ Reader :: struct {
     text: string
     at: s64
     error: string
+    allow_nonfinite: bool
 }
 
 Add :: (document: *JsonDocument, kind: JsonKind, text: string) -> s32 {
@@ -369,6 +370,12 @@ ReadValue :: (reader: *Reader, document: *JsonDocument, depth: s32) -> s32 {
         VecSwap(document.nodes[node].owned_text, bytes)
         return node
     }
+    if reader.allow_nonfinite {
+        start := reader.at
+        if Literal(reader, "NaN") || Literal(reader, "Infinity") || Literal(reader, "-Infinity") {
+            return Add(document, .Number, reader.text[start:reader.at])
+        }
+    }
     if byte == #char "-" || Digit(byte) { return ReadNumber(reader, document) }
     if Literal(reader, "true") { return Add(document, .True, "") }
     if Literal(reader, "false") { return Add(document, .False, "") }
@@ -408,13 +415,16 @@ JsonReset :: (document: *JsonDocument) {
 
 // Reads TEXT as the document's root, after clearing it. False, with error
 // and error_at set, when TEXT is not one complete JSON value.
+// Explicit compatibility mode accepts NaN, Infinity and -Infinity as number
+// tokens, including nested values. The default retains strict JSON grammar.
 JsonRead :: (document: *JsonDocument, text: string, erase: JsonEraser = JsonNoErase,
-    erase_context: *void = null) -> bool {
+    erase_context: *void = null, allow_nonfinite: bool = false) -> bool {
     if document == null { return false }
     JsonReset(document)
     JsonSetEraser(document, erase, erase_context)
     reader: Reader
     reader.text = text
+    reader.allow_nonfinite = allow_nonfinite
     root := ReadValue(*reader, document, 0)
     if root >= 0 {
         Skip(*reader)

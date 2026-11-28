@@ -25,11 +25,11 @@ NetCurlCases :: (argc: s32, argv: **u8, mode: string) -> s32 {
     generate := string.[compiler, "--no-main", "--root", standard, "--module-path", standard, "-o", generated, CheckPath(standard, CheckConcat(module, ".zi"))]
     unused NativeRun(*test, generate[:])
     compile: Vec(string)
-    flags := string.[NativeCompiler(), "-std=c11", "-O0", "-Wall", "-Wextra", "-Werror", "-Wno-unused-function", "-Wno-unused-variable", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", generated)]
+    flags := string.[NativeCompiler(), "-std=c11", "-O0", "-Wall", "-Wextra", "-Werror", "-Wno-unused-function", "-Wno-unused-variable", "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", generated)]
     for flag: flags { VecPush(compile, flag) }
     VecPush(compile, CheckPath(test.repo, ifx mode == "http" then "tests/net_http_curl_linux_client.c" else "tests/fixtures/net_curl/websocket_client.c"))
     files := NativeFiles(generated, ".c")
-    for file: files { if PathName(file) != "net_http.c" { VecPush(compile, file) } }
+    for file: files { VecPush(compile, file) }
     executable := CheckPath(test.work, "client")
     options := string.["-l:libcurl.so.4", "-pthread", "-o", executable]
     for option: options { VecPush(compile, option) }
@@ -64,6 +64,9 @@ NetCurlCases :: (argc: s32, argv: **u8, mode: string) -> s32 {
     url := CheckConcat(ifx mode == "http" then "http://127.0.0.1:" else "ws://127.0.0.1:", CheckConcat(port, ifx mode == "http" then "" else "/events"))
     run := string.[executable, url]; unused NativeRun(*test, run[:])
     if mode == "http" {
+        NativeSet(*test, "LDLIBS", "-l:libcurl.so.4 -pthread")
+        observer := string.[CheckPath(PathParent(test.ziran),"ziran"),"run","--target=c","--root",CheckPath(test.repo,"tests/fixtures/net_curl"),CheckPath(test.repo,"tests/fixtures/net_curl/http_observer.zi"),"--",url]
+        unused NativeRun(*test,observer[:])
         NativeSet(*test, "ZIRAN_CURL_DIRECT_ONLY", "1")
         names := string.["http_proxy", "HTTP_PROXY", "all_proxy", "ALL_PROXY"]
         for name: names { NativeSet(*test, name, "http://127.0.0.1:1") }

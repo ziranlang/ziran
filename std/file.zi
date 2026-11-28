@@ -57,11 +57,11 @@ FilePathText :: (text: string) -> bool {
     return true
 }
 
-// Read at most MAXIMUM bytes. The file is refused rather than truncated, and
-// each failure is named. The successful text is owned as for ReadEntireFile.
-#program_export
-ReadEntireFileCapped :: (path: string, maximum: s64) -> Result(string, FileReadFailure) {
-    result: Result(string, FileReadFailure)
+// Keep the temporary owned until the caller explicitly detaches it or copies
+// it into its own storage. Append callers must not leak a detached string.
+#scope_file
+ReadOwnedFileCapped :: (path: string, maximum: s64) -> Result(Text, FileReadFailure) {
+    result: Result(Text, FileReadFailure)
     if maximum < 0 { result.error = .InvalidLimit; return result }
     invalid_path := path.count == 0 || path.count >= 4096 || !FilePathText(path)
     for byte: path { if byte == cast(u8)0 { invalid_path = true } }
@@ -107,6 +107,19 @@ ReadEntireFileCapped :: (path: string, maximum: s64) -> Result(string, FileReadF
     return result
 }
 
+#scope_export
+// Read at most MAXIMUM bytes. The file is refused rather than truncated, and
+// each failure is named. The successful text is owned as for ReadEntireFile.
+#program_export
+ReadEntireFileCapped :: (path: string, maximum: s64) -> Result(string, FileReadFailure) {
+    result: Result(string, FileReadFailure)
+    read := ReadOwnedFileCapped(path,maximum)
+    if !read.is_ok { result.error = read.error; return result }
+    result.is_ok = true
+    result.value = TextDetach(read.value)
+    return result
+}
+
 // Append a capped file to caller-owned BYTES. A failure restores its original
 // count, so partial input is never mistaken for a complete file.
 #program_export
@@ -114,10 +127,10 @@ ReadFileIntoCapped :: (path: string, maximum: s64,
     bytes: *Vec(u8)) -> Result(s64, FileReadFailure) {
     result: Result(s64, FileReadFailure)
     if bytes == null { result.error = .ReadError; return result }
-    read := ReadEntireFileCapped(path, maximum)
+    read := ReadOwnedFileCapped(path, maximum)
     if !read.is_ok { result.error = read.error; return result }
     start := (<<bytes).count
-    for byte: read.value {
+    for byte: read.value.bytes[:] {
         if !VecPush(<<bytes, byte) {
             unused VecResize(<<bytes, start)
             result.error = .ReadError
@@ -125,7 +138,7 @@ ReadFileIntoCapped :: (path: string, maximum: s64,
         }
     }
     result.is_ok = true
-    result.value = cast(s64)read.value.count
+    result.value = read.value.bytes.count
     return result
 }
 

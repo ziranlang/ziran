@@ -31,6 +31,9 @@ CurlUrl :: 10002
 CurlMethod :: 10036
 CurlWriteData :: 10001
 CurlWriteFunction :: 20011
+CurlHeaderFunction :: 20079
+CurlHeaderData :: 10029
+CurlContentDecoding :: 158
 CurlHeaders :: 10023
 CurlAcceptEncoding :: 10102
 CurlPostFields :: 10015
@@ -240,11 +243,19 @@ CurlResult :: struct {
     problem: CurlFailure
 }
 
+// The line borrows libcurl storage only during the observer call. Return false
+// to abort the transfer. Status lines and the final blank line are included.
+CurlHeaderObserver :: #type (line: string, context: *void) -> bool;
+
+CurlObservation :: struct { observer: CurlHeaderObserver; context: *void; raw_content: bool; }
+
 CurlOutput :: struct {
     data: *u8
     capacity: s64
     length: s64
     truncated: bool
+    observer: CurlHeaderObserver
+    observer_context: *void
 }
 
 CurlWriteCallback64 :: #type (data: *u8, size: u64,
@@ -282,6 +293,21 @@ CurlWrite64 :: (data: *u8, size: u64, count: u64, user: *void) -> u64 {
 CurlWrite32 :: (data: *u8, size: u32, count: u32, user: *void) -> u32 {
     return cast(u32)AppendCurlOutput(data, cast(u64)size,
         cast(u64)count, cast(*CurlOutput)user)
+}
+
+ObserveCurlHeader :: (data: *u8, size: u64, count: u64, context: *CurlOutput) -> u64 {
+    if context == null || size == 0 || count == 0 { return 0 }
+    if size > cast(u64)9223372036854775807 / count { return 0 }
+    bytes := size * count
+    if context.observer == null { return bytes }
+    line := TextView(data[0:cast(s64)bytes])
+    return ifx context.observer(line, context.observer_context) then bytes else cast(u64)0
+}
+CurlHeader64 :: (data: *u8, size: u64, count: u64, user: *void) -> u64 {
+    return ObserveCurlHeader(data, size, count, cast(*CurlOutput)user)
+}
+CurlHeader32 :: (data: *u8, size: u32, count: u32, user: *void) -> u32 {
+    return cast(u32)ObserveCurlHeader(data, cast(u64)size, cast(u64)count, cast(*CurlOutput)user)
 }
 
 SetCurlLong :: (handle: *void, option: s32, value: s32) -> bool {
@@ -383,7 +409,18 @@ SendCurlDirectWithin :: (request: HttpRequest, output: []u8, timeout_ms: s32) ->
     return SendCurlConfigured(request, output, timeout_ms, true)
 }
 
-SendCurlConfigured :: (request: HttpRequest, output: []u8, timeout_ms: s32, direct: bool) -> CurlResult {
+// Observe response headers without retaining their storage. Set decode_content
+// false to receive encoded body bytes unchanged; supplied request headers still
+// apply. Direct transfers bypass proxy settings and retain redirect responses.
+#program_export
+SendCurlObservedWithin :: (request: HttpRequest, output: []u8, timeout_ms: s32,
+    observer: CurlHeaderObserver, context: *void, direct: bool = false,
+    decode_content: bool = true) -> CurlResult {
+    return SendCurlConfigured(request, output, timeout_ms, direct, .{observer=observer,context=context,raw_content=!decode_content})
+}
+
+SendCurlConfigured :: (request: HttpRequest, output: []u8, timeout_ms: s32, direct: bool,
+    observation: CurlObservation = .{}) -> CurlResult {
     result: CurlResult
     result.code = -1
     if output.count == 0 { result.problem = .InvalidLimit; return result }
@@ -412,6 +449,8 @@ SendCurlConfigured :: (request: HttpRequest, output: []u8, timeout_ms: s32, dire
     context.capacity = cast(s64)output.count
     context.length = 0
     context.truncated = false
+    context.observer = observation.observer
+    context.observer_context = observation.context
     headers: *void = null
     // Negotiate encodings supported by this libcurl and decode them before
     // the bounded write callback. Capacity limits apply to decoded bytes.
@@ -419,12 +458,26 @@ SendCurlConfigured :: (request: HttpRequest, output: []u8, timeout_ms: s32, dire
     encoding[0] = cast(u8)0
     configured := curl_easy_setopt(handle, CurlUrl, *url[0]) == 0 &&
     curl_easy_setopt(handle, CurlMethod, *method[0]) == 0 &&
-    curl_easy_setopt(handle, CurlAcceptEncoding, *encoding[0]) == 0 &&
     curl_easy_setopt(handle, CurlWriteData, *context) == 0 &&
     timeout_ms > 0 && SetCurlLong(handle, CurlTimeoutMs, timeout_ms) &&
     SetCurlLong(handle, CurlConnectTimeoutMs, 10000) &&
     SetCurlLong(handle, CurlNoSignal, 1) &&
     SetCurlLong(handle, CurlMaxConnects, 1)
+    if configured && !observation.raw_content {
+        configured = curl_easy_setopt(handle, CurlAcceptEncoding, *encoding[0]) == 0
+    } else if configured {
+        configured = SetCurlLong(handle, CurlContentDecoding, 0)
+    }
+    if configured && observation.observer != null {
+        configured = curl_easy_setopt(handle, CurlHeaderData, *context) == 0
+        if size_of(type_of(handle)) == 8 {
+            header_writer: CurlWriteCallback64 = CurlHeader64
+            configured = configured && curl_easy_setopt(handle, CurlHeaderFunction, header_writer) == 0
+        } else {
+            header_writer: CurlWriteCallback32 = CurlHeader32
+            configured = configured && curl_easy_setopt(handle, CurlHeaderFunction, header_writer) == 0
+        }
+    }
     if configured && direct {
         proxy: [1]u8
         proxy[0] = cast(u8)0

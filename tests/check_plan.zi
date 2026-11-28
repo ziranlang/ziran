@@ -77,7 +77,7 @@ CheckProgram :: struct {
     compiler: string
 }
 
-check_programs: [71]CheckProgram = .[
+check_programs: [72]CheckProgram = .[
     .{name = "json_conformance", source = "json_cases.zi", cost = 8},
     .{name = "simd_string", source = "simd_string_cases.zi", cost = 5},
     .{name = "module_parameters_cases.zi", cost = 2},
@@ -143,6 +143,7 @@ check_programs: [71]CheckProgram = .[
     .{name = "executable_bundle", source = "executable_bundle_cases.zi", module_path = "cmd", compiler_library = true},
     .{name = "float_integer_casts", source = "float_integer_casts_cases.zi", cost = 110},
     .{name = "gzip", source = "gzip_cases.zi", compiler = "zi2c"},
+    .{name = "net_http_curl", source = "net_http_curl_cases.zi", compiler = "zi2c", cost = 4},
     .{name = "native_cache_parallel", source = "native_build_parallel_cases.zi"},
     .{name = "native_entry", source = "native_entry_cases.zi"},
     .{name = "packages", source = "packages_cases.zi", cost = 290},

@@ -987,6 +987,14 @@ platform adapter supplies transport and TLS; checked Ziran code owns request
 construction and response interpretation. A missing host binding is reported
 before a portable bundle runs.
 
+`std/net_http_curl_linux.zi` provides bounded native HTTP transfers.
+`SendCurlObservedWithin(request, output, timeout_ms, observer, context,
+ direct=false, decode_content=true)` also calls the observer with each response
+header line, including status and blank lines. The line borrows native storage
+only during the callback; copy any retained value. Returning false aborts the
+transfer. Set `decode_content=false` to receive the encoded body unchanged and
+`direct=true` to bypass inherited proxies and retain redirect responses.
+
 `std/constant_time.zi` compares equal-length byte spans without branching on
 byte values. Use fixed-size buffers for secret tags so unequal lengths remain
 public shape rather than a secret-dependent oracle.

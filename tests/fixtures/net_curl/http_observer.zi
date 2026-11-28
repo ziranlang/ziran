@@ -1,0 +1,47 @@
+#import "std/byte_text_linux"
+#import "std/text_tools"
+#import "std/vec"
+Http :: #import "std/net_http"
+Curl :: #import "std/net_http_curl_linux"
+
+TextConcat :: (a: string, b: string) -> string { bytes: Vec(u8); BuilderAppend(bytes,a); BuilderAppend(bytes,b); return TextDetach(BuilderFinish(bytes)) }
+
+HeaderProbe :: struct { lines: s64; gzip: bool; location: bool; reject: bool; }
+Observe :: (line: string, opaque: *void) -> bool {
+    probe := cast(*HeaderProbe)opaque
+    probe.lines += 1
+    if line == "Content-Encoding: gzip\r\n" { probe.gzip = true }
+    if line == "Location: /ok\r\n" { probe.location = true }
+    return !probe.reject
+}
+ObserveResponse :: (url: string) -> bool {
+    body: [256]u8
+    probe: HeaderProbe
+    header: [1]Http.HttpHeader
+    header[0] = .{name="Accept-Encoding",value="gzip"}
+    request: Http.HttpRequest
+    request.method = "GET"
+    request.url = TextConcat(url, "/gzip")
+    request.headers = header[:]
+    observer: Curl.CurlHeaderObserver = Observe
+    raw := Curl.SendCurlObservedWithin(request,body[:],1000,observer,cast(*void)*probe,true,false)
+    if raw.code != 0 || raw.status != 200 || raw.length <= 5 || body[0] != 31 || body[1] != 139 || !probe.gzip || probe.lines < 3 { return false }
+    // Reusing a pooled handle must restore automatic decoding independently.
+    decoded := Curl.SendCurlObservedWithin(request,body[:],1000,observer,cast(*void)*probe,true,true)
+    if decoded.code != 0 || decoded.length != 5 || TextView(body[:5]) != "ready" { return false }
+    request.url = TextConcat(url, "/redirect")
+    redirect := Curl.SendCurlObservedWithin(request,body[:],1000,observer,cast(*void)*probe,true,false)
+    if redirect.code != 0 || redirect.status != 302 || redirect.length != 0 || !probe.location { return false }
+    probe.reject = true
+    request.url = TextConcat(url, "/ok")
+    rejected := Curl.SendCurlObservedWithin(request,body[:],1000,observer,cast(*void)*probe,true,false)
+    if rejected.code == 0 || rejected.problem != .TransportError || rejected.length != 0 || body[0] != 0 { return false }
+    return true
+}
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc != 2 { return 2 }
+    if !ObserveResponse(TextFromCString(argv[1])) { print("HTTP header/content observation failed\n"); return 1 }
+    print("HTTP header observer, raw/decoded reuse, redirect and rejection passed\n")
+    return 0
+}

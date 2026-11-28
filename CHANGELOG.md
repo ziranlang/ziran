@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Release the owned intermediate buffer after capped file appends while preserving whole-file ownership and rollback behavior. Verify repeated successful reads and refused oversized reads under address, undefined-behavior and leak sanitizers.
+
+- Expose borrowed response-header observers and encoded-body control for bounded native HTTP transfers. Preserve decoded transfer defaults, direct proxy/redirect behavior and pooled-handle reuse; include the retained native HTTP fixture in the regular checks.
+
 - Keep capturing callbacks with slice parameters canonical through checked IR
   serialization and rechecking. Preserve generic type visibility when adding a
   type application grows and relocates the module type array.

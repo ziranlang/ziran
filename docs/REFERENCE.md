@@ -523,7 +523,7 @@ uses the portable engine, which has no `std/*_linux` modules: use
 | `std/stdio_linux` | `WriteOutput(text) -> bool`, `PrintError(text) -> bool`, `ReadStandardInput() -> Text` |
 | `std/byte_text_linux` | `TextFromCString(value: *u8) -> string`, `TextFromBytes(bytes: []u8) -> string` |
 | `std/environment_linux` | `EnvironmentText(name) -> string`, `EnvironmentNumber(name, fallback: s64) -> s64` |
-| `std/json_document` | `JsonRead(*doc, text) -> bool`, `JsonMember(*doc, node, key) -> s32`, `JsonElement(*doc, node, index) -> s32`, `JsonString(*doc, node) -> Text`, `JsonInteger(*doc, node) -> (value: s64, ok: bool)`, `JsonWrite(*doc, node, style) -> Text` |
+| `std/json_document` | `JsonRead(*doc, text) -> bool`, `JsonMember(*doc, node, key) -> s32`, `JsonElement(*doc, node, index) -> s32`, `JsonString(*doc, node) -> Text`, `JsonInteger(*doc, node) -> (value: s64, ok: bool)`, `JsonWrite(*doc, node, style, maximum_depth=512) -> Text`, `JsonWriteInto(*output, *doc, node, style, maximum_depth=512) -> bool` |
 | `std/json_python` | `Read(*doc, text, integer_digits=4300) -> Result`, `ReadUtf8(*doc, bytes, integer_digits=4300) -> Result`; opt-in Python JSON constants, binary64 floats, integer limits and diagnostics; owned document tokens |
 | `std/process_run_linux` | `RunProcess(options: ProcessOptions, run: *ProcessRun) -> bool` |
 

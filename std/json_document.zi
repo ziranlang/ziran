@@ -791,8 +791,8 @@ SizeAdd :: (total: *s64, amount: s64) -> bool {
     return true
 }
 
-MeasureNode :: (document: *JsonDocument, node: s32, style: JsonStyle, depth: s32, total: *s64) -> bool {
-    if depth > MAX_DEPTH || JsonKindOf(document, node) == .Missing { return false }
+MeasureNode :: (document: *JsonDocument, node: s32, style: JsonStyle, depth: s32, total: *s64, maximum_depth: s32) -> bool {
+    if depth > maximum_depth || JsonKindOf(document, node) == .Missing { return false }
     kind := document.nodes[node].kind
     length := ByteCount(document, node, false)
     if kind == .String {
@@ -814,7 +814,7 @@ MeasureNode :: (document: *JsonDocument, node: s32, style: JsonStyle, depth: s32
             if keyLength > (9223372036854775807 - 2) / 6 ||
                 !SizeAdd(total, 2 + keyLength * 6) || !SizeAdd(total, style.key_separator.count) { return false }
         }
-        if !MeasureNode(document, child, style, depth + 1, total) { return false }
+        if !MeasureNode(document, child, style, depth + 1, total, maximum_depth) { return false }
         child = document.nodes[child].next
     }
     return style.indent < 0 || SizeAdd(total, 1 + cast(s64)style.indent * depth)
@@ -890,9 +890,10 @@ WriteNode :: (output: *Vec(u8), document: *JsonDocument, node: s32, style: JsonS
 
 #scope_export
 // NODE and everything in it as JSON text in STYLE, without a final newline.
-JsonWrite :: (document: *JsonDocument, node: s32, style: JsonStyle) -> Text {
+// Root depth is zero. Callers may opt into a deeper tree than the default 512.
+JsonWrite :: (document: *JsonDocument, node: s32, style: JsonStyle, maximum_depth: s32 = 512) -> Text {
     output: Vec(u8)
-    if !JsonWriteInto(*output, document, node, style) { EraseBuffer(document, *output); return .{} }
+    if !JsonWriteInto(*output, document, node, style, maximum_depth) { EraseBuffer(document, *output); return .{} }
     return BuilderFinish(output)
 }
 
@@ -900,11 +901,11 @@ JsonWrite :: (document: *JsonDocument, node: s32, style: JsonStyle) -> Text {
 // input, or be one of its owned node buffers. Discard partial output on error.
 // Sensitive callers start with empty/wiped storage or pre-reserve its lifetime
 // maximum; they erase their own output and borrowed input after use.
-JsonWriteInto :: (output: *Vec(u8), document: *JsonDocument, node: s32, style: JsonStyle) -> bool {
+JsonWriteInto :: (output: *Vec(u8), document: *JsonDocument, node: s32, style: JsonStyle, maximum_depth: s32 = 512) -> bool {
     if output == null || JsonKindOf(document, node) == .Missing { return false }
     document.error = ""
     size: s64 = output.count
-    if !MeasureNode(document, node, style, 0, *size) || !VecReserve(<<output, size) ||
+    if !MeasureNode(document, node, style, 0, *size, maximum_depth) || !VecReserve(<<output, size) ||
         !WriteNode(output, document, node, style, 0) {
         document.error = "out of memory or invalid tree writing JSON"
         return false

@@ -81,5 +81,35 @@ DocumentCases :: () -> s32 {
     if !Same(*bad,bad.root,JsonCompactStyle(),constants) { return 35 }
     invalid: [10]string = .["nan","inf","+Infinity","-NaN","NaNx","Infinity0","[NaN,]","[Infinity -Infinity]","{NaN:0}","-Infinity.0"]
     for text: invalid[:] { if JsonRead(*bad,text,allow_nonfinite=true) || bad.root != -1 { return 36 } }
+    // A constructed or separately parsed tree can exceed JsonRead's limit.
+    // Depth counts edges from the selected node, including the scalar leaf.
+    deep: JsonDocument
+    defer JsonReset(*deep)
+    deep.root = JsonNewArray(*deep)
+    parent := deep.root
+    expected: Vec(u8)
+    for index: 0..899 {
+        if !VecPush(expected, #char "[") { return 37 }
+        if index < 899 {
+            child := JsonNewArray(*deep)
+            if !JsonAppend(*deep, parent, child) { return 38 }
+            parent = child
+        }
+    }
+    if !JsonAppend(*deep, parent, JsonNewInteger(*deep, 7)) || !VecPush(expected, #char "7") { return 39 }
+    for index: 0..899 { if !VecPush(expected, #char "]") { return 40 } }
+    expected_text := TextView(VecSlice(expected, 0, expected.count))
+    if JsonWrite(*deep, deep.root, JsonCompactStyle()).count != 0 || deep.error.count == 0 { return 41 }
+    if JsonWrite(*deep, deep.root, JsonCompactStyle(), maximum_depth=899).count != 0 { return 42 }
+    complete: Text = JsonWrite(*deep, deep.root, JsonCompactStyle(), maximum_depth=900)
+    if TextView(complete) != expected_text || deep.error.count != 0 { return 43 }
+    appended: Vec(u8)
+    if !BuilderAppend(appended, "prefix:") { return 44 }
+    if JsonWriteInto(*appended, *deep, deep.root, JsonCompactStyle(), maximum_depth=899) || appended.count != 7 { return 45 }
+    if !JsonWriteInto(*appended, *deep, deep.root, JsonCompactStyle(), maximum_depth=900) || deep.error.count != 0 { return 46 }
+    if appended.count != 7 + expected.count || TextView(VecSlice(appended, 7, appended.count)) != expected_text { return 47 }
+    leaf := JsonFirst(*deep, parent)
+    if JsonWrite(*deep, leaf, JsonCompactStyle(), maximum_depth=0) != "7" { return 48 }
+    if JsonWrite(*deep, leaf, JsonCompactStyle(), maximum_depth=-1).count != 0 { return 49 }
     return 0
 }

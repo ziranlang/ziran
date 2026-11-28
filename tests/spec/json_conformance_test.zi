@@ -24,7 +24,11 @@ JsonNative :: () -> s32 {
     return 0
 }
 #program_export
-JsonPython :: () -> s32 { return Python.PythonCases() }
+JsonPython :: () -> s32 {
+    // The sanitizer entry exercises tree writes as well as Python reads.
+    if Document.DocumentCases() != 0 { return 1 }
+    return Python.PythonCases()
+}
 #program_export
 JsonOwnership :: () -> s32 {
     if Lifetime.Answer() != 42 || Lifetime.Memory() != 42 || Secure.Secure() != 42 || Secure.Faults() != 42 { return 1 }

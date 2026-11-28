@@ -817,6 +817,12 @@ false on allocation failure or a missing/wrong-kind node. `JsonWriteInto` and
 `JsonQuoteInto` also return false on allocation failure; discard partial output
 on failure. Their output must not alias the document's input or owned buffers.
 `JsonWrite` and `JsonQuote` detach owned strings.
+Both `JsonWrite` and `JsonWriteInto` accept `maximum_depth=512`, measured from
+depth zero at the selected node and including scalar leaves. Pass a larger
+value when writing a deeper constructed or separately parsed tree; this does
+not change `JsonRead`'s depth limit. An exceeded writer limit returns an empty
+`Text` or false, respectively, and sets the document error. The depth check
+finishes before any output is appended.
 
 `std/json_python.zi` provides a separate `Read(*doc, text, integer_digits=4300)`
 for Python 3.13 `json.loads(str)` inputs. Its result contains `ok`, owned `error`

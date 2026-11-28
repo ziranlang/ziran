@@ -547,7 +547,10 @@ loan_roots :: (check: *BorrowCheck, frame: BorrowLoanFrame, index: s32, statemen
         callee: *IR.ZirFunction
         ResolveFunction(frame.function.module, expression.name, *owner, *callee)
         summary := function_summary(check, callee)
-        if summary == null { return 4 }
+        // Opaque native handles have caller-managed pointees. Their unknown
+        // address does not borrow every global; borrowed views still may.
+        native_pointer := expression.type[0] == #char "*"
+        if summary == null { return ifx native_pointer then 0 else 4 }
         origin := summary.returned
         roots: s32 = 0
         if has_global(origin, frame.view) != 0 { roots |= 1 }
@@ -560,7 +563,7 @@ loan_roots :: (check: *BorrowCheck, frame: BorrowLoanFrame, index: s32, statemen
             }
             child = fn.exprs[child].next_sibling
         }
-        if origin.unknown != 0 { roots |= 4 }
+        if origin.unknown != 0 && !native_pointer { roots |= 4 }
         return roots
     }
     if expression.kind != .IDENT { return 0 }
@@ -611,7 +614,9 @@ loan_roots :: (check: *BorrowCheck, frame: BorrowLoanFrame, index: s32, statemen
             if binding.address_known != 0 && binding.address_backing.root != null {
                 if binding.address_backing.root.global_index == frame.view { aliases |= 1 }
                 if binding.address_backing.root.global_index == frame.backing { aliases |= 2 }
-            } else if binding.type.items[0] == #char "*" { aliases |= 4 }
+            }
+            // A native pointer cell does not alias every global. Its checked
+            // origins and explicit addresses describe any tracked pointee.
         }
     }
     return aliases
@@ -1886,6 +1891,17 @@ text_view_backings :: (check: *BorrowCheck, index: s32) -> *BorrowSource {
     if (expression == cast(*IR.ZirExpr)((null))) {
         return null
     }
+    if expression.type[0] == #char "*" {
+        // A raw pointer field holds an address; its containing record does
+        // not own the bytes at that address. Explicit addresses and checked
+        // local aliases still carry their actual pointee's backing below.
+        if expression.kind == .MEMBER || expression.kind == .POINTER_MEMBER || expression.kind == .INDEX {
+            return null
+        }
+        if expression.kind == .CAST {
+            return text_view_backings(check, expression.right)
+        }
+    }
     if (cast(s32)((expression).kind) == 1) {
         source: *BorrowBinding = binding(check, (expression).name)
         if (source == cast(*BorrowBinding)((null))) {
@@ -1903,12 +1919,20 @@ text_view_backings :: (check: *BorrowCheck, index: s32) -> *BorrowSource {
         if (cached_contains_text(check, (ifx ((source).module != cast(*IR.ZirModule)((null))) then (source).module else ((check).current).module), cast(*u8)(*(((source).type).items))) != 0) {
             return null
         }
+        if expression.type[0] == #char "*" && direct_pointer_parameter(source) == 0 { return null }
         return (ifx (((source).local < 0) || ((source).parameter >= 0)) then add_source(check, null, root_place(source)) else null)
     }
     if (((cast(s32)((expression).kind) == 8) || (cast(s32)((expression).kind) == 9)) || (cast(s32)((expression).kind) == 10)) {
         if (text_view_type(check, (expression).type) != 0) {
             root: *IR.ZirExpr = destination_root(fn, index)
             source: *BorrowBinding = (ifx (root == cast(*IR.ZirExpr)((null))) then null else binding(check, (root).name))
+            // A copied text descriptor borrows its bytes, not the record
+            // reached through an address alias. Read the pointee's actual
+            // retained views instead of the alias's loan on that record.
+            if source != null && source.type.items[0] == #char "*" &&
+            source.address_known != 0 && source.address_backing.root != null {
+                source = source.address_backing.root
+            }
             return (ifx (source == cast(*BorrowBinding)((null))) then null else (source).text_backings)
         }
         result: *BorrowSource = null
@@ -2001,7 +2025,22 @@ text_view_backings :: (check: *BorrowCheck, index: s32) -> *BorrowSource {
             argument := expression.first_child
             while argument >= 0 {
                 if fn.exprs[argument].argument_index == returned.parameter {
-                    place = storage_place(check, argument, 1)
+                    if fn.exprs[argument].type[0] == #char "*" {
+                        actual := fn.exprs[argument]
+                        if actual.kind == .UNARY && IR.CText(*actual.op[0]) == "&" {
+                            place = storage_place(check, actual.right, 1)
+                        } else {
+                            sources := text_view_backings(check, argument)
+                            while sources != null {
+                                borrowed := sources.place
+                                borrowed.path = join_path(check, borrowed.path, returned.path)
+                                result = add_source(check, result, borrowed)
+                                sources = sources.next
+                            }
+                        }
+                    } else {
+                        place = storage_place(check, argument, 1)
+                    }
                     break
                 }
                 argument = fn.exprs[argument].next_sibling
@@ -2363,6 +2402,10 @@ expression_origin :: (check: *BorrowCheck, index: s32) -> Origin {
                 origin_storage_3[0] = .{}
                 (origin_storage_3[0]).pointees = (1 << cast(u64)(parameter))
                 return origin_storage_3[0]
+            }
+            // Copy a field's retained views, not the alias's loan on its owner.
+            if view_type(check, expression.type) != 0 && fn.exprs[expression.left].type[0] == #char "*" {
+                return pointee_view_origin(check, expression.left)
             }
             return expression_origin(check, (expression).left)
         }
@@ -2913,8 +2956,12 @@ check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
                         }
                     }
                     if (view_type(check, (destination).type) != 0) {
-                        root: *IR.ZirExpr = destination_root(fn, (statement).lhs_root)
-                        target: *BorrowBinding = (ifx (root == cast(*IR.ZirExpr)((null))) then null else binding(check, (root).name))
+                        // Resolve a checked alias to its owner. An untracked
+                        // dereference still cannot retain local backing storage.
+                        target := assignment_target
+                        if target != null && destination.kind != .IDENT {
+                            target = storage_place(check, statement.lhs_root, 0).root
+                        }
                         source_storage_4 := cast(*Origin)AllocateOrExit(size_of(Origin))
                         defer CompilerFree(cast(*void)source_storage_4)
                         memset(cast(*void)source_storage_4, 0, size_of(Origin))

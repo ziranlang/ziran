@@ -74,8 +74,13 @@ the call, and unknown callbacks conservatively write reference arguments.
 The checks use lexical scopes; close a view's scope before reusing its buffer.
 Differently typed pointer aliases and raw native FFI still need explicit
 memory contracts. A raw foreign declaration has no checked read/write summary;
-the caller remains responsible for its pointer arguments. The current origin
-summary tracks every global in the program. See the operations below for the supported ownership rules.
+the caller remains responsible for its pointer arguments. An explicit native
+pointer range borrows the pointee, rather than the record or array storing that
+pointer. Raw pointer fields and opaque pointer results retain that manual memory
+contract. Checked address aliases and borrowed-view returns still protect their
+actual backing storage; an unknown native address does not borrow every global.
+Origin summaries track every global in the program. See the operations below for
+the supported ownership rules.
 
 A fresh `Vec` call result used as a whole expression statement is dropped
 immediately. A result used for member or index access must first be bound to a

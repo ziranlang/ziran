@@ -2598,7 +2598,9 @@ LowerModuleWithBuffers :: (m: *IR.ZirModule, restab: *ZirCModuleSyms, restab_cou
         for i: cast(s32)0..m.import_count - 1 {
             imp := *m.imports[i]
             if imp.required != 0 || (imp.kind != .OPEN && imp.kind != .MODULE) { continue }
-            fprintf(c, CStr("#include \"%s.h\"\n"), *imp.target[0])
+            stem: [IR.ZIR_PATH_MAX]u8
+            StemFromSource(cast(*u8)*imp.resolved_module.source_path[0], *stem[0], IR.ZIR_PATH_MAX)
+            fprintf(c, CStr("#include \"%s.h\"\n"), *stem[0])
         }
     }
     for i: cast(s32)0..m.import_count - 1 {

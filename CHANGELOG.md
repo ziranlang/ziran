@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- Include native C module headers by their checked output filename, keeping
+  private file-import identities independent of authored source filenames.
+
+- Keep native pointer-range loans on their pointee rather than the record or
+  array storing a raw pointer. Preserve checked address aliases and returned
+  backing paths without borrowing mutable caches of foreign buffer addresses.
+  Retain views written through checked aliases in their actual owner, and keep
+  unrelated native handles out of global-view cleanup proofs. Copy record-field
+  view origins independently of the alias's address loan.
+
 - Keep project source entry identities separate from declared package modules.
   Preserve authored entry spellings and checked IR filenames, disambiguate actual
   output collisions, and retain relative saved imports independently of identity.

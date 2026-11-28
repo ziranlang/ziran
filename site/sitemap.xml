@@ -14,6 +14,7 @@
   <url><loc>https://ziran-lang.org/guide/authoring</loc></url>
   <url><loc>https://ziran-lang.org/guide/capabilities</loc></url>
   <url><loc>https://ziran-lang.org/guide/compiler-api</loc></url>
+  <url><loc>https://ziran-lang.org/guide/decimal</loc></url>
   <url><loc>https://ziran-lang.org/guide/diagnostics</loc></url>
   <url><loc>https://ziran-lang.org/guide/features</loc></url>
   <url><loc>https://ziran-lang.org/guide/implementation-status</loc></url>
@@ -83,6 +84,7 @@
   <url><loc>https://ziran-lang.org/std/date_time</loc></url>
   <url><loc>https://ziran-lang.org/std/date_time_linux</loc></url>
   <url><loc>https://ziran-lang.org/std/date_time_types</loc></url>
+  <url><loc>https://ziran-lang.org/std/decimal_linux</loc></url>
   <url><loc>https://ziran-lang.org/std/ed25519_go</loc></url>
   <url><loc>https://ziran-lang.org/std/environment</loc></url>
   <url><loc>https://ziran-lang.org/std/environment_linux</loc></url>

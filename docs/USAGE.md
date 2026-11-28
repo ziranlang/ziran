@@ -9,6 +9,10 @@ behind it in the order most programs need it: commands and language rules,
 modules, the standard library, then generated C and Go, saved IR, foreign
 code and assembly.
 
+For exact, context-controlled native Linux decimal arithmetic, see
+[native decimal arithmetic](DECIMAL.md), including coefficient ownership and
+the optional mpdecimal runtime dependency.
+
 ## Compiler commands
 
 Use the same commands for native `.zi`, `.ts` and `.tsx` sources, including

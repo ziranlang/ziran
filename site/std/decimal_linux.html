@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Native 64-bit Linux decimal arithmetic using the optional libmpdec.so.4 ABI."><title>std/decimal_linux · Ziran</title><link rel="canonical" href="https://ziran-lang.org/std/decimal_linux"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#std">Modules</a> / Standard library</p><h1>std/decimal_linux</h1><p>Native 64-bit Linux decimal arithmetic using the optional libmpdec.so.4 ABI. Quiet operations expose status/traps without installing a signal handler.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> <span class="module-target">Needs: Native Linux.</span> Available on master (Unreleased).</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Declarations</strong><a href="#HALF_EVEN">HALF_EVEN</a><a href="#UP">UP</a><a href="#HALF_UP">HALF_UP</a><a href="#HALF_DOWN">HALF_DOWN</a><a href="#ROUND_05UP">ROUND_05UP</a><a href="#CEILING">CEILING</a><a href="#FLOOR">FLOOR</a><a href="#DOWN">DOWN</a><a href="#CONVERSION_SYNTAX">CONVERSION_SYNTAX</a><a href="#DIVISION_BY_ZERO">DIVISION_BY_ZERO</a><a href="#INEXACT">INEXACT</a><a href="#INVALID_CONTEXT">INVALID_CONTEXT</a><a href="#INVALID_OPERATION">INVALID_OPERATION</a><a href="#OVERFLOW">OVERFLOW</a><a href="#ROUNDED">ROUNDED</a><a href="#SUBNORMAL">SUBNORMAL</a><a href="#UNDERFLOW">UNDERFLOW</a><a href="#UNAVAILABLE">UNAVAILABLE</a><a href="#MALLOC_ERROR">MALLOC_ERROR</a><a href="#DEFAULT_TRAPS">DEFAULT_TRAPS</a><a href="#Context">Context</a><a href="#Arena">Arena</a><a href="#Decimal">Decimal</a><a href="#Formatted">Formatted</a><a href="#Operation">Operation</a><a href="#UnaryOperation">UnaryOperation</a><a href="#Default">Default</a><a href="#Available">Available</a><a href="#Version">Version</a><a href="#Close">Close</a><a href="#Parse">Parse</a><a href="#ToText">ToText</a><a href="#Binary">Binary</a><a href="#Unary">Unary</a><a href="#Compare">Compare</a><a href="#Format">Format</a><a href="#FromFloat">FromFloat</a></aside><div class="article-body api-body">
+<section><p>Import with <code>#import "std/decimal_linux"</code>.</p><div class="api-list">
+<div id="HALF_EVEN"><code>HALF_EVEN :: 6</code></div>
+<div id="UP"><code>UP :: 0</code></div>
+<div id="HALF_UP"><code>HALF_UP :: 4</code></div>
+<div id="HALF_DOWN"><code>HALF_DOWN :: 5</code></div>
+<div id="ROUND_05UP"><code>ROUND_05UP :: 7</code></div>
+<div id="CEILING"><code>CEILING :: 2</code></div>
+<div id="FLOOR"><code>FLOOR :: 3</code></div>
+<div id="DOWN"><code>DOWN :: 1</code></div>
+<div id="CONVERSION_SYNTAX"><code>CONVERSION_SYNTAX :: cast(u32)0x2</code></div>
+<div id="DIVISION_BY_ZERO"><code>DIVISION_BY_ZERO :: cast(u32)0x4</code></div>
+<div id="INEXACT"><code>INEXACT :: cast(u32)0x40</code></div>
+<div id="INVALID_CONTEXT"><code>INVALID_CONTEXT :: cast(u32)0x80</code></div>
+<div id="INVALID_OPERATION"><code>INVALID_OPERATION :: cast(u32)0x100</code></div>
+<div id="OVERFLOW"><code>OVERFLOW :: cast(u32)0x800</code></div>
+<div id="ROUNDED"><code>ROUNDED :: cast(u32)0x1000</code></div>
+<div id="SUBNORMAL"><code>SUBNORMAL :: cast(u32)0x2000</code></div>
+<div id="UNDERFLOW"><code>UNDERFLOW :: cast(u32)0x4000</code></div>
+<div id="UNAVAILABLE"><code>UNAVAILABLE :: cast(u32)0x80000000</code></div>
+<div id="MALLOC_ERROR"><code>MALLOC_ERROR :: cast(u32)0x200</code></div>
+<div id="DEFAULT_TRAPS"><code>DEFAULT_TRAPS :: cast(u32)0xbbe</code></div>
+<div id="Context"><code>Context :: struct { precision: s64; emax: s64; emin: s64; rounding: s32; clamp: bool; traps: u32; }</code><p>Decimal references borrow native allocations from their Arena. Close the arena</p></div>
+<div id="Arena"><code>Arena :: struct { values: Vec(*void); }</code><p>Decimal references borrow native allocations from their Arena. Close the arena after all its references and in-flight operations have ended.</p></div>
+<div id="Decimal"><code>Decimal :: struct { valid: bool; finite: bool; negative: bool; zero: bool; handle: *void; status: u32; }</code></div>
+<div id="Formatted"><code>Formatted :: struct { valid: bool; text: Text; status: u32; }</code></div>
+<div id="Operation"><code>Operation :: enum { Add = 0; Subtract = 1; Multiply = 2; Divide = 3; Power = 4; Quantize = 5; ScaleB = 6; DivideInteger = 7; Remainder = 8; Minimum = 9; Maximum = 10; }</code></div>
+<div id="UnaryOperation"><code>UnaryOperation :: enum { Plus = 0; Minus = 1; Normalize = 2; Floor = 3; Ceiling = 4; Truncate = 5; }</code></div>
+<div id="Default"><code>Default :: () -&gt; Context</code></div>
+<div id="Available"><code>Available :: () -&gt; bool</code><p>The loader is initialized once; its function table/library live to process exit.</p></div>
+<div id="Version"><code>Version :: () -&gt; Text</code></div>
+<div id="Close"><code>Close :: (arena: *Arena)</code><p>Arena.close releases every native coefficient. Native values never own or alias Ziran text storage; Parse/ToText copy across that boundary.</p></div>
+<div id="Parse"><code>Parse :: (arena: *Arena, text: string) -&gt; Decimal</code><p>Exact ASCII decimal syntax. No Unicode/whitespace/object coercion is implied.</p></div>
+<div id="ToText"><code>ToText :: (value: Decimal) -&gt; Text</code></div>
+<div id="Binary"><code>Binary :: (arena: *Arena, operation: Operation, a: Decimal, b: Decimal, context: Context) -&gt; Decimal</code></div>
+<div id="Unary"><code>Unary :: (arena: *Arena, operation: UnaryOperation, value: Decimal, context: Context) -&gt; Decimal</code></div>
+<div id="Compare"><code>Compare :: (a: Decimal, b: Decimal) -&gt; (s32, bool)</code></div>
+<div id="Format"><code>Format :: (value: Decimal, format: string, context: Context) -&gt; Formatted</code></div>
+<div id="FromFloat"><code>FromFloat :: (arena: *Arena, source: float64) -&gt; Decimal</code><p>Construct the exact value of an IEEE binary64, retaining signed zero. The temporary precision1100 covers every finite binary64 coefficient exactly.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/decimal_linux.zi">Source ↗</a> · <a class="text-link" href="../modules.html#std">All modules</a></p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

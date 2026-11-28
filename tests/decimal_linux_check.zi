@@ -1,0 +1,92 @@
+// Frozen CPython Decimal results are data only; all retained test logic is Ziran.
+D :: #import "std/decimal_linux"
+J :: #import "std/json_document"
+#import "std/file"
+#import "std/byte_text_linux"
+using V :: #import "std/vec"
+C :: #system_library "c";
+CopyRaw :: (out: *void, source: *void, count: usize) -> *void #foreign C "memcpy";
+assertions: s64; failures: s64;
+Check :: (good: bool, name: string, index: s64 = -1) {
+    assertions += 1
+    if !good { failures += 1; if failures <= 20 { print("FAIL % row %\n",name,index) } }
+}
+Element :: (doc: *J.JsonDocument, row: s32, index: s32) -> s32 { return J.JsonElement(doc,row,index) }
+Integer :: (doc: *J.JsonDocument, row: s32, index: s32) -> s64 {
+    value,valid := J.JsonInteger(doc,Element(doc,row,index)); Check(valid,"fixture integer"); return value
+}
+True :: (doc: *J.JsonDocument, row: s32, index: s32) -> bool { return J.JsonKindOf(doc,Element(doc,row,index)) == .True }
+String :: (doc: *J.JsonDocument, row: s32, index: s32) -> Text { return J.JsonString(doc,Element(doc,row,index)) }
+Context :: (doc: *J.JsonDocument, row: s32) -> D.Context {
+    return .{precision=Integer(doc,row,0),emin=Integer(doc,row,1),emax=Integer(doc,row,2),rounding=cast(s32)Integer(doc,row,3),traps=cast(u32)Integer(doc,row,4)}
+}
+// Python's InvalidOperation flag groups mpdecimal's detailed invalid statuses.
+Flags :: (raw: u32) -> u32 { return (raw & ~cast(u32)0x3ba) | (ifx (raw & 0x3ba) != 0 then cast(u32)0x100 else cast(u32)0) }
+ParseCase :: (doc: *J.JsonDocument, row: s32, index: s64) {
+    arena: D.Arena; defer D.Close(*arena); input := String(doc,row,0); value := D.Parse(*arena,TextView(input)); text := D.ToText(value); wanted := String(doc,row,3)
+    valid := True(doc,row,1); Check(value.valid == valid,"exact parse acceptance",index)
+    if valid { Check(TextView(text) == TextView(wanted) && value.finite == True(doc,row,2) && value.negative == True(doc,row,4) && value.zero == True(doc,row,5),"exact parse value/properties",index) }
+}
+BinaryCase :: (doc: *J.JsonDocument, row: s32, index: s64) {
+    arena: D.Arena; defer D.Close(*arena); a := String(doc,row,1); b := String(doc,row,2); context := Context(doc,Element(doc,row,3))
+    value := D.Binary(*arena,cast(D.Operation)Integer(doc,row,0),D.Parse(*arena,TextView(a)),D.Parse(*arena,TextView(b)),context)
+    expected := String(doc,row,5); text := D.ToText(value)
+    Check(value.valid == True(doc,row,4) && TextView(text) == TextView(expected) && Flags(value.status) == cast(u32)Integer(doc,row,6),"binary result/traps/status",index)
+}
+UnaryCase :: (doc: *J.JsonDocument, row: s32, index: s64) {
+    arena: D.Arena; defer D.Close(*arena); input := String(doc,row,1); context := Context(doc,Element(doc,row,2))
+    value := D.Unary(*arena,cast(D.UnaryOperation)Integer(doc,row,0),D.Parse(*arena,TextView(input)),context); expected := String(doc,row,4); text := D.ToText(value)
+    same := value.valid == True(doc,row,3) && TextView(text) == TextView(expected) && Flags(value.status) == cast(u32)Integer(doc,row,5)
+    Check(same,"unary result/traps/status",index)
+    if !same && failures <= 5 { print("actual % % % expected % %\n",value.valid,TextView(text),value.status,TextView(expected),Integer(doc,row,5)) }
+}
+FloatCase :: (doc: *J.JsonDocument, row: s32, index: s64) {
+    arena: D.Arena; defer D.Close(*arena); input := String(doc,row,0); bits: u64
+    for byte: TextView(input) { bits = bits*10+cast(u64)(byte-48) }; source: float64; unused CopyRaw(cast(*void)*source,cast(*void)*bits,8)
+    value := D.FromFloat(*arena,source); text := D.ToText(value); expected := String(doc,row,1)
+    Check(value.valid && TextView(text) == TextView(expected),"exact binary64 coefficient/exponent",index)
+}
+FormatCase :: (doc: *J.JsonDocument, row: s32, index: s64) {
+    arena: D.Arena; defer D.Close(*arena); input := String(doc,row,0); format := String(doc,row,1); expected := String(doc,row,2)
+    value := D.Format(D.Parse(*arena,TextView(input)),TextView(format)); Check(value.valid && TextView(value.text) == TextView(expected),"format precision/scale/sign",index)
+}
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc > 1 && TextFromCString(argv[1]) == "--expect-unavailable" {
+        arena: D.Arena; defer D.Close(*arena); value := D.Parse(*arena,"1"); version := D.Version()
+        Check(!D.Available() && !value.valid && value.status == D.UNAVAILABLE && TextView(version) == "","missing optional library is explicit")
+    } else {
+        if !D.Available() { print("libmpdec.so.4 is required for this explicit native integration check\n"); return 1 }
+        file := OpenRead("tests/fixtures/decimal-original.json"); if !file.valid { return 1 }; defer { unused CloseFile(file) }
+        bytes: Vec(u8); chunk: [4096]u8; offset: s64
+        while true {
+            count := ReadAt(file,chunk[:],offset); if count < 0 { return 1 }; if count == 0 { break }
+            for byte: chunk[:count] { if !VecPush(bytes,byte) { return 1 } }; offset += count
+        }
+        doc: J.JsonDocument; defer J.JsonReset(*doc)
+        if !J.JsonRead(*doc,TextView(bytes[:])) { print("Decimal reference fixture could not be read\n"); return 1 }
+        names := string.["parse","binary","unary","float","format"]
+        for group: cast(s32)0..4 {
+            row := J.JsonFirst(*doc,J.JsonMember(*doc,doc.root,names[group])); index: s64
+            while row >= 0 {
+                if group == 0 { ParseCase(*doc,row,index) }
+                else if group == 1 { BinaryCase(*doc,row,index) }
+                else if group == 2 { UnaryCase(*doc,row,index) }
+                else if group == 3 { FloatCase(*doc,row,index) }
+                else { FormatCase(*doc,row,index) }; row = J.JsonNext(*doc,row); index += 1
+            }
+            Check(index > 0,"fixture group is populated")
+        }
+        for cycle: cast(s64)0..1023 {
+            arena: D.Arena; one := D.Parse(*arena,"1.2500"); copy := one; two := D.Parse(*arena,"1.25"); order,okay := D.Compare(copy,two)
+            Check(okay && order == 0 && one.valid,"copied references retain exact coefficients",cycle)
+            D.Close(*arena); D.Close(*arena); Check(arena.values.count == 0,"arena repeated close",cycle)
+        }
+        arena: D.Arena; defer D.Close(*arena); one := D.Parse(*arena,"1"); zero := D.Parse(*arena,"-0"); invalid := D.Default(); invalid.precision = 0
+        Check(D.Binary(*arena,.Add,one,one,invalid).status == D.INVALID_CONTEXT,"invalid context is rejected")
+        bad_format := D.Format(one,"f\0suffix")
+        Check(!D.Parse(*arena,"1\0suffix").valid && !bad_format.valid,"embedded NUL never truncates")
+        order,okay := D.Compare(zero,one); Check(okay && order == -1,"comparison ordering")
+        order,okay = D.Compare(D.Parse(*arena,"NaN"),one); Check(!okay,"NaN comparison has no order")
+    }
+    print("decimal_linux_check: % assertions, % failures\n",assertions,failures); return ifx failures == 0 then 0 else 1
+}

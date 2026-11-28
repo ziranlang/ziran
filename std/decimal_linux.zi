@@ -1,0 +1,206 @@
+// Native 64-bit Linux decimal arithmetic using the optional libmpdec.so.4 ABI.
+// Quiet operations expose status/traps without installing a signal handler.
+using V :: #import "std/vec"
+#import "std/c_string"
+#import "std/byte_text_linux"
+
+#scope_export
+HALF_EVEN :: 6
+UP :: 0
+HALF_UP :: 4
+HALF_DOWN :: 5
+ROUND_05UP :: 7
+CEILING :: 2
+FLOOR :: 3
+DOWN :: 1
+CONVERSION_SYNTAX :: cast(u32)0x2
+DIVISION_BY_ZERO :: cast(u32)0x4
+INEXACT :: cast(u32)0x40
+INVALID_CONTEXT :: cast(u32)0x80
+INVALID_OPERATION :: cast(u32)0x100
+OVERFLOW :: cast(u32)0x800
+ROUNDED :: cast(u32)0x1000
+SUBNORMAL :: cast(u32)0x2000
+UNDERFLOW :: cast(u32)0x4000
+UNAVAILABLE :: cast(u32)0x80000000
+MALLOC_ERROR :: cast(u32)0x200
+DEFAULT_TRAPS :: cast(u32)0xbbe // invalid operations, divide-by-zero, overflow
+Context :: struct { precision: s64; emax: s64; emin: s64; rounding: s32; clamp: bool; traps: u32; }
+// Decimal references borrow native allocations from their Arena. Close the arena
+// after all its references and in-flight operations have ended.
+Arena :: struct { values: Vec(*void); }
+Decimal :: struct { valid: bool; finite: bool; negative: bool; zero: bool; handle: *void; status: u32; }
+Formatted :: struct { valid: bool; text: Text; status: u32; }
+Operation :: enum s32 { Add; Subtract; Multiply; Divide; Power; Quantize; ScaleB; DivideInteger; Remainder; Minimum; Maximum; }
+UnaryOperation :: enum s32 { Plus; Minus; Normalize; Floor; Ceiling; Truncate; }
+Default :: () -> Context { return .{precision=28,emax=999999,emin=-999999,rounding=6,traps=DEFAULT_TRAPS} }
+
+#scope_file
+C :: #system_library "c";
+DL :: #system_library "dl";
+LoadRaw :: (name: *u8, flags: s32) -> *void #foreign DL "dlopen";
+SymbolRaw :: (library: *void, name: *u8) -> *void #foreign DL "dlsym";
+CopyRaw :: (out: *void, source: *void, count: usize) -> *void #foreign C "memcpy";
+OnceCall :: #type () #c_call;
+OnceRaw :: (guard: *s32, call: OnceCall) -> s32 #foreign C "pthread_once";
+NativeContext :: struct { prec: s64; emax: s64; emin: s64; traps: u32; status: u32; newtrap: u32; round: s32; clamp: s32; allcr: s32; }
+NewCall :: #type () -> *void #c_call;
+DeleteCall :: #type (value: *void) -> void #c_call;
+SetCall :: #type (value: *void, source: *u8, status: *u32) -> void #c_call;
+StringCall :: #type (out: **u8, value: *void, upper: s32) -> s64 #c_call;
+FormatCall :: #type (value: *void, format: *u8, context: *NativeContext, status: *u32) -> *u8 #c_call;
+PredicateCall :: #type (value: *void) -> s32 #c_call;
+CompareCall :: #type (a: *void, b: *void, status: *u32) -> s32 #c_call;
+BinaryCall :: #type (out: *void, a: *void, b: *void, context: *NativeContext, status: *u32) -> void #c_call;
+UnaryCall :: #type (out: *void, a: *void, context: *NativeContext, status: *u32) -> void #c_call;
+FreeCall :: #type (value: *void) -> void #c_call;
+VersionCall :: #type () -> *u8 #c_call;
+Api :: struct {
+    new: NewCall; delete: DeleteCall; set: SetCall; string: StringCall; format: FormatCall;
+    finite: PredicateCall; negative: PredicateCall; zero: PredicateCall; compare: CompareCall; free: FreeCall; version: VersionCall;
+    add_op: BinaryCall;
+    sub_op: BinaryCall;
+    mul_op: BinaryCall;
+    div_op: BinaryCall;
+    pow_op: BinaryCall;
+    quantize_op: BinaryCall;
+    scaleb_op: BinaryCall;
+    divint_op: BinaryCall;
+    rem_op: BinaryCall;
+    min_op: BinaryCall;
+    max_op: BinaryCall;
+    plus_op: UnaryCall;
+    minus_op: UnaryCall;
+    reduce_op: UnaryCall;
+    integral_op: UnaryCall;
+}
+api: Api; library: *void; once: s32; ready: bool;
+Resolve :: (slot: *void, name: string, data: bool = false) -> bool {
+    bytes: [64]u8; if !CopyCString(name,bytes[:]) { return false }; symbol := SymbolRaw(library,*bytes[0]); if symbol == null { return false }
+    unused CopyRaw(slot,ifx data then symbol else cast(*void)*symbol,size_of(*void)); return true
+}
+Init :: () {
+    if size_of(usize) != 8 { return }; name := CString("libmpdec.so.4"); library = LoadRaw(*name[0],2); if library == null { return }
+    if !Resolve(cast(*void)*api.new,"mpd_qnew") { return }
+    if !Resolve(cast(*void)*api.delete,"mpd_del") { return }
+    if !Resolve(cast(*void)*api.set,"mpd_qset_string_exact") { return }
+    if !Resolve(cast(*void)*api.string,"mpd_to_sci_size") { return }
+    if !Resolve(cast(*void)*api.format,"mpd_qformat") { return }
+    if !Resolve(cast(*void)*api.finite,"mpd_isfinite") { return }
+    if !Resolve(cast(*void)*api.negative,"mpd_isnegative") { return }
+    if !Resolve(cast(*void)*api.zero,"mpd_iszero") { return }
+    if !Resolve(cast(*void)*api.compare,"mpd_qcmp") { return }
+    if !Resolve(cast(*void)*api.version,"mpd_version") { return }
+    if !Resolve(cast(*void)*api.free,"mpd_free",true) { return }
+    if !Resolve(cast(*void)*api.add_op,"mpd_qadd") { return }
+    if !Resolve(cast(*void)*api.sub_op,"mpd_qsub") { return }
+    if !Resolve(cast(*void)*api.mul_op,"mpd_qmul") { return }
+    if !Resolve(cast(*void)*api.div_op,"mpd_qdiv") { return }
+    if !Resolve(cast(*void)*api.pow_op,"mpd_qpow") { return }
+    if !Resolve(cast(*void)*api.quantize_op,"mpd_qquantize") { return }
+    if !Resolve(cast(*void)*api.scaleb_op,"mpd_qscaleb") { return }
+    if !Resolve(cast(*void)*api.divint_op,"mpd_qdivint") { return }
+    if !Resolve(cast(*void)*api.rem_op,"mpd_qrem") { return }
+    if !Resolve(cast(*void)*api.min_op,"mpd_qmin") { return }
+    if !Resolve(cast(*void)*api.max_op,"mpd_qmax") { return }
+    if !Resolve(cast(*void)*api.plus_op,"mpd_qplus") { return }
+    if !Resolve(cast(*void)*api.minus_op,"mpd_qminus") { return }
+    if !Resolve(cast(*void)*api.reduce_op,"mpd_qreduce") { return }
+    if !Resolve(cast(*void)*api.integral_op,"mpd_qround_to_int") { return }
+    ready = true
+}
+Native :: (context: Context) -> (value: NativeContext, valid: bool) {
+    if context.precision < 1 || context.precision > 999999999999999999 || context.emax < 0 || context.emax > 999999999999999999 ||
+        context.emin > 0 || context.emin < -999999999999999999 || context.rounding < 0 || context.rounding > 8 || (context.traps & ~cast(u32)0x7fff) != 0 { return .{},false }
+    return .{prec=context.precision,emax=context.emax,emin=context.emin,round=context.rounding,clamp=ifx context.clamp then 1 else 0,allcr=1},true
+}
+Rejected :: (status: u32, traps: u32) -> bool { return (status & (traps|MALLOC_ERROR)) != 0 }
+CString :: (text: string) -> Vec(u8) { bytes: Vec(u8); BuilderAppend(bytes,text); VecPush(bytes,cast(u8)0); return bytes }
+Allocate :: (arena: *Arena, status: *u32) -> *void {
+    raw := api.new(); if raw == null { status.* |= MALLOC_ERROR; return null }
+    if !VecPush(arena.values,raw) { api.delete(raw); status.* |= MALLOC_ERROR; return null }; return raw
+}
+Snapshot :: (raw: *void, status: u32, traps: u32) -> Decimal {
+    if raw == null { return .{status=status} }
+    return .{valid=!Rejected(status,traps),finite=api.finite(raw) != 0,negative=api.negative(raw) != 0,zero=api.zero(raw) != 0,handle=raw,status=status}
+}
+
+#scope_export
+// The loader is initialized once; its function table/library live to process exit.
+Available :: () -> bool { routine: OnceCall = Init; return OnceRaw(*once,routine) == 0 && ready }
+Version :: () -> Text { if !Available() { return TextCopy("") }; return TextCopy(TextFromCString(api.version())) }
+// Arena.close releases every native coefficient. Native values never own or
+// alias Ziran text storage; Parse/ToText copy across that boundary.
+Close :: (arena: *Arena) { for raw: arena.values[:] { api.delete(raw) }; VecFree(arena.values) }
+// Exact ASCII decimal syntax. No Unicode/whitespace/object coercion is implied.
+Parse :: (arena: *Arena, text: string) -> Decimal {
+    if !Available() { return .{status=UNAVAILABLE} }; for byte: text { if byte == 0 { return .{status=2} } }; status: u32
+    raw := Allocate(arena,*status); if raw == null { return .{status=status} }; input := CString(text); api.set(raw,*input[0],*status)
+    return Snapshot(raw,status,DEFAULT_TRAPS)
+}
+ToText :: (value: Decimal) -> Text {
+    if !Available() || value.handle == null { return TextCopy("") }; pointer: *u8; count := api.string(*pointer,value.handle,1)
+    if pointer == null || count < 0 { return TextCopy("") }; defer api.free(cast(*void)pointer)
+    bytes: Vec(u8); if !VecResize(bytes,count) { return TextCopy("") }
+    if count > 0 { unused CopyRaw(cast(*void)*bytes[0],cast(*void)pointer,cast(usize)count) }; return TextFromBuilder(bytes)
+}
+
+Binary :: (arena: *Arena, operation: Operation, a: Decimal, b: Decimal, context: Context = Default()) -> Decimal {
+    if !Available() { return .{status=UNAVAILABLE} }; native,valid := Native(context); if !valid { return .{status=INVALID_CONTEXT} }
+    if !a.valid || !b.valid || a.handle == null || b.handle == null { return .{status=a.status|b.status|cast(u32)0x100} }; status: u32
+    out := Allocate(arena,*status); if out == null { return .{status=status} }; call: BinaryCall = api.add_op
+    if operation == .Add { call = api.add_op }
+    else if operation == .Subtract { call = api.sub_op }
+    else if operation == .Multiply { call = api.mul_op }
+    else if operation == .Divide { call = api.div_op }
+    else if operation == .Power { call = api.pow_op }
+    else if operation == .Quantize { call = api.quantize_op }
+    else if operation == .ScaleB { call = api.scaleb_op }
+    else if operation == .DivideInteger { call = api.divint_op }
+    else if operation == .Remainder { call = api.rem_op }
+    else if operation == .Minimum { call = api.min_op }
+    else if operation == .Maximum { call = api.max_op }
+    else { return .{status=INVALID_CONTEXT} }
+    call(out,a.handle,b.handle,*native,*status); return Snapshot(out,status,context.traps)
+}
+Unary :: (arena: *Arena, operation: UnaryOperation, value: Decimal, context: Context = Default()) -> Decimal {
+    if !Available() { return .{status=UNAVAILABLE} }; native,valid := Native(context); if !valid { return .{status=INVALID_CONTEXT} }
+    if !value.valid || value.handle == null { return .{status=value.status|cast(u32)0x100} }; status: u32
+    out := Allocate(arena,*status); if out == null { return .{status=status} }; call: UnaryCall = api.plus_op
+    if operation == .Plus { call = api.plus_op }
+    else if operation == .Minus { call = api.minus_op }
+    else if operation == .Normalize { call = api.reduce_op }
+    else if operation == .Floor { call = api.integral_op; native.round = FLOOR }
+    else if operation == .Ceiling { call = api.integral_op; native.round = CEILING }
+    else if operation == .Truncate { call = api.integral_op; native.round = DOWN }
+    else { return .{status=INVALID_CONTEXT} }
+    call(out,value.handle,*native,*status); return Snapshot(out,status,context.traps)
+}
+Compare :: (a: Decimal, b: Decimal) -> (order: s32, valid: bool) {
+    if !Available() || !a.valid || !b.valid { return 0,false }; status: u32
+    if a.handle == null || b.handle == null { return 0,false }; order := api.compare(a.handle,b.handle,*status)
+    return order,status == 0 && order >= -1 && order <= 1
+}
+Format :: (value: Decimal, format: string, context: Context = Default()) -> Formatted {
+    if !Available() { return .{status=UNAVAILABLE} }; native,valid := Native(context); if !valid { return .{status=INVALID_CONTEXT} }
+    if !value.valid || value.handle == null { return .{status=value.status|cast(u32)0x100} }; for byte: format { if byte == 0 { return .{status=cast(u32)0x100} } }; status: u32
+    input := CString(format); pointer := api.format(value.handle,*input[0],*native,*status)
+    if pointer == null { return .{status=status} }; defer api.free(cast(*void)pointer)
+    return .{valid=!Rejected(status,context.traps),text=TextCopy(TextFromCString(pointer)),status=status}
+}
+// Construct the exact value of an IEEE binary64, retaining signed zero. The
+// temporary precision1100 covers every finite binary64 coefficient exactly.
+FromFloat :: (arena: *Arena, source: float64) -> Decimal {
+    bits: u64; unused CopyRaw(cast(*void)*bits,cast(*void)*source,8); fraction := bits & 4503599627370495; field := (bits >> 52) & 2047; negative := (bits >> 63) != 0
+    if field == 2047 { return Parse(arena,ifx fraction != 0 then "NaN" else ifx negative then "-Infinity" else "Infinity") }
+    if field == 0 && fraction == 0 { return Parse(arena,ifx negative then "-0" else "0") }
+    exponent := ifx field == 0 then cast(s64)-1074 else cast(s64)field-1075
+    mantissa := ifx field == 0 then fraction else fraction+4503599627370496
+    // Cancel binary denominator factors first. This retains exact integer
+    // exponent zero and avoids artificial trailing decimal zeroes.
+    while exponent < 0 && (mantissa & 1) == 0 { mantissa >>= 1; exponent += 1 }
+    coefficient: Vec(u8); BuilderPrint(*coefficient,"%",ifx negative then -cast(s64)mantissa else cast(s64)mantissa)
+    power: Vec(u8); BuilderPrint(*power,"%",exponent); context := Default(); context.precision = 1100
+    factor := Binary(arena,.Power,Parse(arena,"2"),Parse(arena,TextView(power[:])),context)
+    return Binary(arena,.Multiply,Parse(arena,TextView(coefficient[:])),factor,context)
+}

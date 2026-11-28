@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Add optional 64-bit Linux `std/decimal_linux` arithmetic using mpdecimal 4,
+  with arena-owned coefficients, exact binary64 construction, explicit contexts,
+  rounding/status/trap results and owned formatting output. Programs without
+  this import keep no mpdecimal dependency.
+
 - Add full default Unicode 17 uppercase mappings to `std/unicode.Upper`,
   including multi-scalar expansions, with source/saved-IR C, Go and portable
   conformance coverage generated from the official Unicode tables.

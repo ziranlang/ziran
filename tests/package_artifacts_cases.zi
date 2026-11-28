@@ -233,6 +233,25 @@ Artifacts :: (test: *NativeTest) -> bool {
     wide_first := ArtifactBuild(test, app, "linux-x86_64-gnu", true, "Provider:wide")
     if !NativeAssert(test, IsFile(wide_first) && ArtifactBuild(test, app, "linux-x86_64-gnu", true, "Provider:wide") == wide_first,
         "wide-input artifact did not build or reuse") || !ArtifactCount(test, provider, wide_count + 1) { return false }
+    // A populated gitlink without child Git metadata must use its actual
+    // contents, including edits, rather than resolving the parent's HEAD.
+    revision := string.["rev-parse", "HEAD"]
+    link_revision := FixtureGit(test, tool, revision[:])
+    gitlink := string.["update-index", "--add", "--cacheinfo", "160000", link_revision, "vendor"]
+    unused FixtureGit(test, provider, gitlink[:])
+    commit_link := string.["commit", "-q", "-m", "populated gitlink fixture"]
+    unused FixtureGit(test, provider, commit_link[:])
+    vendor_file := CheckPath(provider, "vendor/source.c")
+    if !NativeWrite(test, vendor_file, "first\n") { return false }
+    populated := ArtifactBuild(test, app)
+    if !NativeAssert(test, IsFile(populated) && ArtifactBuild(test, app) == populated,
+        "populated gitlink did not build or reuse") ||
+        !NativeWrite(test, vendor_file, "second\n") { return false }
+    if !NativeAssert(test, ArtifactBuild(test, app) != populated,
+        "populated gitlink edit reused stale artifact") ||
+        !NativeWrite(test, vendor_file, "first\n") { return false }
+    if !NativeAssert(test, ArtifactBuild(test, app) == populated,
+        "restored gitlink content did not reuse artifact") { return false }
     // An edit to the provider checkout during its build changes the content
     // that keys the artifact: nothing is published, and the message says a
     // source changed rather than blaming the provider.

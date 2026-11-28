@@ -2662,9 +2662,12 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                     // A string is already a view: `x := OwnedCall()` detached
                     // the Text into a string that keeps its bytes, so
                     // TextView(x) is x itself.
-                    sibling: s32 = (e).next_sibling
+                    saved: IR.ZirExpr = (((c).fn).exprs)[index]
                     (((c).fn).exprs)[index] = (((c).fn).exprs)[first]
-                    ((((c).fn).exprs)[index]).next_sibling = sibling
+                    ((((c).fn).exprs)[index]).next_sibling = saved.next_sibling
+                    ((((c).fn).exprs)[index]).argument_index = saved.argument_index
+                    ((((c).fn).exprs)[index]).argument_name = saved.argument_name
+                    ((((c).fn).exprs)[index]).span = saved.span
                     (c).conversions_applied = 1
                     type = CheckCString("string")
                     break check_switch_243

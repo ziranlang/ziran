@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Preserve a native text view's checked argument position, name and source
+  location when removing an identity conversion inside a call.
+- Fingerprint populated Git submodule directories by their actual working
+  contents when child Git metadata is absent, and include initialized child
+  working edits in native artifact invalidation.
+
 - Add optional 64-bit Linux `std/decimal_linux` arithmetic using mpdecimal 4,
   with arena-owned coefficients, exact binary64 construction, explicit contexts,
   rounding/status/trap results and owned formatting output. Programs without

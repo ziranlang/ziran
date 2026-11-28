@@ -189,6 +189,9 @@ function FormatLabel(): string {
     return BuilderFinish(line);
 }
 function Wrap(value: number): Holder<number> { return {value: value}; }
+function LabelLength(before: s32, text: string, after: s32): s64 {
+    return s64(before) + text.count + s64(after);
+}
 export function main(): s32 {
     if (Logic.Globals() !== s32(23) || Logic.BumpGlobals() !== s32(2) || Logic.Globals() !== s32(24)) { return s32(30); }
     if (Logic.Defaulted(s32(2)) !== s32(7) || Logic.Defaulted(s32(2), s32(1)) !== s32(3) || Logic.defaultStarts !== s32(1)) { return s32(36); }
@@ -267,7 +270,9 @@ export function main(): s32 {
     nativeSet(mutable, s64(1), s32(9));
     if (scalar !== s32(4) || nativeAt(mutable, s64(1)) !== s32(9) || nativeAt(values, s64(3)) !== 4 ||
         nativeAt("é", s64(0)) !== u8(195) || nativeAt("é", s64(1)) !== u8(169)) { return s32(46); }
-    if (FormatLabel() !== "3 of 8 (%) ratio 0.375 ok=true 200 18446744073709551615 -42") { return s32(49); }
+    const formatted = FormatLabel();
+    if (formatted !== "3 of 8 (%) ratio 0.375 ok=true 200 18446744073709551615 -42" ||
+        LabelLength(s32(2), TextView(formatted), s32(3)) !== formatted.count + s64(5)) { return s32(49); }
     const flags: u64 = u64(1) << u64(63) | u64(3);
     if ((flags & u64(3)) !== u64(3) || (flags >> u64(63)) !== u64(1) ||
         (u32(1) | u32(2) & u32(4)) !== u32(1) ||

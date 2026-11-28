@@ -1553,6 +1553,63 @@ PkgArtifactTarget :: (target: string) -> bool {
 // the tracked and nonignored paths. No index or git object is written.
 PkgArtifactLibc :: #system_library "libc";
 PkgArtifactReadLink :: (path: *u8, output: *u8, capacity: u64) -> s64 #foreign PkgArtifactLibc "readlink";
+// Exported or populated gitlinks may have no child Git metadata. Hash their
+// actual bytes rather than accidentally resolving the parent's HEAD. A child
+// with its own checkout still uses Git's nonignored working-file selection.
+PkgArtifactDirectoryContent :: (path: string) -> string {
+    names: Vec(string)
+    if !ListDirectory(path, *names) { return "" }
+    defer FreeDirectoryNames(*names)
+    state := PkgDigest("ziran-directory-content-v1")
+    index: s64
+    while index < names.count {
+        name := names[index]
+        if name != ".git" {
+            digest := PkgArtifactPathContent(PkgJoin3(path, "/", name))
+            if digest == "" { return "" }
+            PkgArtifactMix(*state, name)
+            PkgArtifactMix(*state, digest)
+        }
+        index += 1
+    }
+    return state
+}
+
+PkgArtifactPathContent :: (full: string) -> string {
+    info := PathStatus(full, false)
+    digest := ""
+    kind := "file"
+    if info.kind == .Directory {
+        kind = "directory"
+        head := PkgGitHead(full)
+        if head != "" {
+            digest = PkgArtifactContent(full)
+            if digest == "" { return "" }
+            PkgArtifactMix(*digest, head)
+        } else { digest = PkgArtifactDirectoryContent(full) }
+    } else if info.kind == .Link {
+        kind = "symlink"
+        native_path: [4096]u8
+        target: [4096]u8
+        if !CopyCString(full, native_path[:]) { return "" }
+        count := PkgArtifactReadLink(*native_path[0], *target[0], 4096)
+        if count < 0 || count >= 4096 { return "" }
+        digest = PkgDigest(TextFromBytes(target[:count]))
+    } else if info.kind == .File {
+        if (info.mode & 73) != 0 { kind = "executable" }
+        if info.size == 0 { digest = PkgDigest("") }
+        else if info.size <= 16777216 {
+            content := PkgRead(full)
+            if !content.valid || content.text.count == 0 { return "" }
+            digest = PkgDigest(content.text)
+            PkgFreeRaw(*content.text[0])
+        } else { digest = PkgArtifactHashFile(full) }
+    } else { return "" }
+    if digest == "" { return "" }
+    PkgArtifactMix(*digest, kind)
+    return digest
+}
+
 PkgArtifactContent :: (path: string) -> string {
     args := string.["git", "-C", path, "ls-files", "--cached", "--others", "--exclude-standard", "-z"]
     run: Process.ProcessRun
@@ -1567,7 +1624,7 @@ PkgArtifactContent :: (path: string) -> string {
     }
     if start != run.output.count { return "" }
     Sorting.SortText(names[:])
-    state := PkgDigest("ziran-working-content-v1")
+    state := PkgDigest("ziran-working-content-v2")
     previous := ""
     for name: names {
         if name == previous { continue }
@@ -1575,33 +1632,9 @@ PkgArtifactContent :: (path: string) -> string {
         full := PkgJoin3(path, "/", name)
         info := PathStatus(full, false)
         if info.kind == .Missing { continue }
-        digest := ""
-        kind := "file"
-        if info.kind == .Directory {
-            // ls-files enumerates directories only for gitlinks.
-            kind = "gitlink"
-            digest = PkgGitHead(full)
-        } else if info.kind == .Link {
-            kind = "symlink"
-            native_path: [4096]u8
-            target: [4096]u8
-            if !CopyCString(full, native_path[:]) { return "" }
-            count := PkgArtifactReadLink(*native_path[0], *target[0], 4096)
-            if count < 0 || count >= 4096 { return "" }
-            digest = PkgDigest(TextFromBytes(target[:count]))
-        } else if info.kind == .File {
-            if (info.mode & 73) != 0 { kind = "executable" }
-            if info.size == 0 { digest = PkgDigest("") }
-            else if info.size <= 16777216 {
-                content := PkgRead(full)
-                if !content.valid || content.text.count == 0 { return "" }
-                digest = PkgDigest(content.text)
-                PkgFreeRaw(*content.text[0])
-            } else { digest = PkgArtifactHashFile(full) }
-        } else { return "" }
+        digest := PkgArtifactPathContent(full)
         if digest == "" { return "" }
         PkgArtifactMix(*state, name)
-        PkgArtifactMix(*state, kind)
         PkgArtifactMix(*state, digest)
     }
     return state

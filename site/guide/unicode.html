@@ -10,6 +10,7 @@ GLib, ICU, locale, Python or platform Unicode dependencies.</p>
 <p>Public procedures:</p>
 <pre><code class="language-zi">CaseFold :: (text: string) -&gt; string
 Lower :: (text: string) -&gt; string
+Upper :: (text: string) -&gt; string
 LowerInto :: (text: string, output: *Vec(u8)) -&gt; bool
 NFCInto :: (text: string, output: *Vec(u8)) -&gt; bool
 IsLetter :: (codepoint: u32) -&gt; bool
@@ -33,6 +34,11 @@ ignoring Case_Ignorable characters on both sides. Context uses the original
 input, including for <code>Capitalize</code>. Locale-specific Turkish, Azeri and
 Lithuanian tailoring is excluded, matching Python's locale-independent string
 methods.</p>
+<p><code>Upper</code> applies full default uppercase mappings, including expansions such as
+<code>Straße</code> → <code>STRASSE</code>, <code>ﬃ</code> → <code>FFI</code> and <code>ᾀ</code> → <code>ἈΙ</code>. Unlike titlecasing, <code>ǆ</code>
+becomes <code>Ǆ</code>. It uses the same independent storage, embedded NUL and malformed
+UTF-8 replacement rules as the other immutable case procedures. Uppercasing
+has no contextual final-sigma rule and does not normalize text.</p>
 <p><code>LowerInto</code> applies the same mappings and contextual final sigma rule, with
 strict UTF-8 input validation. <code>NFCInto</code> applies canonical recursive
 decomposition, stable canonical combining-class ordering, and blocked
@@ -132,6 +138,12 @@ also be a typed pointer when the caller needs mutable measurement state.</p>
 Python releases using a different Unicode database can differ for newly
 assigned or updated characters. UTF-8 strings contain scalars, so Python's
 isolated-surrogate string behavior is outside this API's input model.</p>
+<p>An exhaustive native uppercase comparison covers all 1,112,064 Unicode scalars
+against the official 17.0.0 mappings. Python 3.13.5 with Unicode 15.1.0 differs
+on exactly 55 scalars: U+019B, U+0264, U+1C8A, U+A7CD, U+A7CF, U+A7D3,
+U+A7D5, U+A7DB, U+10D70..U+10D85 and U+16EBB..U+16ED3. These are uppercase
+mappings introduced after 15.1; the standard API follows Unicode 17.0.0. A
+consumer requiring a historical repertoire must preserve that distinction.</p>
 <p>The canonical tables live in <code>std/unicode_data.zi</code>. Regenerate them and the
 expected-value corpus with the native Ziran generator:</p>
 <pre><code class="language-sh">build-queue -- build/bin/ziran run --target=c scripts/unicode_data.zi -- \
@@ -180,8 +192,8 @@ case mapping and normalization tables and corpora byte for byte. Normal tests ne
 </code></pre>
 <p>The Unicode suite executes source and saved IR on native C, Go and bundles
 (<code>ziran run</code>), comparing source/saved bundles.
-It covers every changed fold/lower/title mapping and every word, space, decimal
-and printability range's endpoints (8,323 generated assertions), plus contextual
+It covers every changed fold/lower/title/upper mapping and every word, space, decimal
+and printability range's endpoints (9,903 generated assertions), plus contextual
 sigma, combining and titlecase expansions, supplementary scalars, splitting, malformed UTF-8,
 embedded NUL and result lifetimes.</p>
 <p><code>std/utf8.DecodeReplace(source: []u8) -&gt; string</code> is a separate whole-input

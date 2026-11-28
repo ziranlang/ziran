@@ -98,6 +98,9 @@ CaseFold :: (text: string) -> Text { return Transform(text, 0) }
 // Full default lowercase, including the contextual Greek final sigma rule.
 Lower :: (text: string) -> Text { return Transform(text, 1) }
 
+// Full default uppercase, including multi-scalar expansions. No locale tailoring.
+Upper :: (text: string) -> Text { return Transform(text, 3) }
+
 // Replace caller-owned output with full default lowercase, including final
 // sigma. Unlike Lower, reject malformed UTF-8. Input must not borrow output.
 // Empty input succeeds; every failure empties output (capacity may remain).

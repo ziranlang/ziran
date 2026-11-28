@@ -9,6 +9,7 @@ Public procedures:
 ```zi
 CaseFold :: (text: string) -> string
 Lower :: (text: string) -> string
+Upper :: (text: string) -> string
 LowerInto :: (text: string, output: *Vec(u8)) -> bool
 NFCInto :: (text: string, output: *Vec(u8)) -> bool
 IsLetter :: (codepoint: u32) -> bool
@@ -34,6 +35,12 @@ ignoring Case_Ignorable characters on both sides. Context uses the original
 input, including for `Capitalize`. Locale-specific Turkish, Azeri and
 Lithuanian tailoring is excluded, matching Python's locale-independent string
 methods.
+
+`Upper` applies full default uppercase mappings, including expansions such as
+`Straße` → `STRASSE`, `ﬃ` → `FFI` and `ᾀ` → `ἈΙ`. Unlike titlecasing, `ǆ`
+becomes `Ǆ`. It uses the same independent storage, embedded NUL and malformed
+UTF-8 replacement rules as the other immutable case procedures. Uppercasing
+has no contextual final-sigma rule and does not normalize text.
 
 `LowerInto` applies the same mappings and contextual final sigma rule, with
 strict UTF-8 input validation. `NFCInto` applies canonical recursive
@@ -152,6 +159,13 @@ Python releases using a different Unicode database can differ for newly
 assigned or updated characters. UTF-8 strings contain scalars, so Python's
 isolated-surrogate string behavior is outside this API's input model.
 
+An exhaustive native uppercase comparison covers all 1,112,064 Unicode scalars
+against the official 17.0.0 mappings. Python 3.13.5 with Unicode 15.1.0 differs
+on exactly 55 scalars: U+019B, U+0264, U+1C8A, U+A7CD, U+A7CF, U+A7D3,
+U+A7D5, U+A7DB, U+10D70..U+10D85 and U+16EBB..U+16ED3. These are uppercase
+mappings introduced after 15.1; the standard API follows Unicode 17.0.0. A
+consumer requiring a historical repertoire must preserve that distinction.
+
 The canonical tables live in `std/unicode_data.zi`. Regenerate them and the
 expected-value corpus with the native Ziran generator:
 
@@ -220,8 +234,8 @@ ZIRAN_UNICODE_UCD=build/unicode-ucd build-queue -- make CHECK_FILTER=unicode_cas
 
 The Unicode suite executes source and saved IR on native C, Go and bundles
 (`ziran run`), comparing source/saved bundles.
-It covers every changed fold/lower/title mapping and every word, space, decimal
-and printability range's endpoints (8,323 generated assertions), plus contextual
+It covers every changed fold/lower/title/upper mapping and every word, space, decimal
+and printability range's endpoints (9,903 generated assertions), plus contextual
 sigma, combining and titlecase expansions, supplementary scalars, splitting, malformed UTF-8,
 embedded NUL and result lifetimes.
 

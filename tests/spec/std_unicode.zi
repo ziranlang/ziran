@@ -75,6 +75,13 @@ SelfTest :: () -> s32 {
     churn := U.Capitalize("OTHER")
     if churn != "Other" { return 26 }
     if kept != "strassei\xcc\x87ffi" { return 26 }
+    if U.Upper("Straße ﬃﬀﬂſµ") != "STRASSE FFIFFFLSΜ" { return 32 }
+    if U.Upper("ǆǅǰ") != "ǄǄJ\xcc\x8c" || U.Upper("ᾀΐ") != "ἈΙΙ\xcc\x88\xcc\x81" { return 33 }
+    if U.Upper("İIıi Σσς") != "İIII ΣΣΣ" || U.Upper("𐐨𐑏") != "𐐀𐐧" { return 34 }
+    if U.Upper("") != "" || U.Upper("a\x00ß") != "A\x00SS" || U.Upper(wire) != "�A� " { return 35 }
+    upper_kept := U.Upper("Straßeﬃᾀ")
+    upper_churn := U.Lower("OTHER")
+    if upper_churn != "other" || upper_kept != "STRASSEFFIἈΙ" { return 36 }
     return 42
 }
 

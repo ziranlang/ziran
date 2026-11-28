@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Add full default Unicode 17 uppercase mappings to `std/unicode.Upper`,
+  including multi-scalar expansions, with source/saved-IR C, Go and portable
+  conformance coverage generated from the official Unicode tables.
+
 - Validate generated callback environments after signature normalization and in
   their declaration's module context. Preserve checked scoped borrows when
   linking or loading IR, including callbacks that update caller-owned views.

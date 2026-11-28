@@ -15,6 +15,8 @@
   temporary file-read storage after copying host replies.
   Reuse the native civil-clock provider for wall milliseconds, including its
   checked platform-specific timestamp layout instead of a duplicate fixed-width ABI.
+  Bind the exact standard guest module identities emitted by standalone and
+  checked project builds through the same native capability dispatch.
 
 - Save entry-selected checked IR without native-only folding or record-field
   pruning. Preserve canonical expression graphs and host providers so direct

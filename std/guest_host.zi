@@ -23,20 +23,36 @@ State :: struct {
     answer: Vec(u8)
 }
 
+#scope_file
+CapabilityModule :: enum { Unsupported; Assets; Clock; Process; Files }
+
+// Standard imports have root-relative identities in standalone compilation
+// and std-qualified identities in a checked project. Match only these exact
+// identities; a different package's similarly named module grants no binding.
+ResolveModule :: (module: string) -> CapabilityModule {
+    if module == "guest_assets" || module == "std_guest_assets" { return .Assets }
+    if module == "guest_clock" || module == "std_guest_clock" { return .Clock }
+    if module == "guest_process" || module == "std_guest_process" { return .Process }
+    if module == "guest_files" || module == "std_guest_files" { return .Files }
+    return .Unsupported
+}
+
+#scope_export
 Provides :: (module: string, function: string) -> bool {
-    if module == "guest_assets" {
+    capability := ResolveModule(module)
+    if capability == .Assets {
         return function == "AssetCountHost" || function == "AssetNameHost" || function == "AssetDataHost"
     }
-    if module == "guest_clock" { return function == "MonotonicNanosecondsHost" || function == "WallMillisecondsHost" }
-    if module == "guest_process" {
+    if capability == .Clock { return function == "MonotonicNanosecondsHost" || function == "WallMillisecondsHost" }
+    if capability == .Process {
         return function == "ArgumentCountHost" || function == "ArgumentHost" || function == "EnvironmentHost" ||
-            function == "ProcessIdHost" || function == "ClockTicksHost" || function == "PageSizeHost" ||
-            function == "SendSignalHost" || function == "RunShellHost"
+        function == "ProcessIdHost" || function == "ClockTicksHost" || function == "PageSizeHost" ||
+        function == "SendSignalHost" || function == "RunShellHost"
     }
-    if module == "guest_files" {
+    if capability == .Files {
         return function == "FileStatusHost" || function == "FileReadHost" || function == "FileWriteHost" ||
-            function == "FileRemoveHost" || function == "FileRenameHost" ||
-            function == "DirectoryMakeHost" || function == "DirectoryListHost"
+        function == "FileRemoveHost" || function == "FileRenameHost" ||
+        function == "DirectoryMakeHost" || function == "DirectoryListHost"
     }
     return false
 }
@@ -201,9 +217,10 @@ Call :: (state: *State, module: string, function: string,
     arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
     if !Provides(module, function) { return 0 }
     result.kind = cast(s32)HostVoid
-    if module == "guest_assets" { return AssetCall(state, function, arguments, count, result) }
-    if module == "guest_clock" { return ClockCall(function, count, result) }
-    if module == "guest_process" { return ProcessCall(state, function, arguments, count, result) }
-    if module == "guest_files" { return FileCall(state, function, arguments, count, result) }
+    capability := ResolveModule(module)
+    if capability == .Assets { return AssetCall(state, function, arguments, count, result) }
+    if capability == .Clock { return ClockCall(function, count, result) }
+    if capability == .Process { return ProcessCall(state, function, arguments, count, result) }
+    if capability == .Files { return FileCall(state, function, arguments, count, result) }
     return 0
 }

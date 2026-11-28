@@ -729,8 +729,15 @@ $(ZI_API_C)/.generated: cmd/zi_api.zi cmd/compiler_api_typescript.zi cmd/compile
 $(ZI_API_C)/%.c: $(ZI_API_C)/.generated
 	@test -f $@
 $(BIN_DIR)/zi-api: $(ZI_API_C)/.generated $(ZI_API_C)/zi_api.c $(FRONTEND_OBJECTS) $(BUNDLE_MODULE_OBJECT) | $(BIN_DIR)
-	$(NICE) $(CC) $(CFLAGS) -I$(ZI_API_C) -o $@ \
-	    $(filter-out $(addprefix $(ZI_API_C)/,compiler_cli.c compiler_ir.c compiler_services.c compiler_scan.c compiler_text.c),$(wildcard $(ZI_API_C)/*.c)) \
+	# Make can cache this directory before zi2c generates it in a clean build.
+	# Expand the generated sources in the shell after .generated is ready.
+	set --; for source in $(ZI_API_C)/*.c; do \
+	    case "$$source" in \
+	        $(ZI_API_C)/compiler_cli.c|$(ZI_API_C)/compiler_ir.c|$(ZI_API_C)/compiler_services.c|$(ZI_API_C)/compiler_scan.c|$(ZI_API_C)/compiler_text.c) ;; \
+	        *) set -- "$$@" "$$source" ;; \
+	    esac; \
+	done; \
+	$(NICE) $(CC) $(CFLAGS) -I$(ZI_API_C) -o $@ "$$@" \
 	    $(FRONTEND_OBJECTS) $(BUNDLE_MODULE_OBJECT) -lm
 
 INSPECT_C := $(BUILD_DIR)/inspect-c

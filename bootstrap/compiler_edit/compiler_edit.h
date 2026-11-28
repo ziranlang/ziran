@@ -161,9 +161,9 @@ uint8_t* zir_foreign_compiler_edit__realpath(uint8_t* path, uint8_t* resolved) _
 uint8_t* zir_foreign_compiler_edit__realpath(uint8_t* path, uint8_t* resolved) __asm__("realpath");
 #endif
 #ifdef __APPLE__
-ptrdiff_t zir_foreign_compiler_edit__pread(int32_t descriptor, void* output, size_t count, ptrdiff_t offset) __asm__("_pread");
+ptrdiff_t zir_foreign_compiler_edit__pread(int32_t descriptor, void* output, size_t count, int64_t offset) __asm__("_pread");
 #else
-ptrdiff_t zir_foreign_compiler_edit__pread(int32_t descriptor, void* output, size_t count, ptrdiff_t offset) __asm__("pread");
+ptrdiff_t zir_foreign_compiler_edit__pread(int32_t descriptor, void* output, size_t count, int64_t offset) __asm__("pread");
 #endif
 #ifdef __APPLE__
 ptrdiff_t zir_foreign_compiler_edit__write(int32_t descriptor, void* bytes, size_t count) __asm__("_write");

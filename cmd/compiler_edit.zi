@@ -40,7 +40,13 @@ strstr :: (text: *u8, needle: *u8) -> *u8 #foreign libc "strstr";
 sprintf :: (output: *u8, format: *u8, arguments: ..any) -> s32 #foreign libc "sprintf";
 snprintf :: (output: *u8, capacity: usize, format: *u8, arguments: ..any) -> s32 #foreign libc "snprintf";
 realpath :: (path: *u8, resolved: *u8) -> *u8 #foreign libc "realpath";
-pread :: (descriptor: s32, output: *void, count: usize, offset: isize) -> isize #foreign libc "pread";
+// File offsets are 64-bit even on Wasm32; buffer sizes and results follow
+// pointer width. Android exposes the large-file ABI through pread64.
+#if #defined(__ANDROID__) {
+    pread :: (descriptor: s32, output: *void, count: usize, offset: s64) -> isize #foreign libc "pread64";
+} else {
+    pread :: (descriptor: s32, output: *void, count: usize, offset: s64) -> isize #foreign libc "pread";
+}
 write :: (descriptor: s32, bytes: *void, count: usize) -> isize #foreign libc "write";
 close :: (descriptor: s32) -> s32 #foreign libc "close";
 fsync :: (descriptor: s32) -> s32 #foreign libc "fsync";
@@ -168,7 +174,7 @@ ReadFd :: (descriptor: s32, count: *usize) -> *u8 {
     at: usize = 0
     total := cast(usize)size
     while at < total {
-        n := pread(descriptor, cast(*void)(cast(usize)text + at), total - at, cast(isize)at)
+        n := pread(descriptor, cast(*void)(cast(usize)text + at), total - at, cast(s64)at)
         if n <= 0 {
             free(cast(*void)text)
             return null

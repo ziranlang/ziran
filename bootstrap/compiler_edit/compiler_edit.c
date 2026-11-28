@@ -141,7 +141,7 @@ compiler_edit_ReadFd(int32_t descriptor, size_t* count)
     size_t at = 0;
     size_t total = (size_t)(size);
     while (at < total) {
-        ptrdiff_t n = zir_foreign_compiler_edit__pread(descriptor, (void*)(((size_t)(text) + at)), total - at, (ptrdiff_t)(at));
+        ptrdiff_t n = zir_foreign_compiler_edit__pread(descriptor, (void*)(((size_t)(text) + at)), total - at, (int64_t)(at));
         if (n <= 0) {
             zir_foreign_compiler_edit__free((void*)(text));
             return (void *)0;

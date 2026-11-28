@@ -1,0 +1,162 @@
+// Python3.13 json.loads(str) semantics, independent of the strict JSON reader.
+// Input is Unicode encoded as UTF-8/WTF-8, not an undecoded network byte stream.
+// Iterative containers avoid an implicit native call-stack nesting limit.
+using V :: #import "vec"
+using O :: #import "option"
+J :: #import "json_document"
+F :: #import "float_text"
+Result :: struct { ok: bool; error: Text; error_at: s64; }
+
+#scope_file
+Parser :: struct { text: string; at: s64; doc: *J.JsonDocument; error: Text; error_at: s64; integer_digits: s64; }
+Frame :: struct { node: s32; object: bool; state: s32; comma: s64; }
+Fail :: (p: *Parser, message: string, at: s64, location: bool = true) -> s32 {
+    if p.error.bytes.count > 0 { return -1 }; p.error_at = at; BuilderAppend(p.error.bytes,message)
+    if location {
+        line: s64 = 1; column: s64 = 1; position: s64
+        for index: 0..at-1 {
+            byte := p.text[index]
+            if byte == 10 { line += 1; column = 1; position += 1 }
+            else if byte < 128 || byte >= 192 { column += 1; position += 1 }
+        }
+        BuilderPrint(*p.error.bytes,": line % column % (char %)",line,column,position)
+    }; return -1
+}
+Memory :: (p: *Parser) -> s32 { return Fail(p,"out of memory reading JSON",p.at,false) }
+Skip :: (p: *Parser) { while p.at < p.text.count { byte := p.text[p.at]; if byte != 32 && byte != 9 && byte != 10 && byte != 13 { break }; p.at += 1 } }
+Digit :: (byte: u8) -> bool { return byte >= 48 && byte <= 57 }
+Hex :: (byte: u8) -> bool { return Digit(byte) || (byte >= 65 && byte <= 70) || (byte >= 97 && byte <= 102) }
+Starts :: (p: *Parser, word: string) -> bool { return p.at+word.count <= p.text.count && p.text[p.at:p.at+word.count] == word }
+String :: (p: *Parser) -> s32 {
+    start := p.at; p.at += 1
+    while p.at < p.text.count {
+        byte := p.text[p.at]
+        if byte == 34 {
+            p.at += 1; decoded: J.JsonDocument; defer J.JsonReset(*decoded)
+            if !J.JsonRead(*decoded,p.text[start:p.at]) { return Memory(p) }
+            node := J.JsonCopy(p.doc,*decoded,decoded.root); if node < 0 { return Memory(p) }; return node
+        }
+        if byte < 32 { return Fail(p,"Invalid control character at",p.at) }
+        if byte == 92 {
+            escape := p.at; p.at += 1
+            if p.at == p.text.count { break }; byte = p.text[p.at]
+            if byte == 117 {
+                if p.at+5 >= p.text.count { return Fail(p,"Invalid \\uXXXX escape",p.at) }
+                for index: 1..4 { if !Hex(p.text[p.at+index]) { return Fail(p,"Invalid \\uXXXX escape",p.at) } }; p.at += 4
+            } else if byte != 34 && byte != 92 && byte != 47 && byte != 98 && byte != 102 && byte != 110 && byte != 114 && byte != 116 { return Fail(p,"Invalid \\escape",escape) }
+        }; p.at += 1
+    }; return Fail(p,"Unterminated string starting at",start)
+}
+OwnedNumber :: (p: *Parser, text: string) -> s32 {
+    source: J.JsonDocument; defer J.JsonReset(*source); node := J.JsonNewNumber(*source,text); own := J.JsonCopy(p.doc,*source,node)
+    if own < 0 { return Memory(p) }; return own
+}
+Number :: (p: *Parser) -> s32 {
+    start := p.at; if p.text[p.at] == 45 { p.at += 1 }
+    if p.at == p.text.count || !Digit(p.text[p.at]) { return Fail(p,"Expecting value",start) }
+    digits_start := p.at
+    if p.text[p.at] == 48 { p.at += 1 } else { while p.at < p.text.count && Digit(p.text[p.at]) { p.at += 1 } }
+    digits := p.at-digits_start; floating: bool
+    if p.at+1 < p.text.count && p.text[p.at] == 46 && Digit(p.text[p.at+1]) {
+        floating = true; p.at += 2; while p.at < p.text.count && Digit(p.text[p.at]) { p.at += 1 }
+    }
+    if p.at < p.text.count && (p.text[p.at] == 101 || p.text[p.at] == 69) {
+        end := p.at+1; if end < p.text.count && (p.text[end] == 43 || p.text[end] == 45) { end += 1 }
+        if end < p.text.count && Digit(p.text[end]) { floating = true; p.at = end+1; while p.at < p.text.count && Digit(p.text[p.at]) { p.at += 1 } }
+    }
+    raw := p.text[start:p.at]
+    if floating {
+        value,okay := F.ParseFloat64(raw); if !okay { return Fail(p,"could not convert JSON float",start,false) }
+        if value != value { return OwnedNumber(p,"NaN") }; if value-value != 0 { return OwnedNumber(p,ifx value < 0 then "-Infinity" else "Infinity") }
+        canonical: Text = F.Float64Repr(value); return OwnedNumber(p,TextView(canonical))
+    }
+    if p.integer_digits > 0 && digits > p.integer_digits {
+        message: Vec(u8); BuilderPrint(*message,"Exceeds the limit (% digits) for integer string conversion: value has % digits; use sys.set_int_max_str_digits() to increase the limit",p.integer_digits,digits)
+        return Fail(p,TextView(message[:]),start,false)
+    }; return OwnedNumber(p,ifx raw == "-0" then "0" else raw)
+}
+Atom :: (p: *Parser) -> s32 {
+    Skip(p); if p.at == p.text.count { return Fail(p,"Expecting value",p.at) }; byte := p.text[p.at]
+    if byte == 34 { return String(p) }
+    constants: [3]string = .["NaN","Infinity","-Infinity"]
+    for word: constants[:] { if Starts(p,word) { p.at += word.count; return OwnedNumber(p,word) } }
+    if byte == 45 || Digit(byte) { return Number(p) }
+    if Starts(p,"true") { p.at += 4; return J.JsonNewBool(p.doc,true) }
+    if Starts(p,"false") { p.at += 5; return J.JsonNewBool(p.doc,false) }
+    if Starts(p,"null") { p.at += 4; return J.JsonNewNull(p.doc) }
+    if byte == 91 { p.at += 1; return J.JsonNewArray(p.doc) }
+    if byte == 123 { p.at += 1; return J.JsonNewObject(p.doc) }
+    return Fail(p,"Expecting value",p.at)
+}
+Push :: (p: *Parser, frames: *Vec(Frame), node: s32) -> bool {
+    kind := J.JsonKindOf(p.doc,node)
+    if kind == .Array || kind == .Object { if !VecPush(<<frames,.{node=node,object=kind == .Object}) { unused Memory(p); return false } }; return true
+}
+Tree :: (p: *Parser) -> s32 {
+    root := Atom(p); if root < 0 { return -1 }; frames: Vec(Frame); if !Push(p,*frames,root) { return -1 }
+    while frames.count > 0 {
+        Skip(p); frame := *frames[frames.count-1]; close: u8 = ifx frame.object then 125 else 93
+        byte: u8; if p.at < p.text.count { byte = p.text[p.at] }
+        if byte == close {
+            if frame.state == 1 { return Fail(p,ifx frame.object then "Illegal trailing comma before end of object" else "Illegal trailing comma before end of array",frame.comma) }
+            p.at += 1; unused VecPop(frames); continue
+        }
+        if frame.state == 2 {
+            if byte != 44 { return Fail(p,"Expecting ',' delimiter",p.at) }
+            frame.comma = p.at; p.at += 1; frame.state = 1; continue
+        }
+        key: Text
+        if frame.object {
+            if byte != 34 { return Fail(p,"Expecting property name enclosed in double quotes",p.at) }
+            node := String(p); if node < 0 { return -1 }; decoded: Text = J.JsonString(p.doc,node); VecSwap(key.bytes,decoded.bytes); Skip(p)
+            if p.at == p.text.count || p.text[p.at] != 58 { return Fail(p,"Expecting ':' delimiter",p.at) }; p.at += 1
+        }
+        child := Atom(p); if child < 0 { return -1 }
+        linked := ifx frame.object then J.JsonSetCopy(p.doc,frame.node,TextView(key),child) else J.JsonAppend(p.doc,frame.node,child)
+        if !linked { return Memory(p) }; frame.state = 2; if !Push(p,*frames,child) { return -1 }
+    }; return root
+}
+
+#scope_export
+// Reset DOC before and after failed reads. A successful document owns every
+// retained key/token and survives INPUT being discarded. INTEGER_DIGITS=0
+// disables the decimal integer conversion limit; the default matches Python.
+// Unicode errors belong to the caller's byte decoder. There is no inherited
+// Python interpreter recursion limit; containers use a dynamically sized stack.
+Read :: (doc: *J.JsonDocument, input: string, integer_digits: s64 = 4300) -> Result {
+    J.JsonReset(doc); p: Parser = .{text=input,doc=doc,integer_digits=integer_digits}
+    if input.count >= 3 && input[0] == 239 && input[1] == 187 && input[2] == 191 { unused Fail(*p,"Unexpected UTF-8 BOM (decode using utf-8-sig)",0) }
+    else {
+        node := Tree(*p)
+        if node >= 0 { Skip(*p); if p.at == input.count { doc.root = node; return .{ok=true} }; unused Fail(*p,"Extra data",p.at) }
+    }
+    if p.error.bytes.count == 0 { unused Memory(*p) }; J.JsonReset(doc)
+    return .{error=p.error,error_at=p.error_at}
+}
+
+// Match json.loads(bytes.decode('utf-8')): strict UTF-8 without BOM removal
+// or UTF-16/32 detection. Decode failures precede all JSON syntax checks.
+ReadUtf8 :: (doc: *J.JsonDocument, input: string, integer_digits: s64 = 4300) -> Result {
+    at: s64
+    while at < input.count {
+        first := input[at]; length: s64 = 1
+        if first < 128 { at += 1; continue }
+        if first >= 194 && first <= 223 { length = 2 }
+        else if first >= 224 && first <= 239 { length = 3 }
+        else if first >= 240 && first <= 244 { length = 4 }
+        consumed: s64 = 1
+        while consumed < length && at+consumed < input.count {
+            part := input[at+consumed]
+            if part < 128 || part > 191 { break }
+            if consumed == 1 && ((first == 224 && part < 160) || (first == 237 && part >= 160) || (first == 240 && part < 144) || (first == 244 && part >= 144)) { break }
+            consumed += 1
+        }
+        if length > 1 && consumed == length { at += length; continue }
+        message: Vec(u8); BuilderAppend(message,"'utf-8' codec can't decode ")
+        if consumed == 1 { digits := "0123456789abcdef"; BuilderAppend(message,"byte 0x"); VecPush(message,digits[first/16]); VecPush(message,digits[first%16]); BuilderPrint(*message," in position %",at) }
+        else { BuilderPrint(*message,"bytes in position %-%",at,at+consumed-1) }
+        reason := "invalid continuation byte"
+        if length == 1 { reason = "invalid start byte" } else if at+consumed == input.count { reason = "unexpected end of data" }
+        BuilderPrint(*message,": %",reason); J.JsonReset(doc); return .{error=TextFromBuilder(message),error_at=at}
+    }; return Read(doc,input,integer_digits)
+}

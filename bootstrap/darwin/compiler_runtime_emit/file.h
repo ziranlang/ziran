@@ -13,13 +13,17 @@ typedef int64_t FileReadFailure;
 #define ZIRAN_TYPE_FORWARD_file_Results__string__bool
 typedef struct file_Results__string__bool file_Results__string__bool;
 #endif
-#ifndef ZIRAN_CONCRETE_FORWARD___type_03752d993185c042
-#define ZIRAN_CONCRETE_FORWARD___type_03752d993185c042
-typedef struct __type_03752d993185c042 __type_03752d993185c042;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_9a52da67a9847d60
+#define ZIRAN_CONCRETE_FORWARD___type_9a52da67a9847d60
+typedef struct __type_9a52da67a9847d60 __type_9a52da67a9847d60;
 #endif
 #ifndef ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
 #define ZIRAN_CONCRETE_FORWARD___type_131eebaaeb761e42
 typedef struct __type_131eebaaeb761e42 __type_131eebaaeb761e42;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_03752d993185c042
+#define ZIRAN_CONCRETE_FORWARD___type_03752d993185c042
+typedef struct __type_03752d993185c042 __type_03752d993185c042;
 #endif
 #ifndef ZIRAN_CONCRETE_FORWARD___type_be05e2c4104bacce
 #define ZIRAN_CONCRETE_FORWARD___type_be05e2c4104bacce
@@ -46,12 +50,12 @@ struct file_Results__string__bool {
     String value_0;
     bool value_1;
 };
-#ifndef ZIRAN_CONCRETE___type_03752d993185c042
-#define ZIRAN_CONCRETE___type_03752d993185c042
+#ifndef ZIRAN_CONCRETE___type_9a52da67a9847d60
+#define ZIRAN_CONCRETE___type_9a52da67a9847d60
 
-struct __type_03752d993185c042 {
+struct __type_9a52da67a9847d60 {
     bool is_ok;
-    String value;
+    Text value;
     FileReadFailure error;
 };
 #endif
@@ -62,6 +66,15 @@ struct __type_131eebaaeb761e42 {
     uint8_t* data;
     int64_t count;
     int64_t capacity;
+};
+#endif
+#ifndef ZIRAN_CONCRETE___type_03752d993185c042
+#define ZIRAN_CONCRETE___type_03752d993185c042
+
+struct __type_03752d993185c042 {
+    bool is_ok;
+    String value;
+    FileReadFailure error;
 };
 #endif
 #ifndef ZIRAN_CONCRETE___type_be05e2c4104bacce

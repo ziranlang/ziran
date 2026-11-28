@@ -136,6 +136,11 @@ uint8_t* zir_foreign_compiler_frontend_ir__ScalarType(uint8_t* type) __asm__("_S
 uint8_t* zir_foreign_compiler_frontend_ir__ScalarType(uint8_t* type) __asm__("ScalarType");
 #endif
 #ifdef __APPLE__
+int32_t zir_foreign_compiler_frontend_ir__record_field_type_at_use(ZirModule* module, ZirModule* record_owner, uint8_t* record_name, uint8_t* field_type, size_t size) __asm__("_private_check_record_field_type_at_use");
+#else
+int32_t zir_foreign_compiler_frontend_ir__record_field_type_at_use(ZirModule* module, ZirModule* record_owner, uint8_t* record_name, uint8_t* field_type, size_t size) __asm__("private_check_record_field_type_at_use");
+#endif
+#ifdef __APPLE__
 uint8_t* zir_foreign_compiler_frontend_ir__SpanPath(ZirSourceSpan span) __asm__("_SpanPath");
 #else
 uint8_t* zir_foreign_compiler_frontend_ir__SpanPath(ZirSourceSpan span) __asm__("SpanPath");
@@ -1008,7 +1013,8 @@ VecElementType(ZirModule* module, uint8_t* name, uint8_t* element, size_t elemen
     if (module == (ZirModule*)(((void *)0)) || name == (uint8_t*)(((void *)0))) {
         return 0;
     }
-    ZirType* type = FindType(module, name, (void *)0);
+    ZirModule* owner = (void *)0;
+    ZirType* type = FindType(module, name, &(owner));
     bool value_0 = type == (ZirType*)(((void *)0)) || !(type->is_owned_vec != 0) || type->is_enum != 0 || type->is_procedure_type != 0;
     if (value_0 || type->is_record_template != 0 || type->is_extern != 0) {
         return 0;
@@ -1036,6 +1042,10 @@ VecElementType(ZirModule* module, uint8_t* name, uint8_t* element, size_t elemen
         return 0;
     }
     if (element != (uint8_t*)(((void *)0))) {
+        bool value_7 = owner != ((void *)0) && owner != module;
+        if (value_7 && zir_foreign_compiler_frontend_ir__record_field_type_at_use(module, owner, name, &(item.items[0]), sizeof(CoreArray128_u8)) == 0) {
+            return 0;
+        }
         if (zir_foreign_compiler_frontend_ir__strlen((uint8_t*)(&(item.items))) >= element_size) {
             return 0;
         }

@@ -851,6 +851,18 @@ portable execution tests.</p>
 platform adapter supplies transport and TLS; checked Ziran code owns request
 construction and response interpretation. A missing host binding is reported
 before a portable bundle runs.</p>
+<p><code>std/net_http_curl_linux.zi</code> provides bounded native HTTP transfers.
+<code>SendCurlObservedWithin(request, output, timeout_ms, observer, context,
+ direct=false, decode_content=true, tls={})</code> also calls the observer with each response
+header line, including status and blank lines. The line borrows native storage
+only during the callback; copy any retained value. Returning false aborts the
+transfer. Set <code>decode_content=false</code> to receive the encoded body unchanged and
+<code>direct=true</code> to bypass inherited proxies and retain redirect responses.
+Optional <code>CurlTlsOptions</code> supplies a CA file and a borrowed TLS-context
+configurator. Its native context uses libcurl's selected backend ABI, which the
+caller must establish before inspecting it; returning false aborts the handshake.
+Custom TLS options use a private handle and connection. Callback data and custom
+trust settings therefore cannot survive the request or affect a pooled transfer.</p>
 <p><code>std/constant_time.zi</code> compares equal-length byte spans without branching on
 byte values. Use fixed-size buffers for secret tags so unequal lengths remain
 public shape rather than a secret-dependent oracle.</p>

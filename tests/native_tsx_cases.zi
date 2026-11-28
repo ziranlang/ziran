@@ -69,10 +69,18 @@ TSX_OTHER_OPTION :: "Option :: struct($T: Type) { has_value: bool; value: T; }\n
 
 TSX_GLOBAL_STATE :: #string ZI
 Native :: #import "domain";
+using Vectors :: #import "std/vec";
 model: Native.Model;
 models: [2]Native.Model;
 model_ptr: *Native.Model;
 box: Native.Box(Native.Model);
+model_values: Vec(Native.Model);
+box_values: Vec(Native.Box(Native.Model));
+SeedValues :: () {
+    unused VecPush(model_values, Native.Snapshot())
+    unused VecPush(box_values, Native.Box(Native.Model).{value = Native.Snapshot()})
+}
+FreeValues :: () { VecFree(model_values); VecFree(box_values) }
 Step :: (value: float64) -> float64 { return value + 1 }
 action: Native.Action = Step;
 Callbacks :: struct { action: Native.Action; }
@@ -211,6 +219,15 @@ export function main(): s32 {
     GlobalState.models[s32(0)] = GlobalState.model;
     nativeSet(nativeRef(GlobalState.model_ptr), nativeRef(GlobalState.model));
     nativeSet(nativeRef(GlobalState.box), nativeInit<Domain.Box<Domain.Model>>({value: snapshot}));
+    GlobalState.SeedValues();
+    {
+        const modelValues: NativeSlice<OtherAlias.Model> = nativeSlice(GlobalState.model_values);
+        const boxValues: NativeSlice<OtherAlias.Box<OtherAlias.Model>> = nativeSlice(GlobalState.box_values);
+        const vectorModel: OtherAlias.Model = GlobalState.model_values[s32(0)];
+        if (modelValues.count !== s64(1) || modelValues[s32(0)].id !== snapshot.id ||
+            boxValues[s32(0)].value.value !== snapshot.value || vectorModel.value !== snapshot.value) { return s32(50); }
+    }
+    GlobalState.FreeValues();
     const globalModel: OtherAlias.Model = GlobalState.models[s32(0)];
     if (globalModel.value !== snapshot.value || GlobalState.model.value !== snapshot.value ||
         GlobalState.model_ptr.id !== snapshot.id || GlobalState.box.value.id !== snapshot.id ||
@@ -573,6 +590,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         !TsxReject(*test, root, "uninitialized", "export function main(): s32 { let value: number; return s32(value); }", "native bindings require an initializer") ||
         !TsxReject(*test, root, "collection_const", "export function main(): s32 { const values: [number] = [1]; for (const value of values) { value = 2; } return s32(0); }", "cannot assign to a const binding") ||
         !TsxReject(*test, root, "collection_borrow", "import * as Domain from \"domain\"; import { Vec } from \"std/vec\"; export function main(): s32 { const values: Vec<number> = Domain.Numbers(); for (const value of values) { VecPush(values, value); } return s32(0); }", "borrow") ||
+        !TsxReject(*test, root, "vec_record_identity", "import * as State from \"global_state\"; interface Model { value: number; id: u64; } export function main(): s32 { const values: NativeSlice<Model> = nativeSlice(State.model_values); return s32(0); }", "type mismatch") ||
         !TsxReject(*test, root, "generic_nested_identity", "import * as Domain from \"domain\"; interface Box<T> { value: T; } interface Holder<T> { value: T; } export function main(): s32 { const native: Holder<Domain.Box<number>> = {value: Domain.Wrapped()}; const local: Holder<Box<number>> = native; return s32(0); }", "type") ||
         !TsxReject(*test, root, "generic_type", "interface Box<T> { value: T; } export function main(): s32 { const box: Box<number> = {value: true}; return s32(box.value); }", "type") ||
         !TsxReject(*test, root, "action", "import * as Domain from \"domain\"; export function main(): s32 { Domain.Increment(true); return s32(0); }", "argument") ||

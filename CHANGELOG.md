@@ -4,6 +4,11 @@
 
 - Allow request-local native HTTP TLS context configuration and CA files. Keep custom TLS connections private so borrowed callback state and trust settings cannot leak into pooled requests.
 
+- Preserve imported record identities when borrowing or indexing vectors through
+  another module, including native TSX slices of aliased record types.
+- Keep editor positional-read offsets 64-bit on native and WebAssembly targets,
+  and select the matching `pread64` ABI on Android.
+
 - Release the owned intermediate buffer after capped file appends while preserving whole-file ownership and rollback behavior. Verify repeated successful reads and refused oversized reads under address, undefined-behavior and leak sanitizers.
 
 - Expose borrowed response-header observers and encoded-body control for bounded native HTTP transfers. Preserve decoded transfer defaults, direct proxy/redirect behavior and pooled-handle reuse; include the retained native HTTP fixture in the regular checks.

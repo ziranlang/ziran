@@ -34,6 +34,7 @@ KeepParameters :: (text: *u8) -> *u8 #foreign compiler "KeepParameters";
 KeepText :: (text: *u8) -> *u8 #foreign compiler "KeepText";
 ProfileCount :: (counter: *u8) #foreign compiler "ProfileCount";
 ScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
+record_field_type_at_use :: (module: *IR.ZirModule, record_owner: *IR.ZirModule, record_name: *u8, field_type: *u8, size: usize) -> s32 #foreign compiler "private_check_record_field_type_at_use";
 SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
 abort :: () #foreign libc "abort";
 exit :: (__status: s32) #foreign libc "exit";
@@ -580,7 +581,8 @@ VecElementType :: (module: *IR.ZirModule, name: *u8, element: *u8, element_size:
     if ((module == cast(*IR.ZirModule)((null))) || (name == cast(*u8)((null)))) {
         return 0
     }
-    type: *IR.ZirType = FindType(module, name, null)
+    owner: *IR.ZirModule = null
+    type: *IR.ZirType = FindType(module, name, *owner)
     if ((((((type == cast(*IR.ZirType)((null))) || !((type).is_owned_vec != 0)) || ((type).is_enum != 0)) || ((type).is_procedure_type != 0)) || ((type).is_record_template != 0)) || ((type).is_extern != 0)) {
         return 0
     }
@@ -601,6 +603,11 @@ VecElementType :: (module: *IR.ZirModule, name: *u8, element: *u8, element_size:
         return 0
     }
     if (element != cast(*u8)((null))) {
+        // The Vec specialization's data field is spelled in its declaration
+        // module. A borrowed slice or indexed value is checked in the caller's
+        // scope, where that module's import alias may name another declaration.
+        if owner != null && owner != module &&
+           record_field_type_at_use(module, owner, name, *item.items[0], size_of(CoreArray128_u8)) == 0 { return 0 }
         if (strlen(cast(*u8)(*((item).items))) >= element_size) {
             return 0
         }

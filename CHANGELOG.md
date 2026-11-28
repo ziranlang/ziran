@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Set up the compiler from the repository URL and exact revision in the
+  project's lockfile, including Gitea-hosted revisions absent from GitHub.
+  Keep Gitea publication in its owning workflow instead of referencing absent
+  native-runner steps in the GitHub check workflow.
+
 - Omit unused native C range indices when a nested loop shadows the index,
   while retaining reads of the outer index before and after the nested scope.
 

@@ -601,7 +601,7 @@ uses the portable engine, which has no <code>std/*_linux</code> modules: use
 </tr>
 <tr>
 <td><code>std/json_document</code></td>
-<td><code>JsonRead(*doc, text) -&gt; bool</code>, <code>JsonMember(*doc, node, key) -&gt; s32</code>, <code>JsonElement(*doc, node, index) -&gt; s32</code>, <code>JsonString(*doc, node) -&gt; Text</code>, <code>JsonInteger(*doc, node) -&gt; (value: s64, ok: bool)</code>, <code>JsonWrite(*doc, node, style) -&gt; Text</code></td>
+<td><code>JsonRead(*doc, text) -&gt; bool</code>, <code>JsonMember(*doc, node, key) -&gt; s32</code>, <code>JsonElement(*doc, node, index) -&gt; s32</code>, <code>JsonString(*doc, node) -&gt; Text</code>, <code>JsonInteger(*doc, node) -&gt; (value: s64, ok: bool)</code>, <code>JsonWrite(*doc, node, style, maximum_depth=512) -&gt; Text</code>, <code>JsonWriteInto(*output, *doc, node, style, maximum_depth=512) -&gt; bool</code></td>
 </tr>
 <tr>
 <td><code>std/json_python</code></td>

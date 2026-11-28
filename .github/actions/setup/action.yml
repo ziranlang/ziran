@@ -1,6 +1,6 @@
 name: Set up Ziran
 description: >
-  Set up the Ziran revision pinned by a project's ziran.lock, put its
+  Set up the Ziran repository and revision pinned by a project's ziran.lock, put its
   build/bin on PATH and optionally fetch the locked packages. The build
   tree comes from this repository's exact verified cache, the Toolchains
   workflow's prebuilt archive for that commit, or a build here. Package
@@ -110,19 +110,23 @@ runs:
             workspace = Path(env['GITHUB_WORKSPACE']).resolve()
             checkout = Path(env['CHECKOUT'])
             root = (workspace / checkout).resolve()
-            if not env['CHECKOUT'] or checkout.is_absolute() or workspace not in (root, *root.parents):
-                raise ValueError(f'checkout path must be relative to the workspace: {checkout}')
+            if not env['CHECKOUT'] or checkout.is_absolute() or workspace not in root.parents:
+                raise ValueError(f'checkout path must be a directory inside the workspace: {checkout}')
             lock = Path(env['PROJECT'], 'ziran.lock')
             lock_data = lock.read_bytes() if lock.is_file() else None
             digest = hashlib.sha256(lock_data).hexdigest() if lock_data is not None else 'none'
             commit = env['COMMIT']
             fetch = env['FETCH'].lower() == 'true'
-            if not commit or fetch:
-                if lock_data is None:
-                    raise ValueError(f'missing lock file: {lock}')
+            repository = 'https://github.com/ziranlang/ziran.git'
+            if lock_data is not None:
                 toolchain = json.loads(lock_data)['toolchain']
+                repository = toolchain['url']
                 if not commit:
                     commit = toolchain['commit']
+            elif not commit or fetch:
+                raise ValueError(f'missing lock file: {lock}')
+            if not isinstance(repository, str) or not repository or '\n' in repository or '\r' in repository:
+                raise ValueError('expected a nonempty toolchain repository URL')
             if not isinstance(commit, str) or not re.fullmatch('[0-9a-f]{40}', commit):
                 raise ValueError(f'expected a full Ziran commit hash, got {commit!r}')
             sources = Path(env.get('XDG_CACHE_HOME') or Path.home() / '.cache', 'ziran', 'sources')
@@ -133,7 +137,7 @@ runs:
         except (OSError, ValueError, KeyError, TypeError) as error:
             sys.exit(f'::error::Ziran setup preflight: {error}')
         with open(env['GITHUB_OUTPUT'], 'a') as output:
-            for name, value in {'commit': commit, 'lock': digest, 'root': root,
+            for name, value in {'commit': commit, 'repository': repository, 'lock': digest, 'root': root,
                                 'sources': sources, 'jobs': jobs}.items():
                 print(f'{name}={value}', file=output)
         print(f'Ziran setup preflight: {commit}, {jobs} make jobs, minimum {minimum} MiB per destination')
@@ -235,12 +239,18 @@ runs:
         } >> "$GITHUB_OUTPUT"
 
     - name: Check out Ziran
-      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      with:
-        repository: ziranlang/ziran
-        ref: ${{ steps.resolve.outputs.commit }}
-        path: ${{ inputs.path }}
-        persist-credentials: false
+      shell: bash
+      env:
+        ROOT: ${{ steps.resolve.outputs.root }}
+        REPOSITORY: ${{ steps.resolve.outputs.repository }}
+        COMMIT: ${{ steps.resolve.outputs.commit }}
+      run: |
+        set -euo pipefail
+        git init --quiet "$ROOT"
+        git -C "$ROOT" config remote.origin.url "$REPOSITORY"
+        git -C "$ROOT" -c protocol.version=2 fetch --no-tags --depth=1 origin "$COMMIT"
+        git -C "$ROOT" checkout --quiet --detach --force FETCH_HEAD
+        git -C "$ROOT" clean -ffdx
 
     - name: Restore the exact build cache
       id: cache
@@ -415,10 +425,8 @@ runs:
         lock = json.loads(Path('ziran.lock').read_text())
         toolchain = lock['toolchain']
         origin = subprocess.check_output(['git', '-C', root, 'config', '--get', 'remote.origin.url'], text=True).strip()
-        origins = ('https://git.waozi.xyz/ziranlang/ziran', 'https://github.com/ziranlang/ziran')
         commit = subprocess.check_output(['git', '-C', root, 'rev-parse', 'HEAD'], text=True).strip()
-        same_origin = any(origin in (url, url + '.git') and toolchain.get('url') in (url, url + '.git')
-                          for url in origins)
+        same_origin = origin.removesuffix('.git') == toolchain['url'].removesuffix('.git')
         prepared = same_origin and commit == toolchain.get('commit') and not Path('ziran.local.toml').exists()
         if prepared:
             env['ZIRAN_PINNED_LAUNCHER'] = '1'

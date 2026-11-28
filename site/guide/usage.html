@@ -692,7 +692,13 @@ strings. <code>JsonStringInto(document, node, output)</code>, <code>JsonKeyInto<
 false on allocation failure or a missing/wrong-kind node. <code>JsonWriteInto</code> and
 <code>JsonQuoteInto</code> also return false on allocation failure; discard partial output
 on failure. Their output must not alias the document's input or owned buffers.
-<code>JsonWrite</code> and <code>JsonQuote</code> detach owned strings.</p>
+<code>JsonWrite</code> and <code>JsonQuote</code> detach owned strings.
+Both <code>JsonWrite</code> and <code>JsonWriteInto</code> accept <code>maximum_depth=512</code>, measured from
+depth zero at the selected node and including scalar leaves. Pass a larger
+value when writing a deeper constructed or separately parsed tree; this does
+not change <code>JsonRead</code>'s depth limit. An exceeded writer limit returns an empty
+<code>Text</code> or false, respectively, and sets the document error. The depth check
+finishes before any output is appended.</p>
 <p><code>std/json_python.zi</code> provides a separate <code>Read(*doc, text, integer_digits=4300)</code>
 for Python 3.13 <code>json.loads(str)</code> inputs. Its result contains <code>ok</code>, owned <code>error</code>
 text and the byte <code>error_at</code>; syntax messages report Unicode character positions,
@@ -1362,12 +1368,15 @@ disables the cache. A missing or damaged entry is a miss and the module is
 parsed again. <code>tests/frontend_cache.sh</code> checks hits, misses, identical
 diagnostics and IR, and the exclusions.</p>
 <p>A project's GitHub Actions job sets up the Ziran its <code>ziran.lock</code> pins with
-<code>uses: ziranlang/ziran/.github/actions/setup@COMMIT</code>. It checks out that
-commit with its compiler built and puts <code>build/bin</code> on <code>PATH</code>; <code>fetch: true</code>
+<code>uses: ziranlang/ziran/.github/actions/setup@COMMIT</code>. It checks out the exact
+commit from the lock's toolchain repository URL, prepares the compiler and puts
+<code>build/bin</code> on <code>PATH</code>; <code>fetch: true</code>
 also fetches the locked packages. On Linux the build tree is the one the
 Toolchains workflow published for that commit, so the job builds nothing; on
 other systems, or for a commit without one, the job builds Ziran once and
-caches it. Run the Toolchains workflow for an older commit a lock still pins.</p>
+caches it. Run the Toolchains workflow for an older commit a lock still pins.
+The publication workflow can set an explicit <code>commit</code> without a project lock;
+that form uses the Ziran GitHub repository.</p>
 <p>Dependency-owned native recipes accept per-build options without editing project
 settings: <code>ziran pkg artifact provider:native --platform linux-x86_64-gnu
 --option provider:mode=release</code>. Repeat <code>--option Alias:key=value</code> for declared

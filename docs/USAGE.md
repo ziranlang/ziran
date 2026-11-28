@@ -1525,12 +1525,15 @@ parsed again. `tests/frontend_cache.sh` checks hits, misses, identical
 diagnostics and IR, and the exclusions.
 
 A project's GitHub Actions job sets up the Ziran its `ziran.lock` pins with
-`uses: ziranlang/ziran/.github/actions/setup@COMMIT`. It checks out that
-commit with its compiler built and puts `build/bin` on `PATH`; `fetch: true`
+`uses: ziranlang/ziran/.github/actions/setup@COMMIT`. It checks out the exact
+commit from the lock's toolchain repository URL, prepares the compiler and puts
+`build/bin` on `PATH`; `fetch: true`
 also fetches the locked packages. On Linux the build tree is the one the
 Toolchains workflow published for that commit, so the job builds nothing; on
 other systems, or for a commit without one, the job builds Ziran once and
 caches it. Run the Toolchains workflow for an older commit a lock still pins.
+The publication workflow can set an explicit `commit` without a project lock;
+that form uses the Ziran GitHub repository.
 
 Dependency-owned native recipes accept per-build options without editing project
 settings: `ziran pkg artifact provider:native --platform linux-x86_64-gnu

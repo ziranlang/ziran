@@ -3765,7 +3765,7 @@ compiler_check_value_contextual_owned_closure(Checker* c, int32_t index, uint8_t
     } else {
         value_113 = StringLiteral("");
     }
-    String hidden_args = compiler_check_value_closure_join(StringLiteral("__tsx_state: *u8"), value_113, original_args);
+    String hidden_args = compiler_check_value_closure_join(StringLiteral("__tsx_state:*u8"), value_113, original_args);
     const char ** value_114 = &(invoke->args_text);
     uint8_t* value_115 = compiler_services_KeepParameters(hidden_args);
     (*value_114) = (const char *)(value_115);

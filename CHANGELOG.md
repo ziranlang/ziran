@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Keep capturing callbacks with slice parameters canonical through checked IR
+  serialization and rechecking. Preserve generic type visibility when adding a
+  type application grows and relocates the module type array.
+
 - Preserve a native text view's checked argument position, name and source
   location when removing an identity conversion inside a call.
 - Fingerprint populated Git submodule directories by their actual working

@@ -886,6 +886,7 @@ compiler_check_link_rewrite_type_applications_with_buffers(ZirModule* module, ui
                         if (instance == (ZirType*)(((void *)0))) {
                             int32_t generic_public = generic->is_public;
                             int32_t generic_file_private = generic->is_file_private;
+                            int32_t generic_package_private = generic->is_package_private;
                             instance = zir_foreign_compiler_check_link__ModuleAddType(module, (uint8_t*)(&((name_storage_1[0]).items)), span);
                             if (instance == (ZirType*)(((void *)0))) {
                                 int32_t cleanup_return_6 = 0;
@@ -895,7 +896,7 @@ compiler_check_link_rewrite_type_applications_with_buffers(ZirModule* module, ui
                                 zir_foreign_compiler_check_link__CompilerFree((void*)(base_storage_0));
                                 return cleanup_return_6;
                             }
-                            TypeApplicationScope(module, (uint8_t*)(&(buffers->canonical.items)), generic_public, generic_file_private, generic->is_package_private, instance);
+                            TypeApplicationScope(module, (uint8_t*)(&(buffers->canonical.items)), generic_public, generic_file_private, generic_package_private, instance);
                             int32_t* value_54 = &(instance->is_type_instance);
                             (*value_54) = 1;
                             int32_t* value_55 = &(instance->is_synthetic_application);

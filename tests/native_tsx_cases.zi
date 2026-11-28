@@ -53,6 +53,8 @@ Action :: #type (value: float64) -> float64;
 Invoke :: (action: Action, value: float64) -> float64 { return action(value) }
 InvokeOwned :: (action: Owned(Action), value: float64) -> float64 { return action(value) }
 InvokeScoped :: (action: Scoped(Action), value: float64) -> float64 { return action(value) }
+SliceAction :: #type (values: []float64) -> float64;
+InvokeSlice :: (action: Scoped(SliceAction), values: []float64) -> float64 { return action(values) }
 Parts :: (parts: [5]string) -> s32 {
     if parts.count != 5 { return 1 }
     if parts[0] != "Count: " || parts[1] != "7" || parts[2] != " " || parts[3] != "tail" || parts[4] != "!" { return 2 }
@@ -278,8 +280,9 @@ export function main(): s32 {
         (u32(1) | u32(2) & u32(4)) !== u32(1) ||
         (u32(1) << u32(2) + u32(1)) !== u32(8) ||
         (~u32(0) ^ u32(3)) !== u32(4294967292)) { return s32(45); }
-    const readView: Scoped<Domain.Action> = (value: number): number => view[s32(value)] + middle[s32(0)];
-    if (Domain.InvokeScoped(readView, 1) !== 4) { return s32(42); }
+    const readView: Scoped<Domain.SliceAction> = (values: NativeSlice<number>): number => view[s32(values[s32(0)])] + middle[s32(0)];
+    const sliceIndex: [number] = [1];
+    if (Domain.InvokeSlice(readView, nativeSlice(sliceIndex)) !== 4) { return s32(42); }
     total = 0;
     for (const value of values) {
         if (value === 2) { continue; }

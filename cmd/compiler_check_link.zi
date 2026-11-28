@@ -420,11 +420,12 @@ rewrite_type_applications_with_buffers :: (module: *IR.ZirModule, source: *u8, o
                     if (instance == cast(*IR.ZirType)((null))) {
                         generic_public: s32 = (generic).is_public
                         generic_file_private: s32 = (generic).is_file_private
+                        generic_package_private: s32 = (generic).is_package_private
                         instance = ModuleAddType(module, cast(*u8)(*((name_storage_1[0]).items)), span)
                         if (instance == cast(*IR.ZirType)((null))) {
                             return 0
                         }
-                        TypeApplicationScope(module, cast(*u8)(*(((buffers).canonical).items)), generic_public, generic_file_private, (generic).is_package_private, instance)
+                        TypeApplicationScope(module, cast(*u8)(*(((buffers).canonical).items)), generic_public, generic_file_private, generic_package_private, instance)
                         (instance).is_type_instance = 1
                         (instance).is_synthetic_application = 1
                         copy_text(cast(*u8)(*((instance).template_name)), cast(usize)(cast(u64)size_of(S12Array128_u8)), cast(*u8)(*((base_storage_0[0]).items)))

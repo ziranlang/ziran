@@ -1755,9 +1755,10 @@ contextual_owned_closure :: (c: *Checker, index: s32, expected: *u8, owned: *IR.
             unused IR.CopyText(invoke.exprs[i].op[:], "*")
         }
     }
-    // Add the checked hidden argument and a typed view of this allocation.
+    // Slice signatures have already been normalized. Keep the hidden argument
+    // canonical too, so rechecking saved IR cannot change its signature text.
     original_args := IR.CText(FunctionArgs(invoke))
-    hidden_args := closure_join("__tsx_state: *u8", ifx original_args.count > 0 then ", " else "", original_args)
+    hidden_args := closure_join("__tsx_state:*u8", ifx original_args.count > 0 then ", " else "", original_args)
     invoke.args_text = Services.KeepParameters(hidden_args)
     invoke.default_args_text = null
     unused IR.CopyText(invoke.capture_environment[:], env_name)

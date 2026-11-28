@@ -989,11 +989,16 @@ before a portable bundle runs.
 
 `std/net_http_curl_linux.zi` provides bounded native HTTP transfers.
 `SendCurlObservedWithin(request, output, timeout_ms, observer, context,
- direct=false, decode_content=true)` also calls the observer with each response
+ direct=false, decode_content=true, tls={})` also calls the observer with each response
 header line, including status and blank lines. The line borrows native storage
 only during the callback; copy any retained value. Returning false aborts the
 transfer. Set `decode_content=false` to receive the encoded body unchanged and
 `direct=true` to bypass inherited proxies and retain redirect responses.
+Optional `CurlTlsOptions` supplies a CA file and a borrowed TLS-context
+configurator. Its native context uses libcurl's selected backend ABI, which the
+caller must establish before inspecting it; returning false aborts the handshake.
+Custom TLS options use a private handle and connection. Callback data and custom
+trust settings therefore cannot survive the request or affect a pooled transfer.
 
 `std/constant_time.zi` compares equal-length byte spans without branching on
 byte values. Use fixed-size buffers for secret tags so unequal lengths remain

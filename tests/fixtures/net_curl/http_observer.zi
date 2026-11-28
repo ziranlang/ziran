@@ -14,6 +14,12 @@ Observe :: (line: string, opaque: *void) -> bool {
     if line == "Location: /ok\r\n" { probe.location = true }
     return !probe.reject
 }
+ConfigureTls :: (context: *void, opaque: *void) -> bool {
+    unused context
+    probe := cast(*HeaderProbe)opaque
+    probe.reject = true
+    return false
+}
 ObserveResponse :: (url: string) -> bool {
     body: [256]u8
     probe: HeaderProbe
@@ -36,6 +42,16 @@ ObserveResponse :: (url: string) -> bool {
     request.url = TextConcat(url, "/ok")
     rejected := Curl.SendCurlObservedWithin(request,body[:],1000,observer,cast(*void)*probe,true,false)
     if rejected.code == 0 || rejected.problem != .TransportError || rejected.length != 0 || body[0] != 0 { return false }
+    probe.reject = false
+    configure: Curl.CurlTlsConfigurator = ConfigureTls
+    tls: Curl.CurlTlsOptions = .{configure=configure,context=cast(*void)*probe}
+    // Plain HTTP never supplies a TLS context, even with request-local options.
+    plain := Curl.SendCurlObservedWithin(request,body[:],1000,observer,cast(*void)*probe,true,false,tls)
+    if plain.code != 0 || plain.status != 200 || plain.length != 5 || probe.reject { return false }
+    invalid_path: [3]u8 = .[97,0,98]
+    tls.ca_file = TextView(invalid_path[:])
+    invalid := Curl.SendCurlObservedWithin(request,body[:],1000,observer,cast(*void)*probe,true,false,tls)
+    if invalid.problem != .ConfigureError || invalid.length != 0 || body[0] != 0 { return false }
     return true
 }
 #program_export

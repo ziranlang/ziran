@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Allow request-local native HTTP TLS context configuration and CA files. Keep custom TLS connections private so borrowed callback state and trust settings cannot leak into pooled requests.
+
 - Release the owned intermediate buffer after capped file appends while preserving whole-file ownership and rollback behavior. Verify repeated successful reads and refused oversized reads under address, undefined-behavior and leak sanitizers.
 
 - Expose borrowed response-header observers and encoded-body control for bounded native HTTP transfers. Preserve decoded transfer defaults, direct proxy/redirect behavior and pooled-handle reuse; include the retained native HTTP fixture in the regular checks.

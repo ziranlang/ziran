@@ -46,6 +46,9 @@ CurlProxy :: 10004
 CurlFollowLocation :: 52
 CurlResponseCode :: 2097154
 CurlMaxConnects :: 71
+CurlCaInfo :: 10065
+CurlSslContextFunction :: 20108
+CurlSslContextData :: 10109
 
 CurlPoolSlot :: struct {
     handle: *void
@@ -247,6 +250,24 @@ CurlResult :: struct {
 // to abort the transfer. Status lines and the final blank line are included.
 CurlHeaderObserver :: #type (line: string, context: *void) -> bool;
 
+// The native TLS context belongs to libcurl's selected TLS backend. The caller
+// must establish that backend's ABI before inspecting it. Return false to abort
+// before the handshake. Custom TLS settings use a private connection, so neither
+// callback data nor an authenticated connection survives the request.
+CurlTlsConfigurator :: #type (native_context: *void, context: *void) -> bool;
+CurlTlsOptions :: struct {
+    configure: CurlTlsConfigurator
+    context: *void
+    ca_file: string
+}
+CurlTlsCallback :: #type (handle: *void, native_context: *void, context: *void) -> s32 #c_call;
+ConfigureCurlTls :: (handle: *void, native_context: *void, opaque: *void) -> s32 {
+    unused handle
+    options := cast(*CurlTlsOptions)opaque
+    if options == null || options.configure == null || !options.configure(native_context,options.context) { return 42 }
+    return 0
+}
+
 CurlObservation :: struct { observer: CurlHeaderObserver; context: *void; raw_content: bool; }
 
 CurlOutput :: struct {
@@ -415,12 +436,12 @@ SendCurlDirectWithin :: (request: HttpRequest, output: []u8, timeout_ms: s32) ->
 #program_export
 SendCurlObservedWithin :: (request: HttpRequest, output: []u8, timeout_ms: s32,
     observer: CurlHeaderObserver, context: *void, direct: bool = false,
-    decode_content: bool = true) -> CurlResult {
-    return SendCurlConfigured(request, output, timeout_ms, direct, .{observer=observer,context=context,raw_content=!decode_content})
+    decode_content: bool = true, tls: CurlTlsOptions = .{}) -> CurlResult {
+    return SendCurlConfigured(request, output, timeout_ms, direct, .{observer=observer,context=context,raw_content=!decode_content},tls)
 }
 
 SendCurlConfigured :: (request: HttpRequest, output: []u8, timeout_ms: s32, direct: bool,
-    observation: CurlObservation = .{}) -> CurlResult {
+    observation: CurlObservation = .{}, tls: CurlTlsOptions = .{}) -> CurlResult {
     result: CurlResult
     result.code = -1
     if output.count == 0 { result.problem = .InvalidLimit; return result }
@@ -440,7 +461,11 @@ SendCurlConfigured :: (request: HttpRequest, output: []u8, timeout_ms: s32, dire
         return result
     }
     if !CurlReady() { result.problem = .Unavailable; return result }
-    lease := AcquireCurl(request.url, direct)
+    lease: CurlLease
+    if tls.configure != null || tls.ca_file.count > 0 {
+        lease.slot = -1
+        lease.handle = curl_easy_init()
+    } else { lease = AcquireCurl(request.url, direct) }
     handle := lease.handle
     if handle == null { result.problem = .Unavailable; return result }
 
@@ -463,6 +488,17 @@ SendCurlConfigured :: (request: HttpRequest, output: []u8, timeout_ms: s32, dire
     SetCurlLong(handle, CurlConnectTimeoutMs, 10000) &&
     SetCurlLong(handle, CurlNoSignal, 1) &&
     SetCurlLong(handle, CurlMaxConnects, 1)
+    ca_path: Vec(u8)
+    if configured && tls.ca_file.count > 0 {
+        for byte: tls.ca_file { if byte == 0 { configured = false }; unused VecPush(ca_path,byte) }
+        unused VecPush(ca_path,cast(u8)0)
+        configured = configured && curl_easy_setopt(handle,CurlCaInfo,*ca_path[0]) == 0
+    }
+    if configured && tls.configure != null {
+        callback: CurlTlsCallback = ConfigureCurlTls
+        configured = curl_easy_setopt(handle,CurlSslContextData,*tls) == 0 &&
+            curl_easy_setopt(handle,CurlSslContextFunction,callback) == 0
+    }
     if configured && !observation.raw_content {
         configured = curl_easy_setopt(handle, CurlAcceptEncoding, *encoding[0]) == 0
     } else if configured {

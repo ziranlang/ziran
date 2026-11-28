@@ -64,3 +64,21 @@ The current tree was rebuilt on physical Alpha with `/home/wao/.local/bin/make -
 Receipt SHA-256: `87d9b6f3edf92f06c2ddb14f841eba61954acf8c3b528edc6b60f64197d31707`.
 
 Local verification independently recalculated all 116 filtered medians and exclusion lists, matched workload names and input sizes to the catalog, and checked checksums, sample counts, host provenance and host-gate acceptance.
+
+## ZX assembly variant — fresh paired run
+
+Same optimized bundle and native backend on physical Alpha; nine accepted alternating trials per variant, learning and disk caches off. Each trial checks the same checksum for 48 batches of 20,000 sixteen-lane additions. Assembly inspection confirms `vpaddw` for AVX2. Medians use the same symmetric IQR rule.
+
+| Measurement | Portable body | AVX2 template |
+| --- | ---: | ---: |
+| Bundle load, ms | 1.167 | 1.201 |
+| Instantiate/compile, ms | 0.430 | 0.723 |
+| First batch, ms | 0.426 | 0.337 |
+| Warm run, ms | 17.497 | 12.816 |
+| Warm throughput, billion lanes/s | 0.878 | 1.199 |
+| JIT kernel code, bytes | 209 | 59 |
+| Total JIT function code, bytes | 1148 | 998 |
+
+AVX2 improved median warm throughput by **36.53%** for this one kernel on this CPU. This is separate from the 29-workload language comparison above.
+
+[Raw paired receipt](../zx-asm-variant-alpha-2026-11-28.json) retains all samples, per-metric exclusions, artifact hashes and code-selection evidence.

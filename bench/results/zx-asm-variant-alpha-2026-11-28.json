@@ -1,0 +1,895 @@
+{
+  "host": "alpha",
+  "virtualization": "none",
+  "cpu": "Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
+  "cpu_flags": [
+    "fpu",
+    "vme",
+    "de",
+    "pse",
+    "tsc",
+    "msr",
+    "pae",
+    "mce",
+    "cx8",
+    "apic",
+    "sep",
+    "mtrr",
+    "pge",
+    "mca",
+    "cmov",
+    "pat",
+    "pse36",
+    "clflush",
+    "dts",
+    "acpi",
+    "mmx",
+    "fxsr",
+    "sse",
+    "sse2",
+    "ss",
+    "ht",
+    "tm",
+    "pbe",
+    "syscall",
+    "nx",
+    "pdpe1gb",
+    "rdtscp",
+    "lm",
+    "constant_tsc",
+    "art",
+    "arch_perfmon",
+    "pebs",
+    "bts",
+    "rep_good",
+    "nopl",
+    "xtopology",
+    "nonstop_tsc",
+    "cpuid",
+    "aperfmperf",
+    "pni",
+    "pclmulqdq",
+    "dtes64",
+    "monitor",
+    "ds_cpl",
+    "vmx",
+    "smx",
+    "est",
+    "tm2",
+    "ssse3",
+    "sdbg",
+    "fma",
+    "cx16",
+    "xtpr",
+    "pdcm",
+    "pcid",
+    "sse4_1",
+    "sse4_2",
+    "x2apic",
+    "movbe",
+    "popcnt",
+    "tsc_deadline_timer",
+    "aes",
+    "xsave",
+    "avx",
+    "f16c",
+    "rdrand",
+    "lahf_lm",
+    "abm",
+    "3dnowprefetch",
+    "cpuid_fault",
+    "pti",
+    "ssbd",
+    "ibrs",
+    "ibpb",
+    "stibp",
+    "tpr_shadow",
+    "flexpriority",
+    "ept",
+    "vpid",
+    "ept_ad",
+    "fsgsbase",
+    "tsc_adjust",
+    "bmi1",
+    "avx2",
+    "smep",
+    "bmi2",
+    "erms",
+    "invpcid",
+    "mpx",
+    "rdseed",
+    "adx",
+    "smap",
+    "clflushopt",
+    "intel_pt",
+    "xsaveopt",
+    "xsavec",
+    "xgetbv1",
+    "xsaves",
+    "dtherm",
+    "ida",
+    "arat",
+    "pln",
+    "pts",
+    "hwp",
+    "hwp_notify",
+    "hwp_act_window",
+    "hwp_epp",
+    "vnmi",
+    "md_clear",
+    "flush_l1d",
+    "arch_capabilities"
+  ],
+  "measured_at": "2026-11-28T09:24:48.094299+00:00",
+  "compiler_revision": "51c746b3c8124830d690ad17624b0e7c9594aebc",
+  "seed": 81,
+  "rounds_per_batch": 20000,
+  "batches": 48,
+  "checksum": 166279104,
+  "settings": "--opt, native backend, disk cache off, paired alternating order",
+  "cpu_feature_mask": {
+    "portable": "0",
+    "avx2": null
+  },
+  "producer_ms": 19.885351,
+  "artifacts": {
+    "bundle": {
+      "bytes": 6613,
+      "sha256": "0eaffbf46b0a1fa831a9c65211983561ee4803af08e208adf92df762ab8c50a8"
+    },
+    "runner": {
+      "bytes": 4064016,
+      "sha256": "0b506b9976d1439227268a88c712e57dd9c3dab2c178a675fb798de0502fd931"
+    },
+    "compiler": {
+      "bytes": 5035848,
+      "sha256": "13e738615dde6ec306f51619561aa2d66112da5fab3615f8f83dbe2ef7d9778c"
+    },
+    "runtime": {
+      "bytes": 6465838,
+      "sha256": "7c421606b6bbd0ab81812b56f464e1f3ef4827f078ea155537b8458cd9d02b7e"
+    },
+    "fixture": {
+      "bytes": 777,
+      "sha256": "fb90cf25845685d4d2014612ddc2dc52229015ab86d17e24636f4564695c8cf3"
+    },
+    "host_source": {
+      "bytes": 3914,
+      "sha256": "f84f78091a53f5601b332338ae3657b397cb9d8ce0ac88db4d4b6626d634887c"
+    }
+  },
+  "selection": {
+    "portable": {
+      "kernel": {
+        "bytes": 209,
+        "sha256": "66b63a13c38ce93250da224262d3fa72393f1388f8c3d6a9e7e4fd60d5358338"
+      },
+      "total_function_code_bytes": 1148,
+      "vector_add_mnemonic": null
+    },
+    "avx2": {
+      "kernel": {
+        "bytes": 59,
+        "sha256": "d625f7cebaf81c8caadc02c3b809e0d38371fe81cb87f37caeb07d793e330316"
+      },
+      "total_function_code_bytes": 998,
+      "vector_add_mnemonic": "vpaddw"
+    }
+  },
+  "sample_policy": "symmetric 1.5xIQR, inclusive quartiles, zero-based indices. Host gate: every measured job runs pinned (inherited affinity, no wrapper) to one logical CPU of the quietest core, chosen again before each attempt once its other hyperthread has settled, and is repeated unless that CPU kept its clock within 3% of the job median (10th to 90th percentile), the median reached 95% of the clock calibrated at start, and the hyperthread sibling was busy at most 15% of the job; Go runs with GOMAXPROCS=1 on that CPU. Rejected attempts are retained with their observations.",
+  "samples": {
+    "portable": [
+      {
+        "load_ms": 1.184427023,
+        "instantiate_ms": 0.739390016,
+        "first_ms": 0.424098015,
+        "warm_ms": 17.200487971,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 892997921.0995024,
+        "host_gate": {
+          "cpu": 2,
+          "sibling": 8,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 2,
+              "sibling": 8,
+              "readings": 32,
+              "median_khz": 4500001,
+              "p10_khz": 4497142,
+              "p90_khz": 4500024,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      },
+      {
+        "load_ms": 1.126107097,
+        "instantiate_ms": 0.411029935,
+        "first_ms": 0.424672008,
+        "warm_ms": 17.520483971,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 876688111.2087973,
+        "host_gate": {
+          "cpu": 0,
+          "sibling": 6,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 0,
+              "sibling": 6,
+              "readings": 32,
+              "median_khz": 4397685,
+              "p10_khz": 4299990,
+              "p90_khz": 4499995,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      },
+      {
+        "load_ms": 1.197016954,
+        "instantiate_ms": 1.051862001,
+        "first_ms": 0.440140963,
+        "warm_ms": 17.243875027,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 890751062.388803,
+        "host_gate": {
+          "cpu": 2,
+          "sibling": 8,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 2,
+              "sibling": 8,
+              "readings": 32,
+              "median_khz": 4588618,
+              "p10_khz": 4499969,
+              "p90_khz": 4599998,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      },
+      {
+        "load_ms": 0.293887019,
+        "instantiate_ms": 0.416944027,
+        "first_ms": 0.42482698,
+        "warm_ms": 17.496610999,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 877884294.3286493,
+        "host_gate": {
+          "cpu": 1,
+          "sibling": 7,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 1,
+              "sibling": 7,
+              "readings": 32,
+              "median_khz": 4497597,
+              "p10_khz": 4399996,
+              "p90_khz": 4500020,
+              "sibling_busy": 0.0192,
+              "accepted": true
+            }
+          ]
+        }
+      },
+      {
+        "load_ms": 0.220191002,
+        "instantiate_ms": 0.377602935,
+        "first_ms": 0.430840015,
+        "warm_ms": 17.594359994,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 873007032.0965378,
+        "host_gate": {
+          "cpu": 1,
+          "sibling": 7,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 1,
+              "sibling": 7,
+              "readings": 32,
+              "median_khz": 4500012,
+              "p10_khz": 4496814,
+              "p90_khz": 4599991,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      },
+      {
+        "load_ms": 1.191489935,
+        "instantiate_ms": 1.02511704,
+        "first_ms": 0.426139951,
+        "warm_ms": 17.433986068,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 881037758.0944159,
+        "host_gate": {
+          "cpu": 1,
+          "sibling": 7,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 1,
+              "sibling": 7,
+              "readings": 32,
+              "median_khz": 4499968,
+              "p10_khz": 4400001,
+              "p90_khz": 4500020,
+              "sibling_busy": 0.0189,
+              "accepted": true
+            }
+          ]
+        }
+      },
+      {
+        "load_ms": 1.166567087,
+        "instantiate_ms": 0.430060983,
+        "first_ms": 0.427542925,
+        "warm_ms": 17.51178205,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 877123753.3760877,
+        "host_gate": {
+          "cpu": 0,
+          "sibling": 6,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 0,
+              "sibling": 6,
+              "readings": 32,
+              "median_khz": 4500026,
+              "p10_khz": 4497938,
+              "p90_khz": 4599993,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      },
+      {
+        "load_ms": 0.242727995,
+        "instantiate_ms": 0.404564977,
+        "first_ms": 0.450119019,
+        "warm_ms": 17.140715003,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 896111976.5022441,
+        "host_gate": {
+          "cpu": 5,
+          "sibling": 11,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 5,
+              "sibling": 11,
+              "readings": 32,
+              "median_khz": 4500008,
+              "p10_khz": 4499962,
+              "p90_khz": 4600007,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      },
+      {
+        "load_ms": 1.215152979,
+        "instantiate_ms": 1.189629078,
+        "first_ms": 0.42564702,
+        "warm_ms": 17.626317978,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 871424197.5647627,
+        "host_gate": {
+          "cpu": 1,
+          "sibling": 7,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 1,
+              "sibling": 7,
+              "readings": 32,
+              "median_khz": 4500015,
+              "p10_khz": 4493245,
+              "p90_khz": 4599990,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    ],
+    "avx2": [
+      {
+        "load_ms": 1.205991983,
+        "instantiate_ms": 0.46796298,
+        "first_ms": 0.335882902,
+        "warm_ms": 12.778033972,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 1202062855.1823983,
+        "host_gate": {
+          "cpu": 0,
+          "sibling": 6,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 0,
+              "sibling": 6,
+              "readings": 32,
+              "median_khz": 4499989,
+              "p10_khz": 4492543,
+              "p90_khz": 4500018,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      },
+      {
+        "load_ms": 1.142839909,
+        "instantiate_ms": 0.889028072,
+        "first_ms": 0.332964063,
+        "warm_ms": 13.335651994,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 1151799702.5500364,
+        "host_gate": {
+          "cpu": 5,
+          "sibling": 11,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 5,
+              "sibling": 11,
+              "readings": 32,
+              "median_khz": 4499958,
+              "p10_khz": 4493623,
+              "p90_khz": 4500003,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      },
+      {
+        "load_ms": 1.213516951,
+        "instantiate_ms": 0.556935072,
+        "first_ms": 0.363343,
+        "warm_ms": 12.744713902,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 1205205555.66097,
+        "host_gate": {
+          "cpu": 4,
+          "sibling": 10,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 4,
+              "sibling": 10,
+              "readings": 32,
+              "median_khz": 4499995,
+              "p10_khz": 4499958,
+              "p90_khz": 4500030,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      },
+      {
+        "load_ms": 1.199760914,
+        "instantiate_ms": 2.173560023,
+        "first_ms": 1.92543602,
+        "warm_ms": 12.78550601,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 1201360351.9474626,
+        "host_gate": {
+          "cpu": 1,
+          "sibling": 7,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 1,
+              "sibling": 7,
+              "readings": 32,
+              "median_khz": 4499963,
+              "p10_khz": 4493475,
+              "p90_khz": 4500016,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      },
+      {
+        "load_ms": 1.229907036,
+        "instantiate_ms": 0.46728003,
+        "first_ms": 0.336380005,
+        "warm_ms": 12.955450058,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 1185601421.1189203,
+        "host_gate": {
+          "cpu": 4,
+          "sibling": 10,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 4,
+              "sibling": 10,
+              "readings": 32,
+              "median_khz": 4499990,
+              "p10_khz": 4496964,
+              "p90_khz": 4500019,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      },
+      {
+        "load_ms": 1.202005029,
+        "instantiate_ms": 1.413128972,
+        "first_ms": 0.350567937,
+        "warm_ms": 12.898906946,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 1190798574.1972651,
+        "host_gate": {
+          "cpu": 2,
+          "sibling": 8,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 2,
+              "sibling": 8,
+              "readings": 32,
+              "median_khz": 4499957,
+              "p10_khz": 4399996,
+              "p90_khz": 4500015,
+              "sibling_busy": 0.0189,
+              "accepted": true
+            }
+          ]
+        }
+      },
+      {
+        "load_ms": 1.17079401,
+        "instantiate_ms": 0.972993016,
+        "first_ms": 0.335098028,
+        "warm_ms": 12.918410063,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 1189000807.769141,
+        "host_gate": {
+          "cpu": 5,
+          "sibling": 11,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 5,
+              "sibling": 11,
+              "readings": 32,
+              "median_khz": 4499986,
+              "p10_khz": 4496376,
+              "p90_khz": 4500017,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      },
+      {
+        "load_ms": 0.232549071,
+        "instantiate_ms": 0.407032967,
+        "first_ms": 0.355965018,
+        "warm_ms": 12.746728063,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 1205015116.3564522,
+        "host_gate": {
+          "cpu": 5,
+          "sibling": 11,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 5,
+              "sibling": 11,
+              "readings": 31,
+              "median_khz": 4500019,
+              "p10_khz": 4499978,
+              "p90_khz": 4597411,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      },
+      {
+        "load_ms": 1.179827929,
+        "instantiate_ms": 0.926090002,
+        "first_ms": 0.337958932,
+        "warm_ms": 12.845845938,
+        "checksum": 166279104,
+        "batches": 48,
+        "backend": "NativeX86_64",
+        "native_ok": true,
+        "lanes_per_second": 1195717282.7803223,
+        "host_gate": {
+          "cpu": 5,
+          "sibling": 11,
+          "reference_khz": 4499966,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 5,
+              "sibling": 11,
+              "readings": 32,
+              "median_khz": 4499991,
+              "p10_khz": 4493210,
+              "p90_khz": 4500028,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "summary": {
+    "portable": {
+      "load_ms": {
+        "median": 1.166567087,
+        "excluded_indices": [],
+        "lower_fence": -1.0525173549999998,
+        "upper_fence": 2.5378943089999995
+      },
+      "instantiate_ms": {
+        "median": 0.430060983,
+        "excluded_indices": [],
+        "lower_fence": -0.5101007225,
+        "upper_fence": 1.9462476975
+      },
+      "first_ms": {
+        "median": 0.42564702,
+        "excluded_indices": [
+          2,
+          7
+        ],
+        "lower_fence": 0.4158074275,
+        "upper_fence": 0.4398595675
+      },
+      "warm_ms": {
+        "median": 17.496610999,
+        "excluded_indices": [],
+        "lower_fence": 16.828961611000004,
+        "upper_fence": 17.935397387000002
+      },
+      "lanes_per_second": {
+        "median": 877884294.3286493,
+        "excluded_indices": [],
+        "lower_fence": 855593684.4387889,
+        "upper_fence": 911845489.1588116
+      }
+    },
+    "avx2": {
+      "load_ms": {
+        "median": 1.2008829715,
+        "excluded_indices": [
+          7
+        ],
+        "lower_fence": 1.1179970505,
+        "upper_fence": 1.2587889425000003
+      },
+      "instantiate_ms": {
+        "median": 0.722981572,
+        "excluded_indices": [
+          3
+        ],
+        "lower_fence": -0.28958207399999997,
+        "upper_fence": 1.73053807
+      },
+      "first_ms": {
+        "median": 0.33716946849999996,
+        "excluded_indices": [
+          3
+        ],
+        "lower_fence": 0.30575972799999995,
+        "upper_fence": 0.3860881920000001
+      },
+      "warm_ms": {
+        "median": 12.815675974000001,
+        "excluded_indices": [
+          1
+        ],
+        "lower_fence": 12.567469835499999,
+        "upper_fence": 13.1289741995
+      },
+      "lanes_per_second": {
+        "median": 1198538817.3638926,
+        "excluded_indices": [
+          1
+        ],
+        "lower_fence": 1169407736.6492548,
+        "upper_fence": 1221655926.3022842
+      }
+    }
+  }
+}
